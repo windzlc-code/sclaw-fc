@@ -19,7 +19,7 @@
   <meta name="twitter:description" content="提供海外買家日本不動產購買支援與站內查詢。{{ seo_description_suffix }}">
   <meta name="twitter:image" content="https://images.unsplash.com/photo-1480796927426-f609979314bd?auto=format&amp;fit=crop&amp;w=1600&amp;q=80">
   <link rel="canonical" href="{{ site_url }}/">
-  <link rel="stylesheet" href="/static/site.css?v=20260607-taiwu-home-flow">
+  <link rel="stylesheet" href="/static/site.css?v=20260606-map-workbench-polish">
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
   <script>window.__SUPPORT_AVATAR_ALT__={{ (seo_phrase_brand ~ '｜' ~ seo_phrase_entry ~ '｜智能助理') | tojson }};</script>
@@ -81,26 +81,7 @@
             <h2>上方頁籤快速切換，集中查詢與翻譯操作</h2>
           </div>
         </div>
-        <div class="home-hero-finder" aria-label="熱門日本不動產條件">
-          <div class="home-hero-finder-tabs" role="group" aria-label="查詢入口">
-            <button type="button" class="home-hero-finder-tab is-active" data-home-quick-tab="cases" onclick="homeQuickSearch(this)">買屋案件</button>
-            <button type="button" class="home-hero-finder-tab" data-home-quick-tab="ai" data-home-quick-run="false" onclick="homeQuickSearch(this)">AI 摘要</button>
-            <button type="button" class="home-hero-finder-tab" data-home-quick-tab="cases" data-home-quick-scroll="jp-map-hub" data-home-quick-geo="map" data-home-quick-run="false" onclick="homeQuickSearch(this)">地圖找房</button>
-          </div>
-          <div class="home-hero-finder-actions" role="group" aria-label="熱門條件">
-            <button type="button" data-home-quick-region="關東" data-home-quick-price="3000-4000" data-home-quick-layout="2-2" data-home-quick-types="公寓,大樓" onclick="homeQuickSearch(this)">東京・關東</button>
-            <button type="button" data-home-quick-region="關西" data-home-quick-price="2000-3000" data-home-quick-layout="2-2" data-home-quick-types="公寓,大樓" onclick="homeQuickSearch(this)">大阪・關西</button>
-            <button type="button" data-home-quick-region="東海" data-home-quick-price="1500-3000" data-home-quick-layout="1-1" data-home-quick-types="公寓,大樓" onclick="homeQuickSearch(this)">名古屋・東海</button>
-            <button type="button" data-home-quick-region="九州" data-home-quick-price="0-1000" data-home-quick-layout="1-1" data-home-quick-types="公寓,套房" onclick="homeQuickSearch(this)">九州低總價</button>
-          </div>
-        </div>
         <button type="button" class="home-hero-sound-toggle" data-home-hero-sound-toggle aria-pressed="false">開啟聲音輪播</button>
-      </div>
-      <div class="home-trust-strip" aria-label="服務重點">
-        <span>市場資料</span>
-        <span>地圖找房</span>
-        <span>AI 整理</span>
-        <span>顧問對接</span>
       </div>
     </section>
 
@@ -1857,84 +1838,6 @@
         }
       });
     }
-
-    function setSelectValueIfPresent(id, value) {
-      const sel = document.getElementById(id);
-      if (!sel || value == null || value === '') return false;
-      const wanted = String(value);
-      const opt = Array.from(sel.options || []).find((o) => String(o.value) === wanted);
-      if (!opt) return false;
-      sel.value = wanted;
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }
-
-    function applyHomeQuickPropertyTypes(raw) {
-      const picks = String(raw || '')
-        .split(',')
-        .map((x) => x.trim())
-        .filter(Boolean);
-      if (!picks.length) return;
-      const wanted = new Set(picks);
-      document.querySelectorAll('input[name="figure_property_types"]').forEach((input) => {
-        input.checked = wanted.has(String(input.value || '').trim());
-      });
-    }
-
-    function markHomeQuickActive(btn) {
-      const isTab = btn.hasAttribute('data-home-quick-tab');
-      if (isTab) {
-        document.querySelectorAll('.home-hero-finder [data-home-quick-tab]').forEach((el) => {
-          el.classList.toggle('is-active', el === btn);
-        });
-        return;
-      }
-      document.querySelectorAll('.home-hero-finder [data-home-quick-region]').forEach((el) => {
-        el.classList.toggle('is-active', el === btn);
-      });
-      document.querySelectorAll('.home-hero-finder [data-home-quick-tab]').forEach((el) => {
-        el.classList.remove('is-active');
-      });
-      const casesTab = document.querySelector('.home-hero-finder [data-home-quick-tab="cases"]');
-      if (casesTab) casesTab.classList.add('is-active');
-    }
-
-    async function homeQuickSearch(btn) {
-      if (!(btn instanceof Element)) return;
-      markHomeQuickActive(btn);
-      const tab = String(btn.getAttribute('data-home-quick-tab') || 'cases').trim();
-      const geo = String(btn.getAttribute('data-home-quick-geo') || 'region').trim();
-      const shouldRun = String(btn.getAttribute('data-home-quick-run') || 'true') !== 'false';
-      const scrollTarget = String(btn.getAttribute('data-home-quick-scroll') || '').trim();
-      if (typeof setSmartQueryMainTab === 'function') setSmartQueryMainTab(tab === 'ai' ? 'ai' : 'cases');
-      setSelectValueIfPresent('figure_geo_mode', geo === 'map' || geo === 'commute' ? geo : 'region');
-      setSelectValueIfPresent('figure_region', btn.getAttribute('data-home-quick-region') || '');
-      setSelectValueIfPresent('figure_price_preset', btn.getAttribute('data-home-quick-price') || '');
-      setSelectValueIfPresent('figure_layout_preset', btn.getAttribute('data-home-quick-layout') || '');
-      applyHomeQuickPropertyTypes(btn.getAttribute('data-home-quick-types') || '');
-      const queryPanel = document.getElementById('query-dialog');
-      if (queryPanel && !shouldRun && !scrollTarget) {
-        try {
-          queryPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } catch (_) {
-          queryPanel.scrollIntoView(true);
-        }
-      }
-      if (scrollTarget) {
-        const target = document.getElementById(scrollTarget);
-        if (target) {
-          try {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          } catch (_) {
-            target.scrollIntoView(true);
-          }
-        }
-      }
-      if (shouldRun && typeof runDialogQuery === 'function') {
-        await runDialogQuery();
-      }
-    }
-    window.homeQuickSearch = homeQuickSearch;
 
     /** 日本不動產案件區：#query-dialog 委派（①②③ 分頁、單一主查詢按鈕），不依賴行內 onclick */
     (function bindSmartQueryTabsOnDialog() {
