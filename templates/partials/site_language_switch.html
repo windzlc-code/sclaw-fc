@@ -5,7 +5,7 @@
   </div>
   <div class="site-language-switch-actions" role="group" aria-label="選擇中文版本">
     <button type="button" class="site-language-btn is-active" data-site-lang-choice="hant" aria-pressed="true">繁體中文</button>
-    <button type="button" class="site-language-btn" data-site-lang-choice="hans" aria-pressed="false">简体中文</button>
+    <button type="button" class="site-language-btn" data-site-lang-choice="hans" aria-pressed="false">簡體中文</button>
   </div>
 </section>
 <script>
@@ -13,10 +13,55 @@
     const STORAGE_KEY = 'sclaw.site_lang.v1';
     const HOME_HANS_PHRASES = [
       ['日本不動產案件｜BOT 智慧查詢', '日本不动产案件｜BOT 智慧查询'],
+      ['日本不動產案件｜ 智慧查詢', '日本不动产案件｜ 智慧查询'],
+      ['日本不動產案件｜智慧查詢', '日本不动产案件｜智慧查询'],
       ['BOT 智能判斷＋查詢案件', 'BOT 智能判断＋查询案件'],
       ['本網站預設查詢重點｜買屋案件', '本网站预设查询重点｜买屋案件'],
       ['篩選條件（區域、類型、總價、格局、沿線／車站）', '筛选条件（区域、类型、总价、格局、沿线／车站）'],
       ['沿線／車站查詢', '沿线／车站查询'],
+      ['上方頁籤快速切換，集中查詢與翻譯操作', '上方页签快速切换，集中查询与翻译操作'],
+      ['提供海外買家日本不動產購買支援', '提供海外买家日本不动产购买支援'],
+      ['合法合規仲介轉介與專業流程對接', '合法合规中介转介与专业流程对接'],
+      ['日本找房工作台', '日本找房工作台'],
+      ['日本區域圖', '日本区域图'],
+      ['日本全域（不限區域）', '日本全域（不限区域）'],
+      ['都道府縣一覽', '都道府县一览'],
+      ['智慧查詢', '智慧查询'],
+      ['智能客服', '智能客服'],
+      ['知識庫', '知识库'],
+      ['AI 摘要', 'AI 摘要'],
+      ['買屋案件', '买屋案件'],
+      ['開啟聲音輪播', '开启声音轮播'],
+      ['播報語音（選開）', '播报语音（选开）'],
+      ['播報 AI 摘要', '播报 AI 摘要'],
+      ['自動播報', '自动播报'],
+      ['與下方摘要連動。', '与下方摘要联动。'],
+      ['尚未執行查詢。', '尚未执行查询。'],
+      ['請先選區域、類型、總價、格局', '请先选区域、类型、总价、格局'],
+      ['查詢日本不動產案件', '查询日本不动产案件'],
+      ['查詢方式', '查询方式'],
+      ['地圖點選', '地图点选'],
+      ['捲動到地圖工作台', '卷动到地图工作台'],
+      ['清除地圖選擇', '清除地图选择'],
+      ['物件類型', '物件类型'],
+      ['房數不含加蓋', '房数不含加盖'],
+      ['詳細翻譯頁', '详细翻译页'],
+      ['原始網址', '原始网址'],
+      ['原始連結', '原始链接'],
+      ['來源搜尋', '来源搜索'],
+      ['來源連結暫無', '来源链接暂无'],
+      ['站內明細', '站内明细'],
+      ['收藏案件', '收藏案件'],
+      ['暫無物件縮圖', '暂无物件缩略图'],
+      ['備援圖', '备用图'],
+      ['環境變數', '环境变量'],
+      ['變數', '变量'],
+      ['進階模組', '进阶模组'],
+      ['下載 CSV 範本', '下载 CSV 范本'],
+      ['套用篩選', '应用筛选'],
+      ['尚未登入。', '尚未登录。'],
+      ['登入', '登录'],
+      ['登出', '退出'],
       ['都縣／都市圈', '都县／都市圈'],
       ['交通系統', '交通系统'],
       ['沿線／路線', '沿线／路线'],
@@ -38,8 +83,10 @@
       ['全站文字以這兩個按鈕切換。', '全站文字以这两个按钮切换。'],
       ['選擇中文版本', '选择中文版本'],
       ['繁體中文', '繁体中文'],
+      ['簡體中文', '简体中文'],
       ['地圖', '地图'],
       ['收合地圖區', '收合地图区'],
+      ['展開地圖區', '展开地图区'],
       ['顧問', '顾问'],
       ['請輸入', '请输入'],
       ['查詢', '查询'],
@@ -62,9 +109,31 @@
       '幣': '币', '雜': '杂', '寬': '宽', '窄': '窄', '離': '离', '雖': '虽', '處': '处', '續': '续',
       '傳': '传', '庫': '库', '靈': '灵', '據': '据', '彙': '汇', '請': '请', '尋': '寻', '隱': '隐',
       '藏': '藏', '頁': '页', '須': '须', '優': '优', '化': '化', '報': '报', '單': '单', '語': '语',
-      '買屋': '买屋'
+      '買屋': '买屋',
+      '簡': '简', '華': '华', '廈': '厦', '辦': '办', '倉': '仓', '廠': '厂', '別': '别', '墅': '墅',
+      '詢': '询', '訊': '讯', '資': '资', '譯': '译', '聲': '声', '輪': '轮', '轉': '转', '規': '规',
+      '識': '识', '屬': '属', '篩': '筛', '內': '内', '頂': '顶', '帶': '带', '鍵': '键', '貸': '贷',
+      '稅': '税', '務': '务', '預': '预', '測': '测', '狀': '状', '僅': '仅', '執': '执', '動': '动',
+      '聯': '联', '絡': '络', '啟': '启', '維': '维', '組': '组', '註': '注', '記': '记', '銷': '销',
+      '齊': '齐', '對': '对', '頁': '页', '題': '题', '詳': '详', '細': '细', '連': '连', '結': '结',
+      '暫': '暂', '縮': '缩', '體': '体', '須': '须', '從': '从', '讓': '让', '匯': '汇', '併': '并',
+      '碼': '码', '權': '权', '限': '限', '顯': '显', '儲': '储', '刪': '删', '舊': '旧', '發': '发',
+      '順': '顺', '張': '张', '親': '亲', '橫': '横', '視': '视', '覺': '觉', '產': '产', '築': '筑',
+      '陽': '阳', '積': '积', '讀': '读', '訓': '训', '練': '练', '評': '评', '估': '估', '銷': '销',
+      '售': '售', '戶': '户', '獲': '获', '達': '达', '徑': '径', '圓': '圆', '邊': '边', '畫': '画',
+      '區': '区', '瀏覽': '浏览',
+      '網': '网', '說': '说', '綠': '绿', '熱': '热', '後': '后', '門': '门', '編': '编', '輯': '辑',
+      '確': '确', '認': '认', '鮮': '鲜', '補': '补', '無': '无', '時': '时', '減': '减', '遲': '迟',
+      '環': '环', '變': '变', '鐵': '铁', '側': '侧', '約': '约', '質': '质', '彈': '弹', '窗': '窗',
+      '繩': '绳', '沖': '冲', '東': '东', '陸': '陆', '関': '关', '圏': '圈', '込': '入', '転': '转',
+      '統': '统', '階': '阶', '於': '于', '還': '还', '議': '议', '護': '护', '範': '范', '斷': '断',
+      '額': '额', '審': '审', '核': '核', '調': '调', '據': '据', '態': '态', '劃': '划', '佔': '占',
+      '壓': '压', '彎': '弯', '圍': '围', '壞': '坏', '陰': '阴', '曆': '历', '頁': '页', '簽': '签',
+      '試': '试'
     };
     const HOME_LANG_ATTRS = ['placeholder', 'title', 'aria-label', 'data-text', 'value'];
+    let siteLanguageApplying = false;
+    let siteLanguageObserverTimer = 0;
 
     function normalizeSiteLang(lang) {
       const v = String(lang || '').toLowerCase();
@@ -91,7 +160,7 @@
       HOME_HANS_PHRASES.forEach(([from, to]) => {
         out = out.split(from).join(to);
       });
-      out = out.replace(/[體動產國專業顧問購買賣區縣線車點選擇複總價萬顯較給過濾條筆數圖欄場間開關閉這個鈕換會參來進與並為將應氣實檢覽節態設備構築樓層廣臺灣讀寫導輸載歷儲啟塊摺標籤類驟幣雜寬離雖處續傳庫靈據彙請尋隱頁須優報單語]/g, (ch) => HOME_HANS_CHAR_MAP[ch] || ch);
+      out = out.replace(/[\u4e00-\u9fff]/g, (ch) => HOME_HANS_CHAR_MAP[ch] || ch);
       return out;
     }
     function shouldSkipSiteLangNode(el) {
@@ -103,6 +172,7 @@
       const pick = normalizeSiteLang(lang);
       const root = document.body;
       if (!root) return;
+      siteLanguageApplying = true;
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
         acceptNode(node) {
           const parent = node.parentElement;
@@ -116,7 +186,8 @@
       while (walker.nextNode()) nodes.push(walker.currentNode);
       nodes.forEach((node) => {
         if (typeof node.__sclawHantText !== 'string') node.__sclawHantText = String(node.nodeValue || '');
-        node.nodeValue = pick === 'hans' ? toHansText(node.__sclawHantText) : node.__sclawHantText;
+        const nextText = pick === 'hans' ? toHansText(node.__sclawHantText) : node.__sclawHantText;
+        if (String(node.nodeValue || '') !== nextText) node.nodeValue = nextText;
       });
       root.querySelectorAll('*').forEach((el) => {
         if (shouldSkipSiteLangNode(el)) return;
@@ -124,9 +195,11 @@
           if (!el.hasAttribute(attr)) return;
           const key = `sclawHantAttr_${attr}`;
           if (typeof el[key] !== 'string') el[key] = String(el.getAttribute(attr) || '');
-          el.setAttribute(attr, pick === 'hans' ? toHansText(el[key]) : el[key]);
+          const nextAttr = pick === 'hans' ? toHansText(el[key]) : el[key];
+          if (String(el.getAttribute(attr) || '') !== nextAttr) el.setAttribute(attr, nextAttr);
         });
       });
+      siteLanguageApplying = false;
     }
     function applySiteLanguage(lang) {
       const pick = normalizeSiteLang(lang);
@@ -187,6 +260,23 @@
         });
       });
       applySiteLanguage(getInitialSiteLang());
+      try {
+        const observer = new MutationObserver(() => {
+          if (siteLanguageApplying) return;
+          window.clearTimeout(siteLanguageObserverTimer);
+          siteLanguageObserverTimer = window.setTimeout(() => {
+            const pick = typeof window.getSiteLanguagePreference === 'function' ? window.getSiteLanguagePreference() : getInitialSiteLang();
+            applySiteLanguageText(pick);
+          }, 40);
+        });
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true,
+          attributeFilter: HOME_LANG_ATTRS,
+        });
+      } catch (_) {}
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSiteLanguageSwitch);
     else initSiteLanguageSwitch();

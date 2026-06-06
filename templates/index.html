@@ -198,10 +198,10 @@
     </section>
 
     <section id="query-dialog" class="panel query-dialog jp-map-hub-smart-dock" style="display:block;margin-top:0;border-top-left-radius:0;border-top-right-radius:0;border-top:1px solid #dbe4f0;" aria-busy="false" aria-labelledby="query-dialog-main-title">
-      <h2 id="query-dialog-main-title">日本不动产案件｜ 智慧查询</h2>
+      <h2 id="query-dialog-main-title">日本不動產案件｜ 智慧查詢</h2>
       <div class="search-row-basic smart-query-run-row">
         <input id="dialog_keyword" type="hidden" value="">
-        <button type="button" data-query-action="smart-query-run">日本不动产案件｜ 智慧查询</button>
+        <button type="button" data-query-action="smart-query-run">日本不動產案件｜ 智慧查詢</button>
       </div>
 
       <div class="query-tab-nav smart-query-main-nav" role="tablist" aria-label="日本不動產案件查詢分區">
@@ -1649,7 +1649,7 @@
         <label class="muted">繁中標題
           <input id="admin-case-edit-title" type="text" autocomplete="off" style="width:100%;box-sizing:border-box;">
         </label>
-        <label class="muted" style="display:block;margin-top:0.35rem;">简中標題（選填）
+        <label class="muted" style="display:block;margin-top:0.35rem;">簡中標題（選填）
           <input id="admin-case-edit-title-hans" type="text" autocomplete="off" style="width:100%;box-sizing:border-box;">
         </label>
         <label class="muted" style="display:block;margin-top:0.35rem;">交易別覆寫
@@ -3419,7 +3419,7 @@
           <p class="muted">來源：<a href="${item.item_url}" target="_blank" rel="nofollow noopener">${item.source_name}</a>｜<a href="/case/${item.source_item_id}">查看案例數據</a></p>
           <p class="result-summary">${(item.body_zh_hant || '').slice(0, 180)}...</p>
           <details>
-            <summary>查看更多（含简体）</summary>
+            <summary>查看更多（含簡體）</summary>
             <p>${item.body_zh_hant}</p>
             <p>${item.body_zh_hans}</p>
           </details>
@@ -10861,7 +10861,7 @@
         }
         if (d.body_zh_hans) {
           const tHans = stripLinesThatAreOnlyMediaUrls(String(d.body_zh_hans).slice(0, 8000));
-          h += `<h4 class="admin-case-preview-sub">中文摘要（简）</h4><div class="admin-case-preview-text">${esc(tHans)}</div>`;
+          h += `<h4 class="admin-case-preview-sub">中文摘要（簡）</h4><div class="admin-case-preview-text">${esc(tHans)}</div>`;
         }
         if (allVids.length) {
           h += '<p class="muted"><strong>影音</strong>（可內嵌播放或另開連結）</p><div class="admin-case-preview-video-grid">';
@@ -14364,9 +14364,9 @@
       let html = `
         <div class="fallback-note panel">
           <p><strong>關鍵字（繁）</strong>：${esc(data.keyword_zh_hant || keyword)}</p>
-          <p><strong>關鍵字（简）</strong>：${esc(data.keyword_zh_hans || keyword)}</p>
+          <p><strong>關鍵字（簡）</strong>：${esc(data.keyword_zh_hans || keyword)}</p>
           <p><strong>小結論（繁）</strong>：${esc(data.conclusion_zh_hant || '')}</p>
-          <p><strong>小結論（简）</strong>：${esc(data.conclusion_zh_hans || '')}</p>
+          <p><strong>小結論（簡）</strong>：${esc(data.conclusion_zh_hans || '')}</p>
           <p><a href="${esc(data.cse_url || '#')}" target="_blank" rel="nofollow noopener">查看原始查詢結果</a></p>
         </div>
       `;
@@ -14380,7 +14380,7 @@
               <a href="${esc(item.url)}" target="_blank" rel="nofollow noopener">${esc(item.title_zh_hant || item.title_jp)}</a><br>
               <span class="muted">JP: ${esc(item.title_jp || '')}</span><br>
               <span class="muted">繁中摘要：${esc(sanitizeSnippetText(item.snippet_zh_hant || item.snippet_jp || ''))}</span><br>
-              <span class="muted">简中摘要：${esc(sanitizeSnippetText(item.snippet_zh_hans || item.snippet_jp || ''))}</span>
+              <span class="muted">簡中摘要：${esc(sanitizeSnippetText(item.snippet_zh_hans || item.snippet_jp || ''))}</span>
             </li>
           `;
         }
@@ -14414,7 +14414,7 @@
             <h3><a href="${detailUrl}">${esc(item.title_zh_hant || item.title_jp)}</a></h3>
             <p class="muted">JP：${esc(item.title_jp || '')}</p>
             <p>${esc(cleanSnippetHant)}</p>
-            <p class="muted">简中：${esc(cleanSnippetHans)}</p>
+            <p class="muted">簡中：${esc(cleanSnippetHans)}</p>
             <p><a href="${esc(item.url)}" target="_blank" rel="nofollow noopener">原始連結</a> ｜ <a href="${detailUrl}">詳細翻譯頁</a></p>
           </article>
         `;
@@ -14641,9 +14641,9 @@
       let html = `
         <div class="panel fallback-note">
           <p><strong>關鍵字（繁）</strong>：${esc(data.keyword_zh_hant || keyword)}</p>
-          <p><strong>關鍵字（简）</strong>：${esc(data.keyword_zh_hans || keyword)}</p>
+          <p><strong>關鍵字（簡）</strong>：${esc(data.keyword_zh_hans || keyword)}</p>
           <p><strong>小結論（繁）</strong>：${esc(data.conclusion_zh_hant || '')}</p>
-          <p><strong>小結論（简）</strong>：${esc(data.conclusion_zh_hans || '')}</p>
+          <p><strong>小結論（簡）</strong>：${esc(data.conclusion_zh_hans || '')}</p>
           <p class="muted">查詢筆數：買屋不動產 ${totalCount} 筆</p>
           ${data.is_db_collected ? `<p class="muted">資料來源：依入庫日期排序統計（最多蒐集 ${Number(data.collect_limit || 10000)} 筆；本頁顯示前 ${Number(data.display_limit || (data.items || []).length)} 筆）。</p>` : ''}
         </div>
@@ -16399,7 +16399,7 @@
             <h3><a href="${detailUrl}">${esc(item.title_zh_hant || item.title_jp || '')}</a></h3>
             <p class="muted">JP：${esc(item.title_jp || '')}</p>
             <p>${linkifyText(cleanSnippetHant)}</p>
-            <p class="muted">简中：${linkifyText(cleanSnippetHans)}</p>
+            <p class="muted">簡中：${linkifyText(cleanSnippetHans)}</p>
             <p><a href="${esc(item.url)}" target="_blank" rel="nofollow noopener">原始網址</a> ｜ <a href="${detailUrl}">詳細翻譯頁</a>${sourceQueryUrl ? ` ｜ <a href="${esc(sourceQueryUrl)}" target="_blank" rel="nofollow noopener">原站搜尋</a>` : ''}</p>
           </article>
         `;
