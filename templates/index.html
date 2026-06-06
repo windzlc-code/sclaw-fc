@@ -622,33 +622,39 @@
         <strong>後台管理</strong>
         <button class="secondary" type="button" onclick="toggleAdminDrawer(false)">關閉</button>
       </div>
-      <p class="muted">請先輸入後台密碼；下方以<strong>頁籤</strong>切換各模組。</p>
-      <div class="panel">
-        <h3 class="config-subhead">管理權限</h3>
-        <div class="search-row-basic" style="grid-template-columns: 1fr auto auto; margin-bottom: 0.5rem;">
+      <p class="muted admin-drawer-note">密碼登入後即可管理；頁籤負責切換模組。</p>
+      <div class="panel admin-auth-panel">
+        <div class="admin-panel-title-row">
+          <h3 class="config-subhead">管理權限</h3>
+          <span id="admin-auth-msg" class="muted admin-status-pill">尚未登入</span>
+        </div>
+        <div class="search-row-basic admin-auth-row">
           <input id="admin-password-input" type="password" placeholder="輸入後台密碼" autocomplete="off">
           <button type="button" class="secondary" onclick="unlockAdminPanel()">登入</button>
           <button type="button" class="secondary" onclick="clearAdminAuth()">登出</button>
         </div>
-        <p id="admin-auth-msg" class="muted">尚未登入。</p>
       </div>
-      <div class="search-row-basic" style="grid-template-columns:auto 1fr;align-items:center;margin:0.35rem 0 0.45rem;">
-        <label class="muted" style="display:flex;align-items:center;gap:0.35rem;">
-          <input id="admin-simple-mode-toggle" type="checkbox" checked onchange="toggleAdminSimpleMode(this.checked)"> 核心模式（隱藏進階模組）
+      <div class="search-row-basic admin-mode-strip">
+        <label class="muted admin-mode-switch">
+          <input id="admin-simple-mode-toggle" type="checkbox" checked onchange="toggleAdminSimpleMode(this.checked)">
+          <span class="admin-switch-track" aria-hidden="true"></span>
+          <strong>核心模式</strong>
         </label>
-        <span id="admin-simple-mode-meta" class="muted">顯示核心分頁。</span>
+        <span id="admin-simple-mode-meta" class="muted">核心分頁</span>
       </div>
       <div class="panel admin-quick-map">
-        <h3 class="config-subhead">前台對應快速操作</h3>
-        <p class="muted" style="margin:0 0 0.45rem;">只保留最常用四步驟，避免後台操作過於複雜。</p>
-        <div class="search-row-basic admin-quick-map-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:0.45rem;">
-          <button type="button" class="secondary" onclick="goAdminFlow('cases')">1) 案件入庫與列表</button>
-          <button type="button" class="secondary" onclick="goAdminFlow('knowledge')">2) 知識庫</button>
-          <button type="button" class="secondary" onclick="goAdminFlow('telegram')">3) 智能客服通知</button>
-          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')">4) 客戶留單接手</button>
-          <button type="button" class="secondary" onclick="goAdminFlow('leads')">5) 社群獲客雷達</button>
+        <div class="admin-quick-map-head">
+          <h3 class="config-subhead">快速操作</h3>
+          <span class="muted">前台對應</span>
         </div>
-        <p id="admin-flow-hint" class="muted" style="margin:0.5rem 0 0;">目前分頁：案件管理</p>
+        <div class="search-row-basic admin-quick-map-grid">
+          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>入庫與列表</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">02</span><span><strong>知識庫</strong><small>問答與素材</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">03</span><span><strong>通知</strong><small>LINE / TG</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">04</span><span><strong>留單</strong><small>客戶接手</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('leads')"><span class="admin-flow-index">05</span><span><strong>雷達</strong><small>社群獲客</small></span></button>
+        </div>
+        <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
       </div>
       <div class="admin-tab-bar" role="tablist" id="admin-tab-bar">
         <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="support-hub">客服訓練／支援中心</button>
@@ -1062,8 +1068,11 @@
       <div class="panel">
         <h3 class="config-subhead">案件管理（日本不動產買／賣／租）</h3>
         <p class="muted">站內智慧查詢以 <strong>七大日本門戶</strong>（SUUMO／LIFULL HOME'S／at home／Yahoo!不動産／楽天不動産／イエステーション／OHEYASU）與 <strong>預設 180 天（約半年）</strong>新鮮度為主；入庫後請以列表預覽與編輯確認 <strong>標題、摘要、圖片、價格／所在地／交通等欄位</strong>。列表下方提供篩選、匯入匯出 CSV、單筆或批次重抓物件頁補欄位。</p>
-        <div class="panel slim" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f0f5ff 0%,#fff 100%);border:1px solid #d1ddf5;border-radius:10px;">
-          <strong style="display:block;margin-bottom:0.4rem;">七大站分段補全（固定順序）</strong>
+        <details class="panel slim admin-case-settings-details" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f0f5ff 0%,#fff 100%);border:1px solid #d1ddf5;border-radius:10px;">
+          <summary>
+            <strong>七大站分段補全（固定順序）</strong>
+            <span class="muted">前四站連跑、後三站補齊</span>
+          </summary>
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
             <strong>① 前四站</strong>：SUUMO → LIFULL HOME'S → at home → Yahoo!　<strong>② 後三站</strong>：楽天／YesStation／OHEYASU。<br>
             先依<strong>連跑輪數</strong>重複執行①（每輪跑完再下一輪），全部完成後再執行② 一次。單次入庫量依左側<strong>每來源筆數</strong>上限（與爬文設定／每來源筆數一致）。
@@ -1076,9 +1085,12 @@
               七站分段補全（前四 × N 輪 → 後三）
             </button>
           </div>
-        </div>
-        <div class="panel slim" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f5f0ff 0%,#fff 100%);border:1px solid #e0d5f5;border-radius:10px;">
-          <strong style="display:block;margin-bottom:0.4rem;">首頁智慧查詢：缺圖／人像自動補物件照</strong>
+        </details>
+        <details class="panel slim admin-case-settings-details" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f5f0ff 0%,#fff 100%);border:1px solid #e0d5f5;border-radius:10px;">
+          <summary>
+            <strong>首頁智慧查詢：缺圖／人像自動補物件照</strong>
+            <span class="muted">縮圖補齊、每日品質批次</span>
+          </summary>
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
             查詢結果列若<strong>無縮圖</strong>或縮圖<strong>疑似業者／人像</strong>，會向原站即時補抓並優先顯示<strong>物件實景／格局</strong>（與白名單門戶一致，含<strong>楽天／Yes!／OHEYASU</strong>）。關閉可減少延遲；環境變數 <code>SCLAW_PORTAL_BACKFILL_*</code> 可覆寫。
           </p>
@@ -1111,7 +1123,7 @@
             <button type="button" onclick="runCaseQualityBatch(false)">立即排入執行</button>
           </div>
           <p id="admin-case-quality-batch-status" class="muted" style="margin:0.45rem 0 0;font-size:0.85rem;line-height:1.55;" aria-live="polite"></p>
-        </div>
+        </details>
         <p id="crawl-setting-msg" class="muted" style="font-size:0.85rem;" aria-live="polite"></p>
         <div id="admin-crawl-settings-legacy" class="visually-hidden" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
           <input type="hidden" id="home_hero_key" value="{{ home_hero.key }}">
@@ -1133,6 +1145,11 @@
         </div>
 
         <div id="admin-cases-subtab-general" class="admin-cases-subtab-panel is-active">
+        <details class="admin-case-settings-details admin-case-settings-details--filters" open>
+          <summary>
+            <strong>案件篩選</strong>
+            <span class="muted">條件查詢、列表刷新</span>
+          </summary>
         <div class="admin-cases-filters search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:flex-end;">
           <label class="muted">關鍵字
             <input id="admin-cases-q" type="search" placeholder="標題／內文／原文／網址" autocomplete="off" style="min-width:9rem;">
@@ -1179,9 +1196,15 @@
             </select>
           </label>
           <button type="button" onclick="adminCasesPage=1;loadAdminCasesPage();">套用篩選</button>
-          <button type="button" class="admin-btn-danger" onclick="purgeAllAdminCases()">全部刪除（不可還原）</button>
+          <button type="button" class="admin-btn-danger" onclick="purgeAllAdminCases()" aria-label="全部刪除（不可還原）" title="全部刪除（不可還原）">清空列表</button>
         </div>
-        <div class="search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
+        </details>
+        <details class="admin-case-settings-details admin-case-settings-details--tools">
+          <summary>
+            <strong>CSV 匯入匯出與批量工具</strong>
+            <span class="muted">重爬、模板、匯入、分頁</span>
+          </summary>
+        <div class="admin-cases-bulk-tools search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
           <label class="muted">每來源筆數上限
             <select id="admin-cases-per-source">
               <option value="10">10</option>
@@ -1214,6 +1237,7 @@
           </label>
           <button type="button" class="secondary" onclick="adminCasesPage=1;loadAdminCasesPage();">重新載入列表</button>
         </div>
+        </details>
         <p id="admin-cases-msg" class="muted"></p>
         <div id="admin-cases-progress-wrap" class="panel slim" style="display:none;margin:0.35rem 0 0.6rem;">
           <div id="admin-cases-progress-label" class="muted">補抓準備中...</div>
@@ -8622,6 +8646,7 @@
       }
     }
 
+    // 以「前台對應分頁」為核心顯示邏輯，避免後台過度複雜。
     function applyAdminSimpleModeVisibility() {
       const drawer = document.getElementById('admin-drawer');
       const toggle = document.getElementById('admin-simple-mode-toggle');
@@ -8638,52 +8663,8 @@
       }
       if (meta) {
         meta.textContent = adminSimpleMode
-          ? `核心模式啟用：顯示 ${visibleCount} 個分頁（可關閉以顯示進階模組）。`
-          : `進階模式啟用：顯示全部 ${btns.length} 個分頁。`;
-      }
-      if (meta) {
-        meta.textContent = adminSimpleMode
-          ? `核心模式啟用：僅顯示 ${visibleCount} 個前台對應分頁。`
-          : `完整模式啟用：顯示全部 ${btns.length} 個分頁。`;
-      }
-      const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
-      const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || '');
-      if (adminSimpleMode && activeBtn && activeBtn.style.display === 'none') {
-        switchAdminTab('cases');
-      } else if (!activeTab) {
-        switchAdminTab('cases');
-      }
-    }
-
-    function toggleAdminSimpleMode(enabled) {
-      adminSimpleMode = Boolean(enabled);
-      try {
-        localStorage.setItem(ADMIN_SIMPLE_MODE_CACHE_KEY, adminSimpleMode ? '1' : '0');
-      } catch (_) {
-        // ignore
-      }
-      applyAdminSimpleModeVisibility();
-    }
-
-    // 覆蓋舊版：以「前台對應分頁」為核心顯示邏輯，避免後台過度複雜。
-    function applyAdminSimpleModeVisibility() {
-      const drawer = document.getElementById('admin-drawer');
-      const toggle = document.getElementById('admin-simple-mode-toggle');
-      const meta = document.getElementById('admin-simple-mode-meta');
-      if (toggle) toggle.checked = Boolean(adminSimpleMode);
-      if (!drawer) return;
-      const btns = Array.from(drawer.querySelectorAll('.admin-tab-btn'));
-      let visibleCount = 0;
-      for (const btn of btns) {
-        const tab = String(btn.getAttribute('data-admin-tab') || '');
-        const hide = adminSimpleMode && !ADMIN_SIMPLE_CORE_TABS.has(tab);
-        btn.style.display = hide ? 'none' : '';
-        if (!hide) visibleCount += 1;
-      }
-      if (meta) {
-        meta.textContent = adminSimpleMode
-          ? `核心模式啟用：僅顯示 ${visibleCount} 個前台對應分頁。`
-          : `完整模式啟用：顯示全部 ${btns.length} 個分頁。`;
+          ? `核心模式：${visibleCount} 個分頁`
+          : `完整模式：${btns.length} 個分頁`;
       }
       const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
       const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || '');
@@ -13882,7 +13863,7 @@
       const authMsg = document.getElementById('admin-auth-msg');
       const pwd = String(pwdInput?.value || '').trim();
       if (!pwd) {
-        if (authMsg) authMsg.textContent = '請先輸入密碼。';
+        if (authMsg) authMsg.textContent = '請輸入密碼';
         return;
       }
       adminPanelPassword = pwd;
@@ -13897,8 +13878,7 @@
       switchAdminTab(activeTab || 'cases');
       const authMsg2 = document.getElementById('admin-auth-msg');
       if (authMsg2) {
-        authMsg2.textContent = '已登入，可直接使用上方「前台對應快速操作」。';
-        authMsg2.textContent = '已登入，可直接使用上方「前台對應快速操作」。';
+        authMsg2.textContent = '已登入';
       }
     }
 
@@ -13923,7 +13903,7 @@
       const wrap = document.getElementById('admin-scenario-list');
       const qaWrap = document.getElementById('admin-support-qa-list');
       if (pwdInput) pwdInput.value = '';
-      if (authMsg) authMsg.textContent = '已登出。';
+      if (authMsg) authMsg.textContent = '已登出';
       if (wrap) wrap.innerHTML = '<p class="muted">請先登入後台載入資料。</p>';
       if (qaWrap) qaWrap.innerHTML = '<p class="muted">請先登入後台載入資料。</p>';
       try {
