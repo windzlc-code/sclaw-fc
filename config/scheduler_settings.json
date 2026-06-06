@@ -1,0 +1,7 @@
+{
+  "task_name": "SCLAW_Every2Hours_Pipeline",
+  "interval_hours": 2,
+  "start_time": "00:00",
+  "max_retry": 2,
+  "retry_wait_seconds": 30
+}

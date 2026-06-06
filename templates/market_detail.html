@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>市場來源詳細頁｜{{ site_name }}</title>
+  <meta name="description" content="日本房地產市場來源摘要與站內整理。{{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
+  <link rel="stylesheet" href="/static/site.css">
+</head>
+<body class="site-lang-hant">
+  <main class="container">
+    {% include 'partials/site_language_switch.html' %}
+    <section class="hero">
+      {% if brand_name %}
+      <div class="brand-badge">{{ brand_name }}</div>
+      {% endif %}
+      <h1>市場來源詳細頁</h1>
+      <p>日文內容已整理為中文版本，並提供重點整理與資料筆數。</p>
+    </section>
+    <section class="panel">
+      <a href="/">← 返回首頁</a>
+    </section>
+
+    {% if item.ok %}
+    <section class="card">
+      <h2>{{ item.title_zh_hant }}</h2>
+      <p class="muted">原始網址：<a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.url }}</a></p>
+      {% if item.is_limited %}
+      <p class="muted">此來源有防護限制，以下為可公開查詢摘要的翻譯與重點。</p>
+      {% endif %}
+      <p class="muted">資料統計：段落 {{ item.count_paragraphs }} 筆｜圖片 {{ item.count_images }} 張</p>
+      <div data-site-lang-pane="hant" data-lang-pane="hant">
+        <h3>重點結論</h3>
+        <ul>
+          {% for p in item.key_points_zh_hant %}
+          <li>{{ p }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div data-site-lang-pane="hans" data-lang-pane="hans" hidden>
+        <h3>重点结论</h3>
+        <ul>
+          {% for p in item.key_points_zh_hans %}
+          <li>{{ p }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <details>
+        <summary>查看原文標題（日文）</summary>
+        <p>{{ item.title_jp }}</p>
+      </details>
+    </section>
+
+    {% if item.image_urls %}
+    <section class="panel market-media-grid">
+      {% for img in item.image_urls %}
+      <figure class="market-media-card">
+        <img src="{{ img|case_static_image_url }}" data-full-src="{{ img }}" alt="來源圖片" loading="lazy">
+        <figcaption class="muted">{{ img }}</figcaption>
+      </figure>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <div data-site-lang-pane="hant" data-lang-pane="hant">
+        <h3>全文摘錄</h3>
+        <p>{{ item.body_zh_hant }}</p>
+      </div>
+      <div data-site-lang-pane="hans" data-lang-pane="hans" hidden>
+        <h3>全文摘录</h3>
+        <p>{{ item.body_zh_hans }}</p>
+      </div>
+    </section>
+    {% endif %}
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+  {% include 'partials/support_chat_public_fab.html' %}
+</body>
+</html>

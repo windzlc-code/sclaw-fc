@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ item.seo_title }}</title>
+  <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
+  <link rel="stylesheet" href="/static/site.css?v=20260603-case-media-borrow">
+  <link rel="canonical" href="{{ site_url }}{{ item.article_path }}">
+  <link rel="alternate" hreflang="zh-Hant" href="{{ site_url }}{{ item.article_path }}">
+  <link rel="alternate" hreflang="zh-Hans" href="{{ site_url }}{{ item.article_path }}?lang=zh-hans">
+  <script type="application/ld+json">{{ item.schema_json | safe }}</script>
+</head>
+<body class="article-lang-hant site-article site-lang-hant">
+  <main class="container article-page-v2">
+    {% include 'partials/site_language_switch.html' %}
+    <header class="article-case-hero panel">
+      {% if brand_name %}
+      <div class="brand-badge">{{ brand_name }}</div>
+      {% endif %}
+      <p class="muted" style="margin:0 0 0.35rem;"><a href="/">← 返回查詢首頁</a></p>
+      <h1 class="article-case-title">{{ item.seo_title }}</h1>
+      <p class="article-case-meta muted">
+        來源 <strong>{{ item.source_name }}</strong>
+        {% if item.content_kind == 'social_video_knowledge' %}
+          <span class="social-source-badge social-source-badge--tiktok" title="TikTok 影片文案與字幕知識來源">TK 社媒知識</span>
+        {% endif %}
+        {% if item.access_status == "restricted" %}｜<span class="article-warn">來源頁可能需登入／授權</span>{% endif %}
+        ｜站內更新 {{ item.updated_at or '-' }}
+      </p>
+      {% set listing_panel = article_listing_panel %}
+      {% set item_url = item.item_url %}
+      {% set hero_fallback = article_hero_thumb %}
+      {% set body_narrative_zh = item.body_zh_hant or '' %}
+      {% set body_narrative_jp = item.body_original_display or item.body_original or '' %}
+      {% set body_narrative = body_narrative_zh|trim if body_narrative_zh|trim else body_narrative_jp %}
+      {% set source_item_id = item.source_item_id %}
+      {% include 'partials/portal_suumo_listing.html' %}
+      <p class="muted" style="margin:0.5rem 0 0;">圖像取自來源官網公開素材；點主圖另開原物件頁（與 SUUMO 個別案件頁對照）。</p>
+      <div class="article-source-cta-row">
+        <a class="article-btn-primary" href="{{ item.item_url }}" target="_blank" rel="nofollow noopener noreferrer">開啟來源網站（個別案件頁）</a>
+        <a class="article-btn-secondary" href="#article-translation">站內翻譯與 AI 解說</a>
+      </div>
+      {% if is_restricted %}
+      <p class="article-warn" style="margin-top:0.65rem;">此來源內文可能不完整；請以來源官網為準，並交叉比對 SUUMO／HOMES／AtHome。</p>
+      {% endif %}
+      <div class="case-smart-cs-dock" aria-label="智能客服與顧問">
+        {% if item.source_item_id %}
+        <a class="case-smart-cs-fab" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" title="開啟首頁智能客服並帶入案件編號">智能客服</a>
+        {% endif %}
+        <a class="case-advisor-fab" href="/#advisor-workbench-panel" title="首頁顧問工作台填單">顧問填單</a>
+      </div>
+    </header>
+
+    <section id="article-translation" class="panel article-dual-block">
+      <h2 class="article-section-title">結論</h2>
+      <div class="article-dual-col article-dual-col-tabbed">
+        <div class="article-dual-cell" data-site-lang-pane="hant" data-lang-pane="hant">
+          <p class="article-lead rich-media-from-text">{{ ai_pack_hant.conclusion }}</p>
+        </div>
+        <div class="article-dual-cell" data-site-lang-pane="hans" data-lang-pane="hans" hidden>
+          <p class="article-lead rich-media-from-text">{{ ai_pack_hans.conclusion }}</p>
+        </div>
+      </div>
+
+      <h2 class="article-section-title" style="margin-top:1.25rem;">AI 解說</h2>
+      <div class="article-dual-col article-dual-col-tabbed">
+        <div class="article-dual-cell" data-site-lang-pane="hant" data-lang-pane="hant">
+          <h4 class="article-dual-sub">必讀重點</h4>
+          <ul class="article-tight-list">
+            {% for p in ai_pack_hant.must_know %}
+            <li class="rich-media-from-text">{{ p }}</li>
+            {% endfor %}
+          </ul>
+          <h4 class="article-dual-sub">行動建議</h4>
+          <ol class="article-tight-list">
+            {% for p in ai_pack_hant.action %}
+            <li class="rich-media-from-text">{{ p }}</li>
+            {% endfor %}
+          </ol>
+          <h4 class="article-dual-sub">風險提醒</h4>
+          <ul class="article-tight-list">
+            {% for p in ai_pack_hant.risk %}
+            <li class="rich-media-from-text">{{ p }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="article-dual-cell" data-site-lang-pane="hans" data-lang-pane="hans" hidden>
+          <h4 class="article-dual-sub">必读重点</h4>
+          <ul class="article-tight-list">
+            {% for p in ai_pack_hans.must_know %}
+            <li class="rich-media-from-text">{{ p }}</li>
+            {% endfor %}
+          </ul>
+          <h4 class="article-dual-sub">行动建议</h4>
+          <ol class="article-tight-list">
+            {% for p in ai_pack_hans.action %}
+            <li class="rich-media-from-text">{{ p }}</li>
+            {% endfor %}
+          </ol>
+          <h4 class="article-dual-sub">风险提醒</h4>
+          <ul class="article-tight-list">
+            {% for p in ai_pack_hans.risk %}
+            <li class="rich-media-from-text">{{ p }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel article-translation-body">
+      <h2 class="article-section-title">來源內容（站內翻譯）</h2>
+      {% if item.title_original %}
+      <p class="muted"><strong>原文標題：</strong>{{ item.title_original }}</p>
+      {% endif %}
+      <p><a href="{{ item.item_url }}" target="_blank" rel="nofollow noopener noreferrer">於來源網站對照閱讀</a></p>
+      <div class="article-lang-pane" data-site-lang-pane="hant" data-lang-pane="hant">
+        {% if article_body_zh_warn_hant %}
+        <p class="muted">此欄位尚未完成中文化（目前為日文占位或摘要尾段）；正式內容請以來源頁原文及上方標題／摘要為準。</p>
+        {% endif %}
+        <div class="article-body prose-block rich-media-from-text">{{ item.body_zh_hant }}</div>
+      </div>
+      <div class="article-lang-pane" data-site-lang-pane="hans" data-lang-pane="hans" hidden>
+        {% if article_body_zh_warn_hans %}
+        <p class="muted">此栏尚未完成中文化（目前为日文占位或摘要尾段）；正式内容请以来源页原文及上方标题／摘要为准。</p>
+        {% endif %}
+        <div class="article-body prose-block rich-media-from-text">{{ item.body_zh_hans }}</div>
+      </div>
+    </section>
+
+    {% set _display_imgs = article_display_images or [] %}
+    {% if _display_imgs %}
+    <section class="panel">
+      <h2 class="article-section-title">參考圖像</h2>
+      <div class="case-image-grid">
+        {% for u in _display_imgs %}
+          <figure class="case-image-cell"><a href="{{ u }}" target="_blank" rel="nofollow noopener"><img src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="" loading="lazy" referrerpolicy="no-referrer"></a></figure>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="panel article-bottom-hub" id="article-more">
+      <h2 class="article-section-title">相關案件與新聞連結</h2>
+      <p class="muted">優先顯示與日本不動產物件／行情關聯較高的站內條目，並可一鍵回到來源站比對。</p>
+      {% if related_news %}
+      <div class="article-related-cards">
+        {% for n in related_news %}
+        <article class="article-related-card">
+          <div class="article-related-card-head">
+            {% if n.source_content_kind == 'jp_listing' %}
+            <span class="article-badge-case">案件</span>
+            {% else %}
+            <span class="article-badge-note">文章</span>
+            {% endif %}
+            <span class="muted">{{ n.region_code or '' }}</span>
+          </div>
+          <h3 class="article-related-title"><a href="{{ n.article_path }}">{{ n.seo_title }}</a></h3>
+          <p class="muted article-related-meta">{{ n.topic_category }}／{{ n.intent_target }}｜更新 {{ n.updated_at or '-' }}</p>
+          <p class="article-related-actions">
+            <a href="{{ n.article_path }}">站內說明</a>
+            {% if n.case_path %}｜<a href="{{ n.case_path }}">案件頁</a>{% endif %}
+            ｜<a href="{{ n.item_url }}" target="_blank" rel="nofollow noopener noreferrer">來源：{{ n.source_name }}</a>
+            {% if n.access_status == "restricted" %}<span class="muted">（需授權）</span>{% endif %}
+          </p>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">目前尚無相近主題條目；請回首頁擴大查詢或改點下方關鍵字。</p>
+      {% endif %}
+
+    </section>
+
+    {% if is_restricted %}
+    <section class="panel fallback-note">
+      <h2 class="article-section-title">來源受限時的閱讀順序</h2>
+      <ul>
+        {% for line in fallback_guide_hant %}
+        <li>{{ line }}</li>
+        {% endfor %}
+      </ul>
+      <details>
+        <summary>简体指引</summary>
+        <ul>
+          {% for line in fallback_guide_hans %}
+          <li>{{ line }}</li>
+          {% endfor %}
+        </ul>
+      </details>
+    </section>
+    {% endif %}
+
+    <div class="footer-note">
+      本站為摘要與閱讀輔助，事實與契約條件請以<a href="{{ item.item_url }}" rel="nofollow noopener" target="_blank">{{ item.source_name }} 官方頁</a>為準。
+      {% if item.access_status == "restricted" %}
+      ｜狀態：需授權／登入後以官網為準
+      {% endif %}
+    </div>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+  <div id="image-lightbox" class="image-lightbox" aria-hidden="true">
+    <div class="image-lightbox-inner">
+      <button id="image-lightbox-prev" class="image-lightbox-nav image-lightbox-prev" type="button" aria-label="上一張">‹</button>
+      <button id="image-lightbox-next" class="image-lightbox-nav image-lightbox-next" type="button" aria-label="下一張">›</button>
+      <button id="image-lightbox-close" class="image-lightbox-close" type="button" aria-label="關閉圖片預覽">×</button>
+      <img id="image-lightbox-img" class="image-lightbox-img" alt="" referrerpolicy="no-referrer">
+      <div class="image-lightbox-toolbar-note">滾輪縮放｜拖曳平移｜←/→ 切換</div>
+    </div>
+  </div>
+  <script>
+    function suumoResizeUrlLooksSafe(u) {
+      const x = String(u || '').trim();
+      if (!/^https:\/\//i.test(x)) return false;
+      const low = x.toLowerCase();
+      if (!low.includes('suumo.com/jj/resizeimage?')) return false;
+      if (!low.includes('src=')) return false;
+      if (/[<>"'`\n\r]|javascript:/i.test(x)) return false;
+      try {
+        const uo = new URL(x, window.location.origin);
+        const srcParam = String(uo.searchParams.get('src') || '').trim();
+        if (!srcParam) return false;
+        // 排除殘缺百分比編碼（例如 img% 或 %A），避免送出壞連結。
+        if (/%(?:$|[^0-9A-Fa-f]|[0-9A-Fa-f]$)/.test(srcParam)) return false;
+      } catch (_) {
+        return false;
+      }
+      return true;
+    }
+
+    function extractSuumoResizeSpans(raw) {
+      const spans = [];
+      const hasOverlap = (s, e) => spans.some((t) => !(e <= t.s || s >= t.e));
+      const fullRe = /https:\/\/img\d*\.suumo\.com\/jj\/resizeImage\?[^\s\]\)'"]+/gi;
+      for (const m of raw.matchAll(fullRe)) {
+        const u = String(m[0] || '').trim().replace(/[)\],。．、;；!?]+$/g, '');
+        const s = m.index || 0;
+        const e = s + m[0].length;
+        if (suumoResizeUrlLooksSafe(u) && !hasOverlap(s, e)) spans.push({ s, e, u });
+      }
+
+      // 容錯：允許 resizeImage 與 src= 之間夾雜換行或模型插入詞（例：行動建議）。
+      const anchorRe = /https:\/\/img\d*\.suumo\.com\/jj\/resizeImage\??/gi;
+      const anchors = [];
+      for (const m of raw.matchAll(anchorRe)) {
+        const anchor = String(m[0] || '').replace(/\?$/, '');
+        const s = m.index || 0;
+        anchors.push({ anchor, s, e: s + String(m[0] || '').length });
+        const searchStart = s + String(m[0] || '').length;
+        const tail = raw.slice(searchStart, searchStart + 260);
+        const srcm = tail.match(/src\s*=\s*([^\s\]\)'"]+)/i);
+        if (!srcm) continue;
+        const srcToken = String(srcm[1] || '').trim().replace(/[)\],。．、;；!?]+$/g, '');
+        if (!srcToken || /%(?:$|[^0-9A-Fa-f]|[0-9A-Fa-f]$)/.test(srcToken)) continue;
+        const srcv = `src=${srcToken}`;
+        const u = `${anchor}?${srcv}`;
+        if (!suumoResizeUrlLooksSafe(u)) continue;
+        const srcIdx = tail.search(/src\s*=\s*/i);
+        const e = srcIdx >= 0 ? searchStart + srcIdx + srcm[0].length : searchStart + srcm[0].length;
+        if (hasOverlap(s, e)) continue;
+        spans.push({ s, e, u });
+      }
+
+      // 逆序容錯：src=... 在前、resizeImage 在後（中間可夾雜換行/文字）
+      const srcTokenRe = /src\s*=\s*([^\s\]\)'"]+)/gi;
+      const srcTokens = [];
+      for (const m of raw.matchAll(srcTokenRe)) {
+        const s = m.index || 0;
+        const srcToken = String(m[1] || '').trim().replace(/[)\],。．、;；!?]+$/g, '');
+        if (!srcToken || /%(?:$|[^0-9A-Fa-f]|[0-9A-Fa-f]$)/.test(srcToken)) continue;
+        srcTokens.push({
+          s,
+          e: s + String(m[0] || '').length,
+          srcv: `src=${srcToken}`,
+        });
+      }
+      for (const t of srcTokens) {
+        let best = null;
+        let bestDist = 999999;
+        for (const a of anchors) {
+          const dist = Math.abs(a.s - t.s);
+          if (dist < bestDist && dist <= 240) {
+            best = a;
+            bestDist = dist;
+          }
+        }
+        if (!best) continue;
+        const u = `${best.anchor}?${t.srcv}`;
+        if (!suumoResizeUrlLooksSafe(u)) continue;
+        const s = Math.min(t.s, best.s);
+        const e = Math.max(t.e, best.e);
+        if (hasOverlap(s, e)) continue;
+        spans.push({ s, e, u });
+      }
+      spans.sort((a, b) => a.s - b.s);
+      const merged = [];
+      for (const t of spans) {
+        if (merged.length && t.s < merged[merged.length - 1].e) continue;
+        merged.push(t);
+      }
+      return merged;
+    }
+
+    function cleanMediaNoiseText(text) {
+      return String(text || '')
+        .replace(/\[(?:財產調查圖片網址|物件參考圖像\s*URL|來源網址|来源网址|source\s*url)\]?\s*/gi, '')
+        .replace(/https?:\/\/img\d*\.suumo\.com\/jj\/resize[a-z]*[^\s\]\)'"]*/gi, '')
+        .replace(/https?:\/\/img\d*\.(?:suumo\.jp|suumo\.com|athome\.co\.jp|homes\.co\.jp|rehouse\.co\.jp)[^\s\]\)'"]*/gi, '')
+        .replace(/https?:\/\/[^\s\]\)'"]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s\]\)'"]*)?/gi, '')
+        .replace(/src\s*=\s*gazo%2F[^\s\]\)'"]*/gi, '')
+        .replace(/src\s*=\s*[^\s\]\)'"]+/gi, '')
+        .replace(/gazo%2F[^\s\]\)'"]*/gi, '')
+        .replace(/[?&]w=\d{1,5}(?:&h=\d{1,5})?/gi, '')
+        .replace(/[?&]h=\d{1,5}/gi, '')
+        .replace(/來源房產頁面（日文）[:：]?\s*https?:\/\/[^\s]+/gi, '')
+        .replace(/shinchiku\s*屬性頁面（日語）[:：]?\s*https?:\/\/[^\s]+/gi, '')
+        .replace(/用途[:：]\s*內部摘要[^。\n]*(?:。)?/gi, '')
+        .replace(/用途[:：]\s*引導鏈接索引[^。\n]*(?:。)?/gi, '')
+        .replace(/完整的合同內容不得主張/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+
+    function upscaleSuumoResizeUrl(src, w, h) {
+      const raw = String(src || '').trim();
+      if (!raw) return '';
+      try {
+        const u = new URL(raw, window.location.origin);
+        const host = String(u.hostname || '').toLowerCase();
+        const path = String(u.pathname || '').toLowerCase();
+        if (host.includes('suumo.com') && path.includes('/jj/resizeimage') && u.searchParams.has('src')) {
+          u.searchParams.set('w', String(w || 560));
+          u.searchParams.set('h', String(h || 420));
+        }
+        return u.toString();
+      } catch (_) {
+        return raw;
+      }
+    }
+
+    function plainImageUrlLooksSafe(u) {
+      const s = String(u || '').trim();
+      if (!/^https?:\/\//i.test(s)) return false;
+      const lu = s.toLowerCase();
+      if (
+        /(?:\/edit\/assets\/suumo\/img\/include\/|\/edit\/assets\/suumo\/img\/pagetop|inc_cm_top_|inc_kr_top_|inc_cm_all_|menuclose_soba|barcode|gomezbaibai|hazard_map|jukatsu|simulation|crrecruit|logo|icon|sprite|banner|qr)/i.test(
+          lu
+        )
+      ) {
+        return false;
+      }
+      if (/\.(jpg|jpeg|png|webp|gif)(\?|#|$)/i.test(s)) return true;
+      if (/img\d*\.(?:suumo\.jp|suumo\.com|athome\.co\.jp|homes\.co\.jp|rehouse\.co\.jp)/i.test(lu)) return lu.length >= 48;
+      return false;
+    }
+
+    function extractPlainImageUrls(raw) {
+      const text = String(raw || '');
+      const found = [];
+      const pushUrl = (u) => {
+        const s = String(u || '')
+          .trim()
+          .replace(/[,;:)\]}>'"\]]+$/g, '');
+        if (!plainImageUrlLooksSafe(s)) return;
+        const key = s.split('#')[0].toLowerCase();
+        if (found.some((x) => x.split('#')[0].toLowerCase() === key)) return;
+        found.push(s);
+      };
+      const reExt = /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/gi;
+      let m;
+      while ((m = reExt.exec(text)) !== null) pushUrl(m[0]);
+      return found.slice(0, 12);
+    }
+
+    function appendInlineImageNode(frag, previewUrl, fullUrl) {
+      const wrap = document.createElement('span');
+      wrap.className = 'article-inline-img-wrap';
+      const a = document.createElement('a');
+      a.href = fullUrl || previewUrl;
+      a.target = '_blank';
+      a.rel = 'nofollow noopener noreferrer';
+      const img = document.createElement('img');
+      img.src = previewUrl;
+      if (fullUrl) img.setAttribute('data-full-src', fullUrl);
+      img.loading = 'lazy';
+      img.referrerPolicy = 'no-referrer';
+      img.className = 'article-inline-suumo-thumb zoomable-image';
+      img.alt = '';
+      a.appendChild(img);
+      wrap.appendChild(a);
+      frag.appendChild(wrap);
+    }
+
+    function renderRichMediaFromText(el) {
+      if (!el) return;
+      const raw = String(el.textContent || '');
+      if (!raw) return;
+      if (/^\s*日本房[產产]案源/.test(raw)) return;
+      const spans = extractSuumoResizeSpans(raw);
+      const plainUrls = extractPlainImageUrls(raw);
+      if (!spans.length && !plainUrls.length) {
+        const cleaned = cleanMediaNoiseText(raw);
+        if (cleaned !== raw) el.textContent = cleaned;
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      if (!spans.length) {
+        const cleaned = cleanMediaNoiseText(raw);
+        if (cleaned) frag.appendChild(document.createTextNode(cleaned + ' '));
+        for (const u of plainUrls) appendInlineImageNode(frag, u, u);
+        el.replaceChildren(frag);
+        return;
+      }
+      let last = 0;
+      for (const t of spans) {
+        const before = cleanMediaNoiseText(raw.slice(last, t.s));
+        if (before) frag.appendChild(document.createTextNode(before + ' '));
+        const previewUrl = upscaleSuumoResizeUrl(t.u, 560, 420);
+        const fullUrl = upscaleSuumoResizeUrl(t.u, 2400, 1800);
+        appendInlineImageNode(frag, previewUrl || t.u, fullUrl || previewUrl || t.u);
+        last = t.e;
+      }
+      const tail = cleanMediaNoiseText(raw.slice(last));
+      if (tail) frag.appendChild(document.createTextNode(' ' + tail));
+      const seenKeys = new Set(spans.map((x) => String(x.u || '').split('#')[0].toLowerCase()));
+      for (const u of plainUrls) {
+        const key = String(u || '').split('#')[0].toLowerCase();
+        if (seenKeys.has(key)) continue;
+        appendInlineImageNode(frag, u, u);
+        seenKeys.add(key);
+      }
+      el.replaceChildren(frag);
+    }
+
+    function initImageLightbox() {
+      const box = document.getElementById('image-lightbox');
+      const img = document.getElementById('image-lightbox-img');
+      const closeBtn = document.getElementById('image-lightbox-close');
+      const prevBtn = document.getElementById('image-lightbox-prev');
+      const nextBtn = document.getElementById('image-lightbox-next');
+      if (!box || !img || !closeBtn || !prevBtn || !nextBtn) return;
+      let gallery = [];
+      let cur = -1;
+      let scale = 1;
+      let tx = 0;
+      let ty = 0;
+      let dragging = false;
+      let lastX = 0;
+      let lastY = 0;
+      const resetTransform = () => {
+        scale = 1;
+        tx = 0;
+        ty = 0;
+        img.style.transform = 'translate(0px, 0px) scale(1)';
+      };
+      const applyTransform = () => {
+        img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      };
+      const rewriteSuumoResizeUrl = (src, w, h) => {
+        const raw = String(src || '').trim();
+        if (!raw) return '';
+        try {
+          const u = new URL(raw, window.location.origin);
+          const host = String(u.hostname || '').toLowerCase();
+          const path = String(u.pathname || '').toLowerCase();
+          if (host.includes('suumo.com') && path.includes('/jj/resizeimage') && u.searchParams.has('src')) {
+            if (w) u.searchParams.set('w', String(w));
+            if (h) u.searchParams.set('h', String(h));
+          }
+          return u.toString();
+        } catch (_) {
+          return raw;
+        }
+      };
+      const normalizeLightboxSource = (src) => {
+        const raw = String(src || '').trim();
+        if (!raw) return '';
+        try {
+          const u = new URL(raw, window.location.origin);
+          const host = String(u.hostname || '').toLowerCase();
+          const path = String(u.pathname || '').toLowerCase();
+          if (host.includes('suumo.com') && path.includes('/jj/resizeimage')) {
+            if (u.searchParams.has('src')) {
+              u.searchParams.set('w', '1600');
+              u.searchParams.set('h', '1200');
+            }
+          }
+          return u.toString();
+        } catch (_) {
+          return raw;
+        }
+      };
+      const buildLightboxCandidates = (src, fallbackSrc) => {
+        const rawPrimary = String(src || '').trim();
+        const rawFallback = String(fallbackSrc || '').trim();
+        const candidates = [
+          normalizeLightboxSource(rawPrimary),
+          rewriteSuumoResizeUrl(rawPrimary, 1200, 900),
+          rawPrimary,
+          normalizeLightboxSource(rawFallback),
+          rewriteSuumoResizeUrl(rawFallback, 1200, 900),
+          rawFallback,
+        ].filter(Boolean);
+        return candidates.filter((v, i) => candidates.indexOf(v) === i);
+      };
+      const collectGallery = () => {
+        const srcs = [];
+        document.querySelectorAll('img.zoomable-image').forEach((node) => {
+          const src = normalizeLightboxSource(node.getAttribute('data-full-src') || node.getAttribute('src') || '');
+          if (src && !srcs.includes(src)) srcs.push(src);
+        });
+        gallery = srcs;
+      };
+      const close = () => {
+        box.classList.remove('is-open');
+        box.setAttribute('aria-hidden', 'true');
+        img.src = '';
+        resetTransform();
+      };
+      const open = (src, fallbackSrc) => {
+        const tries = buildLightboxCandidates(src, fallbackSrc);
+        if (!tries.length) return;
+        collectGallery();
+        cur = Math.max(0, gallery.indexOf(normalizeLightboxSource(src)));
+        if (cur < 0) cur = 0;
+        let idx = 0;
+        img.onerror = () => {
+          idx += 1;
+          if (idx < tries.length) {
+            img.src = tries[idx];
+            return;
+          }
+          img.onerror = null;
+        };
+        img.src = tries[0];
+        box.classList.add('is-open');
+        box.setAttribute('aria-hidden', 'false');
+        resetTransform();
+      };
+      const openAt = (idx) => {
+        if (!gallery.length) return;
+        const n = (idx + gallery.length) % gallery.length;
+        cur = n;
+        img.src = gallery[n];
+        resetTransform();
+      };
+      document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+        const hit = t.closest('img.zoomable-image');
+        if (!hit) return;
+        const src = hit.getAttribute('data-full-src') || hit.getAttribute('src') || '';
+        const fallbackSrc = hit.getAttribute('src') || '';
+        if (!src) return;
+        e.preventDefault();
+        open(src, fallbackSrc);
+      });
+      box.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+        if (t.closest('.image-lightbox-img')) return;
+        if (t.closest('.image-lightbox-nav')) return;
+        if (t.closest('.image-lightbox-close')) return;
+        close();
+      });
+      closeBtn.addEventListener('click', close);
+      prevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!box.classList.contains('is-open') || !gallery.length) return;
+        openAt(cur - 1);
+      });
+      nextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!box.classList.contains('is-open') || !gallery.length) return;
+        openAt(cur + 1);
+      });
+      box.addEventListener(
+        'wheel',
+        (e) => {
+          if (!box.classList.contains('is-open')) return;
+          e.preventDefault();
+          const delta = e.deltaY < 0 ? 0.12 : -0.12;
+          scale = Math.min(5, Math.max(1, scale + delta));
+          if (scale <= 1.01) {
+            scale = 1;
+            tx = 0;
+            ty = 0;
+          }
+          applyTransform();
+        },
+        { passive: false }
+      );
+      img.addEventListener('pointerdown', (e) => {
+        if (!box.classList.contains('is-open') || scale <= 1) return;
+        dragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        img.setPointerCapture(e.pointerId);
+      });
+      img.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        tx += e.clientX - lastX;
+        ty += e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        applyTransform();
+      });
+      img.addEventListener('pointerup', (e) => {
+        dragging = false;
+        try {
+          img.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+      });
+      document.addEventListener('keydown', (e) => {
+        if (!box.classList.contains('is-open')) return;
+        if (e.key === 'Escape') close();
+        if (e.key === 'ArrowLeft') openAt(cur - 1);
+        if (e.key === 'ArrowRight') openAt(cur + 1);
+      });
+    }
+
+    function setArticleLang(lang) {
+      const pick = String(lang || '').toLowerCase() === 'hans' ? 'hans' : 'hant';
+      document.body.classList.remove('article-lang-hant', 'article-lang-hans');
+      document.body.classList.add(`article-lang-${pick}`);
+      document.querySelectorAll('[data-lang-tab]').forEach((btn) => {
+        const active = String(btn.getAttribute('data-lang-tab') || '') === pick;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-lang-pane]').forEach((pane) => {
+        const paneLang = String(pane.getAttribute('data-lang-pane') || '').toLowerCase();
+        const show = paneLang === pick;
+        pane.hidden = !show;
+        pane.setAttribute('aria-hidden', show ? 'false' : 'true');
+      });
+      try {
+        localStorage.setItem('sclaw_article_lang_pref', pick);
+      } catch (_) {}
+    }
+
+    function initArticleLangTabs() {
+      const tabs = Array.from(document.querySelectorAll('[data-lang-tab]'));
+      if (!tabs.length) return;
+      tabs.forEach((btn) => {
+        btn.addEventListener('click', () => setArticleLang(btn.getAttribute('data-lang-tab') || 'hant'));
+      });
+      let initial = 'hant';
+      try {
+        const saved = String(localStorage.getItem('sclaw_article_lang_pref') || '').toLowerCase();
+        if (saved === 'hant' || saved === 'hans') initial = saved;
+      } catch (_) {}
+      const q = new URLSearchParams(window.location.search || '');
+      const qLang = String(q.get('lang') || '').toLowerCase();
+      if (qLang === 'zh-hans' || qLang === 'hans') initial = 'hans';
+      if (qLang === 'zh-hant' || qLang === 'hant') initial = 'hant';
+      setArticleLang(initial);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initArticleLangTabs();
+      document.querySelectorAll('.rich-media-from-text').forEach((el) => renderRichMediaFromText(el));
+      document
+        .querySelectorAll('.case-image-cell img, .article-hero-thumb, .article-inline-suumo-thumb')
+        .forEach((img) => img.classList.add('zoomable-image'));
+      initImageLightbox();
+    });
+  </script>
+</body>
+</html>

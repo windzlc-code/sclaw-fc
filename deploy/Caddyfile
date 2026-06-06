@@ -1,0 +1,14 @@
+# Canonical host：www（與 SITE_URL / 後台「站台／DNS」主要網址一致）；apex 301 至 www
+www.{$DOMAIN} {
+    encode zstd gzip
+    reverse_proxy app:8000
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}
+
+{$DOMAIN} {
+    redir https://www.{$DOMAIN}{uri} 301
+}

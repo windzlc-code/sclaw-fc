@@ -1,0 +1,13 @@
+fastapi
+python-multipart
+uvicorn
+jinja2
+httpx
+beautifulsoup4
+lxml
+pydantic
+python-slugify
+opencc-python-reimplemented
+deep-translator
+python-dotenv
+playwright>=1.40.0

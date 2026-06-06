@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: sclaw_app
+    restart: unless-stopped
+    environment:
+      - SITE_NAME=${SITE_NAME:-日本不動產全球指定搜尋網}
+      - BRAND_NAME=${BRAND_NAME:-}
+      - SITE_URL=${SITE_URL:-https://www.manuvip.com}
+      - SCLAW_ENABLE_BACKGROUND_WORKERS=${SCLAW_ENABLE_BACKGROUND_WORKERS:-0}
+      - SCLAW_PORTAL_SEARCH_CACHE_TTL=${SCLAW_PORTAL_SEARCH_CACHE_TTL:-120}
+      - SCLAW_PORTAL_SEARCH_LIVE_BACKFILL=${SCLAW_PORTAL_SEARCH_LIVE_BACKFILL:-0}
+      - SCLAW_PERSIST_LIVE_ENRICH=${SCLAW_PERSIST_LIVE_ENRICH:-0}
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}
+    volumes:
+      - ./data:/app/data
+      - ./exports:/app/exports
+      - ./logs:/app/logs
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2.10
+    container_name: sclaw_caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      - DOMAIN=${DOMAIN:-manuvip.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

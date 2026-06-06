@@ -1,0 +1,29 @@
+{
+  "market_scope": {
+    "target_regions": ["tw", "hk", "cn", "sg", "my", "th"],
+    "languages": ["zh-Hant", "zh-Hans"],
+    "seo_priority": {
+      "global_google": 0.4,
+      "regional_google": 0.6
+    }
+  },
+  "keyword_strategy": {
+    "forecast_weight": 0.5,
+    "howto_weight": 0.5,
+    "editable_in_admin": true
+  },
+  "technical_integration": {
+    "data_sources": ["MLIT", "NTA", "SUUMO", "HOMES", "AtHome"],
+    "schema_auto_insert": true,
+    "publish_daily_limit": 100
+  },
+  "conversion_flow": {
+    "membership_required": false,
+    "cta_positions": ["sidebar", "in_article", "floating_footer"],
+    "track_keyword_to_click": true
+  },
+  "brand_persona": {
+    "default_voice": "房產專業數據分析師",
+    "alternate_voices": ["資深房仲", "房產新聞記者"]
+  }
+}

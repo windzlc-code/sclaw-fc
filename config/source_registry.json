@@ -1,0 +1,299 @@
+[
+  {
+    "name": "日本國稅廳",
+    "category": "官方資料",
+    "url": "https://www.nta.go.jp",
+    "note": "不動產稅務、資本利得、租金稅",
+    "enabled": true,
+    "priority": 30,
+    "source_group": "official_market_data"
+  },
+  {
+    "name": "SUUMO（スーモ）",
+    "category": "大型房仲",
+    "url": "https://suumo.jp/",
+    "note": "【門戶七站】與站內 SUUMO 式物件表欄位對齊；智慧查詢預設近一年內入庫／更新。已實作列表 hub→詳情自動爬取。",
+    "enabled": true,
+    "priority": 120,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "LIFULL HOME'S（ライフルホームズ）",
+    "category": "大型房仲",
+    "url": "https://www.homes.co.jp/",
+    "note": "【門戶七站】與站內 SUUMO 式物件表欄位對齊；智慧查詢預設近一年內入庫／更新。已實作列表 hub→詳情自動爬取。",
+    "enabled": true,
+    "priority": 118,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "アットホーム（AtHome）",
+    "category": "大型房仲",
+    "url": "https://www.athome.co.jp/",
+    "note": "【門戶七站】與站內 SUUMO 式物件表欄位對齊；智慧查詢預設近一年內入庫／更新。已實作列表 hub→詳情自動爬取。",
+    "enabled": true,
+    "priority": 116,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "Yahoo!不動産",
+    "category": "大型房仲",
+    "url": "https://realestate.yahoo.co.jp/",
+    "note": "【門戶七站】與站內 SUUMO 式物件表欄位對齊；智慧查詢預設近一年內入庫／更新。已實作列表 hub→詳情自動爬取。",
+    "enabled": true,
+    "priority": 114,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "楽天不動産",
+    "category": "大型房仲",
+    "url": "https://realestate.rakuten.co.jp/",
+    "note": "【門戶七站】與站內 SUUMO 式物件表欄位對齊；智慧查詢預設近一年內入庫／更新。詳情頁 URL 可單筆爬取；列表 hub 擴充中。",
+    "enabled": true,
+    "priority": 112,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "イエステーション YesStation",
+    "category": "大型房仲",
+    "url": "https://www.yes-station.jp/",
+    "note": "【門戶七站】與站內 SUUMO 式物件表欄位對齊；智慧查詢預設近一年內入庫／更新。物件頁多為 yes1.co.jp，可貼詳情 URL 單筆爬取。",
+    "enabled": true,
+    "priority": 108,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "OHEYASU（お部屋探す）",
+    "category": "大型房仲",
+    "url": "https://oheyasuu.com/",
+    "note": "【門戶七站】與站內 SUUMO 式物件表欄位對齊；智慧查詢預設近一年內入庫／更新。物件頁多為 oheya-su.jp，可貼詳情 URL 單筆爬取。",
+    "enabled": true,
+    "priority": 106,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "國交省 不動產取引価格情報",
+    "category": "官方資料",
+    "url": "https://www.reinfolib.mlit.go.jp/",
+    "note": "成交價/地價/用途地域/風險",
+    "enabled": true,
+    "priority": 96,
+    "source_group": "official_market_data"
+  },
+  {
+    "name": "國交省 地価公示",
+    "category": "官方資料",
+    "url": "https://www.land.mlit.go.jp/webland/",
+    "note": "官方地價查詢",
+    "enabled": true,
+    "priority": 94,
+    "source_group": "official_market_data"
+  },
+  {
+    "name": "REINS 成約価格情報",
+    "category": "官方資料",
+    "url": "http://www.contract.reins.or.jp/",
+    "note": "流通機構成約價格",
+    "enabled": true,
+    "priority": 92,
+    "source_group": "official_market_data"
+  },
+  {
+    "name": "全国賃貸管理業協会 家賃相場",
+    "category": "官方資料",
+    "url": "https://www.touchi-kanri.jp/chart/",
+    "note": "租金行情參考",
+    "enabled": true,
+    "priority": 90,
+    "source_group": "official_market_data"
+  },
+  {
+    "name": "法務省 登記情報提供",
+    "category": "官方資料",
+    "url": "https://www1.touki.or.jp/",
+    "note": "所有權/抵押/共有狀況查核",
+    "enabled": false,
+    "priority": 84,
+    "source_group": "ownership_registry"
+  },
+  {
+    "name": "法務省 地圖公圖提供",
+    "category": "官方資料",
+    "url": "https://www1.touki.or.jp/graphic/",
+    "note": "公圖/筆界/鄰地邊界查核",
+    "enabled": false,
+    "priority": 82,
+    "source_group": "ownership_registry"
+  },
+  {
+    "name": "最高裁判所 BIT 競売物件",
+    "category": "官方資料",
+    "url": "https://www.courts.go.jp/bit/",
+    "note": "法院法拍官方入口",
+    "enabled": false,
+    "priority": 78,
+    "source_group": "auction"
+  },
+  {
+    "name": "不動産競売ドットコム",
+    "category": "民間法拍",
+    "url": "https://www.touki-k.com/",
+    "note": "民間法拍整理入口",
+    "enabled": false,
+    "priority": 76,
+    "source_group": "auction"
+  },
+  {
+    "name": "SUUMO 売却査定",
+    "category": "賣房査定",
+    "url": "https://sell.suumo.jp/",
+    "note": "SUUMO 賣房估價入口",
+    "enabled": false,
+    "priority": 72,
+    "source_group": "sell_assessment"
+  },
+  {
+    "name": "LIFULL 売却",
+    "category": "賣房査定",
+    "url": "https://sell.lifull.co.jp/",
+    "note": "LIFULL 賣房估價入口",
+    "enabled": false,
+    "priority": 70,
+    "source_group": "sell_assessment"
+  },
+  {
+    "name": "イエウーロー",
+    "category": "賣房査定",
+    "url": "https://www.ieuro.jp/",
+    "note": "一括査定",
+    "enabled": false,
+    "priority": 68,
+    "source_group": "sell_assessment"
+  },
+  {
+    "name": "すまいValue",
+    "category": "賣房査定",
+    "url": "https://www.sumai-value.jp/",
+    "note": "大手6社聯合估價",
+    "enabled": false,
+    "priority": 66,
+    "source_group": "sell_assessment"
+  },
+  {
+    "name": "三井不動産",
+    "category": "開發商品牌",
+    "url": "https://www.mitsui-fudosan.co.jp/",
+    "note": "品牌開發商資訊",
+    "enabled": false,
+    "priority": 62,
+    "source_group": "developer_brand"
+  },
+  {
+    "name": "三菱地所",
+    "category": "開發商品牌",
+    "url": "https://www.mec.co.jp/",
+    "note": "品牌開發商資訊",
+    "enabled": false,
+    "priority": 60,
+    "source_group": "developer_brand"
+  },
+  {
+    "name": "住友不動産",
+    "category": "開發商品牌",
+    "url": "https://www.sumitomo-rd.co.jp/",
+    "note": "品牌開發商資訊",
+    "enabled": false,
+    "priority": 58,
+    "source_group": "developer_brand"
+  },
+  {
+    "name": "東急不動産",
+    "category": "開發商品牌",
+    "url": "https://www.tokyu-land.co.jp/",
+    "note": "品牌開發商資訊",
+    "enabled": false,
+    "priority": 56,
+    "source_group": "developer_brand"
+  },
+  {
+    "name": "野村不動産",
+    "category": "開發商品牌",
+    "url": "https://www.nomura-fudosan.co.jp/",
+    "note": "品牌開發商資訊",
+    "enabled": false,
+    "priority": 54,
+    "source_group": "developer_brand"
+  },
+  {
+    "name": "ハウスドゥ（關西）",
+    "category": "區域專用",
+    "url": "https://www.housedo.co.jp/",
+    "note": "關西地區入口",
+    "enabled": false,
+    "priority": 50,
+    "source_group": "kansai_local"
+  },
+  {
+    "name": "センチュリー21（關西）",
+    "category": "區域專用",
+    "url": "https://www.c21-kansai.com/",
+    "note": "關西地區入口",
+    "enabled": false,
+    "priority": 48,
+    "source_group": "kansai_local"
+  },
+  {
+    "name": "大阪不動産ネット",
+    "category": "區域專用",
+    "url": "https://www.osaka-fudosan.net/",
+    "note": "大阪地區入口",
+    "enabled": false,
+    "priority": 46,
+    "source_group": "kansai_local"
+  },
+  {
+    "name": "REISM",
+    "category": "投資專用",
+    "url": "https://reism.jp/",
+    "note": "投資入口",
+    "enabled": false,
+    "priority": 42,
+    "source_group": "investment_portal"
+  },
+  {
+    "name": "利回り.jp",
+    "category": "投資專用",
+    "url": "https://rimawari.jp/",
+    "note": "利回り與投資標的",
+    "enabled": false,
+    "priority": 40,
+    "source_group": "investment_portal"
+  },
+  {
+    "name": "RML 不動産投資",
+    "category": "投資專用",
+    "url": "https://www.rml.co.jp/",
+    "note": "投資入口",
+    "enabled": false,
+    "priority": 38,
+    "source_group": "investment_portal"
+  },
+  {
+    "name": "イエステーション",
+    "category": "大型房仲",
+    "url": "https://www.yes1.co.jp",
+    "note": "七大門戶預設；智慧查詢半年內主資料源",
+    "enabled": true,
+    "priority": 121,
+    "source_group": "mainstream_portal"
+  },
+  {
+    "name": "OHEYASU",
+    "category": "大型房仲",
+    "url": "https://www.oheya-su.jp",
+    "note": "七大門戶預設；智慧查詢半年內主資料源",
+    "enabled": true,
+    "priority": 122,
+    "source_group": "mainstream_portal"
+  }
+]

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>手動來源重點翻譯｜{{ site_name }}</title>
+  <meta name="description" content="貼上網址產生繁簡重點摘要。{{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
+  <link rel="stylesheet" href="/static/site.css">
+</head>
+<body class="site-lang-hant">
+  <main class="container">
+    {% include 'partials/site_language_switch.html' %}
+    <section class="hero">
+      <h1>手動來源重點翻譯</h1>
+      <p>貼上網址後，產生中文重點摘要小網頁，並可用上方按鈕切換版本。</p>
+    </section>
+
+    <section class="panel">
+      <a href="/">← 返回查詢首頁</a>
+      <div class="search-row-basic" style="margin-top:10px;">
+        <input id="manual_url" placeholder="貼上來源網址，例如 https://www.mlit.go.jp">
+        <button onclick="runSummary()">產生重點翻譯</button>
+      </div>
+      <p class="muted" id="manual_msg"></p>
+    </section>
+
+    <section class="card" id="manual_result" style="display:none;"></section>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+
+  <script>
+    function esc(s) {
+      return String(s || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function runSummary() {
+      const url = document.getElementById('manual_url').value.trim();
+      const msg = document.getElementById('manual_msg');
+      const result = document.getElementById('manual_result');
+      if (!url) {
+        msg.textContent = '請先輸入網址。';
+        return;
+      }
+      msg.textContent = '處理中...';
+      result.style.display = 'none';
+
+      const res = await fetch('/api/manual-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      msg.textContent = data.ok ? '完成' : '此來源受限，已提供替代指引摘要';
+
+      let html = `
+        <h2>${esc(data.title_zh_hant)}</h2>
+        <p class="muted">來源：<a href="${esc(data.source_url)}" target="_blank" rel="nofollow noopener">${esc(data.source_url)}</a>｜狀態：${esc(data.status)}</p>
+        <div data-site-lang-pane="hant" data-lang-pane="hant">
+          <h3>重點</h3>
+          <ul>${(data.key_points_zh_hant || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+          <h3>摘要</h3>
+          <p>${esc(data.summary_zh_hant || '')}</p>
+        </div>
+        <div data-site-lang-pane="hans" data-lang-pane="hans" hidden>
+          <h3>重点</h3>
+          <ul>${(data.key_points_zh_hans || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+          <h3>摘要</h3>
+          <p>${esc(data.summary_zh_hans || '')}</p>
+        </div>
+      `;
+      if (data.note) {
+        html += `<p class="muted">備註：${esc(data.note)}</p>`;
+      }
+      result.innerHTML = html;
+      result.style.display = 'block';
+      if (typeof window.setSiteLanguage === 'function') {
+        window.setSiteLanguage(typeof window.getSiteLanguagePreference === 'function' ? window.getSiteLanguagePreference() : 'hant');
+      }
+    }
+  </script>
+  {% include 'partials/support_chat_public_fab.html' %}
+</body>
+</html>

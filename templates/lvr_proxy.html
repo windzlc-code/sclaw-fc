@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>實價登錄代查 | {{ site_name }}</title>
+  <meta name="description" content="在本站輸入條件，由本站後端代送官方實價查詢並回傳結果。{{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
+  <meta name="sclaw-api-base" content="{{ sclaw_api_base }}">
+  <link rel="stylesheet" href="/static/site.css">
+</head>
+<body class="site-home site-lang-hant">
+  <main class="container lvr-proxy-page">
+    {% include 'partials/site_language_switch.html' %}
+    <section class="hero lvr-hero">
+      <div class="hero-copy">
+        {% if brand_name %}
+        <div class="brand-badge">{{ brand_name }}</div>
+        {% endif %}
+        <h1>內政部實價登錄代查頁</h1>
+        <p class="hero-subtitle">在這裡輸入條件，由本站後端代送官方查詢並把結果整理回來。</p>
+        <p>目前先支援核心查詢欄位：交易類型、縣市、行政區、期間與建物名稱。進階條件之後可以再往下擴充。</p>
+      </div>
+    </section>
+
+    <section class="panel lvr-proxy-shell">
+      <div class="lvr-proxy-head">
+        <div>
+          <h2>查詢條件</h2>
+          <p class="muted">年份請輸入民國年，例如 114 代表 2025。</p>
+        </div>
+        <a class="secondary" href="/" target="_self">返回首頁</a>
+      </div>
+
+      <form id="lvr-proxy-form" class="lvr-form-grid">
+        <label>
+          <span>交易類型</span>
+          <select id="lvr-qry-type" required>
+            <option value="biz">買賣</option>
+            <option value="rent">租賃</option>
+            <option value="sale">預售屋</option>
+          </select>
+        </label>
+
+        <label>
+          <span>縣市</span>
+          <select id="lvr-city" required>
+            <option value="">載入中...</option>
+          </select>
+        </label>
+
+        <label>
+          <span>行政區</span>
+          <select id="lvr-town">
+            <option value="">不限</option>
+          </select>
+        </label>
+
+        <label>
+          <span>起始年</span>
+          <input id="lvr-starty" value="114" inputmode="numeric" required>
+        </label>
+
+        <label>
+          <span>起始月</span>
+          <input id="lvr-startm" value="1" inputmode="numeric" required>
+        </label>
+
+        <label>
+          <span>結束年</span>
+          <input id="lvr-endy" value="114" inputmode="numeric" required>
+        </label>
+
+        <label>
+          <span>結束月</span>
+          <input id="lvr-endm" value="12" inputmode="numeric" required>
+        </label>
+
+        <label class="lvr-form-span-2">
+          <span>建物 / 社區名稱</span>
+          <input id="lvr-build" placeholder="例如：信義之星、台北晶麒">
+        </label>
+
+        <fieldset class="lvr-form-span-full lvr-type-box">
+          <legend>建物型態代碼</legend>
+          <label><input type="checkbox" name="lvr-ptype" value="1" checked> 大樓</label>
+          <label><input type="checkbox" name="lvr-ptype" value="2" checked> 華廈</label>
+          <label><input type="checkbox" name="lvr-ptype" value="3" checked> 公寓</label>
+          <label><input type="checkbox" name="lvr-ptype" value="4" checked> 套房</label>
+          <label><input type="checkbox" name="lvr-ptype" value="5" checked> 透天</label>
+          <label><input type="checkbox" name="lvr-ptype" value="6"> 店面</label>
+          <label><input type="checkbox" name="lvr-ptype" value="7"> 辦公商業</label>
+        </fieldset>
+
+        <div class="lvr-form-actions lvr-form-span-full">
+          <button type="submit" id="lvr-submit">送出官方查詢</button>
+          <button type="button" class="secondary" id="lvr-reset">重設</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel lvr-results-panel">
+      <div class="lvr-proxy-head">
+        <div>
+          <h2>查詢結果</h2>
+          <p id="lvr-status" class="muted">尚未查詢。</p>
+        </div>
+      </div>
+      <div id="lvr-results-meta" class="lvr-results-meta"></div>
+      <div id="lvr-results" class="lvr-results-empty">查詢完成後會在這裡顯示結果。</div>
+    </section>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+
+  <script src="https://lvr.land.moi.gov.tw/js/vendor.bundle.js"></script>
+  <script src="https://lvr.land.moi.gov.tw/js/common.bundle.js"></script>
+  <script>
+    const apiBase = document.querySelector('meta[name="sclaw-api-base"]')?.content || "";
+    const form = document.getElementById("lvr-proxy-form");
+    const cityEl = document.getElementById("lvr-city");
+    const townEl = document.getElementById("lvr-town");
+    const statusEl = document.getElementById("lvr-status");
+    const resultsEl = document.getElementById("lvr-results");
+    const metaEl = document.getElementById("lvr-results-meta");
+    const submitEl = document.getElementById("lvr-submit");
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function setBusy(isBusy) {
+      submitEl.disabled = isBusy;
+      submitEl.textContent = isBusy ? "查詢中..." : "送出官方查詢";
+    }
+
+    async function fetchJson(url, options) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || "請求失敗");
+      }
+      return data;
+    }
+
+    function renderTownOptions(items) {
+      townEl.innerHTML = '<option value="">不限</option>';
+      for (const item of items || []) {
+        const option = document.createElement("option");
+        option.value = item.code || "";
+        option.textContent = item.title || item.code || "";
+        townEl.appendChild(option);
+      }
+    }
+
+    async function loadCities() {
+      const data = await fetchJson(`${apiBase}/api/lvr/cities`);
+      cityEl.innerHTML = '<option value="">請選擇縣市</option>';
+      for (const item of data.items || []) {
+        const option = document.createElement("option");
+        option.value = item.code || "";
+        option.textContent = item.title || item.code || "";
+        cityEl.appendChild(option);
+      }
+    }
+
+    async function loadTowns(cityCode) {
+      if (!cityCode) {
+        renderTownOptions([]);
+        return;
+      }
+      const data = await fetchJson(`${apiBase}/api/lvr/towns?city=${encodeURIComponent(cityCode)}`);
+      renderTownOptions(data.items || []);
+    }
+
+    function selectedPtypes() {
+      return Array.from(document.querySelectorAll('input[name="lvr-ptype"]:checked'))
+        .map((input) => input.value)
+        .join(",");
+    }
+
+    function buildPayload(token) {
+      return {
+        qryType: document.getElementById("lvr-qry-type").value,
+        city: cityEl.value,
+        town: townEl.value,
+        ptype: selectedPtypes() || "1,2,3,4,5",
+        starty: document.getElementById("lvr-starty").value.trim(),
+        startm: document.getElementById("lvr-startm").value.trim(),
+        endy: document.getElementById("lvr-endy").value.trim(),
+        endm: document.getElementById("lvr-endm").value.trim(),
+        p_build: document.getElementById("lvr-build").value.trim(),
+        ftype: "",
+        price_s: "",
+        price_e: "",
+        unit_price_s: "",
+        unit_price_e: "",
+        area_s: "",
+        area_e: "",
+        build_s: "",
+        build_e: "",
+        buildyear_s: "",
+        buildyear_e: "",
+        doorno: "",
+        pattern: "",
+        community: document.getElementById("lvr-build").value.trim(),
+        floor: "",
+        rent_type: "",
+        rent_order: "",
+        p_unusual_yn: "",
+        p_unusualcode: "",
+        p_purpose: "",
+        urban: "",
+        nurban: "",
+        aa12: "",
+        QB41: "",
+        show_avg: "Y",
+        tmoney_unit: "1",
+        pmoney_unit: "1",
+        unit: "2",
+        token
+      };
+    }
+
+    async function captureOfficialRelativeUrl(payload) {
+      if (!window.jQuery || !window.common || typeof window.common.loadQueryPrice2 !== "function") {
+        throw new Error("官方查詢腳本尚未載入完成");
+      }
+      const $ = window.jQuery;
+      const originalAjax = $.ajax;
+      return await new Promise((resolve, reject) => {
+        let done = false;
+        $.ajax = function interceptAjax(options) {
+          const maybeUrl = options && typeof options.url === "string" ? options.url : "";
+          if (!done && maybeUrl.includes("/SERVICE/QueryPrice/")) {
+            done = true;
+            $.ajax = originalAjax;
+            window.common.hideLoadingMsg?.();
+            resolve(maybeUrl.startsWith("http") ? new URL(maybeUrl).pathname + new URL(maybeUrl).search : maybeUrl);
+            return {
+              abort() {}
+            };
+          }
+          return {
+            abort() {}
+          };
+        };
+        try {
+          window.common.loadQueryPrice2(payload);
+        } catch (error) {
+          $.ajax = originalAjax;
+          reject(error);
+          return;
+        }
+        window.setTimeout(() => {
+          if (done) {
+            return;
+          }
+          $.ajax = originalAjax;
+          window.common.hideLoadingMsg?.();
+          reject(new Error("無法建立官方查詢網址"));
+        }, 1200);
+      });
+    }
+
+    function renderResults(items) {
+      if (!Array.isArray(items) || items.length === 0) {
+        resultsEl.innerHTML = '<div class="lvr-results-empty">查無資料。</div>';
+        metaEl.innerHTML = "";
+        return;
+      }
+      const columns = Array.from(
+        items.reduce((set, row) => {
+          Object.keys(row || {}).forEach((key) => set.add(key));
+          return set;
+        }, new Set())
+      ).slice(0, 18);
+
+      metaEl.innerHTML = `<span class="chip">共 ${items.length} 筆</span>`;
+
+      const thead = columns.map((key) => `<th>${key}</th>`).join("");
+      const tbody = items.map((row) => {
+        const tds = columns.map((key) => {
+          const value = row?.[key];
+          const text = value == null ? "" : (typeof value === "object" ? JSON.stringify(value) : String(value));
+          return `<td>${text}</td>`;
+        }).join("");
+        return `<tr>${tds}</tr>`;
+      }).join("");
+
+      resultsEl.innerHTML = `
+        <div class="lvr-table-wrap">
+          <table class="lvr-results-table">
+            <thead><tr>${thead}</tr></thead>
+            <tbody>${tbody}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    cityEl.addEventListener("change", () => {
+      loadTowns(cityEl.value).catch((error) => {
+        setStatus(error.message);
+        renderTownOptions([]);
+      });
+    });
+
+    document.getElementById("lvr-reset").addEventListener("click", () => {
+      form.reset();
+      cityEl.value = "";
+      renderTownOptions([]);
+      metaEl.innerHTML = "";
+      resultsEl.innerHTML = '<div class="lvr-results-empty">查詢完成後會在這裡顯示結果。</div>';
+      setStatus("尚未查詢。");
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!cityEl.value) {
+        setStatus("請先選擇縣市。");
+        return;
+      }
+      setBusy(true);
+      setStatus("正在向本站後端建立官方查詢 session...");
+      try {
+        const session = await fetchJson(`${apiBase}/api/lvr/session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}"
+        });
+        const payload = buildPayload(session.token);
+        setStatus("正在借用官方腳本產生查詢網址...");
+        const relativeUrl = await captureOfficialRelativeUrl(payload);
+        setStatus("正在向官方站送出查詢...");
+        const queryResult = await fetchJson(`${apiBase}/api/lvr/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: session.session_id,
+            relative_url: relativeUrl
+          })
+        });
+        renderResults(queryResult.items || []);
+        setStatus(`查詢完成，共 ${queryResult.count || 0} 筆。`);
+      } catch (error) {
+        metaEl.innerHTML = "";
+        resultsEl.innerHTML = `<div class="lvr-results-empty">${error.message}</div>`;
+        setStatus("查詢失敗，請稍後再試。");
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    loadCities()
+      .then(() => setStatus("請輸入條件後送出。"))
+      .catch((error) => {
+        cityEl.innerHTML = '<option value="">載入失敗</option>';
+        setStatus(error.message);
+      });
+  </script>
+</body>
+</html>

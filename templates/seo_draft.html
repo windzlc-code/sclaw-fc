@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ item.seo_title }}</title>
+  <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords(item.keyword or '') }}">
+  <link rel="stylesheet" href="/static/site.css">
+  <link rel="canonical" href="{{ site_url }}/seo-draft/{{ item.seo_slug }}">
+  <script type="application/ld+json">{{ item.faq_schema_json|safe }}</script>
+</head>
+<body class="site-lang-hant">
+  <main class="container">
+    {% include 'partials/site_language_switch.html' %}
+    <section class="hero">
+      {% if brand_name %}
+      <div class="brand-badge">{{ brand_name }}</div>
+      {% endif %}
+      <h1>{{ item.seo_title }}</h1>
+      <p>關鍵字：{{ item.keyword }} | 分數：{{ item.keyword_score }} | 狀態：{{ item.status }}</p>
+      <p>來源通道：{{ item.source_channels or "main_search" }}</p>
+    </section>
+
+    <section class="panel">
+      <a href="/">← 返回首頁</a>
+    </section>
+
+    <article class="card">
+      <div data-site-lang-pane="hant" data-lang-pane="hant">
+        <h2>中文草稿</h2>
+        <pre style="white-space: pre-wrap;">{{ item.body_zh_hant }}</pre>
+      </div>
+      <div data-site-lang-pane="hans" data-lang-pane="hans" hidden>
+        <h2>中文草稿</h2>
+        <pre style="white-space: pre-wrap;">{{ item.body_zh_hans }}</pre>
+      </div>
+    </article>
+
+    <section class="panel">
+      <table class="data-table">
+        <tr><th>欄位</th><th>值</th></tr>
+        <tr><td>關鍵字</td><td>{{ item.keyword }}</td></tr>
+        <tr><td>SEO Slug</td><td>{{ item.seo_slug }}</td></tr>
+        <tr><td>Keyword Score</td><td>{{ item.keyword_score }}</td></tr>
+        <tr><td>Channels</td><td>{{ item.source_channels or "-" }}</td></tr>
+        <tr><td>Generated At</td><td>{{ item.generated_at or "-" }}</td></tr>
+        <tr><td>Updated At</td><td>{{ item.updated_at or "-" }}</td></tr>
+      </table>
+    </section>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+</body>
+</html>

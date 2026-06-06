@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ region_name }}買日本房地產｜{{ site_name }}</title>
+  <meta name="description" content="{{ region_name }}居民購買日本房地產完整資訊：制度、稅務、房貸與市場趨勢整理。{{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
+  <link rel="stylesheet" href="/static/site.css">
+  <link rel="canonical" href="{{ site_url }}/zh-{{ 'hant' if lang == 'zh-Hant' else 'hans' }}/{{ region_slug }}">
+  <link rel="alternate" hreflang="zh-Hant" href="{{ site_url }}/zh-hant/{{ region_slug }}">
+  <link rel="alternate" hreflang="zh-Hans" href="{{ site_url }}/zh-hans/{{ region_slug }}">
+  <link rel="alternate" hreflang="x-default" href="{{ site_url }}/zh-hant/{{ region_slug }}">
+  <script type="application/ld+json">{{ schema_json | safe }}</script>
+</head>
+<body class="{{ 'site-lang-hant' if lang == 'zh-Hant' else 'site-lang-hans' }}">
+  <main class="container">
+    {% include 'partials/site_language_switch.html' %}
+    <section class="hero">
+      {% if brand_name %}
+      <div class="brand-badge">{{ brand_name }}</div>
+      {% endif %}
+      <h1>{{ region_name }}買日本房地產</h1>
+      <p>
+        {% if lang == "zh-Hant" %}
+          針對{{ region_name }}華人提供可查詢的日本房地產政策、稅務、流程與區域趨勢內容。
+        {% else %}
+          面向{{ region_name }}华人，提供可查询的日本房地产政策、税务、流程与区域趋势内容。
+        {% endif %}
+      </p>
+    </section>
+
+    <section class="panel">
+      <a href="/">← 返回查詢首頁</a>
+    </section>
+
+    {% for item in items %}
+    <article class="card">
+      <h2><a href="{{ item.article_path }}">{{ item.seo_title }}</a></h2>
+      <p class="muted">來源：<a href="{{ item.item_url }}" target="_blank" rel="nofollow noopener">{{ item.source_name }}</a></p>
+      {% if lang == "zh-Hant" %}
+      <p>{{ item.body_zh_hant }}</p>
+      {% else %}
+      <p>{{ item.body_zh_hans }}</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+  {% include 'partials/support_chat_public_fab.html' %}
+</body>
+</html>

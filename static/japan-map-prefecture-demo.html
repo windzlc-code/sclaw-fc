@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本都道府縣互動地圖（示範）800×600｜SCLAW</title>
+<!--
+  開啟方式：本機 http://127.0.0.1:8000/static/japan-map-prefecture-demo.html
+  說明：簡化 SVG path，僅示範「地圖 path ↔ 右側 chip」雙向聯動；補齊 47 都道府縣需換正式地理資料。
+-->
+<style>
+body.jpmap800-root { margin:0;padding:20px;box-sizing:border-box;background:#f4f5f7;font-family:"Microsoft YaHei","Noto Sans TC",sans-serif;}
+body.jpmap800-root * { box-sizing:border-box; }
+
+body.jpmap800-root .container {
+  display:flex;
+  gap:20px;
+  width:fit-content;
+  max-width:100%;
+  margin:0 auto;
+}
+
+body.jpmap800-root .map-box {
+  width:800px;
+  height:600px;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:6px;
+}
+/* 960×600：取消下行註解 */
+/* body.jpmap800-root .map-box { width:960px;height:600px;} */
+
+body.jpmap800-root svg {
+  width:100%;
+  height:100%;
+  display:block;
+}
+
+body.jpmap800-root .pref {
+  fill:#dbeafe;
+  stroke:#fff;
+  stroke-width:0.6;
+  cursor:pointer;
+  transition:fill 0.2s;
+}
+body.jpmap800-root .pref:hover,
+body.jpmap800-root .pref:focus-visible,
+body.jpmap800-root .pref.active {
+  fill:#3b82f6;
+  outline:none;
+}
+
+body.jpmap800-root .chip-wrap {
+  width:260px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  align-content:flex-start;
+}
+body.jpmap800-root .chip {
+  padding:8px 12px;
+  min-height:40px;
+  border-radius:999px;
+  border:1px solid #d1d5db;
+  background:#fff;
+  font-size:12px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all 0.2s;
+}
+body.jpmap800-root .chip:hover,
+body.jpmap800-root .chip.active {
+  background:#3b82f6;
+  color:#fff;
+  border-color:#3b82f6;
+}
+
+body.jpmap800-root .jpmap800-status {
+  margin-top:12px;
+  padding:10px 12px;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:6px;
+  font-size:14px;
+  max-width:1080px;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+@media (max-width:860px) {
+  body.jpmap800-root .container { flex-direction:column; align-items:stretch; }
+  body.jpmap800-root .map-box { width:100%; height:auto; aspect-ratio:800/600; }
+  body.jpmap800-root .chip-wrap { width:100%; }
+}
+</style>
+</head>
+<body class="jpmap800-root">
+
+<p class="jpmap800-status" id="jpmap800-status" aria-live="polite">
+  請點地圖區域或右側按鈕（示範頁，path 為簡化示意）。
+</p>
+
+<div class="container">
+  <div class="map-box">
+    <svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="日本地圖示意（簡化多邊形）">
+      <path class="pref" id="hokkaido" data-name="北海道" tabindex="0"
+        d="M150,70 240,55 310,75 340,120 330,170 270,205 200,215 140,185 115,135 125,85Z"/>
+      <path class="pref" id="aomori" data-name="青森" tabindex="0"
+        d="M345,125 400,115 415,145 405,180 370,195 335,175Z"/>
+      <path class="pref" id="iwate" data-name="岩手" tabindex="0"
+        d="M415,145 465,135 480,170 470,205 430,220 410,185Z"/>
+      <path class="pref" id="miyagi" data-name="宮城" tabindex="0"
+        d="M470,205 515,195 530,230 520,260 485,275 465,240Z"/>
+      <path class="pref" id="akita" data-name="秋田" tabindex="0"
+        d="M335,175 385,165 400,200 390,230 355,245 330,210Z"/>
+      <path class="pref" id="yamagata" data-name="山形" tabindex="0"
+        d="M390,230 440,220 455,255 445,285 410,300 385,265Z"/>
+      <path class="pref" id="fukushima" data-name="福島" tabindex="0"
+        d="M445,285 495,275 510,310 500,340 465,355 440,320Z"/>
+      <path class="pref" id="ibaraki" data-name="茨城" tabindex="0"
+        d="M500,340 555,330 570,365 560,395 525,410 500,375Z"/>
+      <path class="pref" id="tochigi" data-name="栃木" tabindex="0"
+        d="M465,355 515,345 530,380 520,410 485,425 460,390Z"/>
+      <path class="pref" id="gunma" data-name="群馬" tabindex="0"
+        d="M425,350 475,340 490,375 480,405 445,420 420,385Z"/>
+      <path class="pref" id="saitama" data-name="埼玉" tabindex="0"
+        d="M485,425 535,415 550,450 540,480 505,495 480,460Z"/>
+      <path class="pref" id="chiba" data-name="千葉" tabindex="0"
+        d="M550,450 605,440 620,475 610,505 575,520 550,485Z"/>
+      <path class="pref" id="tokyo" data-name="東京" tabindex="0"
+        d="M520,480 570,470 585,505 575,535 540,550 515,515Z"/>
+      <path class="pref" id="kanagawa" data-name="神奈川" tabindex="0"
+        d="M490,505 540,495 555,530 545,560 510,575 485,540Z"/>
+      <path class="pref" id="niigata" data-name="新潟" tabindex="0"
+        d="M320,240 380,230 410,265 400,300 360,320 315,285Z"/>
+      <path class="pref" id="okinawa" data-name="沖縄" tabindex="0"
+        d="M600,520 680,510 700,540 690,570 620,580 590,550Z"/>
+    </svg>
+  </div>
+
+  <div class="chip-wrap" role="group" aria-label="都道府縣快速選取">
+    <button type="button" class="chip" data-id="hokkaido">北海道</button>
+    <button type="button" class="chip" data-id="aomori">青森</button>
+    <button type="button" class="chip" data-id="iwate">岩手</button>
+    <button type="button" class="chip" data-id="miyagi">宮城</button>
+    <button type="button" class="chip" data-id="akita">秋田</button>
+    <button type="button" class="chip" data-id="yamagata">山形</button>
+    <button type="button" class="chip" data-id="fukushima">福島</button>
+    <button type="button" class="chip" data-id="ibaraki">茨城</button>
+    <button type="button" class="chip" data-id="tochigi">栃木</button>
+    <button type="button" class="chip" data-id="gunma">群馬</button>
+    <button type="button" class="chip" data-id="saitama">埼玉</button>
+    <button type="button" class="chip" data-id="chiba">千葉</button>
+    <button type="button" class="chip" data-id="tokyo">東京</button>
+    <button type="button" class="chip" data-id="kanagawa">神奈川</button>
+    <button type="button" class="chip" data-id="niigata">新潟</button>
+    <button type="button" class="chip" data-id="okinawa">沖縄</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const statusEl = document.getElementById('jpmap800-status');
+  const prefs = document.querySelectorAll('.pref');
+  const chips = document.querySelectorAll('.chip');
+
+  function setActive(id) {
+    const path = document.getElementById(id);
+    prefs.forEach(function (p) { p.classList.toggle('active', p.id === id); });
+    chips.forEach(function (c) { c.classList.toggle('active', c.dataset.id === id); });
+    if (path && statusEl) {
+      statusEl.textContent = '目前選取：' + (path.dataset.name || id) + '（id=' + id + '）';
+    } else if (statusEl) {
+      statusEl.textContent = '找不到對應 SVG path：' + id;
+    }
+  }
+
+  prefs.forEach(function (el) {
+    el.addEventListener('click', function () {
+      setActive(el.id);
+    });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setActive(el.id);
+      }
+    });
+  });
+
+  chips.forEach(function (el) {
+    el.addEventListener('click', function () {
+      var id = el.dataset.id;
+      if (!document.getElementById(id)) {
+        if (statusEl) statusEl.textContent = '尚未繪製此縣的 SVG path：' + id;
+        return;
+      }
+      setActive(id);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

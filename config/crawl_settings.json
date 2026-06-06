@@ -1,0 +1,59 @@
+{
+  "per_source_limit": 80,
+  "interval_hours": 1,
+  "market_interval_hours": 1,
+  "market_max_records": 10000,
+  "market_retention_days": 15,
+  "portal_query_max_records": 100000,
+  "portal_query_max_age_days": 180,
+  "home_hero_key": "custom-upload",
+  "home_hero_custom_url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4",
+  "home_carousel_items": [
+    {
+      "url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4",
+      "source_url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4",
+      "title": "首頁影片 1｜日本不動產查詢",
+      "kind_label": "預設首頁影片",
+      "media_type": "video",
+      "time_label": "順序 1",
+      "enabled": true,
+      "sort_order": 1
+    },
+    {
+      "url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_02_h264.mp4",
+      "source_url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_02_h264.mp4",
+      "title": "首頁影片 2｜案件與知識摘要",
+      "kind_label": "預設首頁影片",
+      "media_type": "video",
+      "time_label": "順序 2",
+      "enabled": true,
+      "sort_order": 2
+    },
+    {
+      "url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_03_h264.mp4",
+      "source_url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_03_h264.mp4",
+      "title": "首頁影片 3｜顧問流程與社媒素材",
+      "kind_label": "預設首頁影片",
+      "media_type": "video",
+      "time_label": "順序 3",
+      "enabled": true,
+      "sort_order": 3
+    }
+  ],
+  "smart_query_show_sell": false,
+  "smart_query_show_rent": false,
+  "portal_backfill_empty_thumbs": true,
+  "portal_backfill_max": 3,
+  "portal_backfill_persist": true,
+  "source_group_enabled": {
+    "mainstream_portal": true,
+    "official_market_data": true,
+    "ownership_registry": false,
+    "auction": false,
+    "sell_assessment": false,
+    "developer_brand": false,
+    "kansai_local": false,
+    "investment_portal": false,
+    "other": false
+  }
+}

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>案件資料需重新整理 | {{ site_name }}</title>
+  <link rel="stylesheet" href="/static/site.css?v=20260507-media-blank-fix">
+</head>
+<body class="site-case site-lang-hant">
+  <main class="container case-page-suumo">
+    <section class="panel case-unavailable-panel">
+      <p class="muted" style="margin:0 0 0.5rem;"><a href="/">返回首頁智慧查詢</a></p>
+      <h1 class="case-unavailable-title">案件資料需重新整理</h1>
+      <p class="case-unavailable-copy">
+        {{ unavailable_reason or "系統已辨識這個編號可能是搜尋列表、FAQ、活動頁或來源站導覽頁，因此不直接當成案件展示，避免首頁與案件頁出現缺圖、欄位不全或錯誤資訊。" }}
+      </p>
+      {% if item.title_original %}
+      <dl class="case-unavailable-meta">
+        <div><dt>資料編號</dt><dd>#{{ source_item_id }}</dd></div>
+        <div><dt>來源標題</dt><dd>{{ item.title_original }}</dd></div>
+        {% if source_url %}<div><dt>來源網址</dt><dd><a href="{{ source_url }}" target="_blank" rel="nofollow noopener">{{ source_url }}</a></dd></div>{% endif %}
+      </dl>
+      {% endif %}
+      <div class="case-unavailable-actions">
+        <a class="portal-suumo-cta portal-suumo-cta--consult" href="{{ search_url }}">依這個關鍵字重新查詢</a>
+        <a class="portal-suumo-cta portal-suumo-cta--ghost" href="/?open_support=1">請 BOT 幫我縮小條件</a>
+      </div>
+      {% set zh_body = item.body_zh_hant_display or item.body_zh_hant or '' %}
+      {% set jp_body = item.body_original_display or item.body_original or '' %}
+      {% if zh_body %}
+      <section class="case-unavailable-content">
+        <h2>中文整理</h2>
+        <p class="rich-media-from-text">{{ zh_body }}</p>
+      </section>
+      {% endif %}
+      {% if jp_body %}
+      <details class="case-unavailable-content case-unavailable-content--source">
+        <summary>來源原文摘要</summary>
+        <p class="rich-media-from-text">{{ jp_body }}</p>
+      </details>
+      {% endif %}
+      <p class="muted case-unavailable-note">
+        BOT 已排入資料巡檢：會優先檢查缺圖、文字欄位與後三站來源補抓狀態。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

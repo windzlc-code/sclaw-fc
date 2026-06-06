@@ -1,0 +1,24628 @@
+﻿import csv
+import base64
+import hashlib
+import hmac
+import json
+import mimetypes
+import os
+import re
+import shutil
+import sqlite3
+import subprocess
+import threading
+import time
+import unicodedata
+import wave
+from collections import deque
+from datetime import datetime, timedelta, timezone
+from io import StringIO
+from pathlib import Path
+from urllib.parse import parse_qsl, quote, urlencode, unquote, urljoin, urlparse
+from uuid import uuid4
+from typing import Any
+
+import httpx
+from src.bsoup import soup_from_html
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+
+from src.config import (
+    BRAND_NAME,
+    COMPANY_TABS,
+    COMPANY_PROFILE,
+    DATA_DIR,
+    KNOWLEDGE_SOURCES,
+    LIGHT_KNOWLEDGE_KEYWORDS,
+    LLM_DOCS_URL_DEFAULT,
+    SEO_ARTICLE_TW,
+    SEO_DESCRIPTION_SUFFIX,
+    SEO_META_KEYWORDS_BASE,
+    SEO_PHRASE_BRAND,
+    SEO_PHRASE_ENTRY,
+    SEO_PHRASE_HERO_KICKER,
+    SITE_NAME,
+    SITE_URL,
+    TARGET_REGIONS,
+    merge_seo_meta_keywords,
+)
+from src.coverage_matrix_sql import CASE_INV_FRESH_TS as _CASE_INV_FRESH_TS
+from src.coverage_matrix_sql import CASE_INV_JP_LISTING_SQL as _CASE_INV_JP_LISTING_SQL
+from src.coverage_matrix_sql import coverage_host_where_sql as _coverage_host_where_sql
+from src.coverage_matrix_sql import COVERAGE_HEAL_REGION_QUERY_ALIASES as _COVERAGE_HEAL_REGION_QUERY_ALIASES
+from src.coverage_matrix_sql import coverage_region_where_sql as _coverage_region_where_sql
+from src.db import get_conn, init_db
+from src.crawler import BROWSER_HEADERS, crawl_item_url, crawl_manual_links, crawl_one_source
+from src.figure_query_service import query_figure_tab
+from src.manual_summary import build_manual_summary
+from src.market_portal import (
+    build_market_detail,
+    build_market_detail_fallback,
+    collect_live_portal_search_links,
+    search_market_portal,
+)
+from src.nta_taxanswer import search_nta_taxanswer
+from src.pipeline import process_crawled_items
+from src.keyword_tracking import track_keyword_search
+from src.seo_draft_service import generate_seo_drafts, get_seo_draft, list_seo_drafts
+from src.support_crm_prompt_defaults import (
+    SUPPORT_CRM_DEFAULT_COMPACT,
+    SUPPORT_CRM_DEFAULT_EXAMPLES,
+    SUPPORT_CRM_DEFAULT_FULL,
+)
+from src.dialog_ai import run_dialog_ai_summary, run_smart_nav_graph_ai
+from src.search_reading_order import run_search_reading_order_ai
+from src.case_metadata import JP_AREA_FILTER_LABELS, infer_case_metadata, transaction_sql_clause
+from src.jp_map_hub_data import HOMES_STYLE_PREF_CLUSTERS, JP_MAP_ORBIT_EAST, JP_MAP_ORBIT_WEST
+from src.jp_real_estate_guidance import JP_REAL_ESTATE_GUIDANCE_FAQS, guidance_block_for_prompt, match_jp_real_estate_guidance
+from src.portal_case_search import (
+    _extract_listing_body_image_urls,
+    _first_thumb,
+    _homes_listing_image_tokens,
+    _clean_listing_address_line,
+    _clean_listing_access_line,
+    _thumb_kind_label,
+    is_likely_agent_portrait_image_url,
+    ordered_listing_image_urls,
+    search_portal_cases,
+    sort_property_image_urls_for_hero,
+)
+from src.portal_property_crawl import LISTING_HUB_PAGES
+from src.live_enrich_urls import live_enrich_eligible_url
+from src.homes_geo import HOMES_KODATE_CHUKO_PREFS, homes_kodate_chuko_city_groups, homes_kodate_chuko_pref_catalog
+from src.jp_transit_model import list_city_areas, list_lines, list_stations, list_trans_types
+from src.gemini_client import (
+    PERSONA_REGION_LABELS,
+    chat_completion,
+    chat_support_reply_gemini,
+    format_llm_exception_for_user,
+    is_llm_configured,
+    refine_long_support_reply_dual_stage,
+    sanitize_support_chat_visible_reply,
+    support_knowledge_keyword_hint,
+)
+from src.llm_runtime import (
+    admin_llm_settings_snapshot,
+    base_host,
+    delete_kv,
+    get_active_provider,
+    get_chat_credentials,
+    get_kv,
+    get_llm_docs_url,
+    llm_configuration_hint,
+    resolve_llm_provider,
+    set_kv,
+)
+from src.link_quality import listing_title_or_fallback, url_is_portal_broad_hub
+from src.knowledge_service import (
+    build_social_knowledge_digest,
+    fetch_knowledge_for_chat,
+    fetch_knowledge_snippets,
+    format_knowledge_for_prompt,
+    knowledge_items_for_api,
+    pick_article_title_for_ui,
+    transaction_hint_from_message,
+)
+from src.google_cse_client import is_google_cse_configured
+from src.seo_intel_service import run_google_finance_property_intel
+from src.smart_nav_intel import pick_rotating_seed_queries
+from src.site_public_config import (
+    admin_site_dns_snapshot,
+    apply_site_dns_settings,
+    get_support_avatar_url,
+    get_effective_site_url,
+    get_site_public_cors_origins,
+)
+from src.startup_case_refresh import (
+    case_auto_refresh_status,
+    run_case_auto_refresh_once,
+    start_case_auto_refresh_worker,
+)
+from src.case_quality_batch import (
+    case_quality_batch_status,
+    run_case_quality_batch_once,
+    start_case_quality_batch_worker,
+)
+from src.source_registry import (
+    DEFAULT_HOME_HERO_KEY,
+    SOURCE_GROUP_DEFS,
+    HOME_HERO_KEYS,
+    PRIMARY_FOUR_PORTAL_HOSTS,
+    REMAINING_THREE_PORTAL_HOSTS,
+    SEVEN_JP_PORTAL_HOST_ORDER,
+    add_source,
+    ensure_seven_jp_portal_sources,
+    get_enabled_sources,
+    load_crawl_settings,
+    load_source_group_enabled,
+    load_sources,
+    ordered_primary_four_portal_sources_for_crawl,
+    ordered_remaining_three_portal_sources_for_crawl,
+    ordered_seven_jp_portal_sources_for_crawl,
+    normalize_home_hero_key,
+    set_source_group_enabled,
+    set_source_enabled,
+    set_source_priority,
+    save_crawl_settings,
+)
+from src.suumo_faq_seed import SUUMO_FAQ_URL, seed_suumo_faq_knowledge
+from src.text_utils import (
+    body_zh_field_is_corrupt_jp_placeholder,
+    format_ai_pack_line_html,
+    is_disclaimer_or_template_noise,
+    is_japanese_primary_plaintext,
+    sanitize_article_display_body,
+    strip_disclaimer_noise_for_keypoints,
+)
+
+app = FastAPI(title=SITE_NAME)
+
+
+def _json_error_detail(exc: Exception) -> str:
+    detail = f"{type(exc).__name__}: {exc}"
+    detail = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", detail)
+    return f"Internal Server Error: {detail[:700]}"
+
+
+@app.exception_handler(Exception)
+async def _api_exception_json_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": _json_error_detail(exc)})
+
+_PORTAL_CASE_SEARCH_CACHE_LOCK = threading.Lock()
+_PORTAL_CASE_SEARCH_CACHE: dict[str, tuple[float, str]] = {}
+_PORTAL_CASE_SEARCH_CACHE_MAX = 96
+_SITE_SEARCH_CACHE_LOCK = threading.Lock()
+_SITE_SEARCH_CACHE: dict[str, tuple[float, bytes]] = {}
+_SITE_SEARCH_CACHE_MAX = 160
+_CASES_INVENTORY_STATS_CACHE_LOCK = threading.Lock()
+_CASES_INVENTORY_STATS_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
+_JP_TRANSIT_API_CACHE_LOCK = threading.Lock()
+_JP_TRANSIT_API_CACHE: dict[str, tuple[float, str]] = {}
+_JP_TRANSIT_API_CACHE_MAX = 420
+_COVERAGE_MATRIX_CACHE_LOCK = threading.Lock()
+_COVERAGE_MATRIX_CACHE: dict[str, tuple[float, bytes]] = {}
+_SOCIAL_TG_SNAPSHOT_CACHE_LOCK = threading.Lock()
+_SOCIAL_TG_SNAPSHOT_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
+_CASE_PAGE_HTML_CACHE_LOCK = threading.Lock()
+_CASE_PAGE_HTML_CACHE: dict[int, tuple[float, str, str]] = {}
+_CASE_PAGE_HTML_CACHE_MAX = 240
+
+
+def _invalidate_case_data_caches() -> None:
+    with _CASES_INVENTORY_STATS_CACHE_LOCK:
+        _CASES_INVENTORY_STATS_CACHE.clear()
+    with _COVERAGE_MATRIX_CACHE_LOCK:
+        _COVERAGE_MATRIX_CACHE.clear()
+    with _PORTAL_CASE_SEARCH_CACHE_LOCK:
+        _PORTAL_CASE_SEARCH_CACHE.clear()
+    with _CASE_PAGE_HTML_CACHE_LOCK:
+        _CASE_PAGE_HTML_CACHE.clear()
+_COVERAGE_MATRIX_CACHE_MAX = 32
+
+
+def _case_page_html_cache_ttl() -> float:
+    try:
+        return max(0.0, min(3600.0, float(os.getenv("SCLAW_CASE_PAGE_CACHE_TTL", "900") or 900)))
+    except Exception:
+        return 900.0
+
+
+def _case_page_fingerprint(item: dict[str, Any]) -> str:
+    parts = [
+        str(item.get("updated_at") or ""),
+        str(item.get("last_checked_at") or ""),
+        str(item.get("crawled_at") or ""),
+        str(len(str(item.get("body_zh_hant") or ""))),
+        str(len(str(item.get("body_original") or ""))),
+        str(len(str(item.get("image_urls") or ""))),
+        str(len(str(item.get("listing_media_json") or ""))),
+    ]
+    for rel in ("templates/case.html", "templates/partials/portal_suumo_listing.html", "static/site.css"):
+        try:
+            parts.append(str((Path.cwd() / rel).stat().st_mtime_ns))
+        except Exception:
+            parts.append("")
+    return "|".join(parts)
+
+
+def _case_page_html_cache_get(source_item_id: int, fingerprint: str) -> str | None:
+    ttl = _case_page_html_cache_ttl()
+    if ttl <= 0:
+        return None
+    now = time.monotonic()
+    sid = int(source_item_id or 0)
+    with _CASE_PAGE_HTML_CACHE_LOCK:
+        hit = _CASE_PAGE_HTML_CACHE.get(sid)
+        if not hit:
+            return None
+        ts, fp, html = hit
+        if fp != fingerprint or now - ts > ttl:
+            _CASE_PAGE_HTML_CACHE.pop(sid, None)
+            return None
+        return html
+
+
+def _case_page_html_cache_set(source_item_id: int, fingerprint: str, html: str) -> None:
+    if _case_page_html_cache_ttl() <= 0:
+        return
+    sid = int(source_item_id or 0)
+    if sid <= 0 or not html:
+        return
+    with _CASE_PAGE_HTML_CACHE_LOCK:
+        _CASE_PAGE_HTML_CACHE[sid] = (time.monotonic(), str(fingerprint), str(html))
+        while len(_CASE_PAGE_HTML_CACHE) > _CASE_PAGE_HTML_CACHE_MAX:
+            oldest = min(_CASE_PAGE_HTML_CACHE.items(), key=lambda kv: kv[1][0])[0]
+            _CASE_PAGE_HTML_CACHE.pop(oldest, None)
+
+
+def _coverage_matrix_cache_ttl() -> float:
+    try:
+        return max(0.0, min(3600.0, float(os.getenv("SCLAW_COVERAGE_MATRIX_CACHE_TTL", "300") or 300)))
+    except Exception:
+        return 300.0
+
+
+def _coverage_matrix_cache_key(age_days: int, threshold: int) -> str:
+    return f"{int(age_days)}:{int(threshold)}"
+
+
+def _coverage_matrix_cache_get(key: str) -> bytes | None:
+    ttl = _coverage_matrix_cache_ttl()
+    if ttl <= 0:
+        return None
+    now = time.monotonic()
+    with _COVERAGE_MATRIX_CACHE_LOCK:
+        hit = _COVERAGE_MATRIX_CACHE.get(str(key))
+        if not hit:
+            return None
+        ts, body = hit
+        if now - ts > ttl:
+            _COVERAGE_MATRIX_CACHE.pop(str(key), None)
+            return None
+        return body
+
+
+def _coverage_matrix_cache_set(key: str, body: bytes) -> None:
+    if _coverage_matrix_cache_ttl() <= 0:
+        return
+    with _COVERAGE_MATRIX_CACHE_LOCK:
+        _COVERAGE_MATRIX_CACHE[str(key)] = (time.monotonic(), bytes(body))
+        while len(_COVERAGE_MATRIX_CACHE) > _COVERAGE_MATRIX_CACHE_MAX:
+            oldest = min(_COVERAGE_MATRIX_CACHE.items(), key=lambda kv: kv[1][0])[0]
+            _COVERAGE_MATRIX_CACHE.pop(oldest, None)
+
+
+def _prewarm_coverage_matrix_cache() -> None:
+    try:
+        age = max(1, min(366, int(os.getenv("SCLAW_COVERAGE_MATRIX_PREWARM_AGE", "180") or 180)))
+    except Exception:
+        age = 180
+    try:
+        threshold = max(
+            1, min(5000, int(os.getenv("SCLAW_COVERAGE_MATRIX_PREWARM_THRESHOLD", "15") or 15))
+        )
+    except Exception:
+        threshold = 15
+    try:
+        api_cases_coverage_matrix(age_days=age, threshold_per_cell=threshold)
+    except Exception:
+        return
+
+
+def _prewarm_inventory_stats_cache() -> None:
+    try:
+        api_cases_inventory_stats(age_days=0)
+    except Exception:
+        return
+
+
+def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
+    """Warm common buy-search responses so first user searches avoid cold parse spikes."""
+    if _portal_case_search_cache_ttl() <= 0:
+        return
+    raw_regions = os.getenv(
+        "SCLAW_PORTAL_SEARCH_PREWARM_REGIONS",
+        "東京,神奈川,大阪,北海道,四國,沖繩,甲信越",
+    )
+    regions = [x.strip() for x in str(raw_regions or "").split(",") if x.strip()]
+    if not os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_REGIONS"):
+        regions = [
+            "\u6771\u4eac",
+            "\u795e\u5948\u5ddd",
+            "\u5927\u962a",
+            "\u5317\u6d77\u9053",
+            "\u56db\u570b",
+            "\u6c96\u7e69",
+            "\u7532\u4fe1\u8d8a",
+        ]
+    if not regions:
+        return
+    try:
+        limit = max(10, min(60, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_LIMIT", "60") or 60)))
+    except Exception:
+        limit = 60
+    try:
+        max_age = max(0, min(366, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_AGE", "180") or 180)))
+    except Exception:
+        max_age = 180
+    raw_age_list = os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_AGES", "")
+    prewarm_ages: list[int] = []
+    if raw_age_list:
+        for part in raw_age_list.split(","):
+            try:
+                prewarm_ages.append(max(0, min(366, int(part.strip()))))
+            except Exception:
+                continue
+    # Frontend common searches use max_age_days=0, while older prewarm defaults used 180.
+    # Warm both so first user searches do not fall through to a cold query.
+    if not prewarm_ages:
+        prewarm_ages = [0, max_age] if max_age != 0 else [0]
+    prewarm_ages = list(dict.fromkeys(prewarm_ages))
+    try:
+        settings = load_crawl_settings()
+        allowed_tx = _allowed_portal_transactions(settings)
+        for region in regions:
+            for age in prewarm_ages:
+                cache_payload = {
+                    "tx": "buy",
+                    "portal": "all",
+                    "region": region,
+                    "keyword": "",
+                    "property_types": [],
+                    "price_min_man": 0,
+                    "price_max_man": 0,
+                    "layout_min_rooms": 0,
+                    "layout_max_rooms": 0,
+                    "layout_exact_zero": False,
+                    "max_age_days": age,
+                    "limit": limit,
+                    "jp_line_id": 0,
+                    "jp_station_id": 0,
+                    "walk_max": 0,
+                    "coverage_matrix_aligned": False,
+                }
+                cache_key = _portal_case_search_cache_key(cache_payload)
+                if not force and _portal_case_search_cache_get(cache_key) is not None:
+                    continue
+                data = search_portal_cases(
+                    transaction="buy",
+                    portal="all",
+                    region_hint=region,
+                    keyword="",
+                    property_types=[],
+                    price_min_man=0,
+                    price_max_man=0,
+                    layout_min_rooms=0,
+                    layout_max_rooms=0,
+                    layout_exact_zero=False,
+                    max_age_days=age,
+                    limit=limit,
+                    jp_line_id=0,
+                    jp_station_id=0,
+                    walk_max=0,
+                    coverage_matrix_aligned=False,
+                )
+                items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
+                    list(data.get("items") or []),
+                    allow_live_fetch=False,
+                )
+                bf_meta["skipped_reason"] = "prewarm_fast_mode"
+                for item in items_bf:
+                    if isinstance(item, dict) and not str(item.get("jp_region_display_zh") or "").strip():
+                        item["jp_region_display_zh"] = region
+                data["items"] = items_bf
+                data["portal_thumb_backfill"] = bf_meta
+                data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
+                data["allowed_transactions"] = allowed_tx
+                data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
+                data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
+                _portal_case_search_cache_set(
+                    cache_key,
+                    json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+                )
+    except Exception:
+        return
+
+
+def _portal_case_search_cache_prewarm_loop() -> None:
+    """Keep common region searches warm without running ingestion or media repair."""
+    try:
+        ttl = _portal_case_search_cache_ttl()
+        if ttl <= 0:
+            return
+        interval = float(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_INTERVAL", "") or 0)
+        if interval <= 0:
+            interval = min(600.0, max(60.0, ttl * 0.65))
+    except Exception:
+        interval = 600.0
+    while True:
+        try:
+            _prewarm_portal_case_search_cache(force=True)
+            time.sleep(interval)
+        except Exception:
+            time.sleep(60.0)
+
+
+def _portal_case_search_cache_ttl() -> float:
+    try:
+        return max(0.0, min(3600.0, float(os.getenv("SCLAW_PORTAL_SEARCH_CACHE_TTL", "900") or 900)))
+    except Exception:
+        return 900.0
+
+
+def _portal_case_search_cache_stale_ttl() -> float:
+    try:
+        ttl = _portal_case_search_cache_ttl()
+        default_stale = max(1800.0, ttl * 4.0)
+        return max(
+            ttl,
+            min(21600.0, float(os.getenv("SCLAW_PORTAL_SEARCH_STALE_TTL", str(default_stale)) or default_stale)),
+        )
+    except Exception:
+        return 3600.0
+
+
+def _portal_case_search_cache_key(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _portal_case_search_cache_get_with_status(key: str) -> tuple[str | None, str]:
+    ttl = _portal_case_search_cache_ttl()
+    if ttl <= 0:
+        return None, "disabled"
+    now = time.monotonic()
+    with _PORTAL_CASE_SEARCH_CACHE_LOCK:
+        hit = _PORTAL_CASE_SEARCH_CACHE.get(key)
+        if not hit:
+            return None, "miss"
+        ts, body = hit
+        age = now - ts
+        if age <= ttl:
+            return body, "hit"
+        if age <= _portal_case_search_cache_stale_ttl():
+            return body, "stale"
+        else:
+            _PORTAL_CASE_SEARCH_CACHE.pop(key, None)
+            return None, "expired"
+
+
+def _portal_case_search_cache_get(key: str) -> str | None:
+    body, status = _portal_case_search_cache_get_with_status(key)
+    if status in ("hit", "stale"):
+        return body
+    return None
+
+
+def _portal_case_search_cache_set(key: str, body: str) -> None:
+    if _portal_case_search_cache_ttl() <= 0:
+        return
+    with _PORTAL_CASE_SEARCH_CACHE_LOCK:
+        _PORTAL_CASE_SEARCH_CACHE[key] = (time.monotonic(), body)
+        while len(_PORTAL_CASE_SEARCH_CACHE) > _PORTAL_CASE_SEARCH_CACHE_MAX:
+            oldest = min(_PORTAL_CASE_SEARCH_CACHE.items(), key=lambda kv: kv[1][0])[0]
+            _PORTAL_CASE_SEARCH_CACHE.pop(oldest, None)
+
+
+def _site_search_cache_ttl() -> float:
+    try:
+        return max(0.0, min(180.0, float(os.getenv("SCLAW_SITE_SEARCH_CACHE_TTL", "25") or 25)))
+    except Exception:
+        return 25.0
+
+
+def _site_search_cache_key(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _site_search_cache_get(key: str) -> bytes | None:
+    ttl = _site_search_cache_ttl()
+    if ttl <= 0:
+        return None
+    now = time.monotonic()
+    with _SITE_SEARCH_CACHE_LOCK:
+        hit = _SITE_SEARCH_CACHE.get(key)
+        if not hit:
+            return None
+        ts, body = hit
+        if now - ts > ttl:
+            _SITE_SEARCH_CACHE.pop(key, None)
+            return None
+        return body
+
+
+def _site_search_cache_set(key: str, body: bytes) -> None:
+    if _site_search_cache_ttl() <= 0:
+        return
+    with _SITE_SEARCH_CACHE_LOCK:
+        _SITE_SEARCH_CACHE[key] = (time.monotonic(), body)
+        while len(_SITE_SEARCH_CACHE) > _SITE_SEARCH_CACHE_MAX:
+            oldest = min(_SITE_SEARCH_CACHE.items(), key=lambda kv: kv[1][0])[0]
+            _SITE_SEARCH_CACHE.pop(oldest, None)
+
+
+def _jp_transit_api_cache_ttl() -> float:
+    try:
+        # Transit dropdown data updates hourly; cache for up to 2 hours by default.
+        return max(0.0, min(6 * 3600.0, float(os.getenv("SCLAW_JP_TRANSIT_CACHE_TTL", "7200") or 7200)))
+    except Exception:
+        return 7200.0
+
+
+def _jp_transit_api_cache_get(key: str) -> str | None:
+    ttl = _jp_transit_api_cache_ttl()
+    if ttl <= 0:
+        return None
+    now = time.monotonic()
+    with _JP_TRANSIT_API_CACHE_LOCK:
+        hit = _JP_TRANSIT_API_CACHE.get(key)
+        if not hit:
+            return None
+        ts, body = hit
+        if now - ts > ttl:
+            _JP_TRANSIT_API_CACHE.pop(key, None)
+            return None
+        return body
+
+
+def _jp_transit_api_cache_set(key: str, body: str) -> None:
+    if _jp_transit_api_cache_ttl() <= 0:
+        return
+    with _JP_TRANSIT_API_CACHE_LOCK:
+        _JP_TRANSIT_API_CACHE[key] = (time.monotonic(), body)
+        while len(_JP_TRANSIT_API_CACHE) > _JP_TRANSIT_API_CACHE_MAX:
+            oldest = min(_JP_TRANSIT_API_CACHE.items(), key=lambda kv: kv[1][0])[0]
+            _JP_TRANSIT_API_CACHE.pop(oldest, None)
+
+
+def _cases_inventory_stats_cache_get(age_days: int) -> dict[str, Any] | None:
+    try:
+        ttl = max(0.0, min(3600.0, float(os.getenv("SCLAW_INVENTORY_STATS_CACHE_TTL", "600") or 600)))
+    except Exception:
+        ttl = 600.0
+    now = time.monotonic()
+    with _CASES_INVENTORY_STATS_CACHE_LOCK:
+        hit = _CASES_INVENTORY_STATS_CACHE.get(int(age_days))
+        if not hit:
+            return None
+        ts, payload = hit
+        if now - ts > ttl:
+            _CASES_INVENTORY_STATS_CACHE.pop(int(age_days), None)
+            return None
+        return dict(payload)
+
+
+def _cases_inventory_stats_cache_set(age_days: int, payload: dict[str, Any]) -> None:
+    with _CASES_INVENTORY_STATS_CACHE_LOCK:
+        _CASES_INVENTORY_STATS_CACHE[int(age_days)] = (time.monotonic(), dict(payload))
+
+HOME_HERO_PRESETS: dict[str, dict[str, str]] = {
+    "global-entry-classic": {
+        "label": "經典全球徽章",
+        "theme": "brand",
+        "image_url": "/static/img/home-hero-global-entry.svg",
+    },
+    "tech-lines-skyline": {
+        "label": "科技線條感 A",
+        "theme": "tech",
+        "image_url": "/static/img/home-hero-tech-lines-skyline.svg",
+    },
+    "tech-orbit-grid": {
+        "label": "科技線條感 B",
+        "theme": "tech",
+        "image_url": "/static/img/home-hero-tech-orbit-grid.svg",
+    },
+    "brand-tokyo-night": {
+        "label": "日本地產品牌感 A",
+        "theme": "brand",
+        "image_url": "/static/img/home-hero-brand-tokyo-night.svg",
+    },
+    "brand-gold-residence": {
+        "label": "日本地產品牌感 B",
+        "theme": "brand",
+        "image_url": "/static/img/home-hero-brand-gold-residence.svg",
+    },
+    "custom-upload": {
+        "label": "自訂上傳圖",
+        "theme": "brand",
+        "image_url": "",
+    },
+}
+
+
+HOME_HERO_VIDEO_EXTS = {".mp4", ".webm", ".mov", ".m4v"}
+HOME_HERO_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
+HOME_HERO_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+HOME_DEFAULT_CAROUSEL_VIDEOS: tuple[tuple[str, str], ...] = (
+    ("static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4", "首頁影片 1｜日本不動產查詢"),
+    ("static/uploads/home-carousel-defaults/default_cloud_phone_showcase_02_h264.mp4", "首頁影片 2｜案件與知識摘要"),
+    ("static/uploads/home-carousel-defaults/default_cloud_phone_showcase_03_h264.mp4", "首頁影片 3｜顧問流程與社媒素材"),
+)
+
+
+def _home_hero_media_type(url: Any) -> str:
+    raw = str(url or "").strip()
+    if not raw:
+        return "image"
+    ext = Path(urlparse(raw).path).suffix.lower()
+    return "video" if ext in HOME_HERO_VIDEO_EXTS else "image"
+
+
+def _home_carousel_media_type(url: Any) -> str:
+    ext = Path(urlparse(str(url or "").strip()).path).suffix.lower()
+    if ext in HOME_HERO_AUDIO_EXTS:
+        return "audio"
+    if ext in HOME_HERO_VIDEO_EXTS:
+        return "video"
+    if ext in HOME_HERO_IMAGE_EXTS:
+        return "image"
+    return ""
+
+
+def _resolve_home_hero_preset(crawl_settings: dict[str, Any]) -> dict[str, str]:
+    key = normalize_home_hero_key(crawl_settings.get("home_hero_key"))
+    preset = dict(HOME_HERO_PRESETS.get(key) or HOME_HERO_PRESETS[DEFAULT_HOME_HERO_KEY])
+    custom_url = str(crawl_settings.get("home_hero_custom_url") or "").strip()
+    if key == "custom-upload":
+        if custom_url:
+            preset["image_url"] = custom_url
+        else:
+            key = DEFAULT_HOME_HERO_KEY
+            preset = dict(HOME_HERO_PRESETS[DEFAULT_HOME_HERO_KEY])
+    preset["key"] = key
+    preset["custom_url"] = custom_url
+    media_url = str(preset.get("image_url") or "").strip()
+    preset["media_url"] = media_url
+    preset["media_type"] = _home_hero_media_type(media_url)
+    preset["custom_media_type"] = _home_hero_media_type(custom_url)
+    return preset
+
+
+def _home_static_url_from_path(path: Path) -> str:
+    try:
+        rel = path.resolve().relative_to((Path.cwd() / "static").resolve())
+        return "/static/" + str(rel).replace("\\", "/")
+    except Exception:
+        return ""
+
+
+def _home_default_carousel_video_items() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for idx, (raw_path, title) in enumerate(HOME_DEFAULT_CAROUSEL_VIDEOS, start=1):
+        path = Path(raw_path)
+        if not path.is_file() or path.stat().st_size < 1024:
+            continue
+        playback_path = _home_video_playback_path(path)
+        url = _home_static_url_from_path(playback_path)
+        source_url = _home_static_url_from_path(path)
+        if not url:
+            continue
+        rows.append(
+            {
+                "url": url,
+                "source_url": source_url or url,
+                "title": title,
+                "kind_label": "預設首頁影片",
+                "time_label": f"順序 {idx}",
+                "media_type": "video",
+                "bytes": int(path.stat().st_size),
+                "sort_ts": 9_000_000_000.0 - float(idx),
+                "sort_order": idx,
+                "enabled": True,
+                "published": True,
+            }
+        )
+    return rows
+
+
+def _home_generated_video_carousel(
+    limit: int = 8,
+    *,
+    preferred_url: Any = "",
+    preferred_title: str = "首頁上傳影片",
+    preferred_kind_label: str = "首頁影片",
+    published_items: Any = None,
+) -> list[dict[str, Any]]:
+    """Collect published or recent generated/uploaded videos for the public home carousel."""
+    if isinstance(published_items, list):
+        manual_rows: list[dict[str, Any]] = []
+        seen_manual: set[str] = set()
+        for idx, item in enumerate(published_items):
+            if not isinstance(item, dict) or item.get("enabled") is False:
+                continue
+            url = str(item.get("url") or "").strip()
+            media_type = _home_carousel_media_type(url)
+            if not url or media_type != "video" or url in seen_manual:
+                continue
+            seen_manual.add(url)
+            manual_rows.append(
+                {
+                    "url": url,
+                    "source_url": str(item.get("source_url") or url).strip(),
+                    "title": str(item.get("title") or "首頁影片").strip(),
+                    "kind_label": str(item.get("kind_label") or "發布影片").strip(),
+                    "time_label": str(item.get("time_label") or "").strip(),
+                    "media_type": "video",
+                    "bytes": 0,
+                    "sort_ts": 1_000_000.0 - float(idx),
+                    "sort_order": int(item.get("sort_order") or idx + 1),
+                    "published": True,
+                }
+            )
+        manual_rows.sort(key=lambda x: int(x.get("sort_order") or 999))
+        if manual_rows:
+            return manual_rows[: max(0, min(24, int(limit or 0)))]
+    default_rows = _home_default_carousel_video_items()
+    if default_rows:
+        return default_rows[: max(0, min(24, int(limit or 0)))]
+    roots = [
+        (Path("static/uploads/case-media"), "*", "上傳影片", 0.0),
+        (Path("static/uploads/home-intro-videos"), "**/*", "口播影片", 0.0),
+        (Path("static/uploads/social-case-workbench"), "**/*", "工作台影片", 0.0),
+    ]
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    preferred = str(preferred_url or "").strip()
+    preferred_type = _home_carousel_media_type(preferred)
+    if preferred and preferred_type == "video":
+        preferred_source = preferred
+        preferred_path = _url_to_local_static_path(preferred)
+        if preferred_type == "video" and preferred_path is not None and preferred_path.is_file():
+            playback_path = _home_video_playback_path(preferred_path)
+            preferred = _home_static_url_from_path(playback_path) or preferred
+            source_url = _home_static_url_from_path(preferred_path) or preferred_source
+        else:
+            source_url = preferred_source
+        seen.add(preferred)
+        seen.add(source_url)
+        now = datetime.now()
+        rows.append(
+            {
+                "url": preferred,
+                "source_url": source_url,
+                "title": preferred_title or "首頁上傳影片",
+                "kind_label": preferred_kind_label or "首頁影片",
+                "time_label": now.strftime("%Y/%m/%d %H:%M"),
+                "media_type": preferred_type,
+                "bytes": 0,
+                "sort_ts": time.time() + 1000000.0,
+            }
+        )
+    for root, pattern, kind_label, priority in roots:
+        if not root.exists():
+            continue
+        for path in root.glob(pattern):
+            try:
+                media_type = _home_carousel_media_type(str(path))
+                if not path.is_file() or media_type != "video":
+                    continue
+                stat = path.stat()
+                if stat.st_size < 1024:
+                    continue
+                playback_path = _home_video_playback_path(path)
+                url = _home_static_url_from_path(playback_path)
+                source_url = _home_static_url_from_path(path)
+                if not url or url in seen or (source_url and source_url in seen):
+                    continue
+                seen.add(url)
+                if source_url:
+                    seen.add(source_url)
+                created = datetime.fromtimestamp(stat.st_mtime)
+                display_kind = kind_label
+                rows.append(
+                    {
+                        "url": url,
+                        "source_url": source_url,
+                        "title": f"{display_kind} {created.strftime('%m/%d %H:%M')}",
+                        "kind_label": display_kind,
+                        "time_label": created.strftime("%Y/%m/%d %H:%M"),
+                        "media_type": media_type,
+                        "bytes": int(stat.st_size),
+                        "sort_ts": float(stat.st_mtime) + float(priority or 0.0),
+                    }
+                )
+            except Exception:
+                continue
+    rows.sort(key=lambda x: float(x.get("sort_ts") or 0.0), reverse=True)
+    return rows[: max(0, min(24, int(limit or 0)))]
+
+
+def _home_intro_upload_dir() -> Path:
+    path = Path("static/uploads/home-intro-videos")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _home_carousel_candidate_rows(limit: int = 80) -> list[dict[str, Any]]:
+    roots = [
+        (Path("static/uploads/case-media"), "*", "上傳素材"),
+        (Path("static/uploads/home-intro-videos"), "**/*", "口播影片"),
+        (Path("static/uploads/social-case-workbench"), "**/*", "工作台影片"),
+        (Path("static/uploads/home-carousel-defaults"), "*", "預設輪播"),
+    ]
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in _home_default_carousel_video_items():
+        url = str(row.get("url") or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        rows.append(dict(row))
+    for root, pattern, kind_label in roots:
+        if not root.exists():
+            continue
+        for path in root.glob(pattern):
+            try:
+                if not path.is_file():
+                    continue
+                media_type = _home_carousel_media_type(str(path))
+                if media_type != "video":
+                    continue
+                stat = path.stat()
+                if stat.st_size < 1024:
+                    continue
+                playback_path = _home_video_playback_path(path)
+                url = _home_static_url_from_path(playback_path)
+                source_url = _home_static_url_from_path(path)
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                created = datetime.fromtimestamp(stat.st_mtime)
+                rows.append(
+                    {
+                        "url": url,
+                        "source_url": source_url or url,
+                        "title": f"影片｜{path.stem[:48]}",
+                        "kind_label": kind_label,
+                        "time_label": created.strftime("%Y/%m/%d %H:%M"),
+                        "media_type": "video",
+                        "bytes": int(stat.st_size),
+                        "sort_ts": float(stat.st_mtime),
+                    }
+                )
+            except Exception:
+                continue
+    rows.sort(key=lambda x: float(x.get("sort_ts") or 0.0), reverse=True)
+    return rows[: max(1, min(300, int(limit or 80)))]
+
+
+def _normalize_home_carousel_for_app(items: Any) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    if not isinstance(items, list):
+        return out
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()[:1000]
+        media_type = _home_carousel_media_type(url)
+        if not url or media_type != "video" or url in seen:
+            continue
+        seen.add(url)
+        try:
+            order = int(item.get("sort_order") or idx + 1)
+        except Exception:
+            order = idx + 1
+        out.append(
+            {
+                "url": url,
+                "source_url": str(item.get("source_url") or url).strip()[:1000],
+                "title": str(item.get("title") or "首頁影片").strip()[:160],
+                "kind_label": str(item.get("kind_label") or "發布影片").strip()[:80],
+                "media_type": "video",
+                "time_label": str(item.get("time_label") or "").strip()[:80],
+                "enabled": bool(item.get("enabled", True)),
+                "sort_order": max(1, min(999, order)),
+            }
+        )
+    out.sort(key=lambda x: int(x.get("sort_order") or 999))
+    return out[:24]
+
+
+def _url_to_local_static_path(raw_url: Any) -> Path | None:
+    raw = str(raw_url or "").strip()
+    if not raw:
+        return None
+    parsed = urlparse(raw)
+    path_text = unquote(parsed.path if parsed.scheme else raw)
+    if path_text.startswith("/"):
+        path_text = path_text.lstrip("/")
+    candidate = Path(path_text)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    try:
+        resolved = candidate.resolve()
+        root = (Path.cwd() / "static").resolve()
+        if root in resolved.parents or resolved == root:
+            return resolved if resolved.is_file() else None
+    except Exception:
+        return None
+    return None
+
+
+_CASE_IMAGE_CACHE_DIR = Path("static/cache/case-images")
+_CASE_IMAGE_PREFETCH_LOCK = threading.Lock()
+_CASE_IMAGE_PREFETCH_INFLIGHT: set[str] = set()
+_CASE_IMAGE_URL_CACHE: dict[str, str] = {}
+_CASE_IMAGE_URL_CACHE_MAX = 2000
+
+
+def _case_image_cache_hash(raw_url: Any) -> str:
+    return hashlib.sha1(str(raw_url or "").strip().encode("utf-8")).hexdigest()
+
+
+def _case_image_static_url_from_path(path: Path) -> str:
+    try:
+        rel = path.resolve().relative_to((Path.cwd() / "static").resolve())
+        return "/static/" + str(rel).replace("\\", "/")
+    except Exception:
+        return "/" + str(path).replace("\\", "/").lstrip("/")
+
+
+def _case_image_cache_ext(raw_url: Any, content_type: str = "") -> str:
+    parsed = urlparse(str(raw_url or ""))
+    candidates = [unquote(parsed.path or ""), unquote(parsed.query or "")]
+    for text in candidates:
+        m = re.search(r"\.(jpe?g|png|webp|gif|bmp)(?:$|[?&#])", text, re.I)
+        if m:
+            ext = "." + m.group(1).lower()
+            return ".jpg" if ext == ".jpeg" else ext
+    guessed = mimetypes.guess_extension(str(content_type or "").split(";", 1)[0].strip())
+    if guessed in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}:
+        return ".jpg" if guessed == ".jpeg" else guessed
+    return ".jpg"
+
+
+def _case_image_cached_static_url(raw_url: Any) -> str:
+    raw = str(raw_url or "").strip()
+    if not raw or not raw.lower().startswith(("http://", "https://")):
+        return ""
+    with _CASE_IMAGE_PREFETCH_LOCK:
+        cached_mem = _CASE_IMAGE_URL_CACHE.get(raw, "")
+    if cached_mem:
+        return cached_mem
+    h = _case_image_cache_hash(raw)
+    shard_dir = _CASE_IMAGE_CACHE_DIR / h[:2]
+    try:
+        for path in shard_dir.glob(f"{h}.*"):
+            if path.is_file() and path.stat().st_size > 256:
+                cached = _case_image_static_url_from_path(path)
+                with _CASE_IMAGE_PREFETCH_LOCK:
+                    if len(_CASE_IMAGE_URL_CACHE) >= _CASE_IMAGE_URL_CACHE_MAX:
+                        _CASE_IMAGE_URL_CACHE.clear()
+                    _CASE_IMAGE_URL_CACHE[raw] = cached
+                return cached
+    except Exception:
+        return ""
+    return ""
+
+
+def _case_image_download_to_cache(raw_url: Any) -> str:
+    raw = str(raw_url or "").strip()
+    if not raw.lower().startswith(("http://", "https://")):
+        return ""
+    cached = _case_image_cached_static_url(raw)
+    if cached:
+        return cached
+    headers = dict(BROWSER_HEADERS)
+    headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+    try:
+        with httpx.Client(timeout=httpx.Timeout(12.0, connect=4.0), follow_redirects=True, headers=headers) as client:
+            resp = client.get(raw)
+    except Exception:
+        return ""
+    if resp.status_code >= 400 or not resp.content or len(resp.content) > 20 * 1024 * 1024:
+        return ""
+    ctype = str(resp.headers.get("content-type") or "").strip()
+    if ctype and "image" not in ctype.lower() and not re.search(r"\.(?:jpe?g|png|webp|gif|bmp)(?:$|[?&#])", raw, re.I):
+        return ""
+    h = _case_image_cache_hash(raw)
+    shard_dir = _CASE_IMAGE_CACHE_DIR / h[:2]
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    dest = shard_dir / f"{h}{_case_image_cache_ext(raw, ctype)}"
+    tmp = dest.with_name(dest.name + ".tmp")
+    try:
+        tmp.write_bytes(resp.content)
+        tmp.replace(dest)
+    except Exception:
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return ""
+    cached = _case_image_static_url_from_path(dest)
+    with _CASE_IMAGE_PREFETCH_LOCK:
+        if len(_CASE_IMAGE_URL_CACHE) >= _CASE_IMAGE_URL_CACHE_MAX:
+            _CASE_IMAGE_URL_CACHE.clear()
+        _CASE_IMAGE_URL_CACHE[raw] = cached
+    return cached
+
+
+def _case_image_proxy_url(raw_url: Any) -> str:
+    raw = str(raw_url or "").strip()
+    if not raw.lower().startswith(("http://", "https://")):
+        return raw
+    h = _case_image_cache_hash(raw)
+    return f"/api/case-image-cache/{h}?u={quote(raw, safe='')}"
+
+
+def _case_image_prefetch_worker(urls: list[str]) -> None:
+    try:
+        for raw in urls:
+            _case_image_download_to_cache(raw)
+    finally:
+        with _CASE_IMAGE_PREFETCH_LOCK:
+            for raw in urls:
+                _CASE_IMAGE_PREFETCH_INFLIGHT.discard(raw)
+
+
+def _case_image_prefetch_enabled() -> bool:
+    return str(os.getenv("SCLAW_CASE_IMAGE_PREFETCH", "")).strip().lower() in ("1", "true", "yes")
+
+
+def _case_image_prefetch(urls: list[Any], *, limit: int = 8) -> None:
+    if not _case_image_prefetch_enabled():
+        return
+    pending: list[str] = []
+    for u in urls:
+        raw = str(u or "").strip()
+        if not raw.lower().startswith(("http://", "https://")):
+            continue
+        if _case_image_cached_static_url(raw):
+            continue
+        with _CASE_IMAGE_PREFETCH_LOCK:
+            if raw in _CASE_IMAGE_PREFETCH_INFLIGHT:
+                continue
+            _CASE_IMAGE_PREFETCH_INFLIGHT.add(raw)
+        pending.append(raw)
+        if len(pending) >= max(1, int(limit or 1)):
+            break
+    if pending:
+        threading.Thread(target=_case_image_prefetch_worker, args=(pending,), daemon=True, name="case-image-cache").start()
+
+
+def case_static_image_url(raw_url: Any) -> str:
+    raw = str(raw_url or "").strip()
+    if not raw:
+        return ""
+    if not raw.lower().startswith(("http://", "https://")):
+        return raw
+    cached = _case_image_cached_static_url(raw)
+    if cached:
+        return cached
+    if _case_image_prefetch_enabled():
+        _case_image_prefetch([raw], limit=1)
+    return _case_image_proxy_url(raw)
+
+
+def _home_intro_script_template() -> str:
+    return (
+        "歡迎來到日本不動產全球指定搜尋網。這裡把日本主要房產平台、區域條件、交通路線與案件素材集中整理，"
+        "讓你不用在不同網站之間來回切換。你可以直接用地區、車站、預算或房型開始搜尋，也能把喜歡的案件交給顧問進一步確認。"
+        "我們會協助整理室內外照片、交通亮點、價格條件與適合客群，讓看屋前就先掌握重點。"
+        "如果你正在找日本自住、投資或租屋案件，先從首頁開始篩選，留下需求後，我們的顧問會接著幫你做下一步判斷。"
+    )
+
+
+def _home_intro_script_variants(tone: str = "friendly", length: str = "short") -> list[str]:
+    base = [
+        (
+            "你好，歡迎來到日本不動產全球指定搜尋網。這裡把 SUUMO、LIFULL HOME'S、at home 等日本房產資訊集中整理，"
+            "讓你可以用地區、車站、價格、格局和照片快速縮小範圍。看到喜歡的案件，可以先留下需求，我們會協助確認交通、室內外重點、生活圈與適合客群，"
+            "再由顧問幫你接下一步看屋或諮詢。想找日本自住、投資或租屋，先從首頁開始篩選，會更快找到方向。"
+        ),
+        (
+            "如果你正在研究日本房產，先從這個首頁開始。你可以直接用區域、車站、預算和房型找案件，也可以把有興趣的物件交給顧問整理。"
+            "我們會把交通路線、室內外照片、價格條件和生活圈亮點一起看，幫你判斷這個案件適不適合自住、出租或長期持有。"
+            "留下需求後，顧問會把重點整理好，再跟你做下一步確認。"
+        ),
+        (
+            "找日本房產，不需要在很多網站之間來回切換。這個首頁會把主要平台的案件、照片、交通和條件集中到同一個入口，"
+            "你只要選地區、車站、價格或房型，就能快速看到適合的物件。遇到想了解的案件，交給我們的顧問協助核對資料、整理亮點，"
+            "讓你在看屋前就先知道該看哪裡、該問什麼。"
+        ),
+    ]
+    long_extra = (
+        "我們也會特別注意圖片是否完整、格局是否清楚、交通說明是否能支撐銷售亮點，"
+        "讓每一次諮詢都更接近真正可判斷、可比較、可行動的案件。"
+    )
+    if str(length or "").lower() in {"long", "full"}:
+        return [text + long_extra for text in base]
+    if str(tone or "").lower() in {"professional", "consultant"}:
+        return [base[1], base[0], base[2]]
+    return base
+
+
+def _home_intro_case_row(
+    conn: sqlite3.Connection, *, source_item_id: int = 0, content_id: int = 0
+) -> dict[str, Any] | None:
+    sid = int(source_item_id or 0)
+    cid = int(content_id or 0)
+    if sid <= 0 and cid <= 0:
+        return None
+    where_sql = "c.source_item_id = ?" if sid > 0 else "c.id = ?"
+    param = sid if sid > 0 else cid
+    row = conn.execute(
+        f"""
+        SELECT
+            c.id AS content_id,
+            c.source_item_id,
+            c.seo_slug,
+            c.seo_title,
+            c.seo_description,
+            c.title_zh_hant,
+            c.title_zh_hans,
+            c.body_zh_hant,
+            c.region_code,
+            c.keyword_type,
+            c.topic_category,
+            c.updated_at,
+            COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+            COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+            COALESCE(c.case_transit_override, '') AS case_transit_override,
+            COALESCE(c.jp_station_id, 0) AS jp_station_id,
+            COALESCE(c.walk_min, 0) AS walk_min,
+            COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+            s.source_name,
+            s.item_url,
+            s.image_urls,
+            s.body_original,
+            s.title_original,
+            COALESCE(s.thumbnail_url, '') AS thumbnail_url,
+            COALESCE(s.hero_image_url, '') AS hero_image_url,
+            COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind
+        FROM content_items c
+        JOIN source_items s ON s.id = c.source_item_id
+        WHERE {where_sql}
+        LIMIT 1
+        """,
+        (param,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def _home_intro_case_media(row: dict[str, Any], *, ensure_local: bool = False) -> tuple[str, list[str], list[str]]:
+    imgs, vids = extract_media_urls_from_row(row)
+    firsts = [
+        str(row.get("hero_image_url") or "").strip(),
+        str(row.get("thumbnail_url") or "").strip(),
+    ]
+    merged_imgs: list[str] = []
+    for u in [*firsts, *imgs]:
+        if u and u not in merged_imgs:
+            merged_imgs.append(u)
+    hero = merged_imgs[0] if merged_imgs else ""
+    if ensure_local and hero.lower().startswith(("http://", "https://")):
+        cached = _case_image_download_to_cache(hero)
+        if cached:
+            hero = cached
+    elif hero.lower().startswith(("http://", "https://")):
+        hero = case_static_image_url(hero)
+    return hero, merged_imgs[:8], vids[:4]
+
+
+def _home_intro_case_title(row: dict[str, Any]) -> str:
+    return _social_text(
+        row.get("title_zh_hant")
+        or row.get("seo_title")
+        or row.get("title_original")
+        or row.get("seo_description")
+        or "日本房產案件",
+        limit=88,
+    )
+
+
+def _home_intro_case_price_hint(row: dict[str, Any]) -> str:
+    blob = " ".join(
+        str(row.get(k) or "")
+        for k in (
+            "seo_title",
+            "seo_description",
+            "title_zh_hant",
+            "title_original",
+            "body_zh_hant",
+            "body_original",
+        )
+    )
+    patterns = (
+        r"(?:價格|售價|価格)\s*[:：]?\s*([0-9,\.]+\s*(?:萬|万)?(?:日圓|日元|円|JPY)?)",
+        r"([0-9,\.]+\s*萬日圓)",
+        r"([0-9,\.]+\s*万(?:円)?)",
+        r"([0-9,\.]+\s*億(?:円|日圓)?)",
+    )
+    for pat in patterns:
+        m = re.search(pat, blob, re.I)
+        if m:
+            return _social_text(m.group(1), limit=36)
+    return ""
+
+
+def _home_intro_case_video_script(row: dict[str, Any]) -> str:
+    meta = infer_case_metadata(row)
+    title = _home_intro_case_title(row)
+    region = _social_text(
+        row.get("case_jp_region_override") or meta.get("jp_region_display_zh") or "日本重點區域",
+        limit=48,
+    )
+    transit = _social_text(
+        row.get("case_transit_override") or meta.get("transit_line_zh") or "交通條件請以原站資料確認",
+        limit=90,
+    )
+    price = _home_intro_case_price_hint(row)
+    source = _social_text(row.get("source_name") or "", limit=28) or "原站"
+    body = re.sub(
+        r"\s+",
+        " ",
+        str(row.get("seo_description") or row.get("body_zh_hant") or row.get("body_original") or "").strip(),
+    )
+    body = _social_text(body, limit=110)
+    price_line = f"目前可先注意價格約 {price}，" if price else ""
+    detail_line = f"資料來源是 {source}，{body}" if body else f"資料來源是 {source}，建議再確認原站照片、格局與管理條件。"
+    return (
+        f"這次帶你快速看一筆日本房產案件：{title}。"
+        f"案件位置在 {region}，交通重點是 {transit}。"
+        f"{price_line}看這類物件時，我會先確認三件事：第一，室內外照片是否完整；第二，交通到車站或生活圈是否符合需求；第三，管理費、修繕積立金與交屋時程是否清楚。"
+        f"{detail_line}"
+        "如果你想看完整資料，可以從案件頁打開原站資訊；需要比較同區域案件，也可以把這筆加入清單，我們再協助整理可看屋與可發布的重點。"
+    )
+
+
+def _home_intro_case_public_row(row: dict[str, Any], *, include_script: bool = True) -> dict[str, Any]:
+    meta = infer_case_metadata(row)
+    hero, imgs, vids = _home_intro_case_media(row)
+    sid = int(row.get("source_item_id") or 0)
+    slug = str(row.get("seo_slug") or "").strip()
+    out = {
+        "content_id": int(row.get("content_id") or 0),
+        "source_item_id": sid,
+        "title": _home_intro_case_title(row),
+        "source_name": _social_text(row.get("source_name") or "", limit=36) or "原站",
+        "region": _social_text(
+            row.get("case_jp_region_override") or meta.get("jp_region_display_zh") or "",
+            limit=48,
+        ),
+        "transit": _social_text(row.get("case_transit_override") or meta.get("transit_line_zh") or "", limit=90),
+        "price_hint": _home_intro_case_price_hint(row),
+        "thumb_url": hero,
+        "hero_media_url": hero,
+        "image_count": len(imgs),
+        "video_count": len(vids),
+        "article_path": _standard_article_path(slug, sid),
+        "case_path": _standard_case_path(sid),
+        "updated_at": str(row.get("updated_at") or ""),
+    }
+    if include_script:
+        out["script_text"] = _home_intro_case_video_script(row)
+    return out
+
+
+def _home_intro_script_response(payload: Any | None = None) -> dict[str, Any]:
+    source_item_id = int(getattr(payload, "source_item_id", 0) or 0) if payload else 0
+    content_id = int(getattr(payload, "content_id", 0) or 0) if payload else 0
+    if source_item_id > 0 or content_id > 0:
+        with get_conn() as conn:
+            row = _home_intro_case_row(conn, source_item_id=source_item_id, content_id=content_id)
+        if row:
+            case = _home_intro_case_public_row(row, include_script=True)
+            script = str(case.get("script_text") or _home_intro_case_video_script(row))
+            return {"ok": True, "script_text": script, "variants": [script], "case": case}
+    variants = _home_intro_script_variants(
+        tone=getattr(payload, "tone", "friendly") if payload else "friendly",
+        length=getattr(payload, "length", "short") if payload else "short",
+    )
+    return {"ok": True, "script_text": variants[0] if variants else _home_intro_script_template(), "variants": variants}
+
+
+def _home_intro_public_spokesperson_presets() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in _home_intro_spokesperson_presets():
+        rows.append(
+            {
+                "id": str(row.get("id") or ""),
+                "label": _social_text(row.get("label") or "口播形象", limit=48),
+                "kind": str(row.get("kind") or ""),
+                "preview_url": str(row.get("preview_url") or ""),
+                "summary": _social_text(row.get("summary") or "可用於首頁口播介紹。", limit=80),
+            }
+        )
+    return rows
+
+
+def _home_intro_video_hero_url(payload: Any, settings: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
+    hero_url = str(payload.hero_media_url or settings.get("home_hero_custom_url") or "").strip()
+    selected_case: dict[str, Any] | None = None
+    sid = int(getattr(payload, "source_item_id", 0) or 0)
+    cid = int(getattr(payload, "content_id", 0) or 0)
+    if sid > 0 or cid > 0:
+        try:
+            with get_conn() as conn:
+                row = _home_intro_case_row(conn, source_item_id=sid, content_id=cid)
+            if row:
+                selected_case = _home_intro_case_public_row(row, include_script=False)
+                case_hero, _, _ = _home_intro_case_media(row, ensure_local=True)
+                if case_hero:
+                    hero_url = case_hero
+        except Exception:
+            selected_case = None
+    if not hero_url:
+        hero = _resolve_home_hero_preset(settings)
+        hero_url = str(hero.get("media_url") or hero.get("image_url") or "").strip()
+    return hero_url, selected_case
+
+
+def _home_intro_spokesperson_presets() -> list[dict[str, Any]]:
+    presets: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in _social_tg_voice_presets()[:8]:
+        preset_id = str(row.get("id") or "").strip()
+        source = str(row.get("source_video_path") or "").strip()
+        if not preset_id or not source or preset_id in seen:
+            continue
+        seen.add(preset_id)
+        presets.append(
+            {
+                "id": preset_id,
+                "label": _social_text(row.get("label") or "口播形象", limit=48),
+                "kind": "video",
+                "source_video_path": source,
+                "avatar_image_path": str(row.get("avatar_image_path") or "").strip(),
+                "preview_url": str(row.get("preview_url") or ""),
+                "summary": _social_text(row.get("summary") or "可用於首頁口播介紹。", limit=80),
+            }
+        )
+    case_host = Path(r"D:\digital_human_tg_bot\data\jobs\case_20260525_164654_aa09901a\digital_human.mp4")
+    if case_host.is_file() and "home_intro:case_host" not in seen:
+        presets.append(
+            {
+                "id": "home_intro:case_host",
+                "label": "西裝顧問口播",
+                "kind": "video",
+                "source_video_path": str(case_host),
+                "avatar_image_path": "",
+                "preview_url": "/api/admin/home-intro-video/spokesperson-preview/home_intro%3Acase_host",
+                "summary": "使用已生成的數字人顧問影片作為首頁介紹形象。",
+            }
+        )
+        seen.add("home_intro:case_host")
+    avatar_presets: list[dict[str, Any]] = []
+    avatar_seen: set[str] = set()
+    for avatar in _social_avatar_presets(limit=24):
+        if len(avatar_presets) >= 5:
+            break
+        image_path = str(avatar.get("image_path") or "").strip()
+        image_url = str(avatar.get("image_url") or "").strip()
+        if not image_path and not image_url:
+            continue
+        avatar_key = str(avatar.get("id") or image_path or image_url).strip()
+        if not avatar_key or avatar_key in avatar_seen:
+            continue
+        avatar_seen.add(avatar_key)
+        preset_id = f"home_intro:avatar:{avatar_key}"
+        avatar_presets.append(
+            {
+                "id": preset_id,
+                "label": _social_text(avatar.get("label") or "顧問形象", limit=48),
+                "kind": "avatar_image",
+                "source_video_path": "",
+                "avatar_image_path": image_path,
+                "preview_url": image_url,
+                "summary": "靜態顧問形象會加入輕微呼吸與親和口播動畫。",
+            }
+        )
+    return presets[:3] + avatar_presets
+
+
+def _home_intro_spokesperson_by_id(preset_id: str) -> dict[str, Any] | None:
+    target = str(preset_id or "").strip()
+    return next((row for row in _home_intro_spokesperson_presets() if str(row.get("id") or "") == target), None)
+
+
+def _wav_duration_seconds(path: Path) -> float:
+    try:
+        with wave.open(str(path), "rb") as fh:
+            frames = fh.getnframes()
+            rate = fh.getframerate() or 1
+            return float(frames) / float(rate)
+    except Exception:
+        return 0.0
+
+
+def _write_silent_wav(path: Path, seconds: float, rate: int = 22050) -> None:
+    frames = max(1, int(float(seconds or 1.0) * rate))
+    with wave.open(str(path), "wb") as fh:
+        fh.setnchannels(1)
+        fh.setsampwidth(2)
+        fh.setframerate(rate)
+        fh.writeframes(b"\x00\x00" * frames)
+
+
+def _home_intro_ffmpeg_exe() -> str:
+    try:
+        import imageio_ffmpeg  # type: ignore
+
+        return str(imageio_ffmpeg.get_ffmpeg_exe())
+    except Exception:
+        pass
+    candidates = [
+        Path(r"C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe"),
+        Path(r"C:\ffmpeg\bin\ffmpeg.exe"),
+    ]
+    for base in [
+        Path(r"C:\Users\Administrator\AppData\Local\Programs\Python\Python312\Lib\site-packages\imageio_ffmpeg\binaries"),
+        Path.cwd() / ".venv" / "Lib" / "site-packages" / "imageio_ffmpeg" / "binaries",
+    ]:
+        if base.is_dir():
+            candidates.extend(base.glob("ffmpeg*.exe"))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return "ffmpeg"
+
+
+def _transcode_video_for_browser(path: Path) -> Path:
+    """Return a browser-friendly H.264/AAC mp4 copy when ffmpeg is available."""
+    if not path.is_file():
+        return path
+    out = path.with_name(f"{path.stem}_h264.mp4")
+    if out.is_file() and out.stat().st_size > 1024:
+        return out
+    cmd = [
+        _home_intro_ffmpeg_exe(),
+        "-y",
+        "-i",
+        str(path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
+        str(out),
+    ]
+    try:
+        completed = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240)
+        if int(completed.returncode or 0) == 0 and out.is_file() and out.stat().st_size > 1024:
+            return out
+    except Exception:
+        return path
+    return path
+
+
+def _transcode_video_to_webm(path: Path) -> Path:
+    """Return a WebM sidecar for browsers that do not decode local MP4."""
+    if not path.is_file() or path.suffix.lower() == ".webm":
+        return path
+    out = path.with_suffix(".webm")
+    if out.is_file() and out.stat().st_size > 1024:
+        return out
+    out.unlink(missing_ok=True)
+    base_cmd = [
+        _home_intro_ffmpeg_exe(),
+        "-y",
+        "-i",
+        str(path),
+        "-vf",
+        "scale=1280:720:force_original_aspect_ratio=decrease,"
+        "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p",
+        "-c:v",
+        "libvpx",
+        "-deadline",
+        "realtime",
+        "-cpu-used",
+        "5",
+        "-b:v",
+        "1200k",
+    ]
+    attempts = [
+        [
+            *base_cmd,
+            "-c:a",
+            "libopus",
+            "-b:a",
+            "64k",
+            str(out),
+        ],
+        [
+            *base_cmd,
+            "-c:a",
+            "libvorbis",
+            "-b:a",
+            "96k",
+            str(out),
+        ],
+    ]
+    for cmd in attempts:
+        try:
+            completed = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
+            if int(completed.returncode or 0) == 0 and out.is_file() and out.stat().st_size > 1024:
+                return out
+        except Exception:
+            return path
+        out.unlink(missing_ok=True)
+    return path
+
+
+def _home_video_playback_path(path: Path) -> Path:
+    if not path.is_file() or _home_carousel_media_type(str(path)) != "video":
+        return path
+    if path.suffix.lower() == ".webm":
+        return path
+    h264 = path.with_name(f"{path.stem}_h264.mp4")
+    if h264.is_file() and h264.stat().st_size > 1024:
+        return h264
+    webm = path.with_suffix(".webm")
+    if webm.is_file() and webm.stat().st_size > 1024:
+        return webm
+    return path
+
+
+def _ffmpeg_filter_path(path: Path) -> str:
+    return str(path.resolve()).replace("\\", "/").replace(":", r"\:")
+
+
+def _render_home_intro_tts(script_text: str, wav_path: Path) -> float:
+    ps1 = wav_path.with_suffix(".ps1")
+    escaped_text = str(script_text or "").replace("'", "''")
+    escaped_path = str(wav_path).replace("'", "''")
+    ps1.write_text(
+        "\n".join(
+            [
+                "Add-Type -AssemblyName System.Speech",
+                "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer",
+                "$s.Rate = 0",
+                "$s.Volume = 100",
+                f"$s.SetOutputToWaveFile('{escaped_path}')",
+                f"$s.Speak('{escaped_text}')",
+                "$s.Dispose()",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps1)],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=90,
+        )
+    except Exception:
+        _write_silent_wav(wav_path, 32)
+    finally:
+        ps1.unlink(missing_ok=True)
+    duration = _wav_duration_seconds(wav_path)
+    if duration <= 0:
+        _write_silent_wav(wav_path, 32)
+        duration = _wav_duration_seconds(wav_path)
+    return duration
+
+
+def _home_intro_media_duration(path: Path) -> float:
+    try:
+        ffmpeg = _home_intro_ffmpeg_exe()
+        proc = subprocess.run(
+            [ffmpeg, "-hide_banner", "-i", str(path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+        )
+        m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", proc.stderr)
+        if not m:
+            return 0.0
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+    except Exception:
+        return 0.0
+
+
+def _home_intro_video_result(
+    *,
+    job_dir: Path,
+    final: Path,
+    script_path: Path,
+    wav_path: Path,
+    seconds: float,
+    spokesperson: dict[str, Any],
+    **extra: Any,
+) -> dict[str, Any]:
+    mp4_url = f"/static/uploads/home-intro-videos/{job_dir.name}/{final.name}"
+    playback_path = final
+    playback_url = mp4_url
+    out = {
+        "video_url": playback_url or mp4_url,
+        "mp4_url": mp4_url,
+        "video_path": str(final.resolve()),
+        "playback_path": str(playback_path.resolve()) if playback_path.is_file() else str(final.resolve()),
+        "script_path": str(script_path.resolve()),
+        "audio_path": str(wav_path.resolve()),
+        "duration_seconds": round(_home_intro_media_duration(final) or seconds, 2),
+        "spokesperson": spokesperson,
+    }
+    out.update(extra)
+    return out
+
+
+def _home_intro_cover_frame(frame: Any, size: tuple[int, int]) -> Any:
+    import cv2  # type: ignore
+
+    target_w, target_h = size
+    h, w = frame.shape[:2]
+    if w <= 0 or h <= 0:
+        return frame
+    scale = max(target_w / w, target_h / h)
+    resized = cv2.resize(frame, (max(1, int(w * scale)), max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+    rh, rw = resized.shape[:2]
+    x0 = max(0, (rw - target_w) // 2)
+    y0 = max(0, (rh - target_h) // 2)
+    return resized[y0 : y0 + target_h, x0 : x0 + target_w]
+
+
+def _home_intro_wrap_text(text: str, width: int) -> list[str]:
+    raw = re.sub(r"\s+", "", str(text or "").strip())
+    chunks = re.split(r"(?<=[。！？])", raw)
+    lines: list[str] = []
+    for chunk in chunks:
+        chunk = chunk.strip()
+        while chunk:
+            lines.append(chunk[:width])
+            chunk = chunk[width:]
+    return lines or ["歡迎了解日本不動產服務。"]
+
+
+def _generate_home_intro_video_file(
+    *,
+    script_text: str,
+    hero_media_url: str,
+    spokesperson: dict[str, Any],
+    duration_seconds: int,
+) -> dict[str, Any]:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore
+    import imageio_ffmpeg  # type: ignore
+
+    out_root = _home_intro_upload_dir()
+    job_dir = out_root / f"home_intro_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    script = str(script_text or "").strip() or _home_intro_script_template()
+    script_path = job_dir / "home_intro_script.txt"
+    script_path.write_text(script, encoding="utf-8")
+    wav_path = job_dir / "home_intro_narration.wav"
+    audio_seconds = _render_home_intro_tts(script, wav_path)
+    seconds = max(18.0, min(55.0, float(audio_seconds or duration_seconds or 36)))
+    fps = 24
+    width, height = 1280, 720
+    total = int(seconds * fps)
+    media_path = _url_to_local_static_path(hero_media_url)
+    bg_video = None
+    bg_image = None
+    if media_path and _home_hero_media_type(str(media_path)) == "video":
+        bg_video = cv2.VideoCapture(str(media_path))
+    elif media_path and media_path.is_file():
+        bg_image = cv2.imread(str(media_path), cv2.IMREAD_COLOR)
+    if bg_image is None:
+        bg_image = np.zeros((height, width, 3), dtype=np.uint8)
+        bg_image[:] = (34, 74, 94)
+    host_cap = None
+    host_image = None
+    source_video = str(spokesperson.get("source_video_path") or "").strip()
+    if source_video and Path(source_video).is_file():
+        host_cap = cv2.VideoCapture(source_video)
+    avatar_path = str(spokesperson.get("avatar_image_path") or "").strip()
+    if avatar_path and Path(avatar_path).is_file():
+        host_image = cv2.imread(avatar_path, cv2.IMREAD_COLOR)
+    font_path = next((p for p in [Path(r"C:\Windows\Fonts\msjh.ttc"), Path(r"C:\Windows\Fonts\mingliu.ttc"), Path(r"C:\Windows\Fonts\arial.ttf")] if p.is_file()), None)
+    font_big = ImageFont.truetype(str(font_path), 46) if font_path else ImageFont.load_default()
+    font_mid = ImageFont.truetype(str(font_path), 28) if font_path else ImageFont.load_default()
+    font_small = ImageFont.truetype(str(font_path), 23) if font_path else ImageFont.load_default()
+    lines = _home_intro_wrap_text(script, 26)
+    silent = job_dir / "home_intro_16x9.video.mp4"
+    final = job_dir / "home_intro_16x9.mp4"
+    writer = cv2.VideoWriter(str(silent), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
+    for i in range(total):
+        t = i / fps
+        if bg_video is not None and bg_video.isOpened():
+            ok, frame = bg_video.read()
+            if not ok:
+                bg_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, frame = bg_video.read()
+            bg = frame if ok and frame is not None else bg_image.copy()
+        else:
+            zoom = 1.04 + 0.035 * (t / max(seconds, 1))
+            base = cv2.resize(bg_image, (int(bg_image.shape[1] * zoom), int(bg_image.shape[0] * zoom)))
+            y0 = max(0, min(base.shape[0] - height, int((base.shape[0] - height) * 0.5)))
+            x0 = max(0, min(base.shape[1] - width, int((base.shape[1] - width) * (0.35 + 0.2 * t / max(seconds, 1)))))
+            bg = base[y0 : y0 + height, x0 : x0 + width]
+        canvas = _home_intro_cover_frame(bg, (width, height))
+        shade = np.zeros_like(canvas)
+        shade[:] = (8, 18, 24)
+        canvas = cv2.addWeighted(canvas, 0.62, shade, 0.38, 0)
+        if host_cap is not None and host_cap.isOpened():
+            ok, host_frame = host_cap.read()
+            if not ok:
+                host_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, host_frame = host_cap.read()
+            host = host_frame if ok and host_frame is not None else host_image
+        else:
+            host = host_image
+        if host is not None:
+            host_crop = _home_intro_cover_frame(host, (330, 430))
+            x, y = 870, 150
+            canvas[y : y + 430, x : x + 330] = host_crop
+            pulse = int(12 + 8 * (0.5 + 0.5 * np.sin(t * 5.0)))
+            cv2.rectangle(canvas, (x - 8, y - 8), (x + 338, y + 438), (31, 187, 181), 4)
+            cv2.circle(canvas, (x + 318, y + 412), pulse, (33, 209, 192), -1)
+        pil = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(pil, "RGBA")
+        draw.rounded_rectangle((58, 60, 790, 135), radius=24, fill=(255, 255, 255, 222))
+        draw.text((82, 76), "日本不動產全球指定搜尋網", font=font_big, fill=(17, 45, 74, 255))
+        draw.rounded_rectangle((64, 160, 690, 214), radius=22, fill=(0, 124, 128, 218))
+        draw.text((88, 173), "首頁口播介紹｜顧問快速帶看", font=font_mid, fill=(255, 255, 255, 255))
+        idx = min(len(lines) - 1, int((t / max(seconds, 1)) * len(lines)))
+        caption = lines[idx]
+        draw.rounded_rectangle((58, 560, 1222, 675), radius=30, fill=(255, 255, 255, 230))
+        draw.text((88, 584), caption, font=font_mid, fill=(39, 56, 78, 255))
+        draw.text((88, 635), "從地區、車站、預算開始，留下需求後由顧問接手整理案件。", font=font_small, fill=(68, 86, 110, 255))
+        bar_w = int(1164 * min(1.0, t / max(seconds, 1)))
+        draw.rounded_rectangle((58, 688, 1222, 699), radius=6, fill=(255, 255, 255, 105))
+        draw.rounded_rectangle((58, 688, 58 + bar_w, 699), radius=6, fill=(17, 190, 180, 230))
+        frame = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+        writer.write(frame)
+    writer.release()
+    if bg_video is not None:
+        bg_video.release()
+    if host_cap is not None:
+        host_cap.release()
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(silent),
+            "-i",
+            str(wav_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-shortest",
+            str(final),
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=120,
+    )
+    silent.unlink(missing_ok=True)
+    return _home_intro_video_result(
+        job_dir=job_dir,
+        final=final,
+        script_path=script_path,
+        wav_path=wav_path,
+        seconds=seconds,
+        spokesperson=spokesperson,
+    )
+
+
+def _home_intro_extract_video_frame(video_path: Path, out_path: Path) -> Path | None:
+    try:
+        import imageio_ffmpeg  # type: ignore
+
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        subprocess.run(
+            [ffmpeg, "-y", "-ss", "0.5", "-i", str(video_path), "-frames:v", "1", str(out_path)],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+        return out_path if out_path.is_file() else None
+    except Exception:
+        return None
+
+
+def _home_intro_load_pil_media(media_ref: str, job_dir: Path, fallback_color: tuple[int, int, int]) -> Any:
+    from PIL import Image, ImageDraw, ImageOps  # type: ignore
+
+    path = Path(media_ref).expanduser() if media_ref and Path(media_ref).expanduser().is_file() else _url_to_local_static_path(media_ref)
+    if path and path.is_file():
+        load_path = path
+        if _home_hero_media_type(str(path)) == "video":
+            extracted = _home_intro_extract_video_frame(path, job_dir / f"frame_{uuid4().hex[:6]}.jpg")
+            if extracted:
+                load_path = extracted
+        try:
+            return ImageOps.exif_transpose(Image.open(load_path)).convert("RGB")
+        except Exception:
+            pass
+    img = Image.new("RGB", (1280, 720), fallback_color)
+    draw = ImageDraw.Draw(img, "RGBA")
+    for y in range(720):
+        a = y / 720
+        color = (
+            int(fallback_color[0] * (1 - a) + 18 * a),
+            int(fallback_color[1] * (1 - a) + 42 * a),
+            int(fallback_color[2] * (1 - a) + 62 * a),
+        )
+        draw.line((0, y, 1280, y), fill=color)
+    return img
+
+
+def _home_intro_cover_pil(img: Any, size: tuple[int, int], *, x_bias: float = 0.5, y_bias: float = 0.5) -> Any:
+    from PIL import Image  # type: ignore
+
+    target_w, target_h = size
+    src = img.convert("RGB")
+    w, h = src.size
+    if w <= 0 or h <= 0:
+        return Image.new("RGB", size, (24, 46, 66))
+    scale = max(target_w / w, target_h / h)
+    new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+    src = src.resize(new_size, Image.Resampling.LANCZOS)
+    max_x = max(0, new_size[0] - target_w)
+    max_y = max(0, new_size[1] - target_h)
+    x0 = int(max_x * max(0.0, min(1.0, x_bias)))
+    y0 = int(max_y * max(0.0, min(1.0, y_bias)))
+    return src.crop((x0, y0, x0 + target_w, y0 + target_h))
+
+
+def _generate_home_intro_video_file_still(
+    *,
+    script_text: str,
+    hero_media_url: str,
+    spokesperson: dict[str, Any],
+    duration_seconds: int,
+) -> dict[str, Any]:
+    out_root = _home_intro_upload_dir()
+    job_dir = out_root / f"home_intro_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    script = str(script_text or "").strip() or _home_intro_script_template()
+    script_path = job_dir / "home_intro_script.txt"
+    script_path.write_text(script, encoding="utf-8")
+    wav_path = job_dir / "home_intro_narration.wav"
+    audio_seconds = _render_home_intro_tts(script, wav_path)
+    seconds = max(18.0, min(55.0, float(audio_seconds or duration_seconds or 36)))
+    poster = job_dir / "home_intro_16x9_still.jpg"
+    final = job_dir / "home_intro_16x9.mp4"
+    ffmpeg = _home_intro_ffmpeg_exe()
+
+    hero_path = _url_to_local_static_path(hero_media_url)
+    if hero_path is None or not hero_path.is_file() or hero_path.suffix.lower() == ".svg":
+        hero_input_args = ["-f", "lavfi", "-i", "color=c=0x224a5e:s=1280x720:d=1"]
+    else:
+        hero_input_args = (["-ss", "0.5", "-i", str(hero_path)] if _home_hero_media_type(str(hero_path)) == "video" else ["-i", str(hero_path)])
+
+    source_video = str(spokesperson.get("source_video_path") or "").strip()
+    avatar_image = str(spokesperson.get("avatar_image_path") or "").strip()
+    speaker_path = Path(source_video).expanduser() if source_video and Path(source_video).expanduser().is_file() else None
+    if speaker_path is None and avatar_image and Path(avatar_image).expanduser().is_file():
+        speaker_path = Path(avatar_image).expanduser()
+    use_speaker = bool(speaker_path and speaker_path.is_file())
+    speaker_input_args: list[str] = []
+    if use_speaker and speaker_path is not None:
+        speaker_input_args = (
+            ["-ss", "0.5", "-i", str(speaker_path)]
+            if _home_hero_media_type(str(speaker_path)) == "video"
+            else ["-i", str(speaker_path)]
+        )
+
+    shade = "drawbox=x=0:y=0:w=iw:h=ih:color=black@0.12:t=fill"
+    if use_speaker:
+        poster_filter = (
+            "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,"
+            "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=0xf8fafc,setsar=1[bg];"
+            "[1:v]scale=410:500:force_original_aspect_ratio=decrease,"
+            "pad=410:500:(ow-iw)/2:(oh-ih)/2:color=white,setsar=1[sp];"
+            f"[bg][sp]overlay=x=870:y=150,{shade}[poster]"
+        )
+    else:
+        poster_filter = (
+            "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,"
+            f"pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=0xf8fafc,setsar=1,{shade}[poster]"
+        )
+    poster_cmd = [
+        ffmpeg,
+        "-y",
+        *hero_input_args,
+        *speaker_input_args,
+        "-filter_complex",
+        poster_filter,
+        "-map",
+        "[poster]",
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        str(poster),
+    ]
+    poster_run = subprocess.run(poster_cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+    if poster_run.returncode != 0 or not poster.is_file():
+        stderr = (poster_run.stderr or b"").decode("utf-8", "replace").strip()
+        raise RuntimeError((stderr[-1800:] if stderr else "") or f"ffmpeg poster exited {poster_run.returncode}")
+
+    total_frames = max(1, int(seconds * 24))
+    motion_filter = (
+        "scale=1280:720,"
+        f"zoompan=z='1+0.055*on/{max(total_frames - 1, 1)}':"
+        "x='iw/2-(iw/zoom/2)':"
+        "y='ih/2-(ih/zoom/2)':"
+        "d=1:s=1280x720:fps=24,"
+        "format=yuv420p"
+    )
+    base_cmd = [
+        ffmpeg,
+        "-y",
+        "-loop",
+        "1",
+        "-framerate",
+        "24",
+        "-i",
+        str(poster),
+        "-i",
+        str(wav_path),
+        "-t",
+        f"{seconds:.2f}",
+        "-vf",
+        motion_filter,
+    ]
+    encoders = [
+        ["-c:v", "libx264", "-preset", "ultrafast"],
+        ["-c:v", "mpeg4", "-q:v", "5"],
+    ]
+    last_error = ""
+    for enc in encoders:
+        cmd = [
+            *base_cmd,
+            *enc,
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-shortest",
+            "-movflags",
+            "+faststart",
+            str(final),
+        ]
+        completed = subprocess.run(cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+        if completed.returncode == 0 and final.is_file() and final.stat().st_size > 0:
+            return _home_intro_video_result(
+                job_dir=job_dir,
+                final=final,
+                script_path=script_path,
+                wav_path=wav_path,
+                seconds=seconds,
+                spokesperson=spokesperson,
+                poster_path=str(poster.resolve()),
+            )
+        stderr = (completed.stderr or b"").decode("utf-8", "replace").strip()
+        last_error = stderr[-1800:] if stderr else f"ffmpeg exited {completed.returncode}"
+    raise RuntimeError(last_error or "ffmpeg still render failed")
+
+
+def _generate_home_intro_video_file_pil(
+    *,
+    script_text: str,
+    hero_media_url: str,
+    spokesperson: dict[str, Any],
+    duration_seconds: int,
+) -> dict[str, Any]:
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore
+    import imageio_ffmpeg  # type: ignore
+
+    out_root = _home_intro_upload_dir()
+    job_dir = out_root / f"home_intro_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    script = str(script_text or "").strip() or _home_intro_script_template()
+    script_path = job_dir / "home_intro_script.txt"
+    script_path.write_text(script, encoding="utf-8")
+    wav_path = job_dir / "home_intro_narration.wav"
+    audio_seconds = _render_home_intro_tts(script, wav_path)
+    seconds = max(18.0, min(55.0, float(audio_seconds or duration_seconds or 36)))
+    fps = 24
+    width, height = 1280, 720
+    total = int(seconds * fps)
+    bg_img = _home_intro_load_pil_media(hero_media_url, job_dir, (34, 74, 94))
+    speaker_ref = str(spokesperson.get("source_video_path") or spokesperson.get("avatar_image_path") or "").strip()
+    host_img = _home_intro_load_pil_media(speaker_ref, job_dir, (28, 42, 62))
+    font_path = next((p for p in [Path(r"C:\Windows\Fonts\msjh.ttc"), Path(r"C:\Windows\Fonts\mingliu.ttc"), Path(r"C:\Windows\Fonts\arial.ttf")] if p.is_file()), None)
+    font_big = ImageFont.truetype(str(font_path), 46) if font_path else ImageFont.load_default()
+    font_mid = ImageFont.truetype(str(font_path), 28) if font_path else ImageFont.load_default()
+    font_small = ImageFont.truetype(str(font_path), 23) if font_path else ImageFont.load_default()
+    lines = _home_intro_wrap_text(script, 26)
+    silent = job_dir / "home_intro_16x9.video.mp4"
+    final = job_dir / "home_intro_16x9.mp4"
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    proc = subprocess.Popen(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "rawvideo",
+            "-vcodec",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            f"{width}x{height}",
+            "-r",
+            str(fps),
+            "-i",
+            "-",
+            "-an",
+            "-vcodec",
+            "mpeg4",
+            "-q:v",
+            "5",
+            str(silent),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        for i in range(total):
+            t = i / fps
+            x_bias = 0.42 + 0.16 * (t / max(seconds, 1))
+            canvas = _home_intro_cover_pil(bg_img, (width, height), x_bias=x_bias)
+            shade = Image.new("RGBA", (width, height), (7, 18, 24, 105))
+            canvas = Image.alpha_composite(canvas.convert("RGBA"), shade)
+            host_size = (330, 430)
+            host = _home_intro_cover_pil(host_img, host_size, x_bias=0.5, y_bias=0.22)
+            bob = int(4 * __import__("math").sin(t * 2.0))
+            x, y = 870, 150 + bob
+            draw = ImageDraw.Draw(canvas, "RGBA")
+            draw.rounded_rectangle((x - 10, y - 10, x + host_size[0] + 10, y + host_size[1] + 10), radius=30, fill=(255, 255, 255, 225), outline=(31, 187, 181, 255), width=4)
+            canvas.paste(host, (x, y))
+            pulse = int(12 + 8 * (0.5 + 0.5 * __import__("math").sin(t * 5.0)))
+            draw.ellipse((x + 302 - pulse, y + 402 - pulse, x + 302 + pulse, y + 402 + pulse), fill=(33, 209, 192, 210))
+            draw.rounded_rectangle((58, 60, 790, 135), radius=24, fill=(255, 255, 255, 226))
+            draw.text((82, 76), "日本不動產全球指定搜尋網", font=font_big, fill=(17, 45, 74, 255))
+            draw.rounded_rectangle((64, 160, 690, 214), radius=22, fill=(0, 124, 128, 222))
+            draw.text((88, 173), "首頁口播介紹｜顧問快速帶看", font=font_mid, fill=(255, 255, 255, 255))
+            idx = min(len(lines) - 1, int((t / max(seconds, 1)) * len(lines)))
+            draw.rounded_rectangle((58, 560, 1222, 675), radius=30, fill=(255, 255, 255, 232))
+            draw.text((88, 584), lines[idx], font=font_mid, fill=(39, 56, 78, 255))
+            draw.text((88, 635), "從地區、車站、預算開始，留下需求後由顧問接手整理案件。", font=font_small, fill=(68, 86, 110, 255))
+            bar_w = int(1164 * min(1.0, t / max(seconds, 1)))
+            draw.rounded_rectangle((58, 688, 1222, 699), radius=6, fill=(255, 255, 255, 105))
+            draw.rounded_rectangle((58, 688, 58 + bar_w, 699), radius=6, fill=(17, 190, 180, 230))
+            if proc.stdin is not None:
+                proc.stdin.write(canvas.convert("RGB").tobytes())
+        if proc.stdin is not None:
+            proc.stdin.close()
+        proc.wait(timeout=120)
+        if proc.returncode != 0:
+            err = (proc.stderr.read().decode("utf-8", "replace") if proc.stderr else "").strip()
+            raise RuntimeError(err or "ffmpeg video render failed")
+    finally:
+        try:
+            if proc.stdin and not proc.stdin.closed:
+                proc.stdin.close()
+        except Exception:
+            pass
+    subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(silent),
+            "-i",
+            str(wav_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-shortest",
+            str(final),
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=120,
+    )
+    silent.unlink(missing_ok=True)
+    return _home_intro_video_result(
+        job_dir=job_dir,
+        final=final,
+        script_path=script_path,
+        wav_path=wav_path,
+        seconds=seconds,
+        spokesperson=spokesperson,
+    )
+
+
+def _generate_home_intro_video_file_ffmpeg(
+    *,
+    script_text: str,
+    hero_media_url: str,
+    spokesperson: dict[str, Any],
+    duration_seconds: int,
+) -> dict[str, Any]:
+    out_root = _home_intro_upload_dir()
+    job_dir = out_root / f"home_intro_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    script = str(script_text or "").strip() or _home_intro_script_template()
+    script_path = job_dir / "home_intro_script.txt"
+    script_path.write_text(script, encoding="utf-8")
+    wav_path = job_dir / "home_intro_narration.wav"
+    audio_seconds = _render_home_intro_tts(script, wav_path)
+    seconds = max(18.0, min(55.0, float(audio_seconds or duration_seconds or 36)))
+    hero_path = _url_to_local_static_path(hero_media_url)
+    if hero_path is None or not hero_path.is_file():
+        hero_path = _url_to_local_static_path("/static/img/home-hero-brand-gold-residence.svg")
+    source_video = str(spokesperson.get("source_video_path") or "").strip()
+    avatar_image = str(spokesperson.get("avatar_image_path") or "").strip()
+    speaker_path = Path(source_video).expanduser() if source_video and Path(source_video).expanduser().is_file() else None
+    if speaker_path is None and avatar_image and Path(avatar_image).expanduser().is_file():
+        speaker_path = Path(avatar_image).expanduser()
+    use_speaker = bool(speaker_path and speaker_path.is_file())
+    fallback_bg = job_dir / "fallback_bg.jpg"
+    if hero_path is None or not hero_path.is_file() or hero_path.suffix.lower() == ".svg":
+        # ffmpeg can render solid color without image libraries; use this branch as a generated source.
+        hero_input_args = ["-f", "lavfi", "-i", f"color=c=0x224a5e:s=1280x720:d={seconds}"]
+        hero_is_video = True
+    else:
+        hero_is_video = _home_hero_media_type(str(hero_path)) == "video"
+        hero_input_args = (["-stream_loop", "-1", "-t", str(seconds), "-i", str(hero_path)] if hero_is_video else ["-loop", "1", "-t", str(seconds), "-i", str(hero_path)])
+    speaker_input_args: list[str] = []
+    if use_speaker and speaker_path is not None:
+        speaker_is_video = _home_hero_media_type(str(speaker_path)) == "video"
+        speaker_input_args = (["-stream_loop", "-1", "-t", str(seconds), "-i", str(speaker_path)] if speaker_is_video else ["-loop", "1", "-t", str(seconds), "-i", str(speaker_path)])
+    title_file = job_dir / "title.txt"
+    tag_file = job_dir / "tag.txt"
+    caption_file = job_dir / "caption.txt"
+    footer_file = job_dir / "footer.txt"
+    title_file.write_text("日本不動產全球指定搜尋網", encoding="utf-8")
+    tag_file.write_text("首頁口播介紹｜顧問快速帶看", encoding="utf-8")
+    caption_file.write_text("\n".join(_home_intro_wrap_text(script, 26)[:2]), encoding="utf-8")
+    footer_file.write_text("從地區、車站、預算開始，留下需求後由顧問接手整理案件。", encoding="utf-8")
+    # Keep this path conservative: no drawtext/textfile filters, because Windows
+    # path escaping inside filter_complex was causing the homepage renderer to
+    # fail and fall into the slow rawvideo fallback.
+    draw_chain = "drawbox=x=0:y=0:w=iw:h=ih:color=black@0.12:t=fill"
+    if use_speaker:
+        filter_complex = (
+            "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,"
+            "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=0xf8fafc,setsar=1[bg];"
+            "[1:v]scale=410:500:force_original_aspect_ratio=decrease,"
+            "pad=410:500:(ow-iw)/2:(oh-ih)/2:color=white,setsar=1[sp];"
+            "[bg][sp]overlay=x=870:y=150[tmp];"
+            f"[tmp]{draw_chain}[v]"
+        )
+    else:
+        filter_complex = (
+            "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,"
+            f"pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=0xf8fafc,setsar=1,{draw_chain}[v]"
+        )
+    final = job_dir / "home_intro_16x9.mp4"
+    ffmpeg = _home_intro_ffmpeg_exe()
+    cmd = [
+        ffmpeg,
+        "-y",
+        *hero_input_args,
+        *speaker_input_args,
+        "-i",
+        str(wav_path),
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[v]",
+        "-map",
+        f"{2 if use_speaker else 1}:a:0",
+        "-t",
+        str(seconds),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-crf",
+        "24",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
+        "-pix_fmt",
+        "yuv420p",
+        str(final),
+    ]
+    completed = subprocess.run(cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45)
+    if completed.returncode != 0:
+        stderr = (completed.stderr or b"").decode("utf-8", "replace").strip()
+        stderr_tail = stderr[-1800:] if stderr else ""
+        raise RuntimeError(f"ffmpeg exited {completed.returncode}: {stderr_tail or cmd}")
+    return _home_intro_video_result(
+        job_dir=job_dir,
+        final=final,
+        script_path=script_path,
+        wav_path=wav_path,
+        seconds=seconds,
+        spokesperson=spokesperson,
+    )
+
+
+def _generate_home_intro_video_with_fallback(
+    *,
+    script_text: str,
+    hero_media_url: str,
+    spokesperson: dict[str, Any],
+    duration_seconds: int,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    for engine, renderer in (
+        ("still-ffmpeg", _generate_home_intro_video_file_still),
+        ("ffmpeg", _generate_home_intro_video_file_ffmpeg),
+        ("pil", _generate_home_intro_video_file_pil),
+    ):
+        try:
+            result = renderer(
+                script_text=script_text,
+                hero_media_url=hero_media_url,
+                spokesperson=spokesperson,
+                duration_seconds=duration_seconds,
+            )
+            result["render_engine"] = engine
+            return result
+        except Exception as exc:
+            errors.append(f"{engine}: {exc}")
+    raise RuntimeError("home intro render failed: " + " | ".join(errors[-3:]))
+
+
+@app.middleware("http")
+async def sclaw_dynamic_cors_middleware(request: Request, call_next):
+    """依後台「站台／DNS」與環境變數動態允許跨域來源（apex／www 別名一併納入）。"""
+    origin = (request.headers.get("origin") or "").strip()
+    allowed_raw = get_site_public_cors_origins()
+    allowed_norm = {str(o).rstrip("/") for o in allowed_raw if o}
+
+    if request.method == "OPTIONS" and origin:
+        o_norm = origin.rstrip("/")
+        if o_norm in allowed_norm:
+            req_headers = request.headers.get("access-control-request-headers") or "*"
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+                    "Access-Control-Allow-Headers": req_headers,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Max-Age": "600",
+                },
+            )
+
+    response = await call_next(request)
+    if origin:
+        o_norm = origin.rstrip("/")
+        if o_norm in allowed_norm:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+
+# 盡早註冊健康檢查，避免與其他程式共用埠時難以判斷是否為本 app；亦利於除錯。
+@app.get("/api/health")
+def api_health():
+    return JSONResponse({"ok": True, "service": "sclaw", "path": "/api/health"})
+
+
+@app.get("/sclaw-ping")
+def sclaw_ping():
+    return JSONResponse({"ok": True, "service": "sclaw", "path": "/sclaw-ping"})
+
+
+@app.get("/health")
+def health_short():
+    return JSONResponse({"ok": True, "service": "sclaw", "path": "/health"})
+
+
+def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Response:
+    raw = str(raw_url or "").strip()
+    if not raw.lower().startswith(("http://", "https://")):
+        return Response(status_code=400, content="bad image url")
+    image_hash = _case_image_cache_hash(raw)
+    if expected_hash and image_hash != expected_hash:
+        return Response(status_code=400, content="image hash mismatch")
+    cached_url = _case_image_cached_static_url(raw) or _case_image_download_to_cache(raw)
+    path = _url_to_local_static_path(cached_url)
+    if not path:
+        return Response(status_code=404, content="image unavailable")
+    media_type = mimetypes.guess_type(str(path))[0] or "image/jpeg"
+    return FileResponse(
+        path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@app.get("/api/case-image-cache")
+def api_case_image_cache_query(u: str = Query(..., min_length=8)):
+    return _case_image_cache_response(u)
+
+
+@app.get("/api/case-image-cache/{image_hash}")
+def api_case_image_cache(image_hash: str, u: str = Query(..., min_length=8)):
+    if not re.fullmatch(r"[0-9a-f]{40}", str(image_hash or "")):
+        return Response(status_code=400, content="bad image hash")
+    return _case_image_cache_response(u, expected_hash=str(image_hash or ""))
+
+
+templates = Jinja2Templates(directory="templates")
+templates.env.filters["pack_line_html"] = format_ai_pack_line_html
+templates.env.filters["case_static_image_url"] = case_static_image_url
+templates.env.globals["merge_seo_meta_keywords"] = merge_seo_meta_keywords
+templates.env.globals["seo_description_suffix"] = SEO_DESCRIPTION_SUFFIX
+templates.env.globals["seo_meta_keywords_base"] = SEO_META_KEYWORDS_BASE
+templates.env.globals["seo_phrase_brand"] = SEO_PHRASE_BRAND
+templates.env.globals["seo_phrase_entry"] = SEO_PHRASE_ENTRY
+templates.env.globals["seo_phrase_hero_kicker"] = SEO_PHRASE_HERO_KICKER
+app.mount("/static", StaticFiles(directory="static"), name="static")
+_faq_worker_started = False
+_faq_worker_lock = threading.Lock()
+_smart_nav_worker_started = False
+_smart_nav_worker_lock = threading.Lock()
+_portal_image_backfill_worker_started = False
+_portal_image_backfill_worker_lock = threading.Lock()
+_backend_log_lock = threading.Lock()
+_backend_error_logs = deque(maxlen=120)
+_admin_crawl_tasks_lock = threading.Lock()
+_admin_crawl_tasks: dict[str, dict[str, Any]] = {}
+_ADMIN_CRAWL_TASK_TTL_SEC = 3600
+_ADMIN_CRAWL_HISTORY_FILE = DATA_DIR / "admin_crawl_history.json"
+_telegram_debug_lock = threading.Lock()
+_telegram_debug_events = deque(maxlen=260)
+_telegram_pull_lock = threading.Lock()
+_telegram_pull_last_run_ts = 0.0
+_telegram_pull_last_result: dict[str, Any] = {"ok": False, "status": "idle"}
+_lvr_proxy_sessions_lock = threading.Lock()
+_lvr_proxy_sessions: dict[str, dict[str, Any]] = {}
+_TELEGRAM_POLL_OFFSET_KV = "telegram_poll_updates_offset"
+_TELEGRAM_POLL_MIN_INTERVAL_SEC = 2.0
+_LVR_PROXY_SESSION_TTL_SEC = 900
+_LVR_PROXY_BASE_URL = "https://lvr.land.moi.gov.tw"
+
+_ADMIN_PASSWORD_FILE = DATA_DIR / "admin_panel_password.txt"
+
+
+def _load_admin_panel_password() -> str:
+    try:
+        if _ADMIN_PASSWORD_FILE.is_file():
+            s = _ADMIN_PASSWORD_FILE.read_text(encoding="utf-8").strip()
+            if s:
+                return s
+    except OSError:
+        pass
+    env_p = (os.getenv("ADMIN_PANEL_PASSWORD") or "").strip()
+    if env_p:
+        return env_p
+    return "77887788"
+
+
+def _lvr_proxy_headers() -> dict[str, str]:
+    return {
+        "User-Agent": BROWSER_HEADERS.get("User-Agent", "Mozilla/5.0"),
+        "Accept": "application/json, text/html, */*",
+        "Referer": f"{_LVR_PROXY_BASE_URL}/jsp/list.jsp",
+    }
+
+
+def _lvr_cleanup_expired_sessions(now_ts: float | None = None) -> None:
+    ts = now_ts or time.time()
+    expired: list[str] = []
+    with _lvr_proxy_sessions_lock:
+        for session_id, payload in _lvr_proxy_sessions.items():
+            last_used_at = float(payload.get("last_used_at") or payload.get("created_at") or 0.0)
+            if ts - last_used_at > _LVR_PROXY_SESSION_TTL_SEC:
+                expired.append(session_id)
+        for session_id in expired:
+            _lvr_proxy_sessions.pop(session_id, None)
+
+
+def _lvr_bootstrap_session() -> dict[str, Any]:
+    _lvr_cleanup_expired_sessions()
+    with httpx.Client(timeout=20.0, follow_redirects=True, headers=_lvr_proxy_headers()) as client:
+        client.get(f"{_LVR_PROXY_BASE_URL}/jsp/list.jsp")
+        token_resp = client.get(f"{_LVR_PROXY_BASE_URL}/jsp/setToken.jsp")
+        token_resp.raise_for_status()
+        token_data = token_resp.json()
+        token = str(token_data.get("token") or "").strip()
+        if not token:
+            raise HTTPException(status_code=502, detail="Failed to obtain upstream token")
+        session_id = uuid4().hex
+        now_ts = time.time()
+        with _lvr_proxy_sessions_lock:
+            _lvr_proxy_sessions[session_id] = {
+                "created_at": now_ts,
+                "last_used_at": now_ts,
+                "cookies": dict(client.cookies.items()),
+            }
+    return {"ok": True, "session_id": session_id, "token": token, "expires_in_sec": _LVR_PROXY_SESSION_TTL_SEC}
+
+
+def _lvr_get_session(session_id: str) -> dict[str, Any]:
+    sid = session_id.strip()
+    if not sid:
+        raise HTTPException(status_code=400, detail="session_id is required")
+    _lvr_cleanup_expired_sessions()
+    with _lvr_proxy_sessions_lock:
+        payload = _lvr_proxy_sessions.get(sid)
+        if not payload:
+            raise HTTPException(status_code=404, detail="Upstream session expired, please search again")
+        payload["last_used_at"] = time.time()
+        return {
+            "session_id": sid,
+            "created_at": payload.get("created_at"),
+            "last_used_at": payload.get("last_used_at"),
+            "cookies": dict(payload.get("cookies") or {}),
+        }
+
+
+def _lvr_update_session_cookies(session_id: str, cookies: httpx.Cookies) -> None:
+    with _lvr_proxy_sessions_lock:
+        payload = _lvr_proxy_sessions.get(session_id)
+        if not payload:
+            return
+        payload["cookies"] = dict(cookies.items())
+        payload["last_used_at"] = time.time()
+
+
+def _normalize_lvr_relative_url(relative_url: str) -> str:
+    raw = (relative_url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="relative_url is required")
+    if raw.startswith("http://") or raw.startswith("https://"):
+        parsed = urlparse(raw)
+        if parsed.netloc != "lvr.land.moi.gov.tw":
+            raise HTTPException(status_code=400, detail="Only lvr.land.moi.gov.tw URLs are allowed")
+        raw = parsed.path
+        if parsed.query:
+            raw += f"?{parsed.query}"
+    while raw.startswith("../"):
+        raw = raw[3:]
+    if not raw.startswith("/"):
+        raw = "/" + raw
+    if not raw.startswith("/SERVICE/QueryPrice/"):
+        raise HTTPException(status_code=400, detail="Only upstream QueryPrice URLs are allowed")
+    return raw
+
+
+ADMIN_PANEL_PASSWORD = _load_admin_panel_password()
+
+
+def _push_telegram_debug_event(event: str, **payload: Any) -> None:
+    item = {
+        "at": datetime.now(timezone.utc).isoformat(),
+        "event": str(event or "").strip()[:80],
+    }
+    for k, v in payload.items():
+        key = str(k or "").strip()[:40]
+        if not key:
+            continue
+        if isinstance(v, (dict, list)):
+            try:
+                item[key] = json.dumps(v, ensure_ascii=False)[:1200]
+            except Exception:
+                item[key] = str(v)[:1200]
+        else:
+            item[key] = str(v)[:1200]
+    with _telegram_debug_lock:
+        _telegram_debug_events.append(item)
+
+# 預設以 static/support-avatar.png 為主（與後台上傳檔名一致）；webp 置後以免舊檔蓋過新 PNG。
+_SUPPORT_AVATAR_FILENAMES = (
+    "support-avatar.png",
+    "support-avatar.jpg",
+    "support-avatar.jpeg",
+    "support-avatar.webp",
+)
+
+
+def _resolve_support_avatar_file() -> Path | None:
+    """優先後台上傳檔（support-avatar.*），其次舊版預設圖。"""
+    static_dir = Path("static")
+    for name in _SUPPORT_AVATAR_FILENAMES:
+        p = static_dir / name
+        if p.is_file():
+            return p
+    legacy = Path("static/img/home-hero-media.png")
+    if legacy.is_file():
+        return legacy
+    return None
+
+
+def _support_avatar_media_type(path: Path) -> str:
+    mt, _ = mimetypes.guess_type(path.name)
+    return mt or "application/octet-stream"
+
+REGION_LOOKUP = {x["code"]: x for x in TARGET_REGIONS}
+REGION_GROUPS = {
+    "sea": {
+        "name_zh_hant": "東南亞",
+        "name_zh_hans": "东南亚",
+        "codes": ["sg", "my", "th"],
+    }
+}
+
+PORTAL_FAQ_SOURCES = {
+    "athome": {"name": "AtHome", "url": "https://www.athome.co.jp/chintai/"},
+    "suumo": {"name": "SUUMO", "url": "https://suumo.jp/chintai/kanto/"},
+    "homes": {"name": "HOMES", "url": "https://www.homes.co.jp/chintai/"},
+}
+
+
+class SourceCreateRequest(BaseModel):
+    name: str = ""
+    category: str = "自訂來源"
+    url: str
+    note: str = ""
+
+
+class CrawlSettingsUpdateRequest(BaseModel):
+    per_source_limit: int
+    interval_hours: int
+    market_interval_hours: int = 1
+    market_max_records: int = 10000
+    market_retention_days: int = 15
+    portal_query_max_records: int = Field(default=100000, ge=10, le=100000)
+    portal_query_max_age_days: int = Field(default=180, ge=1, le=366)
+    home_hero_key: str = DEFAULT_HOME_HERO_KEY
+    home_hero_custom_url: str = ""
+    home_carousel_items: list[dict[str, Any]] = Field(default_factory=list)
+    smart_query_show_sell: bool = False
+    smart_query_show_rent: bool = False
+    # 智慧查詢／首頁列表無縮圖時即時補抓（仍以環境變數為覆寫）
+    portal_backfill_empty_thumbs: bool = True
+    portal_backfill_max: int = Field(default=3, ge=1, le=12)
+    portal_backfill_persist: bool = True
+
+
+class HomeIntroScriptRequest(BaseModel):
+    tone: str = "friendly"
+    length: str = "short"
+    source_item_id: int = 0
+    content_id: int = 0
+
+
+class HomeCarouselSaveRequest(BaseModel):
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class HomeIntroVideoRequest(BaseModel):
+    script_text: str = ""
+    spokesperson_id: str = ""
+    hero_media_url: str = ""
+    duration_seconds: int = 36
+    source_item_id: int = 0
+    content_id: int = 0
+
+
+class SourceToggleRequest(BaseModel):
+    url: str
+    enabled: bool
+
+
+class SourcePriorityRequest(BaseModel):
+    url: str
+    priority: int
+
+
+class SourceGroupToggleRequest(BaseModel):
+    group_id: str
+    enabled: bool
+
+
+class CrawlNowRequest(BaseModel):
+    url: str = ""
+    per_source_limit: int = 8
+    # 門戶專用：併入 LISTING_HUB_PAGES 的關鍵字擴展（例：「九州」→ 福岡熊本等 hub；見 portal_property_crawl._query_extra_listing_hubs）
+    search_query: str = ""
+
+
+class CrawlItemUrlRequest(BaseModel):
+    url: str
+
+
+class AdminChangePasswordBody(BaseModel):
+    new_password: str = Field(min_length=4, max_length=256)
+
+
+class KnowledgeBootstrapRequest(BaseModel):
+    q: str = ""
+    target_count: int = Field(default=18, ge=5, le=50)
+    min_existing: int = Field(default=6, ge=0, le=30)
+    max_sources: int = Field(default=3, ge=1, le=8)
+    per_source_limit: int = Field(default=6, ge=1, le=30)
+    days: int = Field(default=180, ge=1, le=186)
+    # 三大門戶首頁依關鍵字評分擷取連結後，再逐頁 crawl 入庫（與物件列表 hub 互補）
+    ingest_live_portal_links: bool = True
+    live_link_max: int = Field(default=14, ge=0, le=30)
+    # 智慧查詢知識庫標題偏好：hans=簡體（預設）、hant=繁體、both=簡繁對照
+    knowledge_zh_variant: str = "hans"
+
+
+class KnowledgeFaqRefreshRequest(BaseModel):
+    limit: int = Field(default=100, ge=5, le=100)
+
+
+class SmartNavGraphRequest(BaseModel):
+    """智慧關鍵字導航：依查詢與分組產生決策圖譜與路徑排行（LLM + 離線後援）。"""
+
+    q: str = ""
+    dimension: str = ""
+    knowledge_zh_variant: str = "hans"
+    gemini_model: str = ""
+    llm_provider: str = ""
+
+
+class ManualSummaryRequest(BaseModel):
+    url: str
+
+
+class NTASearchRequest(BaseModel):
+    keyword: str = "綜合所得稅"
+
+
+class MarketSearchRequest(BaseModel):
+    keyword: str = "関東 不動産"
+
+
+class FigureQueryRequest(BaseModel):
+    tab_key: str = "fig1"
+    keyword: str = ""
+
+
+class LvrProxyQueryRequest(BaseModel):
+    session_id: str = ""
+    relative_url: str = ""
+
+
+class PortalCaseSearchRequest(BaseModel):
+    """站內日本房產門戶案件：買／賣／租，日期與筆數可配置。"""
+
+    transaction: str = Field(
+        default="buy",
+        description="buy｜sell｜rent；留空時可改用 deal_side（相容舊版）",
+    )
+    deal_side: str = Field(default="", description="相容舊版：buy｜sell")
+    portal: str = ""
+    portals: list[str] = Field(default_factory=list, description="可複選來源（可與 portal 並存）")
+    region_hint: str = ""
+    keyword: str = ""
+    property_types: list[str] = Field(default_factory=list, description="智慧查詢物件類型複選")
+    price_min_man: int = Field(default=0, ge=0, le=999_999, description="總價下限（萬日圓）；0＝不篩")
+    price_max_man: int = Field(default=0, ge=0, le=999_999, description="總價上限（萬日圓）；0＝不篩")
+    layout_min_rooms: int = Field(default=0, ge=0, le=99, description="格局房數下限；0＝不篩")
+    layout_max_rooms: int = Field(default=0, ge=0, le=99, description="格局房數上限；0＝不篩")
+    layout_exact_zero: bool = Field(default=False, description="格局精準篩 0 房／套房")
+    max_age_days: int = Field(
+        default=180,
+        ge=0,
+        le=366,
+        description="僅顯示 updated_at 在 N 天內；0＝不限制",
+    )
+    limit: int = Field(default=60, ge=0, le=100000)
+    jp_line_id: int = Field(default=0, ge=0, le=9_999_999, description="jp_trans_line.line_id；與關鍵字合併加權")
+    jp_station_id: int = Field(default=0, ge=0, le=9_999_999, description="jp_trans_station.station_id；與關鍵字合併加權")
+    walk_max: int = Field(default=0, ge=0, le=240, description="徒步分鐘上限；0＝不篩")
+    coverage_matrix_aligned: bool = Field(
+        default=False,
+        description="與 /api/cases/coverage-matrix 同口徑（jp_listing＋矩陣新鮮欄位＋host＋區域），不含關鍵字／交易／交通",
+    )
+
+
+class SEODraftGenerateRequest(BaseModel):
+    limit: int = 12
+    min_count: int = 1
+    use_gemini: bool = False
+    persona_region: str = "tw"
+    persona_category: str = "finance_workplace"
+    gemini_model: str = ""
+    llm_provider: str = ""
+
+
+class SEOIntelGoogleRequest(BaseModel):
+    max_seed_queries: int = Field(default=8, ge=1, le=24)
+    results_per_query: int = Field(default=10, ge=1, le=10)
+    ingest_seed_queries: bool = True
+    run_gemini: bool = True
+    persona_region: str = "tw"
+    gemini_model: str = ""
+    llm_provider: str = ""
+    custom_queries: list[str] = Field(default_factory=list)
+    include_default_queries: bool = True
+
+
+class DialogRunRequest(BaseModel):
+    q: str = ""
+    region: str = ""
+    gemini_model: str = ""
+    llm_provider: str = ""
+    knowledge_zh_variant: str = "hans"
+    case_items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SearchReadingOrderRequest(BaseModel):
+    """站內搜尋命中：合併同主標題、差異化連結文字、AI 閱讀順序。"""
+
+    q: str = ""
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    gemini_model: str = ""
+    llm_provider: str = ""
+
+
+class ChatSupportRequest(BaseModel):
+    message: str = ""
+    history: list[dict[str, str]] = Field(default_factory=list)
+    use_knowledge: bool = True
+    knowledge_query: str = ""
+    sales_session_id: str = ""
+    persona_region: str = "tw"
+    gemini_model: str = ""
+    llm_provider: str = ""
+    knowledge_days: int = Field(default=120, ge=1, le=186)
+    knowledge_merged_max: int = Field(default=56, ge=8, le=100)
+    knowledge_zh_variant: str = "hans"
+    selected_cases: list[dict[str, Any]] = Field(default_factory=list)
+    # 與首頁智慧查詢同步：供推薦相近案件時對齊使用者實際搜尋脈絡
+    figure_keyword: str = ""
+    figure_region: str = ""
+    figure_price: str = ""
+    figure_layout: str = ""
+    figure_property_types: list[str] = Field(default_factory=list)
+    dialog_keyword: str = ""
+
+
+class SupportKeywordHintRequest(BaseModel):
+    """智慧客服：知識庫未命中時，請模型建議關鍵字如何表達以利搜尋（例：JR 路線名）。"""
+
+    keyword: str = ""
+    persona_region: str = "tw"
+    gemini_model: str = ""
+    llm_provider: str = ""
+
+
+class SalesMcpNotifyRequest(BaseModel):
+    session_id: str = ""
+    intent_score: int = Field(default=0, ge=0, le=100)
+    notify_reason: str = ""
+
+
+class OfflineScenarioUpsertRequest(BaseModel):
+    scene_id: str = ""
+    label: str = ""
+    keywords: list[str] = Field(default_factory=list)
+    conclusion: str = ""
+    bullets: list[str] = Field(default_factory=list)
+    enabled: bool = True
+    priority: int = Field(default=100, ge=0, le=1000)
+
+
+class SupportQaUpsertRequest(BaseModel):
+    """顧問維護之智能客服 Q&A：關鍵字命中時離線主文優先採用；AI 啟用時併入系統提示。"""
+
+    qa_id: str = ""
+    label: str = ""
+    keywords: list[str] = Field(default_factory=list)
+    answer_body: str = ""
+    enabled: bool = True
+    priority: int = Field(default=100, ge=0, le=1000)
+
+
+class SupportQaGenerateRequest(BaseModel):
+    """顧問在後台以 AI 生成多篇 Q&A，再落地到 support_qa_training。"""
+
+    topic: str = ""
+    scene_id: str = ""
+    llm_provider: str = ""
+    model: str = ""
+    generate_count: int = Field(default=3, ge=1, le=10)
+    base_priority: int = Field(default=120, ge=0, le=1000)
+    enabled: bool = True
+
+
+class SupportMatchPreviewRequest(BaseModel):
+    message: str = ""
+    persona_region: str = "tw"
+
+
+class SupportCrmPromptPut(BaseModel):
+    """智能客服 CRM 系統提示詞（存 app_kv）；欄位為 None 表示不更新該項。"""
+
+    full_prompt: str | None = None
+    compact_prompt: str | None = None
+    examples: str | None = None
+    inject_mode: str | None = None
+    enabled: bool | None = None
+
+
+KV_SUPPORT_CRM_FULL = "support_crm_prompt_full"
+KV_SUPPORT_CRM_COMPACT = "support_crm_prompt_compact"
+KV_SUPPORT_CRM_EXAMPLES = "support_crm_prompt_examples"
+KV_SUPPORT_CRM_MODE = "support_crm_prompt_inject_mode"
+KV_SUPPORT_CRM_ENABLED = "support_crm_prompt_enabled"
+
+
+class AdminLlmSettingsPut(BaseModel):
+    active_provider: str | None = None
+    docs_url: str | None = None
+    deepseek_base_url: str | None = None
+    deepseek_model: str | None = None
+    deepseek_api_key: str | None = None
+    clear_deepseek_api_key: bool = False
+    gemini_base_url: str | None = None
+    gemini_model: str | None = None
+    gemini_api_key: str | None = None
+    clear_gemini_api_key: bool = False
+
+
+class AdminSiteDnsPut(BaseModel):
+    """後台「站台／DNS」：主要 canonical 網址 + 別名（另起一行）。存 app_kv，用於全站絕對連結與 CORS。"""
+
+    public_site_url: str = ""
+    public_site_url_aliases: str = ""
+
+
+class AdminTelegramAccountRow(BaseModel):
+    """後台多 Bot／多顧問群：每列一組 id + Chat ID + Token（選填更新）。"""
+
+    id: str = ""
+    label: str = ""
+    chat_id: str = ""
+    bot_token: str | None = None
+    clear_bot_token: bool = False
+    remove: bool = False
+
+
+class AdminTelegramPut(BaseModel):
+    chat_id: str | None = None
+    bot_token: str | None = None
+    clear_bot_token: bool = False
+    active_account_id: str | None = None
+    # 若填且為有效帳號 id，單欄「儲存 Telegram」會寫入該列（不必先設為使用中）
+    save_as_account_id: str | None = None
+    accounts: list[AdminTelegramAccountRow] | None = None
+
+
+class AdminTelegramTestPost(BaseModel):
+    message: str = "SCLAW 連線測試"
+    account_id: str | None = None
+
+
+class TelegramSendBySessionPost(BaseModel):
+    session_id: str = ""
+    text: str = ""
+
+
+class TelegramBindSessionPost(BaseModel):
+    session_id: str = ""
+    chat_id: str = ""
+    username: str = ""
+    first_name: str = ""
+    last_name: str = ""
+    chat_title: str = ""
+
+
+class TelegramWebhookRegisterBody(BaseModel):
+    """註冊 Telegram Webhook（需公開 HTTPS）。public_base_url 留空則用 SITE_URL。"""
+
+    public_base_url: str = ""
+    account_id: str = ""
+
+
+class AdminLinePut(BaseModel):
+    channel_access_token: str | None = None
+    clear_channel_access_token: bool = False
+    channel_secret: str | None = None
+    clear_channel_secret: bool = False
+    staff_user_id: str | None = None
+    webhook_url: str | None = None
+    notify_channels: list[str] | None = None
+
+
+class AdminLineTestPost(BaseModel):
+    message: str = "SCLAW LINE 連線測試"
+    to_user_id: str | None = None
+
+
+class LineWebhookRegisterBody(BaseModel):
+    webhook_url: str = ""
+
+
+class LineBindSessionPost(BaseModel):
+    session_id: str = ""
+    line_user_id: str = ""
+    display_name: str = ""
+
+
+class AdminCasesCrawlPost(BaseModel):
+    per_source_limit: int = Field(default=50, ge=10, le=10000)
+    source_group: str = ""
+    source_urls: list[str] = []
+    # 主流門戶分段：primary_four = 僅 SUUMO→HOMES→at home→Yahoo；remaining_three = 楽天／YES／OHEYASU
+    portal_scope: str = ""
+
+
+class CasesCoverageHealPost(BaseModel):
+    age_days: int = Field(default=180, ge=1, le=366)
+    threshold_per_cell: int = Field(default=15, ge=1, le=5000)
+    per_source_limit: int = Field(default=80, ge=10, le=2000)
+    max_cells: int = Field(default=18, ge=1, le=120)
+    dry_run: bool = False
+    portal_scope: str = ""  # primary_four | remaining_three | ""（七站皆可）
+
+
+class AdminThumbBackfillRemainingPost(BaseModel):
+    """後三站（楽天／YesStation／OHEYASU）缺圖批次補齊。"""
+
+    limit: int = Field(default=40, ge=1, le=500)
+    sleep: float = Field(default=0.35, ge=0.0, le=5.0)
+    dry_run: bool = False
+
+
+class AdminThumbBackfillPost(BaseModel):
+    """Batch backfill source_items.image_urls via fetch_property_detail (admin only)."""
+
+    hosts: str = ""  # comma-separated host keys; empty = all supported
+    limit: int = Field(default=40, ge=1, le=5000)
+    sleep: float = Field(default=0.35, ge=0.0, le=5.0)
+    dry_run: bool = False
+    force: bool = False
+
+
+class AdminCaseEnrichFromSourcePost(BaseModel):
+    """單筆案件自原站 fetch_property_detail 合併補齊（圖＋內文標題）。"""
+
+    source_item_id: int = Field(..., ge=1)
+    force: bool = True
+    dry_run: bool = False
+
+
+class DataCompletionBotRunPost(BaseModel):
+    """資料補全 BOT：單案缺圖／文字修復＋七站矩陣缺口巡檢。"""
+
+    source_item_id: int = Field(default=0, ge=0)
+    dry_run: bool = False
+    force_media_sync: bool = False
+    run_remaining_three_heal: bool = False
+    age_days: int = Field(default=180, ge=1, le=366)
+    threshold_per_cell: int = Field(default=15, ge=1, le=5000)
+    per_source_limit: int = Field(default=80, ge=10, le=2000)
+    max_cells: int = Field(default=18, ge=1, le=120)
+    run_label: str = "manual"
+
+
+class CaseQualityBatchRunPost(BaseModel):
+    """每日案件品質批次：缺圖補齊、後三站補圖、低品質案件重抓。"""
+
+    dry_run: bool = False
+    async_run: bool = True
+    backfill_limit: int = Field(default=120, ge=0, le=5000)
+    remaining_three_limit: int = Field(default=60, ge=0, le=1000)
+    force_refresh_limit: int = Field(default=12, ge=0, le=500)
+    recrawl_limit: int = Field(default=40, ge=0, le=500)
+    scan_limit: int = Field(default=8000, ge=500, le=50000)
+    sleep: float = Field(default=0.35, ge=0.0, le=5.0)
+
+
+class AdminCasePatchRequest(BaseModel):
+    title_zh_hant: str | None = None
+    title_zh_hans: str | None = None
+    case_transaction_override: str | None = None
+    case_jp_region_override: str | None = None
+    case_transit_override: str | None = None
+    jp_station_id: int | None = Field(default=None, ge=0, le=9_999_999)
+    walk_min: int | None = Field(default=None, ge=0, le=240)
+    featured_weight: int | None = Field(default=None, ge=0, le=100)
+    listing_media: list[Any] | None = None
+
+
+class AdminCaseImportCsvRequest(BaseModel):
+    csv_text: str = ""
+
+
+class AdminCasesPurgeAllRequest(BaseModel):
+    """清空所有已入庫文章（content_items）；需與後端約定字串一致以防誤刪。"""
+
+    confirm: str = ""
+
+
+class HumanIntakeRequest(BaseModel):
+    name: str = ""
+    phone: str = ""
+    email: str = ""
+    note: str = ""
+    action_id: str = ""
+    session_id: str = ""
+    matched_scene_id: str = ""
+    matched_scene_label: str = ""
+    context_message: str = ""
+    opinion: str = ""
+    conversation: list = Field(default_factory=list)
+    budget_text: str = ""
+    interest_pick_summary: str = ""
+    questionnaire: dict[str, Any] = Field(default_factory=dict)
+
+
+class HandoffConversationSyncRequest(BaseModel):
+    """留單送出後，將網頁端持續對話覆寫回同一筆客戶留單（依 session 對應最新一筆）。"""
+
+    session_id: str = ""
+    handoff_id: int = 0
+    conversation: list = Field(default_factory=list)
+
+
+class SupportSessionCaseInterestUpsertRequest(BaseModel):
+    session_id: str = ""
+    cases: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SupportSelectedCaseNotifyRequest(BaseModel):
+    session_id: str = ""
+    selected_cases: list[dict[str, Any]] = Field(default_factory=list)
+    latest_case: dict[str, Any] | None = None
+    trigger: str = "case_selected"
+
+
+class SocialRadarAnalyzeRequest(BaseModel):
+    """社群獲客雷達：由顧問貼上公開互動/匯出名單，系統做線索分級與 AI 導流文字。"""
+
+    campaign: str = ""
+    default_platform: str = ""
+    source_accounts_text: str = ""
+    interactions_text: str = ""
+    save: bool = True
+    limit: int = Field(default=120, ge=1, le=500)
+
+
+class SocialRadarConvertRequest(BaseModel):
+    lead_id: int = Field(default=0, ge=0)
+    lead: dict[str, Any] = Field(default_factory=dict)
+    name: str = ""
+    phone: str = ""
+    email: str = ""
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    init_db()
+    _seed_offline_support_scenarios_if_empty()
+    _seed_support_qa_training_if_empty()
+    # 重要：多進程（例如 uvicorn --workers / WEB_CONCURRENCY）下，startup 會在每個 worker 執行一次。
+    # 站內的排程型背景工作（FAQ refresh / smart-nav intel）若不加控管，會造成重複執行、額外寫入與鎖表等待，
+    # 影響「搜尋穩定」與 DB 壓力。正式環境建議改由外部排程（scripts/run_daily.ps1 等）運行。
+    bg = (os.getenv("SCLAW_ENABLE_BACKGROUND_WORKERS") or "").strip().lower()
+    if bg in ("1", "true", "yes", "on"):
+        _start_faq_refresh_worker()
+        _start_smart_nav_intel_worker()
+        _start_portal_image_backfill_worker()
+    else:
+        print("SCLAW: 背景排程工作已停用（設 SCLAW_ENABLE_BACKGROUND_WORKERS=1 可啟用）", flush=True)
+    try:
+        _app_file = Path(__file__).resolve()
+    except Exception:
+        _app_file = Path("app.py")
+    print(
+        f"SCLAW: FastAPI 已啟動（載入檔案：{_app_file}）。請確認 GET /api/health 或 GET /sclaw-ping 回傳 ok。",
+        flush=True,
+    )
+    try:
+        if start_case_auto_refresh_worker(invalidate_caches=_invalidate_case_data_caches):
+            print("SCLAW: 案件自動更新已啟動（啟動後背景抓取最新案件與原站高清圖文）", flush=True)
+    except Exception as exc:
+        print(f"SCLAW: 案件自動更新啟動失敗：{type(exc).__name__}: {exc}", flush=True)
+    try:
+        if start_case_quality_batch_worker(invalidate_caches=_invalidate_case_data_caches):
+            st = case_quality_batch_status()
+            print(
+                "SCLAW: 每日案件品質批次已啟動"
+                f"（台北時間下一次：{st.get('next_run_at_taipei') or '排程中'}）",
+                flush=True,
+            )
+    except Exception as exc:
+        print(f"SCLAW: 每日案件品質批次啟動失敗：{type(exc).__name__}: {exc}", flush=True)
+    try:
+        if (os.getenv("SCLAW_COVERAGE_MATRIX_PREWARM") or "1").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        ):
+            threading.Thread(target=_prewarm_coverage_matrix_cache, daemon=True).start()
+        if (os.getenv("SCLAW_INVENTORY_STATS_PREWARM") or "1").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        ):
+            threading.Thread(target=_prewarm_inventory_stats_cache, daemon=True).start()
+        if (os.getenv("SCLAW_PORTAL_SEARCH_PREWARM") or "1").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        ):
+            threading.Thread(target=_prewarm_portal_case_search_cache, daemon=True).start()
+            threading.Thread(target=_portal_case_search_cache_prewarm_loop, daemon=True).start()
+    except Exception:
+        pass
+
+
+def _push_backend_error_log(method: str, path: str, status_code: int, message: str, elapsed_ms: int = 0) -> None:
+    row = {
+        "ts": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "method": str(method or ""),
+        "path": str(path or ""),
+        "status_code": int(status_code or 0),
+        "message": str(message or "")[:400],
+        "elapsed_ms": int(elapsed_ms or 0),
+    }
+    with _backend_log_lock:
+        _backend_error_logs.appendleft(row)
+
+
+@app.middleware("http")
+async def backend_error_log_middleware(request: Request, call_next):
+    started = time.time()
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        elapsed = int((time.time() - started) * 1000)
+        _push_backend_error_log(
+            method=request.method,
+            path=request.url.path,
+            status_code=500,
+            message=f"Unhandled exception: {type(exc).__name__}: {exc}",
+            elapsed_ms=elapsed,
+        )
+        raise
+    if response.status_code >= 400:
+        elapsed = int((time.time() - started) * 1000)
+        _push_backend_error_log(
+            method=request.method,
+            path=request.url.path,
+            status_code=int(response.status_code),
+            message="HTTP error response",
+            elapsed_ms=elapsed,
+        )
+    return response
+
+
+def _faq_refresh_loop() -> None:
+    while True:
+        try:
+            seed_suumo_faq_knowledge(limit=50)
+        except Exception:
+            pass
+        time.sleep(2 * 60 * 60)
+
+
+def _start_faq_refresh_worker() -> None:
+    global _faq_worker_started
+    with _faq_worker_lock:
+        if _faq_worker_started:
+            return
+        t = threading.Thread(target=_faq_refresh_loop, daemon=True, name="suumo-faq-refresh")
+        t.start()
+        _faq_worker_started = True
+
+
+def _seconds_until_next_taipei_slot(*, hours: tuple[int, ...] = (3, 12)) -> float:
+    """下一個台北時間（UTC+8）排程點；預設每日 03:00 與 12:00。"""
+    tw = timezone(timedelta(hours=8))
+    now = datetime.now(tw)
+    candidates: list[datetime] = []
+    for h in hours:
+        hh = int(h)
+        t = now.replace(hour=hh, minute=0, second=0, microsecond=0)
+        if t <= now:
+            t += timedelta(days=1)
+        candidates.append(t)
+    nxt = min(candidates)
+    return max(30.0, (nxt - now).total_seconds())
+
+
+def _smart_nav_google_intel_loop() -> None:
+    """每日兩輪：以智慧導航種子輪播 Google CSE +（可選）AI 閱讀清單，累積熱門關鍵字。"""
+    while True:
+        time.sleep(min(_seconds_until_next_taipei_slot(), 86400.0))
+        if not is_google_cse_configured():
+            print("SCLAW: 智慧關鍵字導航排程略過（未設定 GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX）", flush=True)
+            continue
+        queries = pick_rotating_seed_queries(max_n=8)
+        if not queries:
+            print("SCLAW: 智慧關鍵字導航排程略過（無種子關鍵字）", flush=True)
+            continue
+        try:
+            out = run_google_finance_property_intel(
+                max_seed_queries=len(queries),
+                results_per_query=8,
+                ingest_seed_queries=True,
+                run_gemini=True,
+                persona_region="tw",
+                gemini_model="",
+                llm_provider="",
+                custom_queries=queries,
+                include_default_queries=False,
+            )
+            ok = bool(out.get("ok"))
+            print(
+                "SCLAW: 智慧導航排程 Google+AI 完成 "
+                f"ok={ok} hits={out.get('google_hits_count')} keywords_ingested={out.get('keywords_ingested')}",
+                flush=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"SCLAW: 智慧導航排程失敗: {type(exc).__name__}: {exc}", flush=True)
+
+
+def _start_smart_nav_intel_worker() -> None:
+    global _smart_nav_worker_started
+    with _smart_nav_worker_lock:
+        if _smart_nav_worker_started:
+            return
+        t = threading.Thread(
+            target=_smart_nav_google_intel_loop,
+            daemon=True,
+            name="smart-nav-google-intel",
+        )
+        t.start()
+        _smart_nav_worker_started = True
+
+
+def _parse_host_filter_csv(raw: str) -> frozenset[str] | None:
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    out: set[str] = set()
+    for chunk in s.split(","):
+        h = chunk.strip().lower()
+        if h:
+            out.add(h)
+    return frozenset(out) if out else None
+
+
+def _portal_image_backfill_loop() -> None:
+    from src.thumb_backfill_service import run_empty_image_backfill
+
+    while True:
+        interval = 30.0
+        try:
+            raw_hosts = os.getenv("SCLAW_PORTAL_IMAGE_BACKFILL_HOSTS", "suumo.jp")
+            host_filter = _parse_host_filter_csv(raw_hosts)
+            limit = int(os.getenv("SCLAW_PORTAL_IMAGE_BACKFILL_LIMIT", "18") or 18)
+            sleep_s = float(os.getenv("SCLAW_PORTAL_IMAGE_BACKFILL_SLEEP", "0.35") or 0.35)
+            interval = float(os.getenv("SCLAW_PORTAL_IMAGE_BACKFILL_INTERVAL_SEC", "900") or 900.0)
+            limit = max(1, min(limit, 250))
+            sleep_s = max(0.0, min(sleep_s, 5.0))
+            interval = max(60.0, min(interval, 12 * 60 * 60.0))
+
+            out = run_empty_image_backfill(
+                host_filter=host_filter,
+                limit=limit,
+                sleep_s=sleep_s,
+                dry_run=False,
+                force=False,
+            )
+            processed = int(out.get("processed_rows") or 0)
+            ok = int(out.get("ok") or 0)
+            err = int(out.get("err") or 0)
+            skip = int(out.get("skip") or 0)
+            if processed > 0:
+                print(
+                    f"SCLAW: portal image backfill processed={processed} ok={ok} err={err} skip={skip}",
+                    flush=True,
+                )
+            if processed <= 0:
+                # no rows matched; back off longer
+                time.sleep(max(interval, 45 * 60.0))
+                continue
+        except Exception as exc:  # noqa: BLE001
+            print(f"SCLAW: portal image backfill error: {type(exc).__name__}: {exc}", flush=True)
+            interval = max(interval, 15 * 60.0)
+        time.sleep(interval)
+
+
+def _start_portal_image_backfill_worker() -> None:
+    global _portal_image_backfill_worker_started
+    with _portal_image_backfill_worker_lock:
+        if _portal_image_backfill_worker_started:
+            return
+        t = threading.Thread(
+            target=_portal_image_backfill_loop,
+            daemon=True,
+            name="portal-image-backfill",
+        )
+        t.start()
+        _portal_image_backfill_worker_started = True
+
+
+def _extract_portal_faq_entries(source_key: str, limit: int = 20) -> dict:
+    selected_source = str(source_key or "athome").strip().lower()
+    cfg = PORTAL_FAQ_SOURCES.get(selected_source) or PORTAL_FAQ_SOURCES["athome"]
+    source = selected_source if selected_source in PORTAL_FAQ_SOURCES else "athome"
+    source_name = str(cfg.get("name") or "")
+    source_url = str(cfg.get("url") or "")
+    max_items = min(100, max(5, int(limit)))
+    source_host = urlparse(source_url).netloc.lower()
+    tokens = ("?", "？", "faq", "q&a", "怎麼", "如何", "費用", "流程", "注意", "手順", "流れ", "ポイント")
+    fallback_map = {
+        "athome": ["AtHome 賃貸 FAQ 怎麼找房？", "AtHome 租屋費用有哪些？", "AtHome 看房流程要注意什麼？"],
+        "suumo": ["SUUMO 租屋 Q&A 如何開始？", "SUUMO 申請租屋流程為何？", "SUUMO 看屋前要準備什麼？"],
+        "homes": ["HOMES 租屋 FAQ 怎麼比較物件？", "HOMES 租屋費用怎麼估算？", "HOMES 簽約前注意事項有哪些？"],
+    }
+
+    def _build_fallback() -> dict:
+        labels = fallback_map.get(source) or fallback_map["athome"]
+        rows = [{"question": q, "item_url": source_url, "source_name": source_name} for q in labels[:3]]
+        return {
+            "ok": False,
+            "source": source,
+            "source_name": source_name,
+            "source_url": source_url,
+            "count": len(rows),
+            "items": rows,
+        }
+
+    try:
+        headers = dict(BROWSER_HEADERS)
+        if "User-Agent" not in headers:
+            headers["User-Agent"] = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            )
+        with httpx.Client(timeout=25, follow_redirects=True, headers=headers) as client:
+            resp = client.get(source_url)
+            resp.raise_for_status()
+        soup = soup_from_html(resp.text)
+    except Exception:
+        return _build_fallback()
+
+    seen: set[str] = set()
+    rows: list[dict[str, str]] = []
+    for anchor in soup.select("a[href]"):
+        title = re.sub(r"\s+", " ", anchor.get_text(" ", strip=True)).strip()
+        if len(title) < 8 or len(title) > 80:
+            continue
+        title_lc = title.lower()
+        if title_lc in seen:
+            continue
+
+        href = str(anchor.get("href") or "").strip()
+        if not href:
+            continue
+        item_url = urljoin(source_url, href)
+        parsed_url = urlparse(item_url)
+        if parsed_url.scheme not in ("http", "https"):
+            continue
+        if parsed_url.netloc.lower() != source_host:
+            continue
+
+        parent_text = ""
+        if anchor.parent is not None:
+            parent_text = re.sub(r"\s+", " ", anchor.parent.get_text(" ", strip=True)).strip()
+        is_likely_faq = any(token in title_lc for token in tokens) or len(parent_text) >= 40
+        if not is_likely_faq:
+            continue
+
+        seen.add(title_lc)
+        rows.append({"question": title, "item_url": item_url, "source_name": source_name})
+        if len(rows) >= max_items:
+            break
+
+    return {
+        "ok": True,
+        "source": source,
+        "source_name": source_name,
+        "source_url": source_url,
+        "count": len(rows),
+        "items": rows,
+    }
+
+
+def fetch_results(q: str, region: str, keyword_type: str, limit: int = 30) -> list[dict]:
+    return fetch_results_v2(
+        q=q,
+        region=region,
+        keyword_type=keyword_type,
+        intent_target="",
+        topic_category="",
+        access_status="",
+        offset=0,
+        limit=limit,
+    )
+
+
+def fetch_region_results(region_codes: list[str], limit: int = 30) -> list[dict]:
+    placeholders = ",".join(["?"] * len(region_codes))
+    with get_conn() as conn:
+        sql = f"""
+            SELECT
+                c.id, c.source_item_id, c.seo_slug, c.seo_title, c.seo_description,
+                c.title_zh_hant, c.title_zh_hans, c.body_zh_hant, c.body_zh_hans,
+                c.region_code, c.keyword_type, c.intent_target, c.topic_category, c.keyword_tags,
+                c.updated_at, c.schema_json, s.source_name, s.item_url, s.access_status
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE c.region_code IN ({placeholders})
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ?
+        """
+        rows = conn.execute(sql, [*region_codes, limit]).fetchall()
+    out = [dict(r) for r in rows]
+    for d in out:
+        d["article_path"] = _standard_article_path(d.get("seo_slug"), d.get("source_item_id"))
+    return out
+
+
+def parse_region_slug(region_slug: str) -> tuple[str, str, list[str]]:
+    if region_slug in REGION_LOOKUP:
+        region_obj = REGION_LOOKUP[region_slug]
+        return region_obj["name_zh_hant"], region_obj["name_zh_hans"], [region_slug]
+    if region_slug in REGION_GROUPS:
+        region_obj = REGION_GROUPS[region_slug]
+        return region_obj["name_zh_hant"], region_obj["name_zh_hans"], region_obj["codes"]
+    raise HTTPException(status_code=404, detail="Region not found")
+
+
+def build_region_schema(language: str, region_name: str, region_slug: str, items: list[dict]) -> str:
+    base = get_effective_site_url()
+    page_url = f"{base}/zh-{language}/{region_slug}"
+    schema_items = []
+    for idx, item in enumerate(items, 1):
+        schema_items.append(
+            {
+                "@type": "ListItem",
+                "position": idx,
+                "url": f"{base}{item.get('article_path') or _standard_article_path(item.get('seo_slug'), item.get('source_item_id'))}",
+                "name": item["seo_title"],
+            }
+        )
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": f"{region_name}買日本房地產",
+        "inLanguage": "zh-Hant" if language == "hant" else "zh-Hans",
+        "url": page_url,
+        "mainEntity": {"@type": "ItemList", "itemListElement": schema_items},
+    }
+    return json.dumps(schema, ensure_ascii=False)
+
+
+def fetch_top_keywords(limit: int = 12) -> list[dict]:
+    fallback = []
+    for kw in LIGHT_KNOWLEDGE_KEYWORDS[:limit]:
+        fallback.append({"keyword": kw, "total_count": 0, "last_searched_at": ""})
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                  keyword,
+                  SUM(search_count) AS total_count,
+                  MAX(last_searched_at) AS last_searched_at
+                FROM keyword_search_stats
+                GROUP BY keyword
+                ORDER BY total_count DESC, datetime(last_searched_at) DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        out = [dict(r) for r in rows]
+        if out:
+            return out
+    except sqlite3.OperationalError:
+        return fallback
+    except sqlite3.DatabaseError:
+        return fallback
+    return fallback
+
+
+def build_index_schema(top_keywords: list[dict]) -> str:
+    base = get_effective_site_url()
+    avatar_url = get_support_avatar_url()
+    ref_url = (COMPANY_PROFILE.get("reference_url") or "").strip()
+    same_as = [ref_url] if ref_url and ref_url.startswith("http") else []
+    item_list = []
+    for idx, row in enumerate(top_keywords[:10], 1):
+        kw = (row.get("keyword") or "").strip()
+        if not kw:
+            continue
+        item_list.append(
+            {
+                "@type": "ListItem",
+                "position": idx,
+                "name": kw,
+                "url": f"{base}/?q={kw}",
+            }
+        )
+    org_block: dict[str, object] = {
+        "@type": "Organization",
+        "name": COMPANY_PROFILE.get("name", "沐新株式會社"),
+        "url": base,
+        "logo": avatar_url,
+        "image": avatar_url,
+    }
+    if same_as:
+        org_block["sameAs"] = same_as
+    schema = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": f"{base}/#website",
+                "name": SITE_NAME,
+                "url": base,
+                "inLanguage": ["zh-Hant", "zh-Hans"],
+                "publisher": {"@id": f"{base}/#organization"},
+                "about": [
+                    "日本房地產",
+                    "日本不動產購買流程",
+                    "海外買家日本買房",
+                    "日本房產仲介",
+                    "TikTok 社媒影片知識庫",
+                ],
+                "keywords": [
+                    "日本房地產",
+                    "日本買房",
+                    "日本不動產",
+                    "海外置業",
+                    "日本房地產展",
+                    "日本房產仲介",
+                    "TikTok 日本房產",
+                ],
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": f"{base}/?q={{q}}",
+                    "query-input": "required name=q",
+                },
+            },
+            {
+                "@id": f"{base}/#organization",
+                **org_block,
+            },
+            {
+                "@type": "Service",
+                "@id": f"{base}/#japan-property-search-service",
+                "name": "日本房地產摘要搜尋與案件知識庫",
+                "provider": {"@id": f"{base}/#organization"},
+                "areaServed": ["Taiwan", "Hong Kong", "Singapore", "Japan"],
+                "serviceType": "Japan real estate search, brokerage knowledge, overseas buyer guidance",
+                "url": base,
+            },
+            {
+                "@type": "Dataset",
+                "@id": f"{base}/#social-video-knowledge",
+                "name": "日本房地產社媒影片文案與字幕知識庫",
+                "description": "整理 TikTok 等社媒影片文案、字幕逐字稿、作者與主題標籤，供日本房地產購買知識摘要搜尋使用。",
+                "creator": {"@id": f"{base}/#organization"},
+                "keywords": ["TikTok", "日本房地產", "日本房產", "海外置業", "日本房地產投資"],
+                "isAccessibleForFree": True,
+            },
+            {
+                "@type": "ItemList",
+                "name": "熱門查詢關鍵字",
+                "itemListElement": item_list,
+            },
+        ],
+    }
+    return json.dumps(schema, ensure_ascii=False)
+
+
+@app.get("/")
+def index(request: Request):
+    top_keywords = fetch_top_keywords(limit=12)
+    seo_keyword_meta = ",".join([x["keyword"] for x in top_keywords if x.get("keyword")][:12])
+    crawl_settings = load_crawl_settings()
+    home_hero = _resolve_home_hero_preset(crawl_settings)
+    home_video_carousel = _home_generated_video_carousel(
+        limit=8,
+        preferred_url=home_hero.get("media_url") if home_hero.get("media_type") == "video" else "",
+        preferred_title="首頁自訂影片",
+        preferred_kind_label="首頁影片",
+        published_items=crawl_settings.get("home_carousel_items"),
+    )
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "regions": TARGET_REGIONS,
+            "intent_targets": ["房地產", "投資", "稅務", "貸款", "政策"],
+            "topic_categories": ["市場資訊", "投資分析", "稅務法規", "貸款流程", "官方制度", "日本房產案源"],
+            "access_statuses": ["public", "restricted"],
+            "region_groups": REGION_GROUPS,
+            "company_profile": COMPANY_PROFILE,
+            "knowledge_sources": KNOWLEDGE_SOURCES,
+            "light_knowledge_keywords": LIGHT_KNOWLEDGE_KEYWORDS,
+            "seo_article_tw": SEO_ARTICLE_TW,
+            "crawl_settings": crawl_settings,
+            "home_hero": home_hero,
+            "home_video_carousel": home_video_carousel,
+            "home_hero_options": [
+                {
+                    "key": k,
+                    "label": HOME_HERO_PRESETS.get(k, {}).get("label", k),
+                    "theme": HOME_HERO_PRESETS.get(k, {}).get("theme", "brand"),
+                    "image_url": HOME_HERO_PRESETS.get(k, {}).get("image_url", ""),
+                }
+                for k in HOME_HERO_KEYS
+            ],
+            "sources": load_sources(),
+            "site_url": get_effective_site_url(),
+            "support_avatar_url": get_support_avatar_url(),
+            "seo_keyword_meta": seo_keyword_meta,
+            "top_keywords": top_keywords,
+            "default_schema": build_index_schema(top_keywords),
+            "sclaw_api_base": str(request.base_url).rstrip("/"),
+            "jp_area_labels": JP_AREA_FILTER_LABELS,
+            "jp_map_pref_clusters": HOMES_STYLE_PREF_CLUSTERS,
+            "jp_map_pref_map_clusters": [*JP_MAP_ORBIT_EAST, *JP_MAP_ORBIT_WEST],
+        },
+    )
+
+
+@app.get("/lvr-mirror")
+def lvr_mirror_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="lvr_proxy.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "site_url": get_effective_site_url(),
+            "sclaw_api_base": str(request.base_url).rstrip("/"),
+        },
+    )
+
+
+@app.get("/api/search")
+def api_search(
+    q: str = Query(default=""),
+    region: str = Query(default=""),
+    keyword_type: str = Query(default=""),
+    intent_target: str = Query(default=""),
+    topic_category: str = Query(default=""),
+    access_status: str = Query(default=""),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=50),
+):
+    q_clean = q.strip()
+    region_clean = region.strip()
+    keyword_clean = keyword_type.strip()
+    intent_clean = intent_target.strip()
+    topic_clean = topic_category.strip()
+    access_clean = access_status.strip()
+
+    cache_key = _site_search_cache_key(
+        {
+            "q": q_clean,
+            "region": region_clean,
+            "keyword_type": keyword_clean,
+            "intent_target": intent_clean,
+            "topic_category": topic_clean,
+            "access_status": access_clean,
+            "offset": int(offset),
+            "limit": int(limit),
+        }
+    )
+    cached_body = _site_search_cache_get(cache_key)
+    if cached_body is not None:
+        threading.Thread(
+            target=lambda: track_keyword_search(
+                keyword=q_clean,
+                channel="main_search",
+                filters={
+                    "region": region_clean,
+                    "keyword_type": keyword_clean,
+                    "intent_target": intent_clean,
+                    "topic_category": topic_clean,
+                    "access_status": access_clean,
+                    "cache": "hit",
+                },
+            ),
+            daemon=True,
+        ).start()
+        return Response(
+            content=cached_body,
+            media_type="application/json",
+            headers={"X-Site-Search-Cache": "hit"},
+        )
+
+    rows = fetch_results_v2(
+        q=q_clean,
+        region=region_clean,
+        keyword_type=keyword_clean,
+        intent_target=intent_clean,
+        topic_category=topic_clean,
+        access_status=access_clean,
+        offset=offset,
+        limit=limit + 1,
+    )
+    fallback_used = False
+    fallback_mode = "none"
+    fallback_detail: dict[str, str] = {}
+    if not rows and q_clean:
+        inferred = infer_filters_from_query(q_clean)
+        # 先保留關鍵字 q，只補齊使用者未選的進階維度（避免「九州・沖縄」類查詢被改成空 q + 泛用房地產／市場資訊）
+        rows = fetch_results_v2(
+            q=q_clean,
+            region=region_clean,
+            keyword_type=keyword_clean or inferred["keyword_type"],
+            intent_target=intent_clean or inferred["intent_target"],
+            topic_category=topic_clean or inferred["topic_category"],
+            access_status=access_clean,
+            offset=offset,
+            limit=limit + 1,
+        )
+        fallback_used = bool(rows)
+        if fallback_used:
+            fallback_mode = "inferred_keep_q"
+            fallback_detail = inferred
+        if not rows:
+            rows = fetch_results_v2(
+                q="",
+                region=region_clean,
+                keyword_type=keyword_clean or inferred["keyword_type"],
+                intent_target=intent_clean or inferred["intent_target"],
+                topic_category=topic_clean or inferred["topic_category"],
+                access_status=access_clean,
+                offset=offset,
+                limit=limit + 1,
+            )
+            fallback_used = bool(rows)
+            if fallback_used:
+                fallback_mode = "inferred_drop_q"
+                fallback_detail = inferred
+        if not rows:
+            rows = fetch_results_v2(
+                q="",
+                region=region_clean,
+                keyword_type=keyword_clean,
+                intent_target=intent_clean,
+                topic_category=topic_clean,
+                access_status=access_clean,
+                offset=offset,
+                limit=limit + 1,
+            )
+            fallback_used = bool(rows)
+            if fallback_used:
+                fallback_mode = "broad"
+                fallback_detail = {
+                    "intent_target": intent_clean or "不限",
+                    "topic_category": topic_clean or "不限",
+                    "keyword_type": keyword_clean or "不限",
+                }
+    has_more = len(rows) > limit
+    items = rows[:limit]
+    next_offset = offset + len(items)
+    payload = {
+        "count": len(items),
+        "items": items,
+        "has_more": has_more,
+        "next_offset": next_offset,
+        "fallback_used": fallback_used,
+        "fallback_mode": fallback_mode,
+        "fallback_detail": fallback_detail,
+    }
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    _site_search_cache_set(cache_key, body)
+    threading.Thread(
+        target=lambda: track_keyword_search(
+            keyword=q_clean,
+            channel="main_search",
+            filters={
+                "region": region_clean,
+                "keyword_type": keyword_clean,
+                "intent_target": intent_clean,
+                "topic_category": topic_clean,
+                "access_status": access_clean,
+                "cache": "miss",
+            },
+        ),
+        daemon=True,
+    ).start()
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"X-Site-Search-Cache": "miss"},
+    )
+
+
+def infer_filters_from_query(q: str) -> dict[str, str]:
+    """
+    依關鍵字推測進階篩選；優先處理九州・沖繩等「銷售／區域不動產」查詢，避免一律落到市場資訊泛化。
+    """
+    raw = (q or "").strip()
+    text = raw.lower()
+    intent = ""
+    topic = ""
+    keyword_type = ""
+    if any(x in text for x in ["投資", "investment", "回報", "利回"]):
+        intent = "投資"
+        topic = "投資分析"
+        keyword_type = "forecast"
+    elif any(x in text for x in ["稅", "税", "tax"]):
+        intent = "稅務"
+        topic = "稅務法規"
+        keyword_type = "howto"
+    elif any(x in text for x in ["貸款", "房貸", "loan", "按揭"]):
+        intent = "貸款"
+        topic = "貸款流程"
+        keyword_type = "howto"
+    elif any(x in text for x in ["外國人", "外国人", "政策", "法規", "規定"]):
+        intent = "政策"
+        topic = "官方制度"
+        keyword_type = "howto"
+    elif (
+        # 九州・沖繩／日本地方銷售型不動產（晚於投資／稅務等，避免「九州＋稅」被誤判）
+        (jp_place := (
+            ("おきなわ" in text)
+            or ("オキナワ" in raw)
+            or ("kyushu" in text)
+            or ("okinawa" in text)
+            or any(x in text for x in ("fukuoka", "kumamoto", "nagasaki", "oita", "miyazaki", "kagoshima", "saga"))
+        ))
+        or any(
+            m in raw
+            for m in (
+                "九州",
+                "九洲",
+                "沖繩",
+                "冲绳",
+                "沖縄",
+                "冲縄",
+                "北九州",
+                "南九州",
+                "福岡",
+                "福冈",
+                "熊本",
+                "鹿兒島",
+                "鹿儿岛",
+                "宮崎",
+                "宫崎",
+                "長崎",
+                "长崎",
+                "大分",
+                "佐賀",
+                "佐贺",
+            )
+        )
+    ):
+        intent = "房地產"
+        sales_markers = (
+            "房地產",
+            "不動產",
+            "不动产",
+            "置產",
+            "置产",
+            "購屋",
+            "购屋",
+            "買房",
+            "买房",
+            "物件",
+            "案源",
+            "仲介",
+            "中介",
+            "租金",
+            "投报",
+            "投報",
+        )
+        topic = "日本房產案源" if any(x in raw for x in sales_markers) else "市場資訊"
+        keyword_type = ""
+        return {"intent_target": intent, "topic_category": topic, "keyword_type": keyword_type}
+    else:
+        intent = "房地產"
+        topic = "市場資訊"
+    return {"intent_target": intent, "topic_category": topic, "keyword_type": keyword_type}
+
+
+def fetch_results_v2(
+    q: str,
+    region: str,
+    keyword_type: str,
+    intent_target: str,
+    topic_category: str,
+    access_status: str,
+    offset: int = 0,
+    limit: int = 30,
+) -> list[dict]:
+    def _fts5_quote_term(term: str) -> str:
+        t = str(term or "").strip()
+        if not t:
+            return ""
+        return '"' + t.replace('"', '""') + '"'
+
+    def _fts5_or_query(tokens: list[str]) -> str:
+        quoted = []
+        for tok in tokens:
+            qt = _fts5_quote_term(tok)
+            if qt:
+                quoted.append(qt)
+        return " OR ".join(quoted)
+
+    where_clauses = [
+        "(? = '' OR c.region_code = ?)",
+        "(? = '' OR c.keyword_type = ?)",
+        "(? = '' OR c.intent_target = ?)",
+        "(? = '' OR c.topic_category = ?)",
+        "(? = '' OR s.access_status = ?)",
+    ]
+    params: list = [
+        region,
+        region,
+        keyword_type,
+        keyword_type,
+        intent_target,
+        intent_target,
+        topic_category,
+        topic_category,
+        access_status,
+        access_status,
+    ]
+
+    terms = [x.strip() for x in q.split() if x.strip()]
+    if q.strip() and not terms:
+        terms = [q.strip()]
+
+    with get_conn() as conn:
+        fts_q = _fts5_or_query(terms[:12]) if terms else ""
+        if fts_q:
+            content_rowid_floor = 0
+            source_rowid_floor = 0
+            try:
+                window = max(20000, min(140000, 70000 + int(limit or 0) * 35))
+                mx = conn.execute("SELECT MAX(id) FROM content_items").fetchone()
+                max_content_rowid = int((mx[0] if mx else 0) or 0)
+                mx = conn.execute("SELECT MAX(id) FROM source_items").fetchone()
+                max_source_rowid = int((mx[0] if mx else 0) or 0)
+                if max_content_rowid > 0:
+                    content_rowid_floor = max(0, max_content_rowid - window)
+                if max_source_rowid > 0:
+                    source_rowid_floor = max(0, max_source_rowid - window)
+            except Exception:
+                content_rowid_floor = 0
+                source_rowid_floor = 0
+
+            cand_limit = min(20000, max(2400, int((offset or 0) + (limit or 0)) * 120))
+            content_cte = "SELECT rowid AS content_id FROM content_fts WHERE content_fts MATCH ?"
+            content_params: list[Any] = [fts_q]
+            if content_rowid_floor > 0:
+                content_cte += " AND rowid >= ?"
+                content_params.append(int(content_rowid_floor))
+            content_cte += f" ORDER BY rowid DESC LIMIT {int(cand_limit)}"
+
+            source_cte = "SELECT rowid AS source_id FROM source_fts WHERE source_fts MATCH ?"
+            source_params: list[Any] = [fts_q]
+            if source_rowid_floor > 0:
+                source_cte += " AND rowid >= ?"
+                source_params.append(int(source_rowid_floor))
+            source_cte += f" ORDER BY rowid DESC LIMIT {int(cand_limit)}"
+
+            where_sql = " AND ".join(where_clauses)
+            sql = f"""
+                WITH
+                  content_hit(content_id) AS ({content_cte}),
+                  source_hit(source_id) AS ({source_cte}),
+                  cand(id) AS (
+                    SELECT content_id FROM content_hit
+                    UNION
+                    SELECT c.id
+                    FROM content_items c
+                    JOIN source_hit sh ON sh.source_id = c.source_item_id
+                  )
+                SELECT
+                  c.id, c.source_item_id, c.seo_slug, c.seo_title, c.seo_description,
+                  c.title_zh_hant, c.title_zh_hans,
+                  substr(COALESCE(c.body_zh_hant,''),1,5200) AS body_zh_hant,
+                  substr(COALESCE(c.body_zh_hans,''),1,5200) AS body_zh_hans,
+                  c.region_code, c.keyword_type, c.intent_target, c.topic_category, c.keyword_tags,
+                  c.updated_at, s.source_name, s.item_url, s.access_status,
+                  s.published_at, s.crawled_at, s.last_checked_at
+                FROM cand
+                JOIN content_items c ON c.id = cand.id
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE {where_sql}
+                ORDER BY c.updated_at DESC, c.id DESC
+                LIMIT ?
+                OFFSET ?
+            """
+            rows = conn.execute(sql, [*content_params, *source_params, *params, limit, offset]).fetchall()
+        else:
+            sql = f"""
+                SELECT
+                    c.id, c.source_item_id, c.seo_slug, c.seo_title, c.seo_description,
+                    c.title_zh_hant, c.title_zh_hans,
+                    substr(COALESCE(c.body_zh_hant,''),1,5200) AS body_zh_hant,
+                    substr(COALESCE(c.body_zh_hans,''),1,5200) AS body_zh_hans,
+                    c.region_code, c.keyword_type, c.intent_target, c.topic_category, c.keyword_tags,
+                    c.updated_at, s.source_name, s.item_url, s.access_status,
+                    s.published_at, s.crawled_at, s.last_checked_at
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE {" AND ".join(where_clauses)}
+                ORDER BY c.updated_at DESC, c.id DESC
+                LIMIT ?
+                OFFSET ?
+            """
+            rows = conn.execute(sql, [*params, limit, offset]).fetchall()
+    return [dict(r) for r in rows]
+
+
+def build_key_points(text: str, limit: int = 6) -> list[str]:
+    cleaned = sanitize_article_display_body(text or "")
+    cleaned = strip_disclaimer_noise_for_keypoints(cleaned)
+    cleaned = re.sub(r"(?im)^\s*https?://\S+\s*$", "\n", cleaned)
+    chunks = re.split(r"[。！？!?]\s*|\.\s+", cleaned.strip())
+    points: list[str] = []
+    seen_norm: set[str] = set()
+    for x in chunks:
+        s = " ".join(str(x or "").strip().split())
+        if len(s) < 12 or is_disclaimer_or_template_noise(s):
+            continue
+        if is_japanese_primary_plaintext(s):
+            continue
+        if "http://" in s.lower() or "https://" in s.lower():
+            continue
+        if re.search(
+            r"(用途[:：]|完整的合同內容不得主張|完整的合同内容不得主张|來源房產頁面|来源房产页面|圖片網址|图片网址|source\s*url)",
+            s,
+            re.I,
+        ):
+            continue
+        norm = re.sub(r"[\W_]+", "", s.lower())
+        if len(norm) < 8 or norm in seen_norm:
+            continue
+        seen_norm.add(norm)
+        points.append(s)
+        if len(points) >= limit:
+            break
+    return points[:limit]
+
+
+_SOURCE_IMAGE_HIGH_RES_W = 1600
+_SOURCE_IMAGE_HIGH_RES_H = 1200
+
+
+def _row_image_url_is_usable(u: str) -> bool:
+    """可內嵌預覽的圖片：靜態副檔名，或 SUUMO 等 resize 端點且帶 query（無 query 只會回錯誤頁）。"""
+    lu = (u or "").strip().lower()
+    if not lu.startswith("http"):
+        return False
+    if _is_non_listing_asset_url(lu):
+        return False
+    path_before_q = lu.split("?", 1)[0]
+    if any(path_before_q.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")):
+        return True
+    if "suumo." in lu and "resize" in lu and "?" in u:
+        return True
+    if ("athome." in lu or "homes.co.jp" in lu) and any(path_before_q.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
+        return True
+    if ("athome." in lu or "homes.co.jp" in lu) and "/image/" in lu and len(u) >= 48:
+        return True
+    if "athome.co.jp" in lu and "/image_files/path/" in lu and len(u) >= 48:
+        return True
+    if "homes.jp" in lu or "homes.co.jp" in lu:
+        if "image.php" in path_before_q:
+            return "file=" in lu and len(u) >= 48
+        if any(tok in path_before_q for tok in ("/smallimg/", "/image/", "/photo/")) and len(u) >= 48:
+            return True
+    return False
+
+
+def _is_non_listing_asset_url(lu: str) -> bool:
+    """排除站點樣板圖／廣告橫幅／OGP 等非房源圖片。"""
+    s = str(lu or "").strip().lower()
+    if not s:
+        return False
+    try:
+        decoded = unquote(s)
+    except Exception:
+        decoded = s
+    hay = f"{s} {decoded}"
+    noisy_tokens = (
+        "/tmpl/images/common/",
+        "/special/feature/",
+        "/company/used/rankstore/",
+        "/static_app_contents/",
+        "/assets/",
+        "/common/",
+        "/map/",
+        "/bnr/",
+        "ogp_estate",
+        "comptopimpact",
+        "q_sp",
+        "sumai_74",
+        "satei_74",
+        "lineoa_special",
+        "used_report",
+        "sell_contract",
+        "used_online",
+        "suumo.jp/article/",
+        "/article/oyakudachi/",
+        "/shop_image/",
+        "chara_good",
+        "loading_white.gif",
+        "s.yimg.jp/images/realestate/",
+        "/edit/assets/suumo/img/include/",
+        "/edit/assets/suumo/img/pagetop",
+        "inc_cm_top_",
+        "inc_kr_top_",
+        "inc_cm_all_",
+        "menuclose_soba",
+        "barcode",
+        "gomezbaibai",
+        "hazard_map",
+        "jukatsu",
+        "simulation",
+        "crrecruit",
+        "/icon/",
+        "/logo/",
+        "/sprite/",
+        "/banner/",
+        "/button",
+        "_button",
+        "btn_",
+        "/btn",
+        "close_button",
+        "bt_to_pagetop",
+        "pagetop.png",
+        "pagetop.gif",
+        "menuclose",
+        "bukken_baloon",
+        "mapfiles/transparent",
+        "marker",
+        "balloon",
+        "train",
+        "route",
+        "access",
+        "no_image",
+        "noimage",
+        "dummy",
+        "placeholder",
+        "text_points_",
+        "points_silver",
+        "points_blue",
+        "realestate.rakuten.co.jp/img/text_",
+        "realestate.rakuten.co.jp/img/result/",
+        "twitter.png",
+        "hatenablog.png",
+        "mixi.png",
+        "clear.gif",
+    )
+    if any(t in hay for t in noisy_tokens):
+        return True
+    dims = re.findall(r"[?&](?:w|h|width|height)=(\d{1,5})", hay)
+    if dims and max(int(x) for x in dims) <= 180:
+        return True
+    return False
+
+
+def _is_case_property_gallery_image_url(u: str) -> bool:
+    """案件主相簿只收室內/室外/建物照片；地圖、交通、站台 UI 與平面碎片不進展示與影片素材。"""
+    s = str(u or "").strip()
+    if not s or not _row_image_url_is_usable(s):
+        return False
+    if is_likely_agent_portrait_image_url(s):
+        return False
+    try:
+        lu = unquote(s).lower()
+    except Exception:
+        lu = s.lower()
+    reject_tokens = (
+        "map",
+        "chizu",
+        "location",
+        "access",
+        "station",
+        "route",
+        "rosen",
+        "ensen",
+        "train",
+        "bus",
+        "地図",
+        "周辺",
+        "交通",
+        "madori",
+        "floorplan",
+        "floor_plan",
+        "layout",
+        "間取",
+    )
+    return not any(t in lu for t in reject_tokens)
+
+
+def _normalize_listing_image_url_for_display(
+    u: str,
+    *,
+    suumo_w: int = _SOURCE_IMAGE_HIGH_RES_W,
+    suumo_h: int = _SOURCE_IMAGE_HIGH_RES_H,
+) -> str:
+    """將可用但過小或缺尺寸的房源圖網址改寫成可直接展示的版本。"""
+    raw = str(u or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return raw
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if ("homes.jp" in host or "homes.co.jp" in host) and ("image.php" in path or "/smallimg/" in path):
+        try:
+            q_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        except Exception:
+            return raw
+        q_map: dict[str, str] = {str(k): str(v) for k, v in q_pairs}
+        homes_size = max(900, min(1600, max(int(suumo_w or 0), int(suumo_h or 0))))
+        q_map["width"] = str(homes_size)
+        q_map["height"] = str(homes_size)
+        try:
+            return parsed._replace(query=urlencode(list(q_map.items()), doseq=True)).geturl()
+        except Exception:
+            return raw
+    if "suumo." in host and "/gazo/bukken/" in path and any(
+        path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")
+    ):
+        raw_path = parsed.path or ""
+        idx = raw_path.lower().find("/gazo/")
+        if idx >= 0:
+            src = raw_path[idx + 1 :].lstrip("/")
+            try:
+                return "https://img01.suumo.com/jj/resizeImage?" + urlencode(
+                    {"src": src, "w": str(int(suumo_w)), "h": str(int(suumo_h))}
+                )
+            except Exception:
+                return raw
+    if "suumo." not in host or "resizeimage" not in path:
+        return raw
+    try:
+        q_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    except Exception:
+        return raw
+    if not q_pairs:
+        return raw
+    q_map: dict[str, str] = {}
+    for k, v in q_pairs:
+        q_map[str(k)] = str(v)
+    if not str(q_map.get("src") or "").strip():
+        return raw
+    try:
+        cur_w = int(str(q_map.get("w") or "0") or "0")
+    except Exception:
+        cur_w = 0
+    try:
+        cur_h = int(str(q_map.get("h") or "0") or "0")
+    except Exception:
+        cur_h = 0
+    # SUUMO 的大尺寸 resizeImage 常會把小圖置中後補白，詳情頁展示以指定尺寸重新取圖，
+    # 避免主圖區出現大片空白。
+    if cur_w != suumo_w or cur_h != suumo_h:
+        q_map["w"] = str(int(suumo_w))
+        q_map["h"] = str(int(suumo_h))
+    try:
+        return parsed._replace(query=urlencode(list(q_map.items()), doseq=True)).geturl()
+    except Exception:
+        return raw
+
+
+def _dedupe_case_gallery_urls(
+    urls: list[str], *, suumo_w: int = _SOURCE_IMAGE_HIGH_RES_W, suumo_h: int = _SOURCE_IMAGE_HIGH_RES_H
+) -> list[str]:
+    """展示用網址去重（含 SUUMO resize 改寫後相同主圖），保留首次出現順序。"""
+    out: list[str] = []
+    seen: set[str] = set()
+    for u in urls:
+        s = str(u or "").strip()
+        if not s:
+            continue
+        disp = _normalize_listing_image_url_for_display(s, suumo_w=suumo_w, suumo_h=suumo_h)
+        key = disp or s
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(disp or s)
+    return out
+
+
+def _real_estate_image_score(u: str) -> int:
+    """縮圖智能排序：主圖(房屋/室內)優先；站台 UI、地圖交通與碎片圖降權。"""
+    s = str(u or "").strip()
+    if is_likely_agent_portrait_image_url(s):
+        return -400
+    lu = s.lower()
+    if not _row_image_url_is_usable(s):
+        return -999
+    score = 0
+    primary_tokens = (
+        "bukken", "mansion", "apartment", "house", "building", "property",
+        "gaikan", "naikan", "living", "kitchen", "room", "bedroom", "balcony",
+        "estate", "residence", "chintai", "rehouse", "homephoto",
+    )
+    map_tokens = ("map", "chizu", "location", "access", "station", "route", "周辺", "地図")
+    floor_tokens = ("madori", "floorplan", "floor_plan", "間取", "layout", "plan")
+    bad_tokens = (
+        "logo", "icon", "sprite", "blank", "spacer", "avatar", "banner", "ad",
+        "qr", "loading", "dummy", "placeholder", "pdficon", "download",
+    )
+    if _is_non_listing_asset_url(lu):
+        score -= 360
+    if any(t in lu for t in bad_tokens):
+        score -= 220
+    if "/front/gazo/bukken/" in lu:
+        score += 220
+    if "/front/gazo/" in lu:
+        score += 96
+    if "/img/" in lu and re.search(r"/img/\d{1,4}/\d{6,}", lu):
+        score += 60
+    if ("homes.jp" in lu or "homes.co.jp" in lu) and any(x in lu for x in ("/smallimg/", "image.php")):
+        score += 92
+    if "athome.co.jp" in lu and "/image_files/path/" in lu:
+        score += 96
+    if "%2fsale%2f" in lu or "/sale/" in lu:
+        score += 36
+    if any(t in lu for t in primary_tokens):
+        score += 120
+    if any(t in lu for t in map_tokens):
+        score -= 180
+    if any(t in lu for t in floor_tokens):
+        score -= 80
+    if "suumo." in lu and "resize" in lu:
+        score += 24
+    # 大圖偏好：解析常見寬高 query 參數
+    dims = re.findall(r"[?&](?:w|h|width|height)=(\d{2,5})", lu)
+    if dims:
+        max_dim = max(int(x) for x in dims)
+        if max_dim >= 640:
+            score += 22
+        elif max_dim <= 200:
+            score -= 28
+    if lu.endswith(".webp"):
+        score += 4
+    return score
+
+
+def _sort_relevant_real_estate_images(urls: list[str], *, limit: int = 10) -> list[str]:
+    uniq: list[str] = []
+    seen: set[str] = set()
+    for u in urls:
+        s = str(u or "").strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        uniq.append(s)
+    scored: list[tuple[int, str]] = []
+    for x in uniq:
+        sc = _real_estate_image_score(x)
+        if not _is_case_property_gallery_image_url(x):
+            continue
+        # 極低分多為站台樣板/廣告圖，不進縮圖候選，避免選到 Yahoo 橫幅。
+        if sc <= -120:
+            continue
+        scored.append((sc, x))
+    scored.sort(key=lambda p: p[0], reverse=True)
+    ordered = [x for _, x in scored[:limit]]
+    # 與案件卡一致：仲介人像圖置尾（避免主圖被顔写真佔用）
+    prop = [u for u in ordered if not is_likely_agent_portrait_image_url(u)]
+    ag = [u for u in ordered if is_likely_agent_portrait_image_url(u)]
+    return prop + ag
+
+
+def _thumbnail_kind_label(u: str) -> str:
+    lu = str(u or "").lower()
+    if any(k in lu for k in ("map", "chizu", "location", "access", "station", "route", "地図")):
+        return "地圖"
+    if any(k in lu for k in ("madori", "floorplan", "floor_plan", "間取", "layout", "plan")):
+        return "格局"
+    return "主圖"
+
+
+_RE_BODY_IMG_EXT = re.compile(
+    r"https?://[^\s\]\)\"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s\]\)\"'<>]*)?",
+    re.I,
+)
+_RE_BODY_IMG_CDN = re.compile(
+    r"https?://(?:img\d*\.(?:suumo\.jp|suumo\.com|athome\.co\.jp|homes\.co\.jp|rehouse\.co\.jp)"
+    r"|(?:image\d*|img)\.homes\.jp)[^\s\]\)\"'<>]+",
+    re.I,
+)
+_RE_BODY_BRACKET_IMG = re.compile(r"\]\s*[:：]?\s*(https?://[^\s\]\)\"'<>]+)", re.I)
+
+
+def _extract_image_urls_from_plain_blob(blob: str, *, limit: int = 12) -> list[str]:
+    """從原文／站內摘要純文字擷取可預覽圖片網址（image_urls 欄為空時補縮圖用）。"""
+    raw = (blob or "").strip()
+    if not raw:
+        return []
+    out: list[str] = []
+    for rx in (_RE_BODY_IMG_EXT, _RE_BODY_IMG_CDN):
+        for m in rx.finditer(raw):
+            u = m.group(0).strip().rstrip(".,;:)】>\"'」』")
+            if _row_image_url_is_usable(u) and u not in out:
+                out.append(u)
+            if len(out) >= limit:
+                return out
+    for ln in raw.splitlines():
+        br = _RE_BODY_BRACKET_IMG.search(ln)
+        if not br:
+            continue
+        u = str(br.group(1) or "").strip().rstrip(".,;:)】>\"'」』")
+        if _row_image_url_is_usable(u) and u not in out:
+            out.append(u)
+        if len(out) >= limit:
+            break
+    return out[:limit]
+
+
+def extract_media_urls_from_row(row: dict) -> tuple[list[str], list[str]]:
+    img_urls: list[str] = []
+    video_urls: list[str] = []
+    homes_tokens = _homes_listing_image_tokens(str(row.get("item_url") or ""))
+
+    raw_imgs = str(row.get("image_urls") or "")
+    for line in raw_imgs.splitlines():
+        u = _normalize_listing_image_url_for_display(line.strip())
+        if not u.startswith("http"):
+            continue
+        lu = u.lower()
+        if _row_image_url_is_usable(u):
+            if u not in img_urls:
+                img_urls.append(u)
+        elif any(lu.endswith(ext) for ext in (".mp4", ".webm", ".mov", ".m3u8")):
+            if u not in video_urls:
+                video_urls.append(u)
+
+    try:
+        lm = json.loads(str(row.get("listing_media_json") or "[]"))
+        if isinstance(lm, list):
+            _lm_keys = (
+                "url",
+                "src",
+                "image",
+                "image_url",
+                "imageUrl",
+                "largeUrl",
+                "large_url",
+                "photo",
+                "thumb",
+                "original",
+            )
+            for m in lm:
+                cand = ""
+                if isinstance(m, str) and m.strip().startswith("http"):
+                    cand = m.strip()
+                elif isinstance(m, dict):
+                    for k in _lm_keys:
+                        v = m.get(k)
+                        if v and str(v).strip().startswith("http"):
+                            cand = str(v).strip()
+                            break
+                if not cand:
+                    continue
+                u = _normalize_listing_image_url_for_display(cand)
+                if u.startswith("http") and _row_image_url_is_usable(u) and u not in img_urls:
+                    img_urls.append(u)
+    except Exception:
+        pass
+
+    body = str(row.get("body_original") or "")
+    for m in re.findall(r"https?://[^\s\]\)\"']+", body):
+        u = _normalize_listing_image_url_for_display(m.strip())
+        lu = u.lower()
+        if any(x in lu for x in ("youtube.com/watch", "youtu.be/", "tiktok.com/", "douyin.com/")):
+            if u not in video_urls:
+                video_urls.append(u)
+
+    text_blob = "\n".join(
+        str(row.get(k) or "")
+        for k in ("body_original", "body_zh_hant", "body_zh_hans", "seo_description")
+        if str(row.get(k) or "").strip()
+    )
+    if text_blob.strip():
+        for u in _extract_image_urls_from_plain_blob(text_blob, limit=14):
+            u = _normalize_listing_image_url_for_display(u)
+            if u not in img_urls:
+                img_urls.append(u)
+        # 銷售刊登長文中 SUUMO resize／非主流 CDN 網址（與門戶查詢用同一套擷取）
+        for u in _extract_listing_body_image_urls(str(row.get("body_original") or ""), limit=28):
+            u = _normalize_listing_image_url_for_display(u)
+            if (
+                u.startswith("http")
+                and _row_image_url_is_usable(u)
+                and u not in img_urls
+            ):
+                img_urls.append(u)
+
+    if homes_tokens and img_urls:
+        matched: list[str] = []
+        for u in img_urls:
+            try:
+                dec = unquote(str(u)).lower()
+            except Exception:
+                dec = str(u).lower()
+            if any(tok in dec for tok in homes_tokens):
+                matched.append(u)
+        # b-id token 存在但完全無命中，多半是「推薦物件」縮圖/樣板圖；寧可不顯示也不要錯圖。
+        img_urls = matched
+
+    img_urls = _sort_relevant_real_estate_images(img_urls, limit=10)
+    return img_urls, video_urls[:6]
+
+
+_RE_CASE_BLOCK_IMAGE_HEADER = re.compile(
+    r"^\s*\[(?:圖片網址|图片网址|圖片頁|图片页|物件參考圖像\s*URL|image\s*urls?)\]\s*$",
+    re.I,
+)
+_RE_CASE_BLOCK_SOURCE_HEADER = re.compile(
+    r"^\s*\[(?:來源網址|来源网址|來源連結|来源链接|來源網|来源网|混源網|source\s*url)\]\s*$",
+    re.I,
+)
+_RE_CASE_URL_LINE = re.compile(r"^\s*https?://\S+\s*$", re.I)
+_CASE_IMG_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
+
+
+def _collect_raw_image_urls_for_case_display(row: dict, *, limit: int = 24) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    homes_tokens = _homes_listing_image_tokens(str(row.get("item_url") or ""))
+    apply_homes_filter = bool(homes_tokens)
+
+    def _push(u: str) -> None:
+        s = str(u or "").strip().rstrip(".,;:)】>\"'」』")
+        s = _normalize_listing_image_url_for_display(s)
+        if not s or s in seen:
+            return
+        lu = s.lower()
+        if not lu.startswith("http"):
+            return
+        path = lu.split("?", 1)[0]
+        is_static_img = any(path.endswith(ext) for ext in _CASE_IMG_EXTS)
+        is_suumo_resize = "suumo." in lu and "resizeimage" in lu and "src=" in lu
+        is_homes_image_endpoint = (
+            ("homes.jp" in lu or "homes.co.jp" in lu)
+            and (
+                ("image.php" in path and "file=" in lu)
+                or any(tok in path for tok in ("/smallimg/", "/image/", "/photo/"))
+            )
+        )
+        is_athome_image_endpoint = "athome.co.jp" in lu and "/image_files/path/" in path and len(s) >= 48
+        if not (is_static_img or is_suumo_resize or is_homes_image_endpoint or is_athome_image_endpoint):
+            return
+        if not _is_case_property_gallery_image_url(s):
+            return
+        seen.add(s)
+        out.append(s)
+
+    img_lines = str(row.get("image_urls") or "").splitlines()
+    if homes_tokens:
+        hm = []
+        for ln in img_lines:
+            try:
+                dec = unquote(str(ln)).lower()
+            except Exception:
+                dec = str(ln).lower()
+            if any(tok in dec for tok in homes_tokens):
+                hm.append(ln)
+        img_lines = hm
+    for ln in img_lines:
+        _push(ln)
+        if len(out) >= limit:
+            return out[:limit]
+
+    body = str(row.get("body_original") or "")
+    for m in re.findall(r"https?://[^\s\]\)\"']+", body):
+        if apply_homes_filter and homes_tokens:
+            try:
+                dec = unquote(str(m)).lower()
+            except Exception:
+                dec = str(m).lower()
+            if not any(tok in dec for tok in homes_tokens):
+                continue
+        _push(m)
+        if len(out) >= limit:
+            break
+    return out[:limit]
+
+
+def _listing_media_entries_from_case_row(row: dict[str, Any], *, limit: int = 24) -> list[dict[str, str]]:
+    """由來源圖與正文圖重建站內案件媒體 JSON；只保留可展示的物件圖。"""
+    raw_urls = _collect_raw_image_urls_for_case_display(row, limit=max(36, int(limit or 24) * 3))
+    prop_urls: list[str] = []
+    for u in _sort_relevant_real_estate_images(raw_urls, limit=max(1, int(limit or 24) * 2)):
+        su = str(u or "").strip()
+        if not su or is_likely_agent_portrait_image_url(su):
+            continue
+        if not _is_case_property_gallery_image_url(su):
+            continue
+        prop_urls.append(_normalize_listing_image_url_for_display(su, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H))
+    if not prop_urls:
+        prop_urls = [
+            _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+            for u in raw_urls
+            if _is_case_property_gallery_image_url(str(u or ""))
+        ]
+    urls = _dedupe_case_gallery_urls(prop_urls[:limit], suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+    return [
+        {
+            "type": "image",
+            "url": u,
+            "source": "source_items.image_urls",
+            "note": "data_completion_bot_media_sync",
+        }
+        for u in urls
+        if str(u or "").strip()
+    ]
+
+
+def _sync_case_listing_media_from_source_item_id(
+    source_item_id: int, *, force: bool = False, dry_run: bool = False
+) -> dict[str, Any]:
+    """將 source_items.image_urls/body_original 補到 content_items.listing_media_json。"""
+    sid = int(source_item_id or 0)
+    if sid <= 0:
+        return {"ok": False, "reason": "missing_source_item_id", "fixed": False}
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+              s.id AS source_item_id, s.image_urls, s.body_original, s.item_url, s.title_original,
+              COALESCE(c.id, 0) AS content_id,
+              COALESCE(c.listing_media_json, '[]') AS listing_media_json
+            FROM source_items s
+            LEFT JOIN content_items c ON c.source_item_id = s.id
+            WHERE s.id = ?
+            """,
+            (sid,),
+        ).fetchone()
+        if not row:
+            return {"ok": False, "reason": "source_item_not_found", "fixed": False}
+        d = dict(row)
+        content_id = int(d.get("content_id") or 0)
+        if content_id <= 0:
+            return {"ok": False, "reason": "content_item_not_found", "fixed": False}
+        current = _parse_listing_media_field(d.get("listing_media_json"))
+        entries = _listing_media_entries_from_case_row(d, limit=24)
+        if current and not force:
+            return {
+                "ok": True,
+                "fixed": False,
+                "reason": "listing_media_already_present",
+                "existing_count": len(current),
+                "candidate_count": len(entries),
+            }
+        if not entries:
+            return {"ok": True, "fixed": False, "reason": "no_usable_source_images", "candidate_count": 0}
+        if dry_run:
+            return {
+                "ok": True,
+                "fixed": False,
+                "dry_run": True,
+                "would_update": True,
+                "candidate_count": len(entries),
+                "preview": entries[:6],
+                "listing_media_json": json.dumps(entries, ensure_ascii=False),
+            }
+        conn.execute(
+            """
+            UPDATE content_items
+            SET listing_media_json = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE source_item_id = ?
+            """,
+            (json.dumps(entries, ensure_ascii=False), sid),
+        )
+        conn.commit()
+    return {
+        "ok": True,
+        "fixed": True,
+        "source_item_id": sid,
+        "media_count": len(entries),
+        "preview": entries[:6],
+        "listing_media_json": json.dumps(entries, ensure_ascii=False),
+    }
+
+
+def _ensure_case_listing_media_json_for_display(
+    item: dict[str, Any], *, persist_if_empty: bool = True
+) -> dict[str, Any]:
+    """Fill empty listing_media_json from source image fields before rendering a case page."""
+    d = dict(item)
+    try:
+        current = _parse_listing_media_field(d.get("listing_media_json"))
+    except Exception:
+        current = []
+    if current:
+        return d
+    if not (str(d.get("image_urls") or "").strip() or str(d.get("body_original") or "").strip()):
+        return d
+    try:
+        entries = _listing_media_entries_from_case_row(d, limit=24)
+    except Exception:
+        entries = []
+    if not entries:
+        return d
+    media_json = json.dumps(entries, ensure_ascii=False)
+    d["listing_media_json"] = media_json
+    if not persist_if_empty:
+        return d
+    sid = int(d.get("source_item_id") or d.get("id") or 0)
+    if sid <= 0:
+        return d
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE content_items
+                SET listing_media_json = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE source_item_id = ?
+                  AND TRIM(COALESCE(listing_media_json, '[]')) IN ('', '[]')
+                """,
+                (media_json, sid),
+            )
+            conn.commit()
+    except Exception:
+        pass
+    return d
+
+
+def _repair_case_text_fields_from_source_item_id(
+    source_item_id: int, *, dry_run: bool = False
+) -> dict[str, Any]:
+    """只在繁中/簡中標題或摘要明顯不足時，用已抽取欄位生成可讀摘要。"""
+    sid = int(source_item_id or 0)
+    if sid <= 0:
+        return {"ok": False, "reason": "missing_source_item_id", "fixed": False}
+    try:
+        from src.pipeline import _build_listing_zh_fallback
+        from src.portal_property_crawl import coerce_listing_display_title
+    except Exception as exc:
+        return {"ok": False, "reason": f"import_failed:{type(exc).__name__}", "fixed": False}
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+              s.*, COALESCE(c.id, 0) AS content_id,
+              COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+              COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+              COALESCE(c.body_zh_hant, '') AS body_zh_hant,
+              COALESCE(c.body_zh_hans, '') AS body_zh_hans
+            FROM source_items s
+            LEFT JOIN content_items c ON c.source_item_id = s.id
+            WHERE s.id = ?
+            """,
+            (sid,),
+        ).fetchone()
+        if not row:
+            return {"ok": False, "reason": "source_item_not_found", "fixed": False}
+        d = dict(row)
+        if int(d.get("content_id") or 0) <= 0:
+            return {"ok": False, "reason": "content_item_not_found", "fixed": False}
+        title_hant = str(d.get("title_zh_hant") or "").strip()
+        title_hans = str(d.get("title_zh_hans") or "").strip()
+        body_hant = str(d.get("body_zh_hant") or "").strip()
+        body_hans = str(d.get("body_zh_hans") or "").strip()
+        generated_cache = body_hant.lstrip().startswith("日本房產案源") or body_hans.lstrip().startswith("日本房产案源")
+        polluted_cache = bool(
+            generated_cache
+            and re.search(
+                r"(?:所在地：.*(?:交通|地図を見る|地図を確認)|建物構造：.{60,}|物件名：.*(?:價格|价格|格局|專有面積|专有面积))",
+                body_hant,
+                flags=re.S,
+            )
+        )
+        needs_title = len(title_hant) < 2 or len(title_hans) < 2
+        needs_body = len(body_hant) < 80 or len(body_hans) < 80 or generated_cache or polluted_cache
+        if not needs_title and not needs_body:
+            return {
+                "ok": True,
+                "fixed": False,
+                "reason": "text_fields_already_sufficient",
+                "body_len": len(body_hant),
+            }
+        fb_hant, fb_hans = _build_listing_zh_fallback(d)
+        fields: list[str] = []
+        params: list[Any] = []
+        if needs_title:
+            safe_title = coerce_listing_display_title(str(d.get("title_original") or ""), str(d.get("item_url") or ""))
+            if safe_title:
+                fields.append("title_zh_hant = ?")
+                params.append(safe_title[:240])
+                fields.append("title_zh_hans = ?")
+                params.append(safe_title[:240])
+        if needs_body and fb_hant and fb_hans:
+            fields.append("body_zh_hant = ?")
+            params.append(fb_hant)
+            fields.append("body_zh_hans = ?")
+            params.append(fb_hans)
+        if not fields:
+            return {"ok": True, "fixed": False, "reason": "no_safe_text_fallback"}
+        if dry_run:
+            return {
+                "ok": True,
+                "fixed": False,
+                "dry_run": True,
+                "would_update": True,
+                "fields": [f.split("=", 1)[0].strip() for f in fields],
+            }
+        params.append(sid)
+        conn.execute(
+            f"""
+            UPDATE content_items
+            SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP
+            WHERE source_item_id = ?
+            """,
+            params,
+        )
+        conn.commit()
+    return {
+        "ok": True,
+        "fixed": True,
+        "source_item_id": sid,
+        "fields": [f.split("=", 1)[0].strip() for f in fields],
+    }
+
+
+def _clean_case_body_for_display(text: str) -> str:
+    s = str(text or "")
+    if not s.strip():
+        return ""
+    is_listing_cache = bool(re.match(r"^\s*日本房[產产]案源", s))
+    # 先移除常見「圖片網址 / 來源網址」整段區塊，避免正文被 URL 清單淹沒。
+    s = re.sub(
+        r"(?is)\[(?:圖片網址|图片网址|圖片頁|图片页|物件參考圖像\s*URL|image\s*urls?)\]\s*(?:https?://\S+\s*)+",
+        "\n",
+        s,
+    )
+    s = re.sub(
+        r"(?is)\[(?:來源網址|来源网址|來源連結|来源链接|來源網|来源网|混源網|source\s*url)\]\s*https?://\S+\s*",
+        "\n",
+        s,
+    )
+
+    out_lines: list[str] = []
+    skip_url_block = False
+    for raw_line in s.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if out_lines and out_lines[-1] != "":
+                out_lines.append("")
+            continue
+        m_addr = re.match(r"^([-－*•・]\s*)?(所在地|住所)\s*[:：]\s*(.+)$", line)
+        if m_addr:
+            prefix = str(m_addr.group(1) or "")
+            label = str(m_addr.group(2) or "所在地")
+            cleaned_addr = _clean_listing_address_line(m_addr.group(3))
+            if cleaned_addr:
+                out_lines.append(f"{prefix}{label}：{cleaned_addr}")
+            skip_url_block = False
+            continue
+        m_access = re.match(r"^([-－*•・]\s*)?(交通|沿線駅|沿線・駅)\s*[:：]\s*(.+)$", line)
+        if m_access:
+            prefix = str(m_access.group(1) or "")
+            label = str(m_access.group(2) or "交通")
+            cleaned_access = _clean_listing_access_line(m_access.group(3))
+            if cleaned_access:
+                out_lines.append(f"{prefix}{label}：{cleaned_access}")
+            skip_url_block = False
+            continue
+        if _RE_CASE_BLOCK_IMAGE_HEADER.match(line) or _RE_CASE_BLOCK_SOURCE_HEADER.match(line):
+            skip_url_block = True
+            continue
+        if skip_url_block and _RE_CASE_URL_LINE.match(line):
+            continue
+        if _RE_CASE_URL_LINE.match(line):
+            # 詳細頁已有「來源網址」欄位，內文獨立網址列可刪除以維持可讀性。
+            continue
+        if line.startswith("用途：") or line.startswith("用途:"):
+            continue
+        out_lines.append(line)
+        skip_url_block = False
+    joined = "\n".join(out_lines).strip()
+    if is_listing_cache:
+        return re.sub(r"\n{3,}", "\n\n", joined).strip()
+    cleaned = sanitize_article_display_body(joined)
+    return cleaned or joined
+
+
+def _build_case_original_listing_display(item: dict[str, Any], case_listing_panel: dict[str, Any] | None) -> str:
+    """Build a readable source-language listing summary instead of dumping the full portal page."""
+    fields = dict((case_listing_panel or {}).get("fields") or {})
+    if not fields:
+        return ""
+
+    def _v(value: Any) -> str:
+        s = re.sub(r"\s+", " ", str(value or "")).strip()
+        return s
+
+    def _price_jp(value: Any) -> str:
+        s = _v(value)
+        if not s:
+            return ""
+        return (
+            s.replace("萬日圓", "万円")
+            .replace("万日圓", "万円")
+            .replace("萬円", "万円")
+            .replace("日圓", "円")
+            .replace("萬", "万")
+        )
+
+    body_original_compact = re.sub(r"\s+", " ", str(item.get("body_original") or "")).strip()
+
+    def _layout_jp(value: Any) -> str:
+        for pat in (
+            r"間取り\s*[:：]?\s*([0-9０-９A-ZＳＬＤＫＲ＋+（）()・\s和室洋室帖畳納戸リビングダイニングキッチン]+?)(?=\s*(?:内訳|専有面積|バルコニー面積|駐車場|備考|この物件|$))",
+            r"([0-9０-９]+(?:LDK|DK|K|R|ワンルーム)(?:\+S)?(?:（[^）]{1,24}）)?)\s*/\s*[0-9.,]+",
+        ):
+            m = re.search(pat, body_original_compact, flags=re.I)
+            if m:
+                s = _v(m.group(1))
+                if s:
+                    return s[:120]
+        s = _v(value)
+        if not s:
+            return ""
+        s = s.replace("服務間（納戸）", "S（納戸）").replace("服務間", "S")
+        s = s.replace("客餐廚", "LDK").replace("客餐", "LD").replace("廚房", "K")
+        s = re.sub(r"([0-9０-９]+)\s*房\s*\+\s*(LDK|LD|K)", r"\1\2", s)
+        s = s.replace("房", "")
+        return s
+
+    def _area_jp(value: Any) -> str:
+        m = re.search(
+            r"専有面積\s*[:：]?\s*([0-9.,]+\s*(?:㎡|m²|m2)(?:\s*[（(][^）)]{1,24}[）)])?)",
+            body_original_compact,
+            flags=re.I,
+        )
+        if m:
+            return _v(m.group(1))
+        return _v(value)
+
+    def _append(lines: list[str], label: str, value: Any, *, fallback: str = "—") -> None:
+        v = _v(value)
+        lines.append(f"{label}：{v if v else fallback}")
+
+    title_original = _v(item.get("title_original"))
+    source_url = _v(item.get("item_url") or item.get("source_url"))
+    gallery_urls = list((case_listing_panel or {}).get("gallery_property_urls") or [])
+    if not gallery_urls:
+        gallery_urls = [x.strip() for x in str(item.get("image_urls") or "").splitlines() if x.strip()]
+    raw_image_urls = [x.strip() for x in str(item.get("image_urls") or "").splitlines() if x.strip()]
+    image_count = max(
+        len(dict.fromkeys([str(x).strip() for x in gallery_urls if str(x).strip()])),
+        len(dict.fromkeys([str(x).strip() for x in raw_image_urls if str(x).strip()])),
+    )
+
+    lines: list[str] = ["原文資料（來源站欄位整理）"]
+    _append(lines, "物件名", fields.get("building_name_jp") or title_original)
+    _append(lines, "価格", _price_jp(fields.get("price_text_hant")))
+    _append(lines, "間取り", _layout_jp(fields.get("layout_text_hant")))
+    _append(lines, "専有面積", _area_jp(fields.get("area_text_hant")))
+    _append(lines, "所在地", fields.get("address_line_jp"))
+    _append(lines, "交通", fields.get("access_line_jp"))
+    floor_value = fields.get("floor_structure_jp") or fields.get("floor_text_hant")
+    floor_label = "所在階 / 階数"
+    m_building_floor = re.search(r"(?:地上)?[0-9０-９]{1,3}\s*階建", _v(fields.get("floor_structure_jp")))
+    if m_building_floor:
+        floor_value = m_building_floor.group(0)
+        floor_label = "建物階数"
+    elif _v(fields.get("floor_text_hant")).endswith("樓建物"):
+        floor_label = "建物階数"
+    _append(lines, floor_label, floor_value)
+    _append(lines, "築年月", fields.get("built_ym_jp") or fields.get("age_text_hant"))
+    _append(lines, "総戸数", fields.get("total_units_jp"))
+    _append(lines, "建物構造", fields.get("structure_jp"))
+    _append(lines, "管理費等", fields.get("manage_fee_jp"))
+    _append(lines, "修繕積立金", fields.get("reserve_fee_jp"))
+    _append(lines, "駐車場", fields.get("parking_jp"))
+    _append(lines, "現況", fields.get("status_jp"))
+    _append(lines, "引渡し", fields.get("handover_jp"))
+    if _v(fields.get("property_no_jp")):
+        _append(lines, "物件番号", fields.get("property_no_jp"))
+    if _v(fields.get("info_open_jp")):
+        _append(lines, "情報公開日", fields.get("info_open_jp"))
+    if _v(fields.get("next_update_jp")):
+        _append(lines, "次回更新予定", fields.get("next_update_jp"))
+    lines.append(f"掲載画像：原站素材 {image_count} 枚" if image_count else "掲載画像：—")
+    if source_url:
+        lines.append(f"來源URL：{source_url}")
+    return "\n".join(lines).strip()
+
+
+def _case_listing_body_indicates_ended(row: dict[str, Any]) -> bool:
+    """True when the source text clearly says the listing is no longer active."""
+    blob = "\n".join(
+        str((row or {}).get(k) or "")
+        for k in (
+            "title_original",
+            "title_zh_hant",
+            "title_zh_hans",
+            "body_original",
+            "body_zh_hant",
+            "body_zh_hans",
+        )
+    )
+    if not blob.strip():
+        return False
+    return any(
+        token in blob
+        for token in (
+            "該当物件の掲載は終了しました",
+            "この物件の掲載は終了しました",
+            "物件の掲載は終了しました",
+            "掲載は終了しました",
+            "掲載が終了しました",
+            "掲載終了",
+            "募集は終了しました",
+            "已下架",
+            "已停止刊登",
+            "已結束刊登",
+        )
+    )
+
+
+def _case_verified_property_gallery_urls(row: dict[str, Any], *, limit: int = 2) -> list[str]:
+    """Return cached gallery URLs that pass the same ownership filters used by case pages."""
+    try:
+        gallery = ordered_listing_image_urls(
+            str((row or {}).get("image_urls") or ""),
+            str((row or {}).get("body_original") or ""),
+            str((row or {}).get("listing_media_json") or "[]"),
+            item_url=str((row or {}).get("item_url") or ""),
+            limit=max(1, int(limit or 1)),
+        )
+    except Exception:
+        gallery = []
+    out: list[str] = []
+    for u in gallery:
+        su = str(u or "").strip()
+        if not su:
+            continue
+        if is_likely_agent_portrait_image_url(su):
+            continue
+        if not _is_case_property_gallery_image_url(su):
+            continue
+        out.append(su)
+        if len(out) >= max(1, int(limit or 1)):
+            break
+    return out
+
+
+def _case_detail_unavailable_reason(row: dict[str, Any]) -> str:
+    """避免 FAQ、導覽頁或 JS 驗證頁被套成單一物件詳情。"""
+    kind = str((row or {}).get("content_kind") or "").strip().lower()
+    source_name = str((row or {}).get("source_name") or "").strip().lower()
+    item_url = str((row or {}).get("item_url") or "").strip().lower()
+    title = str((row or {}).get("title_original") or "") + "\n" + str((row or {}).get("title_zh_hant") or "")
+    body = (
+        str((row or {}).get("body_original") or "")
+        + "\n"
+        + str((row or {}).get("body_zh_hant") or "")
+        + "\n"
+        + str((row or {}).get("body_zh_hans") or "")
+    )
+    source_body = str((row or {}).get("body_original") or "")
+    blob = (title + "\n" + body).lower()
+    verified_gallery = _case_verified_property_gallery_urls(row or {}, limit=1)
+
+    if kind in {"suumo_faq", "faq", "knowledge", "article"}:
+        return "這筆資料是來源站 FAQ／知識文章，不是完整單一房源；已改用資料型頁面呈現，避免價格、圖片與物件欄位誤導。"
+    if "faq" in source_name or "#faq-" in item_url or "/knowhow/" in item_url or "/kasu/" in item_url:
+        return "這筆資料是 SUUMO 知識／FAQ 頁，不是房源頁；不套用物件詳情版型。"
+    portal_hosts = (
+        "suumo.jp",
+        "realestate.yahoo.co.jp",
+        "realestate.rakuten.co.jp",
+        "yes1.co.jp",
+        "yes-station.jp",
+    )
+    is_portal_url = any(h in item_url for h in portal_hosts)
+    if "suumo.jp" in item_url and not (
+        re.search(r"/(?:nc_|jnc_)[0-9a-z_]+", item_url)
+        or "/chintai/jnc_" in item_url
+        or "/chintai/nc_" in item_url
+    ):
+        return "這筆來源是 SUUMO 區域／搜尋入口，不是完整單一房源；已避免套用物件詳情欄位。"
+    if "realestate.yahoo.co.jp" in item_url and "/search/" in item_url:
+        return "這筆來源是 Yahoo!不動産搜尋結果列表，不是完整單一房源；請改開列表中的單筆官方物件頁。"
+    if (
+        "athome.co.jp" in item_url
+        and re.search(r"(?:認証中|認證中|认证中)", title + "\n" + source_body, re.I)
+        and not str((row or {}).get("image_urls") or "").strip()
+    ):
+        return "來源站回傳 AtHome 認證頁，站內未取得可信物件圖片與欄位；請開啟原站確認或重新補抓。"
+    if (
+        "homes.co.jp" in item_url or "homes.jp" in item_url
+    ) and kind == "jp_listing" and _case_listing_body_indicates_ended(row or {}) and not verified_gallery:
+        return "來源 HOME'S 物件已顯示掲載終了，且站內沒有與本案編號相符的可信圖片；已改用資料整理頁，避免空白圖片或推薦物件照片誤導。"
+    if (
+        "homes.co.jp" in item_url or "homes.jp" in item_url
+    ) and kind == "jp_listing" and not verified_gallery and (
+        "lifull home's 列表摘要" in blob
+        or "homes 列表摘要" in blob
+        or "この物件を見ている人におすすめ" in source_body
+    ):
+        return "來源 HOME'S 目前只保留列表摘要或推薦區資料，站內未取得本案可信圖片；已避免套用大圖物件版型，防止空白圖片或錯放推薦物件照片。"
+    if (
+        "suumo.jp" in item_url
+        and kind == "jp_listing"
+        and str((row or {}).get("listing_media_json") or "[]").strip() in {"", "[]"}
+        and not str((row or {}).get("image_urls") or "").strip()
+        and ("[suumo 列表摘要]" in blob or "suumo 列表摘要" in blob)
+    ):
+        return "來源 SUUMO 物件頁目前未回傳可驗證圖片，可能已下架、404 或暫時限流；站內保留文字摘要，但不套用大圖物件版型，避免顯示空白圖片。"
+    if ("yes1.co.jp" in item_url or "yes-station.jp" in item_url) and "/contents/search_" in item_url:
+        return "這筆來源是 YesStation 搜尋列表，不是完整單一房源；已避免套用物件詳情欄位。"
+    yes1_title_lite = re.sub(r"\s+", "", str((row or {}).get("title_original") or ""))
+    if (
+        ("yes1.co.jp" in item_url or "yes-station.jp" in item_url)
+        and "/contents/detail/" in item_url
+        and (
+            not yes1_title_lite
+            or yes1_title_lite.startswith("｜中古住宅・マンション・土地の売却・購入なら")
+            or yes1_title_lite.startswith("全国の不動産売買ならイエステーション")
+        )
+        and not re.search(r"(?:価格|總價|万円|物件番号|所在地|交通|専有面積|土地面積)", source_body)
+    ):
+        return "來源站未回傳這筆 YesStation 物件的明細欄位，站內未取得可信價格／所在地／交通；請開啟原站確認或重新補抓。"
+    if is_portal_url and not live_enrich_eligible_url(item_url):
+        return "這筆來源頁不是目前可解析的單一物件詳情 URL；已避免價格、圖片與物件欄位誤導。"
+    js_challenge = any(
+        token in blob
+        for token in (
+            "javascript is disabled",
+            "javascript 被禁用",
+            "javascript 已禁用",
+            "需要 javascript",
+            "需要驗證您不是機器人",
+            "需要验证您不是机器人",
+            "verify you are not a robot",
+        )
+    )
+    title_is_url = bool(re.fullmatch(r"https?://\S+", str((row or {}).get("title_original") or "").strip()))
+    if js_challenge and (title_is_url or len(str((row or {}).get("image_urls") or "").strip()) == 0):
+        return "來源站回傳 JavaScript／機器人驗證頁，站內未取得可信物件欄位；請開啟原站確認或重新補抓。"
+    return ""
+
+
+def _case_missing_verified_gallery_unavailable_reason(
+    row: dict[str, Any], case_listing_panel: dict[str, Any] | None
+) -> str:
+    """After all local gallery/borrow attempts, avoid rendering a large empty listing hero."""
+    kind = str((row or {}).get("content_kind") or "").strip().lower()
+    item_url = str((row or {}).get("item_url") or "").strip()
+    if kind != "jp_listing" or not live_enrich_eligible_url(item_url):
+        return ""
+    panel_gallery = [
+        str(u or "").strip()
+        for u in ((case_listing_panel or {}).get("gallery_property_urls") or [])
+        if str(u or "").strip()
+        and not is_likely_agent_portrait_image_url(str(u or ""))
+        and _is_case_property_gallery_image_url(str(u or ""))
+    ]
+    if panel_gallery or _case_verified_property_gallery_urls(row or {}, limit=1):
+        return ""
+    ul = item_url.lower()
+    if "homes.co.jp" in ul or "homes.jp" in ul:
+        source_label = "HOME'S"
+    elif "suumo.jp" in ul:
+        source_label = "SUUMO"
+    elif "athome.co.jp" in ul:
+        source_label = "AtHome"
+    elif "realestate.yahoo.co.jp" in ul:
+        source_label = "Yahoo!不動産"
+    elif "realestate.rakuten.co.jp" in ul:
+        source_label = "樂天不動產"
+    else:
+        source_label = str((row or {}).get("source_name") or "來源網站").strip() or "來源網站"
+    return (
+        f"來源 {source_label} 目前未取得本案可信圖片；已停用大圖物件版型，"
+        "避免空白圖片、站台圖示或推薦物件照片誤導。請由每日補圖批次重新抓取後再上架完整案件頁。"
+    )
+
+
+def _article_fallback_text_for_reading_pack(item: dict) -> str:
+    """優先使用已中文化的 SEO 欄位，避免日文占位正文污染結論區。"""
+    for key in ("seo_description", "seo_title"):
+        blob = str((item or {}).get(key) or "").strip()
+        if blob and not is_japanese_primary_plaintext(blob):
+            return blob
+    return str((item or {}).get("seo_title") or "").strip()
+
+
+def build_ai_reading_pack(text: str, *, fallback_text: str = "", locale: str = "hant") -> dict:
+    loc = (locale or "hant").strip().lower()
+    if loc not in ("hant", "hans"):
+        loc = "hant"
+    points = build_key_points(text, limit=12)
+    if not points and (fallback_text or "").strip():
+        points = build_key_points(str(fallback_text), limit=12)
+    if not points:
+        if loc == "hans":
+            return {
+                "conclusion": "本站此条中文正文尚未就绪；结论请对照页首标题、摘要或来源官网日文原文。",
+                "must_know": [
+                    "税务／表格类主题请以日本国税厅及窗口现场说明为准。",
+                    "页首「开启来源网站」可核对表单名称、适用对象与最新版式。",
+                ],
+                "action": ["用站内「智慧查询」补充地区或税种关键字，再交叉比对多篇制度稿。"],
+                "risk": ["不同年度版式与窗口要求可能调整；勿仅凭旧版截图办理。"],
+            }
+        return {
+            "conclusion": "本站此文繁中正文尚未就緒；結論請對照頁首標題、摘要或來源官網日文原文。",
+            "must_know": [
+                "稅務／表單類主題請以日本國稅廳及窗口現場說明為準。",
+                "頁首「開啟來源網站」可核對表單名稱、適用對象與最新版式。",
+            ],
+            "action": ["以站內「智慧查詢」補充地區或稅種關鍵字，再交叉比對多篇制度稿。"],
+            "risk": ["不同年度版式與窗口要求可能調整；勿僅憑舊版截圖辦理。"],
+        }
+    def _uniq_keep_order(items: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for x in items:
+            s = " ".join(str(x or "").split()).strip()
+            if not s:
+                continue
+            key = re.sub(r"[\W_]+", "", s.lower())
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(s)
+        return out
+
+    points = _uniq_keep_order(points)
+    conclusion = points[0] if points else "本篇重點請先確認交易條件、成本與風險，再做決策。"
+    must_know = points[:5]
+    action_pool = points[5:] if len(points) > 5 else points[1:]
+    action = _uniq_keep_order(action_pool)[:4]
+    used_keys = {
+        re.sub(r"[\W_]+", "", s.lower())
+        for s in [*must_know, *action]
+        if str(s or "").strip()
+    }
+    risk_like: list[str] = []
+    for p in points:
+        p_norm = re.sub(r"[\W_]+", "", str(p or "").lower())
+        if not p_norm or p_norm in used_keys:
+            continue
+        if any(k in p for k in ["風險", "注意", "稅", "貸款", "限制", "成本", "匯率", "法規", "风险", "贷款"]):
+            risk_like.append(p)
+            used_keys.add(p_norm)
+    if len(risk_like) < 4:
+        for p in points:
+            p_norm = re.sub(r"[\W_]+", "", str(p or "").lower())
+            if not p_norm or p_norm in used_keys:
+                continue
+            risk_like.append(p)
+            used_keys.add(p_norm)
+            if len(risk_like) >= 4:
+                break
+    return {
+        "conclusion": conclusion,
+        "must_know": must_know,
+        "action": action,
+        "risk": _uniq_keep_order(risk_like)[:4],
+    }
+
+
+@app.get("/api/guidance")
+def api_guidance():
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT intent_target, topic_category, seo_title, seo_slug, updated_at
+            FROM content_items
+            ORDER BY updated_at DESC
+            LIMIT 10
+            """
+        ).fetchall()
+    tips = [
+        "優先查詢 access_status=public 的最新資料，restricted 代表需人工補料或授權。",
+        "投資目標請先看 intent_target=投資 並搭配 topic_category=投資分析。",
+        "購買流程請用 intent_target=貸款 或 topic_category=官方制度。",
+    ]
+    return JSONResponse(
+        {
+            "latest": [dict(r) for r in rows],
+            "tips": tips,
+            "top_keywords": fetch_top_keywords(limit=10),
+            "update_cycle": "每2小時",
+        }
+    )
+
+
+@app.get("/api/seo-keyword-trends")
+def api_seo_keyword_trends(limit: int = Query(default=12, ge=1, le=50)):
+    rows = fetch_top_keywords(limit=limit)
+    return JSONResponse({"count": len(rows), "items": rows})
+
+
+@app.get("/api/seo-drafts")
+def api_seo_drafts(limit: int = Query(default=30, ge=1, le=200), status: str = Query(default="")):
+    rows = list_seo_drafts(limit=limit, status=status)
+    return JSONResponse({"count": len(rows), "items": rows})
+
+
+@app.post("/api/seo-drafts/generate")
+def api_generate_seo_drafts(payload: SEODraftGenerateRequest):
+    limit = max(1, min(50, int(payload.limit)))
+    min_count = max(1, min(100, int(payload.min_count)))
+    result = generate_seo_drafts(
+        limit=limit,
+        min_count=min_count,
+        use_gemini=bool(payload.use_gemini),
+        persona_region=str(payload.persona_region or "tw"),
+        persona_category=str(payload.persona_category or "finance_workplace"),
+        gemini_model=str(payload.gemini_model or ""),
+        llm_provider=str(payload.llm_provider or ""),
+    )
+    if result.get("ok") is False:
+        return JSONResponse(result, status_code=400)
+    return JSONResponse({"ok": True, **result})
+
+
+@app.post("/api/seo-intel/google-gemini-sync")
+def api_seo_intel_google_gemini_sync(payload: SEOIntelGoogleRequest):
+    """Google CSE fetch (real estate / finance / loans) + optional Gemini reading list + keyword ingest."""
+    result = run_google_finance_property_intel(
+        max_seed_queries=int(payload.max_seed_queries),
+        results_per_query=int(payload.results_per_query),
+        ingest_seed_queries=bool(payload.ingest_seed_queries),
+        run_gemini=bool(payload.run_gemini),
+        persona_region=str(payload.persona_region or "tw"),
+        gemini_model=str(payload.gemini_model or ""),
+        llm_provider=str(payload.llm_provider or ""),
+        custom_queries=list(payload.custom_queries or []),
+        include_default_queries=bool(payload.include_default_queries),
+    )
+    if result.get("ok") is False:
+        return JSONResponse(result, status_code=400)
+    return JSONResponse({"ok": True, **result})
+
+
+@app.get("/api/ai/llm-status")
+def api_ai_llm_status():
+    ap = get_active_provider()
+    d_base, d_key, d_model = get_chat_credentials("deepseek")
+    g_base, g_key, g_model = get_chat_credentials("gemini")
+    _, _, active_model = get_chat_credentials(ap)
+    return JSONResponse(
+        {
+            "active_provider": ap,
+            "active_default_model": active_model,
+            "docs_url": get_llm_docs_url() or LLM_DOCS_URL_DEFAULT,
+            "deepseek": {
+                "configured": bool(d_base and d_key),
+                "default_model": d_model,
+                "base_host": base_host(d_base),
+            },
+            "gemini": {
+                "configured": bool(g_base and g_key),
+                "default_model": g_model,
+                "base_host": base_host(g_base),
+            },
+        }
+    )
+
+
+@app.post("/api/ai/dialog-run")
+def api_ai_dialog_run(payload: DialogRunRequest):
+    """Main search + recent knowledge → Gemini summary + voice script for 智慧查詢對話框."""
+    q = (payload.q or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="missing q")
+    region = (payload.region or "").strip()
+    zh_v = (payload.knowledge_zh_variant or "hans").strip().lower()
+    if zh_v not in ("hans", "hant", "both"):
+        zh_v = "hans"
+    raw_case_items = list(payload.case_items or [])[:18]
+    rows: list[dict[str, Any]] = []
+    if raw_case_items:
+        for it in raw_case_items:
+            if not isinstance(it, dict):
+                continue
+            title_hant = str(it.get("title_zh_hant") or it.get("title_original") or it.get("title") or "").strip()
+            title_hans = str(it.get("title_zh_hans") or title_hant).strip()
+            url = str(it.get("article_url") or it.get("item_url") or "").strip()
+            meta_bits = [
+                str(it.get("source_name") or "").strip(),
+                str(it.get("jp_region_display_zh") or it.get("region") or "").strip(),
+                str(it.get("price_text_hant") or "").strip(),
+                str(it.get("layout_text_hant") or "").strip(),
+                str(it.get("building_type_zh") or "").strip(),
+            ]
+            rows.append(
+                {
+                    "content_id": it.get("content_id") or it.get("id"),
+                    "source_item_id": it.get("source_item_id"),
+                    "title_zh_hant": title_hant,
+                    "title_zh_hans": title_hans,
+                    "seo_title": title_hant or title_hans,
+                    "seo_description": "｜".join(x for x in meta_bits if x)[:220],
+                    "body_zh_hant_excerpt": "｜".join(x for x in meta_bits if x)[:420],
+                    "body_zh_hans_excerpt": "｜".join(x for x in meta_bits if x)[:420],
+                    "item_url": url,
+                    "source_name": str(it.get("source_name") or "").strip(),
+                    "topic_category": "日本不動產案源",
+                    "content_kind": "jp_listing",
+                    "image_urls": it.get("image_urls") or "",
+                }
+            )
+    else:
+        rows = fetch_results_v2(
+            q=q,
+            region=region,
+            keyword_type="",
+            intent_target="",
+            topic_category="",
+            access_status="",
+            offset=0,
+            limit=14,
+        )
+    kb_limit = 10 if raw_case_items else 14
+    kb = fetch_knowledge_snippets(days=15, q=q, limit=kb_limit, prefer_real_estate=True)
+    knowledge_ui_rows = ([*kb, *rows[: max(0, 14 - len(kb))]] if raw_case_items else kb)
+    out = run_dialog_ai_summary(
+        query=q,
+        search_rows=rows,
+        kb_rows=kb,
+        gemini_model=str(payload.gemini_model or ""),
+        llm_provider=str(payload.llm_provider or ""),
+        knowledge_zh_variant=zh_v,
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "title": out.get("title", ""),
+            "bullets": out.get("bullets", []),
+            "links": out.get("links", []),
+            "voice_script": out.get("voice_script", ""),
+            "search_count": len(rows),
+            "kb_count": len(kb),
+            "knowledge": {
+                "items": knowledge_items_for_api(knowledge_ui_rows[:14], zh_variant=zh_v),
+                "digest": build_social_knowledge_digest(
+                    knowledge_ui_rows[:14],
+                    zh_variant=zh_v,
+                    window_days=15,
+                    max_items=14,
+                ),
+                "row_count": len(knowledge_ui_rows),
+                "mode": "case_items" if raw_case_items else "knowledge",
+            },
+        }
+    )
+
+
+@app.post("/api/ai/search-reading-order")
+def api_ai_search_reading_order(payload: SearchReadingOrderRequest):
+    """首頁搜尋：同標題去重／差異化顯示／建議閱讀順序（LLM；未設定時離線規則）。"""
+    items = list(payload.items or [])
+    if not items:
+        return JSONResponse({"ok": True, "intro": "", "ordered": [], "source": "none"})
+    out = run_search_reading_order_ai(
+        query=str(payload.q or ""),
+        items=items,
+        gemini_model=str(payload.gemini_model or ""),
+        llm_provider=str(payload.llm_provider or ""),
+    )
+    return JSONResponse(out)
+
+
+_SUPPORT_HUMAN_DIRECT_TERMS = (
+    "人工",
+    "真人",
+    "專人",
+    "专人",
+    "顧問",
+    "顾问",
+    "業務",
+    "业务",
+    "銷售",
+    "销售",
+    "仲介",
+    "經紀",
+    "经纪",
+)
+
+_SUPPORT_CONTACT_TERMS = (
+    "line",
+    "wechat",
+    "微信",
+    "電話",
+    "电话",
+    "通話",
+    "通话",
+    "聯絡",
+    "联系",
+    "留單",
+    "留单",
+    "預約",
+    "预约",
+    "看屋",
+    "看房",
+    "約看",
+    "约看",
+)
+
+
+def _message_wants_human_or_advisor(message: str) -> bool:
+    """客戶明確想找真人、顧問、銷售或留下聯絡資料時，智能客服要進入留單/人工引導模式。"""
+    text = str(message or "").strip().lower()
+    if not text:
+        return False
+    compact = re.sub(r"\s+", "", text)
+    if any(k.lower() in compact for k in _SUPPORT_HUMAN_DIRECT_TERMS):
+        return True
+    has_contact = any(k.lower() in compact for k in _SUPPORT_CONTACT_TERMS)
+    has_action = any(
+        k in compact
+        for k in ("找", "轉", "转", "接", "聊", "問", "问", "安排", "要", "想", "請", "请", "給", "给", "幫", "帮", "加", "留", "回")
+    )
+    return bool(has_contact and has_action)
+
+
+def _support_lead_capture_blueprint(message: str, knowledge_meta: dict, *, human_intent: bool) -> dict[str, Any]:
+    selected_n = int(knowledge_meta.get("selected_case_count") or 0)
+    managed_n = int(knowledge_meta.get("managed_case_count") or 0)
+    ready = bool(human_intent or selected_n > 0 or managed_n > 0)
+    fields = ["姓名或稱呼", "LINE / WeChat / 電話 / Email 任一聯絡方式", "預算區間", "用途（自住／收租／轉售）", "偏好地區或車站"]
+    if selected_n > 0:
+        fields.append("客戶已選案件（僅整理給顧問）")
+    return {
+        "ready": ready,
+        "human_intent": bool(human_intent),
+        "required_fields": fields,
+        "prompt": "請留下聯絡方式、預算與用途，系統會把本輪對話交給真人顧問。"
+        if ready
+        else "先補預算、用途與地區後，再建立留單會更精準。",
+    }
+
+
+def _support_case_intro_items(knowledge_meta: dict, *, limit: int = 1) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    def push(raw: dict[str, Any], source_label: str) -> None:
+        if len(out) >= limit or not isinstance(raw, dict):
+            return
+        title = str(raw.get("title") or raw.get("title_display") or "未命名案件").strip()[:160]
+        url = str(raw.get("article_url") or raw.get("item_url") or "").strip()[:800]
+        key = url or title.lower()
+        if not key or key in seen:
+            return
+        seen.add(key)
+        meta = "｜".join(
+            x
+            for x in [
+                str(raw.get("transaction_label_zh") or "").strip(),
+                str(raw.get("jp_region_display_zh") or raw.get("region") or "").strip(),
+                str(raw.get("price_text_hant") or "").strip(),
+            ]
+            if x
+        )
+        out.append({"title": title, "url": url, "source": source_label, "meta": meta})
+
+    for row in knowledge_meta.get("selected_cases") or []:
+        push(row, "客戶已選案件")
+    for row in knowledge_meta.get("managed_cases") or []:
+        push(row, "本站案件推薦")
+    for row in knowledge_meta.get("featured_recommendations") or []:
+        push(row, "站內重點推薦")
+    return out
+
+
+def _detect_sales_stage(message: str) -> tuple[str, str]:
+    text = str(message or "").lower()
+    if any(k in text for k in ["沒興趣", "不考慮", "先不用", "不買", "取消", "no interest", "not interested"]):
+        return "lost", "not_interested"
+    if _message_wants_human_or_advisor(message):
+        return "closing", "human_requested"
+    if any(k in text for k in ["想買", "下斡旋", "可簽約", "何時看房", "預約看屋", "貸款申請", "頭期款", "何時成交"]):
+        return "closing", "high_intent"
+    if any(k in text for k in ["報酬率", "roi", "租金", "貸款", "利率", "比較", "優缺點", "風險", "學區", "交通"]):
+        return "consideration", "evaluating"
+    return "discover", "active"
+
+
+def _calc_sales_intent_score(message: str, knowledge_meta: dict) -> int:
+    text = str(message or "").lower()
+    score = 8
+    weighted_terms = {
+        "預算": 12,
+        "貸款": 10,
+        "利率": 8,
+        "報酬率": 11,
+        "roi": 11,
+        "看屋": 14,
+        "簽約": 18,
+        "下斡旋": 18,
+        "買": 8,
+        "投資": 9,
+        "成交": 16,
+        "頭期款": 15,
+        "稅": 6,
+        "風險": 7,
+        "人工": 30,
+        "真人": 28,
+        "顧問": 28,
+        "顾问": 28,
+        "專人": 24,
+        "专人": 24,
+        "留單": 22,
+        "留单": 22,
+        "聯絡": 18,
+        "联系": 18,
+        "line": 16,
+        "wechat": 16,
+        "微信": 16,
+    }
+    for term, weight in weighted_terms.items():
+        if term.lower() in text:
+            score += int(weight)
+    if _message_wants_human_or_advisor(message):
+        score = max(score, 78)
+    row_count = int(knowledge_meta.get("row_count") or 0)
+    source_count = int(knowledge_meta.get("distinct_sources") or 0)
+    selected_count = int(knowledge_meta.get("selected_case_count") or 0)
+    managed_count = int(knowledge_meta.get("managed_case_count") or 0)
+    score += min(16, row_count // 3)
+    score += min(10, source_count * 2)
+    score += min(14, selected_count * 7 + managed_count * 2)
+    if any(k in text for k in ["沒興趣", "不考慮", "不買", "先不用"]):
+        score = min(score, 24)
+    return max(0, min(100, score))
+
+
+def _sales_pitch_for_stage(stage: str, message: str, intent_score: int | None = None) -> list[str]:
+    raw_msg = str(message or "").strip()
+    score = int(intent_score) if intent_score is not None else 50
+    if stage == "discover" and score < 42:
+        return [
+            "本輪訊息偏短或試探性較高：先承接、不與客戶對槓單一數字；軟性釐清自住／收租、地區、真實可承受「總預算帶」與持有年限。",
+            "可一句話帶過日本持有成本（稅費、管理費、修繕積立金、匯率）讓對方理解「總花費」與口頭價差的距離。",
+            "用站內摘錄 FAQ／制度連結補常識，保留輸入「人工」或留單的回流入口。",
+        ]
+    if stage == "closing":
+        return [
+            "已進入高意願階段，先確認預算區間、貸款條件、預計成交時程。",
+            "建議立即安排真人顧問對接，先整理需求與風險重點，不在智能客服內加推案件。",
+            f"可延伸話術：針對「{raw_msg[:30]}」先問 1 個關鍵條件，再交由顧問跟進。",
+        ]
+    if stage == "consideration":
+        return [
+            "目前屬於評估階段，先用報酬率、租售比、交通與法規風險做比較框架。",
+            "建議先建立『自住/投資』雙路徑，避免資訊過多造成決策延遲。",
+            "下一步可用智慧查詢快速生成區域比較與成本拆解。",
+        ]
+    if stage == "lost":
+        return [
+            "客戶目前意願偏低，建議改為低打擾模式，提供精簡重點與追蹤節點。",
+            "可先給一頁式摘要（風險、成本、可行性），保留後續回流入口。",
+            "避免過度推銷，先建立信任與資訊透明度。",
+        ]
+    return [
+        "目前在需求探索階段，先確認用途（自住/投資）、地區偏好與資金條件。",
+        "先用AI解讀問題與市場常識，避免一開始就堆案件清單。",
+        "建立初步篩選條件後，再進入投資回報與風險說明。",
+    ]
+
+
+def _build_sales_mcp_payload(
+    message: str,
+    knowledge_meta: dict,
+    session_id: str,
+    *,
+    matched_scenario: dict | None = None,
+) -> dict:
+    stage, outcome = _detect_sales_stage(message)
+    score = _calc_sales_intent_score(message, knowledge_meta)
+    human_intent = _message_wants_human_or_advisor(message)
+    selected_interest = int(knowledge_meta.get("selected_case_count") or 0) > 0
+    # 意願分 ≥50：記錄對話、佇列通知、引導人工（亦觸發 Telegram，見 chat-support）
+    should_notify = bool((score >= 50 or human_intent or selected_interest) and outcome != "not_interested")
+    next_actions = [
+        {"id": "confirm_budget", "label": "確認預算與貸款條件"},
+        {"id": "ask_one_followup", "label": "一次只補問一個關鍵條件"},
+        {"id": "risk_brief", "label": "輸出風險與法規說明"},
+    ]
+    if should_notify:
+        next_actions.insert(0, {"id": "handoff_human", "label": "轉真人顧問對接"})
+    pitch_lines = list(_sales_pitch_for_stage(stage, message, score))
+    if matched_scenario:
+        label = str(matched_scenario.get("label") or "").strip()
+        conc = str(matched_scenario.get("conclusion") or "").strip()
+        bullets = list(matched_scenario.get("bullets") or [])
+        if label and conc:
+            pitch_lines.insert(0, f"場景「{label}」命中：{conc[:220]}{'…' if len(conc) > 220 else ''}")
+        if bullets:
+            pitch_lines.insert(1, f"場景銷售話術參考：{str(bullets[0])[:240]}{'…' if len(str(bullets[0])) > 240 else ''}")
+    matched_id = str(matched_scenario.get("id") or "").strip() if matched_scenario else ""
+    matched_label = str(matched_scenario.get("label") or "").strip() if matched_scenario else ""
+    notify_reason = (
+        "客戶明確要求人工／顧問協助，建議立即留單並由真人承接"
+        if human_intent
+        else (
+            "客戶已送出有興趣的站內案件，建議顧問留存並追蹤"
+            if selected_interest
+            else ("詢問權重達五成以上，建議真人顧問介入並留存對話" if should_notify else "")
+        )
+    )
+    lead_capture = _support_lead_capture_blueprint(message, knowledge_meta, human_intent=human_intent)
+    case_intro = _support_case_intro_items(knowledge_meta, limit=3)
+    return {
+        "session_id": session_id,
+        "stage": stage,
+        "outcome": outcome,
+        "intent_score": score,
+        "should_notify_human": should_notify,
+        "human_handoff_intent": human_intent,
+        "notify_reason": notify_reason,
+        "matched_scene_id": matched_id,
+        "matched_scene_label": matched_label,
+        "sales_pitch": pitch_lines,
+        "next_actions": next_actions,
+        "lead_capture": lead_capture,
+        "case_intro": case_intro,
+        "knowledge_upgrade": [
+            "將本次對話重點回寫為顧問問答模版",
+            "補齊對應區域的稅費、流程與成本明細",
+            "更新同類客群的成交話術與異議處理",
+        ],
+    }
+
+
+def _ensure_support_bot_eval_table(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS support_bot_eval_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            user_message TEXT NOT NULL DEFAULT '',
+            human_intent INTEGER NOT NULL DEFAULT 0,
+            lead_capture_ready INTEGER NOT NULL DEFAULT 0,
+            selected_case_count INTEGER NOT NULL DEFAULT 0,
+            managed_case_count INTEGER NOT NULL DEFAULT 0,
+            knowledge_row_count INTEGER NOT NULL DEFAULT 0,
+            knowledge_score INTEGER NOT NULL DEFAULT 0,
+            case_score INTEGER NOT NULL DEFAULT 0,
+            handoff_score INTEGER NOT NULL DEFAULT 0,
+            overall_score INTEGER NOT NULL DEFAULT 0,
+            optimization_level TEXT NOT NULL DEFAULT 'L1',
+            bot_status TEXT NOT NULL DEFAULT 'needs_training',
+            recommendations_json TEXT NOT NULL DEFAULT '[]',
+            eval_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_support_bot_eval_session ON support_bot_eval_events(session_id, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_support_bot_eval_score ON support_bot_eval_events(overall_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_support_bot_eval_time ON support_bot_eval_events(created_at DESC);
+        """
+    )
+
+
+def _support_bot_level(score: int) -> tuple[str, str]:
+    s = max(0, min(100, int(score or 0)))
+    if s >= 86:
+        return "L4", "成熟自動化"
+    if s >= 72:
+        return "L3", "穩定可銷售"
+    if s >= 56:
+        return "L2", "需要補強"
+    return "L1", "待訓練"
+
+
+def _build_support_bot_self_eval(
+    *,
+    message: str,
+    reply: str,
+    knowledge_meta: dict,
+    sales_mcp: dict,
+    llm_meta: dict,
+    matched_scene: dict | None,
+    matched_qa: dict | None,
+) -> dict[str, Any]:
+    human_intent = bool(sales_mcp.get("human_handoff_intent") or _message_wants_human_or_advisor(message))
+    selected_n = int(knowledge_meta.get("selected_case_count") or 0)
+    managed_n = int(knowledge_meta.get("managed_case_count") or 0)
+    featured_n = int(knowledge_meta.get("featured_count") or 0)
+    row_n = int(knowledge_meta.get("row_count") or 0)
+    src_n = int(knowledge_meta.get("distinct_sources") or 0)
+    prop_intent = bool(knowledge_meta.get("property_listing_intent"))
+    purchase_discovery = bool(knowledge_meta.get("purchase_discovery_mode"))
+    crm_on = bool((llm_meta or {}).get("crm_prompt_injected"))
+    llm_on = bool((llm_meta or {}).get("enabled"))
+    lead_ready = bool((sales_mcp.get("lead_capture") or {}).get("ready") or human_intent)
+
+    knowledge_score = 76 if knowledge_meta.get("skipped_lookup") else min(100, 28 + row_n * 5 + src_n * 8)
+    if prop_intent and row_n == 0 and managed_n == 0:
+        knowledge_score = min(knowledge_score, 48)
+    case_score = 70
+    if prop_intent or selected_n or managed_n:
+        case_score = min(100, 30 + selected_n * 22 + managed_n * 10 + featured_n * 5)
+    if purchase_discovery:
+        knowledge_score = max(knowledge_score, 82)
+        case_score = max(case_score, 78)
+    handoff_score = 62
+    if human_intent:
+        handoff_score = 92 if bool(sales_mcp.get("should_notify_human")) else 74
+    elif bool(sales_mcp.get("should_notify_human")):
+        handoff_score = 82
+    crm_score = 86 if crm_on else 60
+    scenario_score = 78 + (8 if matched_scene else 0) + (8 if matched_qa else 0)
+    llm_score = 84 if llm_on else 68
+    overall = round(
+        knowledge_score * 0.22
+        + case_score * 0.22
+        + handoff_score * 0.24
+        + crm_score * 0.12
+        + scenario_score * 0.10
+        + llm_score * 0.10
+    )
+    level, level_label = _support_bot_level(overall)
+
+    recommendations: list[str] = []
+    if purchase_discovery:
+        recommendations.append("本輪為購買意向但條件不足：正確策略是一問一答，先問用途或預算，不推薦案件。")
+    if human_intent:
+        recommendations.append("本輪為人工／顧問意圖：優先開留單、帶入預算與已選案件，並通知真人。")
+    if prop_intent and managed_n <= 0 and selected_n <= 0:
+        recommendations.append("客戶疑似在問案件：先補問一個篩選條件，不在問答內自動列案件。")
+    if not matched_qa:
+        recommendations.append("未命中顧問 Q&A：可把本輪高頻問題沉澱成 support_qa_training。")
+    if not matched_scene:
+        recommendations.append("未命中離線場景：可新增場景關鍵字，讓離線與 AI 提示更穩。")
+    if row_n <= 0 and not knowledge_meta.get("skipped_lookup"):
+        recommendations.append("知識庫未命中：補充關鍵字同義詞或近期資料來源。")
+    if not crm_on:
+        recommendations.append("CRM 提示詞未注入：請確認智能客服 CRM 已啟用。")
+    if not recommendations:
+        recommendations.append("維持目前策略；觀察成交/留單後回寫最佳話術。")
+
+    if purchase_discovery:
+        status = "purchase_discovery"
+    elif human_intent:
+        status = "handoff_ready" if lead_ready else "handoff_needs_fields"
+    elif overall >= 86:
+        status = "optimized"
+    elif prop_intent and case_score < 62:
+        status = "needs_case_data"
+    elif knowledge_score < 58:
+        status = "needs_knowledge"
+    elif not crm_on:
+        status = "needs_crm_prompt"
+    else:
+        status = "learning"
+
+    return {
+        "overall_score": max(0, min(100, int(overall))),
+        "optimization_level": level,
+        "optimization_level_label": level_label,
+        "bot_status": status,
+        "human_intent": human_intent,
+        "lead_capture_ready": lead_ready,
+        "scores": {
+            "knowledge": int(knowledge_score),
+            "case": int(case_score),
+            "handoff": int(handoff_score),
+            "crm": int(crm_score),
+            "scenario": int(scenario_score),
+            "llm": int(llm_score),
+        },
+        "counts": {
+            "selected_cases": selected_n,
+            "managed_cases": managed_n,
+            "featured_cases": featured_n,
+            "knowledge_rows": row_n,
+            "knowledge_sources": src_n,
+        },
+        "recommendations": recommendations[:8],
+        "self_optimization": {
+            "loop": "observe -> score -> recommend -> train Q&A/scene -> compare next conversations",
+            "next_review": "每次客服回覆與留單都寫入自評事件，可在報表追蹤等級變化。",
+        },
+    }
+
+
+def _save_support_bot_self_eval(
+    *,
+    session_id: str,
+    message: str,
+    bot_eval: dict[str, Any],
+) -> None:
+    with get_conn() as conn:
+        _ensure_support_bot_eval_table(conn)
+        counts = dict(bot_eval.get("counts") or {})
+        scores = dict(bot_eval.get("scores") or {})
+        conn.execute(
+            """
+            INSERT INTO support_bot_eval_events (
+                session_id, user_message, human_intent, lead_capture_ready,
+                selected_case_count, managed_case_count, knowledge_row_count,
+                knowledge_score, case_score, handoff_score, overall_score,
+                optimization_level, bot_status, recommendations_json, eval_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(session_id or "")[:120],
+                str(message or "")[:4000],
+                1 if bot_eval.get("human_intent") else 0,
+                1 if bot_eval.get("lead_capture_ready") else 0,
+                int(counts.get("selected_cases") or 0),
+                int(counts.get("managed_cases") or 0),
+                int(counts.get("knowledge_rows") or 0),
+                int(scores.get("knowledge") or 0),
+                int(scores.get("case") or 0),
+                int(scores.get("handoff") or 0),
+                int(bot_eval.get("overall_score") or 0),
+                str(bot_eval.get("optimization_level") or "L1")[:12],
+                str(bot_eval.get("bot_status") or "needs_training")[:60],
+                json.dumps(list(bot_eval.get("recommendations") or []), ensure_ascii=False),
+                json.dumps(bot_eval, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+
+
+def _support_bot_eval_report(limit: int = 40) -> dict[str, Any]:
+    lim = max(1, min(200, int(limit or 40)))
+    with get_conn() as conn:
+        _ensure_support_bot_eval_table(conn)
+        rows = conn.execute(
+            """
+            SELECT id, session_id, user_message, human_intent, lead_capture_ready,
+                   selected_case_count, managed_case_count, knowledge_row_count,
+                   knowledge_score, case_score, handoff_score, overall_score,
+                   optimization_level, bot_status, recommendations_json, eval_json, created_at
+            FROM support_bot_eval_events
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (lim,),
+        ).fetchall()
+        agg = conn.execute(
+            """
+            SELECT
+              COUNT(1) AS total,
+              ROUND(AVG(overall_score), 1) AS avg_score,
+              SUM(CASE WHEN human_intent = 1 THEN 1 ELSE 0 END) AS human_intent_count,
+              SUM(CASE WHEN lead_capture_ready = 1 THEN 1 ELSE 0 END) AS lead_ready_count
+            FROM support_bot_eval_events
+            """
+        ).fetchone()
+        levels = conn.execute(
+            """
+            SELECT optimization_level, COUNT(1) AS c
+            FROM support_bot_eval_events
+            GROUP BY optimization_level
+            ORDER BY optimization_level DESC
+            """
+        ).fetchall()
+        statuses = conn.execute(
+            """
+            SELECT bot_status, COUNT(1) AS c
+            FROM support_bot_eval_events
+            GROUP BY bot_status
+            ORDER BY c DESC, bot_status
+            """
+        ).fetchall()
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["recommendations"] = json.loads(str(d.pop("recommendations_json") or "[]"))
+        except Exception:
+            d["recommendations"] = []
+        try:
+            d["eval"] = json.loads(str(d.pop("eval_json") or "{}"))
+        except Exception:
+            d["eval"] = {}
+        items.append(d)
+    agg_d = dict(agg) if agg else {}
+    avg_score = int(round(float(agg_d.get("avg_score") or 0))) if agg_d else 0
+    lvl, lvl_label = _support_bot_level(avg_score)
+    latest = items[0] if items else {}
+    latest_status = str(latest.get("bot_status") or "no_data")
+    return {
+        "total": int(agg_d.get("total") or 0),
+        "avg_score": avg_score,
+        "optimization_level": lvl,
+        "optimization_level_label": lvl_label,
+        "bot_status": latest_status,
+        "human_intent_count": int(agg_d.get("human_intent_count") or 0),
+        "lead_ready_count": int(agg_d.get("lead_ready_count") or 0),
+        "level_counts": {str(r["optimization_level"]): int(r["c"] or 0) for r in levels},
+        "status_counts": {str(r["bot_status"]): int(r["c"] or 0) for r in statuses},
+        "latest": latest,
+        "items": items,
+    }
+
+
+def _ensure_data_completion_bot_table(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS data_completion_bot_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_label TEXT NOT NULL DEFAULT '',
+            target_source_item_id INTEGER NOT NULL DEFAULT 0,
+            case_media_fixed INTEGER NOT NULL DEFAULT 0,
+            case_text_fixed INTEGER NOT NULL DEFAULT 0,
+            missing_media_count INTEGER NOT NULL DEFAULT 0,
+            syncable_media_count INTEGER NOT NULL DEFAULT 0,
+            weak_text_count INTEGER NOT NULL DEFAULT 0,
+            zero_cell_count INTEGER NOT NULL DEFAULT 0,
+            remaining_three_zero_count INTEGER NOT NULL DEFAULT 0,
+            remaining_three_total INTEGER NOT NULL DEFAULT 0,
+            overall_score INTEGER NOT NULL DEFAULT 0,
+            optimization_level TEXT NOT NULL DEFAULT 'L1',
+            bot_status TEXT NOT NULL DEFAULT 'needs_scan',
+            recommendations_json TEXT NOT NULL DEFAULT '[]',
+            eval_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_data_completion_bot_time ON data_completion_bot_events(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_data_completion_bot_status ON data_completion_bot_events(bot_status);
+        CREATE INDEX IF NOT EXISTS idx_data_completion_bot_score ON data_completion_bot_events(overall_score DESC);
+        """
+    )
+
+
+def _coverage_matrix_payload_for_bot(age_days: int, threshold_per_cell: int) -> dict[str, Any]:
+    try:
+        resp = api_cases_coverage_matrix(age_days=age_days, threshold_per_cell=threshold_per_cell)
+        return json.loads(resp.body.decode("utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def _build_data_completion_bot_eval(
+    *,
+    age_days: int = 180,
+    threshold_per_cell: int = 15,
+    source_item_id: int = 0,
+    media_fix: dict[str, Any] | None = None,
+    text_fix: dict[str, Any] | None = None,
+    heal_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    age = max(1, min(366, int(age_days or 180)))
+    threshold = max(1, min(5000, int(threshold_per_cell or 15)))
+    media_fix = dict(media_fix or {})
+    text_fix = dict(text_fix or {})
+    heal_result = dict(heal_result or {})
+    media_empty_sql = (
+        f"{_CASE_INV_JP_LISTING_SQL} "
+        "AND COALESCE(c.listing_media_json,'[]') IN ('[]','')"
+    )
+    weak_text_sql = (
+        f"{_CASE_INV_JP_LISTING_SQL} "
+        "AND (length(trim(COALESCE(c.title_zh_hant,''))) < 2 "
+        "OR length(trim(COALESCE(c.body_zh_hant,''))) < 80 "
+        "OR length(trim(COALESCE(c.body_zh_hans,''))) < 80)"
+    )
+    with get_conn() as conn:
+        _ensure_data_completion_bot_table(conn)
+        jp_total = int(
+            conn.execute(
+                f"SELECT COUNT(1) AS c FROM content_items c JOIN source_items s ON s.id = c.source_item_id WHERE {_CASE_INV_JP_LISTING_SQL}"
+            ).fetchone()["c"]
+        )
+        missing_media_count = int(
+            conn.execute(
+                f"""
+                SELECT COUNT(1) AS c
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE {media_empty_sql}
+                  AND trim(COALESCE(s.image_urls,'')) = ''
+                """
+            ).fetchone()["c"]
+        )
+        syncable_media_count = int(
+            conn.execute(
+                f"""
+                SELECT COUNT(1) AS c
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE {media_empty_sql}
+                  AND trim(COALESCE(s.image_urls,'')) <> ''
+                """
+            ).fetchone()["c"]
+        )
+        weak_text_count = int(
+            conn.execute(
+                f"""
+                SELECT COUNT(1) AS c
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE {weak_text_sql}
+                """
+            ).fetchone()["c"]
+        )
+        target_case: dict[str, Any] = {}
+        sid = int(source_item_id or 0)
+        if sid > 0:
+            row = conn.execute(
+                """
+                SELECT
+                  s.id AS source_item_id, s.item_url, s.title_original,
+                  length(trim(COALESCE(s.image_urls,''))) AS source_image_chars,
+                  length(trim(COALESCE(s.body_original,''))) AS source_body_chars,
+                  COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+                  length(trim(COALESCE(c.body_zh_hant,''))) AS body_zh_hant_chars,
+                  length(trim(COALESCE(c.title_zh_hant,''))) AS title_zh_hant_chars
+                FROM source_items s
+                LEFT JOIN content_items c ON c.source_item_id = s.id
+                WHERE s.id = ?
+                """,
+                (sid,),
+            ).fetchone()
+            if row:
+                d = dict(row)
+                d["listing_media_count"] = len(_parse_listing_media_field(d.get("listing_media_json")))
+                target_case = d
+
+    matrix = _coverage_matrix_payload_for_bot(age, threshold)
+    zero_cells: list[dict[str, Any]] = []
+    remaining_zero_cells: list[dict[str, Any]] = []
+    for row in list(matrix.get("regions") or []):
+        region = str(row.get("region") or "").strip()
+        hosts = row.get("hosts") if isinstance(row.get("hosts"), dict) else {}
+        for host in SEVEN_JP_PORTAL_HOST_ORDER:
+            c = int(hosts.get(host) or 0)
+            if c == 0:
+                cell = {"region": region, "host_key": host, "count": 0}
+                zero_cells.append(cell)
+                if host in REMAINING_THREE_PORTAL_HOSTS:
+                    remaining_zero_cells.append(cell)
+    by_portal = matrix.get("by_portal_total") if isinstance(matrix.get("by_portal_total"), dict) else {}
+    remaining_three_total = int(sum(int(by_portal.get(h) or 0) for h in REMAINING_THREE_PORTAL_HOSTS))
+    jp_den = max(1, jp_total)
+    score = 100
+    score -= min(26, int(round((syncable_media_count / jp_den) * 120)))
+    score -= min(18, int(round((missing_media_count / jp_den) * 140)))
+    score -= min(18, int(round((weak_text_count / jp_den) * 100)))
+    score -= 30 if remaining_three_total <= 0 else min(26, len(remaining_zero_cells) * 2)
+    score = max(0, min(100, score))
+    level, level_label = _support_bot_level(score)
+
+    media_fixed = bool(media_fix.get("fixed"))
+    text_fixed = bool(text_fix.get("fixed"))
+    healed_processed = int(heal_result.get("processed") or 0) if heal_result else 0
+    if media_fixed or text_fixed:
+        status = "case_repaired"
+    elif healed_processed > 0:
+        status = "coverage_heal_done"
+    elif remaining_three_total <= 0 or remaining_zero_cells:
+        status = "needs_remaining_three_heal"
+    elif syncable_media_count > 0:
+        status = "needs_media_sync"
+    elif weak_text_count > 0:
+        status = "needs_text_completion"
+    elif missing_media_count > 0:
+        status = "needs_source_recrawl"
+    elif score >= 86:
+        status = "optimized"
+    else:
+        status = "learning"
+
+    recommendations: list[str] = []
+    if source_item_id:
+        if media_fixed or text_fixed:
+            recommendations.append(f"案件 {int(source_item_id)} 已完成站內媒體/文字欄位補強；請重新整理案件頁確認缺圖已消失。")
+        elif target_case and int(target_case.get("listing_media_count") or 0) <= 0 and int(target_case.get("source_image_chars") or 0) > 0:
+            recommendations.append(f"案件 {int(source_item_id)} 有來源圖但媒體欄位仍空，可執行 BOT 單案修復。")
+    if remaining_three_total <= 0:
+        recommendations.append("後三站（楽天／イエステーション／OHEYASU）目前矩陣合計仍為 0：優先執行 remaining_three coverage-heal。")
+    elif remaining_zero_cells:
+        recommendations.append(f"後三站仍有 {len(remaining_zero_cells)} 個地區格為 0：BOT 會依地區 alias 與 hub 候選排序逐格補抓。")
+    if syncable_media_count > 0:
+        recommendations.append(f"{syncable_media_count} 筆案件已有來源圖片但站內媒體 JSON 為空：可批次同步，先解決缺圖。")
+    if missing_media_count > 0:
+        recommendations.append(f"{missing_media_count} 筆案件來源圖也為空：需重爬原站詳情或人工補圖。")
+    if weak_text_count > 0:
+        recommendations.append(f"{weak_text_count} 筆案件中文標題/摘要過短：可用已抽取日文欄位重建繁簡中文摘要。")
+    if not recommendations:
+        recommendations.append("資料補全狀態良好；持續觀察新增案件與矩陣 0 格即可。")
+
+    return {
+        "overall_score": int(score),
+        "optimization_level": level,
+        "optimization_level_label": level_label,
+        "bot_status": status,
+        "counts": {
+            "jp_listing_total": int(jp_total),
+            "missing_media": int(missing_media_count),
+            "syncable_media": int(syncable_media_count),
+            "weak_text": int(weak_text_count),
+            "zero_cells": int(len(zero_cells)),
+            "remaining_three_zero_cells": int(len(remaining_zero_cells)),
+            "remaining_three_total": int(remaining_three_total),
+            "low_cell_count": int(matrix.get("low_cell_count") or 0),
+        },
+        "target_case": target_case,
+        "case_media_fix": media_fix,
+        "case_text_fix": text_fix,
+        "heal_result": heal_result,
+        "coverage": {
+            "age_days": age,
+            "threshold_per_cell": threshold,
+            "by_portal_total": by_portal,
+            "zero_cells_preview": zero_cells[:40],
+            "remaining_three_zero_preview": remaining_zero_cells[:40],
+        },
+        "recommendations": recommendations[:8],
+        "self_optimization": {
+            "loop": "scan missing media/text -> repair syncable cases -> heal zero cells -> re-score matrix -> store event",
+            "trigger_points": [
+                "案件頁開啟時自動同步來源圖到站內媒體欄位",
+                "報表載入時顯示後三站 0 格與下一步",
+                "BOT run 可串接 coverage-heal 補抓楽天／Yes／OHEYASU",
+            ],
+        },
+    }
+
+
+def _save_data_completion_bot_eval(
+    *, run_label: str, source_item_id: int = 0, bot_eval: dict[str, Any]
+) -> None:
+    with get_conn() as conn:
+        _ensure_data_completion_bot_table(conn)
+        counts = dict(bot_eval.get("counts") or {})
+        conn.execute(
+            """
+            INSERT INTO data_completion_bot_events (
+                run_label, target_source_item_id, case_media_fixed, case_text_fixed,
+                missing_media_count, syncable_media_count, weak_text_count,
+                zero_cell_count, remaining_three_zero_count, remaining_three_total,
+                overall_score, optimization_level, bot_status, recommendations_json, eval_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(run_label or "")[:120],
+                int(source_item_id or 0),
+                1 if (bot_eval.get("case_media_fix") or {}).get("fixed") else 0,
+                1 if (bot_eval.get("case_text_fix") or {}).get("fixed") else 0,
+                int(counts.get("missing_media") or 0),
+                int(counts.get("syncable_media") or 0),
+                int(counts.get("weak_text") or 0),
+                int(counts.get("zero_cells") or 0),
+                int(counts.get("remaining_three_zero_cells") or 0),
+                int(counts.get("remaining_three_total") or 0),
+                int(bot_eval.get("overall_score") or 0),
+                str(bot_eval.get("optimization_level") or "L1")[:12],
+                str(bot_eval.get("bot_status") or "needs_scan")[:80],
+                json.dumps(list(bot_eval.get("recommendations") or []), ensure_ascii=False),
+                json.dumps(bot_eval, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+
+
+def _data_completion_bot_report(limit: int = 40) -> dict[str, Any]:
+    lim = max(1, min(200, int(limit or 40)))
+    with get_conn() as conn:
+        _ensure_data_completion_bot_table(conn)
+        rows = conn.execute(
+            """
+            SELECT id, run_label, target_source_item_id, case_media_fixed, case_text_fixed,
+                   missing_media_count, syncable_media_count, weak_text_count,
+                   zero_cell_count, remaining_three_zero_count, remaining_three_total,
+                   overall_score, optimization_level, bot_status, recommendations_json, eval_json, created_at
+            FROM data_completion_bot_events
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (lim,),
+        ).fetchall()
+        agg = conn.execute(
+            """
+            SELECT COUNT(1) AS total, ROUND(AVG(overall_score), 1) AS avg_score
+            FROM data_completion_bot_events
+            """
+        ).fetchone()
+        statuses = conn.execute(
+            """
+            SELECT bot_status, COUNT(1) AS c
+            FROM data_completion_bot_events
+            GROUP BY bot_status
+            ORDER BY c DESC, bot_status
+            """
+        ).fetchall()
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["recommendations"] = json.loads(str(d.pop("recommendations_json") or "[]"))
+        except Exception:
+            d["recommendations"] = []
+        try:
+            d["eval"] = json.loads(str(d.pop("eval_json") or "{}"))
+        except Exception:
+            d["eval"] = {}
+        items.append(d)
+    agg_d = dict(agg) if agg else {}
+    avg_score = int(round(float(agg_d.get("avg_score") or 0))) if agg_d else 0
+    lvl, lvl_label = _support_bot_level(avg_score)
+    latest = items[0] if items else {}
+    return {
+        "total": int(agg_d.get("total") or 0),
+        "avg_score": avg_score,
+        "optimization_level": lvl,
+        "optimization_level_label": lvl_label,
+        "bot_status": str(latest.get("bot_status") or "no_data"),
+        "status_counts": {str(r["bot_status"]): int(r["c"] or 0) for r in statuses},
+        "latest": latest,
+        "items": items,
+    }
+
+
+def _ensure_sales_mcp_events_conversation_column(conn: sqlite3.Connection) -> None:
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(sales_mcp_events)").fetchall()}
+    except Exception:
+        return
+    if "conversation_json" not in cols:
+        try:
+            conn.execute("ALTER TABLE sales_mcp_events ADD COLUMN conversation_json TEXT NOT NULL DEFAULT '[]'")
+        except Exception:
+            pass
+
+
+def _save_sales_mcp_event(
+    *,
+    session_id: str,
+    user_message: str,
+    assistant_reply: str,
+    sales_mcp: dict,
+    knowledge_meta: dict,
+    conversation_history: list[dict[str, str]] | None = None,
+) -> None:
+    with get_conn() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sales_mcp_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                user_message TEXT NOT NULL,
+                assistant_reply TEXT NOT NULL,
+                stage TEXT NOT NULL DEFAULT 'discover',
+                intent_score INTEGER NOT NULL DEFAULT 0,
+                outcome TEXT NOT NULL DEFAULT 'active',
+                recommendation_json TEXT NOT NULL DEFAULT '{}',
+                knowledge_meta_json TEXT NOT NULL DEFAULT '{}',
+                conversation_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS sales_mcp_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                intent_score INTEGER NOT NULL DEFAULT 0,
+                notify_reason TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        _ensure_sales_mcp_events_conversation_column(conn)
+        hist = list(conversation_history or [])
+        conv_json = json.dumps(hist[-24:], ensure_ascii=False)
+        conn.execute(
+            """
+            INSERT INTO sales_mcp_events (
+                session_id, user_message, assistant_reply, stage, intent_score, outcome,
+                recommendation_json, knowledge_meta_json, conversation_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(session_id or ""),
+                str(user_message or ""),
+                str(assistant_reply or ""),
+                str(sales_mcp.get("stage") or "discover"),
+                int(sales_mcp.get("intent_score") or 0),
+                str(sales_mcp.get("outcome") or "active"),
+                json.dumps(sales_mcp, ensure_ascii=False),
+                json.dumps(knowledge_meta or {}, ensure_ascii=False),
+                conv_json,
+            ),
+        )
+        if bool(sales_mcp.get("should_notify_human")):
+            conn.execute(
+                """
+                INSERT INTO sales_mcp_notifications (session_id, intent_score, notify_reason, status)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    str(session_id or ""),
+                    int(sales_mcp.get("intent_score") or 0),
+                    str(sales_mcp.get("notify_reason") or ""),
+                    "auto_queued",
+                ),
+            )
+        conn.commit()
+
+
+def _ensure_support_case_interest_table(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS support_session_case_interest (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            case_key TEXT NOT NULL,
+            source_item_id INTEGER NOT NULL DEFAULT 0,
+            content_id INTEGER NOT NULL DEFAULT 0,
+            title TEXT NOT NULL DEFAULT '',
+            source_name TEXT NOT NULL DEFAULT '',
+            item_url TEXT NOT NULL DEFAULT '',
+            article_url TEXT NOT NULL DEFAULT '',
+            transaction_label_zh TEXT NOT NULL DEFAULT '',
+            jp_region_display_zh TEXT NOT NULL DEFAULT '',
+            transit_line_zh TEXT NOT NULL DEFAULT '',
+            address_hint_zh TEXT NOT NULL DEFAULT '',
+            price_text_hant TEXT NOT NULL DEFAULT '',
+            layout_text_hant TEXT NOT NULL DEFAULT '',
+            area_text_hant TEXT NOT NULL DEFAULT '',
+            building_type_zh TEXT NOT NULL DEFAULT '',
+            thumb_url TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(session_id, case_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_support_case_interest_session
+          ON support_session_case_interest(session_id, updated_at DESC, id DESC);
+        """
+    )
+    try:
+        cols = {str(r[1]) for r in conn.execute("PRAGMA table_info(support_session_case_interest)").fetchall()}
+        if "address_hint_zh" not in cols:
+            conn.execute(
+                "ALTER TABLE support_session_case_interest ADD COLUMN address_hint_zh TEXT NOT NULL DEFAULT ''"
+            )
+        if "thumb_url" not in cols:
+            conn.execute("ALTER TABLE support_session_case_interest ADD COLUMN thumb_url TEXT NOT NULL DEFAULT ''")
+    except Exception:
+        pass
+
+
+def _safe_int(v: Any) -> int:
+    try:
+        return int(v)
+    except Exception:
+        return 0
+
+
+def _normalize_case_interest_url(v: Any) -> str:
+    s = str(v or "").strip()
+    if not s:
+        return ""
+    if s.startswith("/"):
+        return s[:1200]
+    if not s.lower().startswith(("http://", "https://")):
+        return ""
+    return s[:1200]
+
+
+def _interest_case_row_with_derived_article_url(row: dict[str, Any]) -> dict[str, Any]:
+    """有 source_item_id 但未存 article_url 時，補上站內案件路徑 /case/{id}（便於留單／TG 對照）。"""
+    out = dict(row)
+    sid = int(out.get("source_item_id") or 0)
+    au = str(out.get("article_url") or "").strip()
+    if sid > 0 and not au:
+        out["article_url"] = f"/case/{sid}"
+    return out
+
+
+def _support_case_key_from_dict(row: dict[str, Any]) -> str:
+    sid = max(0, _safe_int(row.get("source_item_id")))
+    if sid > 0:
+        return f"sid:{sid}"
+    iu = _normalize_case_interest_url(row.get("item_url"))
+    if iu:
+        return f"url:{iu.lower()}"
+    cid = max(0, _safe_int(row.get("content_id")))
+    if cid > 0:
+        return f"cid:{cid}"
+    title = re.sub(r"\s+", " ", str(row.get("title") or "").strip().lower())[:180]
+    if title:
+        return f"title:{title}"
+    return ""
+
+
+def _sanitize_support_selected_cases(raw_rows: list[Any], *, max_items: int = 16) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in list(raw_rows or []):
+        if not isinstance(raw, dict):
+            continue
+        region = str(raw.get("region") or raw.get("jp_region_display_zh") or "").strip()
+        transit = str(raw.get("transit") or raw.get("transit_line_zh") or "").strip()
+        address_hint = str(raw.get("address_hint_zh") or raw.get("address") or "").strip()
+        if not address_hint:
+            address_hint = "｜".join([x for x in [region, transit] if x])
+        row = {
+            "source_item_id": max(0, _safe_int(raw.get("source_item_id"))),
+            "content_id": max(0, _safe_int(raw.get("content_id"))),
+            "title": str(raw.get("title") or "").strip()[:240],
+            "source_name": str(raw.get("source_name") or "").strip()[:120],
+            "item_url": _normalize_case_interest_url(raw.get("item_url")),
+            "article_url": _normalize_case_interest_url(raw.get("article_url")),
+            "transaction_label_zh": str(raw.get("transaction_label_zh") or "").strip()[:60],
+            "jp_region_display_zh": region[:120],
+            "transit_line_zh": transit[:120],
+            "address_hint_zh": address_hint[:220],
+            "price_text_hant": str(raw.get("price_text_hant") or "").strip()[:80],
+            "layout_text_hant": str(raw.get("layout_text_hant") or "").strip()[:80],
+            "area_text_hant": str(raw.get("area_text_hant") or "").strip()[:80],
+            "building_type_zh": str(raw.get("building_type_zh") or "").strip()[:80],
+            "thumb_url": _normalize_case_interest_url(raw.get("thumb_url")),
+        }
+        if not row["title"] and not row["item_url"]:
+            continue
+        case_key = _support_case_key_from_dict(row)
+        if not case_key or case_key in seen:
+            continue
+        row["case_key"] = case_key
+        seen.add(case_key)
+        out.append(_interest_case_row_with_derived_article_url(row))
+        if len(out) >= max_items:
+            break
+    return out
+
+
+def _load_support_session_interest_cases(session_id: str, *, limit: int = 16) -> list[dict[str, Any]]:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        return []
+    lim = max(1, min(60, int(limit)))
+    with get_conn() as conn:
+        _ensure_support_case_interest_table(conn)
+        rows = conn.execute(
+            """
+            SELECT
+              case_key, source_item_id, content_id, title, source_name,
+              item_url, article_url, transaction_label_zh, jp_region_display_zh,
+              transit_line_zh, address_hint_zh, price_text_hant, layout_text_hant, area_text_hant, building_type_zh,
+              thumb_url,
+              updated_at
+            FROM support_session_case_interest
+            WHERE session_id = ?
+            ORDER BY updated_at DESC, id DESC
+            LIMIT ?
+            """,
+            (sid[:120], lim),
+        ).fetchall()
+    return [_interest_case_row_with_derived_article_url(dict(r)) for r in rows]
+
+
+def _replace_support_session_interest_cases(
+    session_id: str,
+    raw_rows: list[Any],
+) -> tuple[str, list[dict[str, Any]]]:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        sid = f"sess-{uuid4().hex[:16]}"
+    rows = _sanitize_support_selected_cases(raw_rows, max_items=20)
+    with get_conn() as conn:
+        _ensure_support_case_interest_table(conn)
+        conn.execute("DELETE FROM support_session_case_interest WHERE session_id = ?", (sid[:120],))
+        for r in rows:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO support_session_case_interest (
+                  session_id, case_key, source_item_id, content_id, title, source_name,
+                  item_url, article_url, transaction_label_zh, jp_region_display_zh,
+                  transit_line_zh, address_hint_zh, price_text_hant, layout_text_hant, area_text_hant, building_type_zh,
+                  thumb_url,
+                  created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (
+                    sid[:120],
+                    str(r.get("case_key") or "")[:200],
+                    int(r.get("source_item_id") or 0),
+                    int(r.get("content_id") or 0),
+                    str(r.get("title") or "")[:240],
+                    str(r.get("source_name") or "")[:120],
+                    str(r.get("item_url") or "")[:1200],
+                    str(r.get("article_url") or "")[:1200],
+                    str(r.get("transaction_label_zh") or "")[:60],
+                    str(r.get("jp_region_display_zh") or "")[:120],
+                    str(r.get("transit_line_zh") or "")[:120],
+                    str(r.get("address_hint_zh") or "")[:220],
+                    str(r.get("price_text_hant") or "")[:80],
+                    str(r.get("layout_text_hant") or "")[:80],
+                    str(r.get("area_text_hant") or "")[:80],
+                    str(r.get("building_type_zh") or "")[:80],
+                    str(r.get("thumb_url") or "")[:1200],
+                ),
+            )
+        conn.commit()
+    return sid, _load_support_session_interest_cases(sid, limit=20)
+
+
+def _ensure_social_radar_tables(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS social_radar_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL DEFAULT '',
+            account_handle TEXT NOT NULL DEFAULT '',
+            account_url TEXT NOT NULL DEFAULT '',
+            audience_note TEXT NOT NULL DEFAULT '',
+            topic_note TEXT NOT NULL DEFAULT '',
+            region_note TEXT NOT NULL DEFAULT '',
+            channel_region TEXT NOT NULL DEFAULT '',
+            follower_count INTEGER NOT NULL DEFAULT 0,
+            like_count INTEGER NOT NULL DEFAULT 0,
+            comment_count INTEGER NOT NULL DEFAULT 0,
+            account_score INTEGER NOT NULL DEFAULT 0,
+            priority INTEGER NOT NULL DEFAULT 50,
+            raw_line TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(platform, account_handle)
+        );
+        CREATE TABLE IF NOT EXISTS social_radar_leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign TEXT NOT NULL DEFAULT '',
+            platform TEXT NOT NULL DEFAULT '',
+            source_account TEXT NOT NULL DEFAULT '',
+            source_account_url TEXT NOT NULL DEFAULT '',
+            prospect_handle TEXT NOT NULL DEFAULT '',
+            display_name TEXT NOT NULL DEFAULT '',
+            profile_url TEXT NOT NULL DEFAULT '',
+            post_url TEXT NOT NULL DEFAULT '',
+            interaction_type TEXT NOT NULL DEFAULT '',
+            interaction_text TEXT NOT NULL DEFAULT '',
+            score INTEGER NOT NULL DEFAULT 0,
+            stage TEXT NOT NULL DEFAULT 'observe',
+            intent_label TEXT NOT NULL DEFAULT '',
+            reason TEXT NOT NULL DEFAULT '',
+            suggested_reply TEXT NOT NULL DEFAULT '',
+            route_message TEXT NOT NULL DEFAULT '',
+            support_url TEXT NOT NULL DEFAULT '',
+            channel_region TEXT NOT NULL DEFAULT '',
+            preferred_area TEXT NOT NULL DEFAULT '',
+            budget_hint TEXT NOT NULL DEFAULT '',
+            investment_intent TEXT NOT NULL DEFAULT '',
+            persona_tags_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'new',
+            raw_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_social_radar_score ON social_radar_leads(score DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_social_radar_platform ON social_radar_leads(platform, source_account);
+        CREATE INDEX IF NOT EXISTS idx_social_radar_status ON social_radar_leads(status, updated_at DESC);
+        """
+    )
+    try:
+        account_cols = {str(r[1]) for r in conn.execute("PRAGMA table_info(social_radar_accounts)").fetchall()}
+        lead_cols = {str(r[1]) for r in conn.execute("PRAGMA table_info(social_radar_leads)").fetchall()}
+        for col, definition in {
+            "channel_region": "TEXT NOT NULL DEFAULT ''",
+            "follower_count": "INTEGER NOT NULL DEFAULT 0",
+            "like_count": "INTEGER NOT NULL DEFAULT 0",
+            "comment_count": "INTEGER NOT NULL DEFAULT 0",
+            "account_score": "INTEGER NOT NULL DEFAULT 0",
+        }.items():
+            if col not in account_cols:
+                conn.execute(f"ALTER TABLE social_radar_accounts ADD COLUMN {col} {definition}")
+        for col, definition in {
+            "channel_region": "TEXT NOT NULL DEFAULT ''",
+            "preferred_area": "TEXT NOT NULL DEFAULT ''",
+            "budget_hint": "TEXT NOT NULL DEFAULT ''",
+            "investment_intent": "TEXT NOT NULL DEFAULT ''",
+            "persona_tags_json": "TEXT NOT NULL DEFAULT '[]'",
+        }.items():
+            if col not in lead_cols:
+                conn.execute(f"ALTER TABLE social_radar_leads ADD COLUMN {col} {definition}")
+    except Exception:
+        pass
+
+
+def _social_platform_from_url_or_text(raw: str) -> str:
+    s = str(raw or "").strip().lower()
+    if not s:
+        return ""
+    if "instagram.com" in s or s in {"ig", "instagram"}:
+        return "instagram"
+    if "facebook.com" in s or "fb.com" in s or s in {"fb", "facebook"}:
+        return "facebook"
+    if "tiktok.com" in s or s in {"tiktok", "抖音"}:
+        return "tiktok"
+    if "threads.net" in s or s == "threads":
+        return "threads"
+    if "youtube.com" in s or "youtu.be" in s or s in {"yt", "youtube"}:
+        return "youtube"
+    if "x.com" in s or "twitter.com" in s or s in {"x", "twitter"}:
+        return "x"
+    if "line.me" in s or s == "line":
+        return "line"
+    return ""
+
+
+def _social_safe_text(raw: Any, limit: int = 500) -> str:
+    s = re.sub(r"\s+", " ", str(raw or "").strip())
+    return s[: max(1, int(limit))]
+
+
+def _parse_social_count(raw: Any) -> int:
+    s = str(raw or "").strip().lower()
+    if not s:
+        return 0
+    s = s.replace(",", "").replace(" ", "")
+    mult = 1.0
+    if "億" in s or "亿" in s:
+        mult = 100_000_000.0
+    elif "萬" in s or "万" in s or "w" in s:
+        mult = 10_000.0
+    elif "m" in s:
+        mult = 1_000_000.0
+    elif "k" in s:
+        mult = 1_000.0
+    m = re.search(r"(\d+(?:\.\d+)?)", s)
+    if not m:
+        return 0
+    try:
+        return int(float(m.group(1)) * mult)
+    except Exception:
+        return 0
+
+
+def _social_account_score(followers: int, likes: int, comments: int, priority: int) -> int:
+    score = int(priority or 50)
+    for threshold, pts in ((10_000, 8), (50_000, 10), (100_000, 10), (500_000, 12)):
+        if int(followers or 0) >= threshold:
+            score += pts
+    for threshold, pts in ((10_000, 6), (100_000, 8), (1_000_000, 10)):
+        if int(likes or 0) >= threshold:
+            score += pts
+    for threshold, pts in ((100, 5), (1_000, 7), (5_000, 8)):
+        if int(comments or 0) >= threshold:
+            score += pts
+    return max(0, min(100, int(score)))
+
+
+def _split_social_line(line: str) -> list[str]:
+    raw = str(line or "").strip()
+    if not raw:
+        return []
+    try:
+        if "," in raw or '"' in raw:
+            row = next(csv.reader(StringIO(raw)))
+            cells = [_social_safe_text(x, 1200) for x in row]
+            if len(cells) > 1:
+                return cells
+    except Exception:
+        pass
+    for sep in ("\t", "｜", "|", "；", ";"):
+        if sep in raw:
+            return [_social_safe_text(x, 1200) for x in raw.split(sep)]
+    return [_social_safe_text(raw, 1200)]
+
+
+def _social_rows_from_text(text: str, *, max_rows: int = 500) -> list[tuple[str, list[str]]]:
+    out: list[tuple[str, list[str]]] = []
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        low = line.lower()
+        if (
+            ("平台" in line and ("帳號" in line or "账号" in line))
+            or ("platform" in low and ("account" in low or "handle" in low))
+        ):
+            continue
+        cells = [c for c in _split_social_line(line) if str(c or "").strip()]
+        if not cells:
+            continue
+        out.append((line, cells))
+        if len(out) >= max_rows:
+            break
+    return out
+
+
+def _parse_social_account_matrix(text: str, *, default_platform: str = "") -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for raw_line, cells in _social_rows_from_text(text, max_rows=300):
+        platform = _social_platform_from_url_or_text(cells[0]) or _social_platform_from_url_or_text(raw_line)
+        if platform:
+            rest = cells[1:] if len(cells) > 1 and _social_platform_from_url_or_text(cells[0]) else cells
+        else:
+            platform = _social_platform_from_url_or_text(default_platform) or _social_safe_text(default_platform, 40)
+            rest = cells
+        url = ""
+        handle = ""
+        notes: list[str] = []
+        follower_count = 0
+        like_count = 0
+        comment_count = 0
+        unlabeled_counts: list[int] = []
+        for cell in rest:
+            c = str(cell or "").strip()
+            if not c:
+                continue
+            if not url and re.match(r"https?://", c, re.I):
+                url = c[:1200]
+                inferred = _social_platform_from_url_or_text(c)
+                if inferred and not platform:
+                    platform = inferred
+                continue
+            if not handle:
+                handle = c[:160]
+                continue
+            cnt = _parse_social_count(c)
+            c_low = c.lower()
+            if cnt > 0 and any(k in c_low or k in c for k in ("粉", "follower", "followers", "fan", "fans")):
+                follower_count = cnt
+                continue
+            if cnt > 0 and any(k in c_low or k in c for k in ("讚", "赞", "喜", "like", "likes", "heart")):
+                like_count = cnt
+                continue
+            if cnt > 0 and any(k in c_low or k in c for k in ("評", "评", "comment", "comments", "留言")):
+                comment_count = cnt
+                continue
+            if cnt > 0 and len(unlabeled_counts) < 3:
+                unlabeled_counts.append(cnt)
+                continue
+            notes.append(c)
+        if unlabeled_counts:
+            if follower_count <= 0:
+                follower_count = unlabeled_counts[0]
+            if len(unlabeled_counts) > 1 and like_count <= 0:
+                like_count = unlabeled_counts[1]
+            if len(unlabeled_counts) > 2 and comment_count <= 0:
+                comment_count = unlabeled_counts[2]
+        if not handle and url:
+            try:
+                path = urlparse(url).path.strip("/").split("/")[0]
+                handle = f"@{path}" if path else urlparse(url).netloc
+            except Exception:
+                handle = url[:160]
+        if not handle:
+            continue
+        priority = 70 if any(k in " ".join(notes) for k in ("投資", "買房", "不動產", "日本", "海外")) else 50
+        account_score = _social_account_score(follower_count, like_count, comment_count, priority)
+        rows.append(
+            {
+                "platform": (platform or "social")[:40],
+                "account_handle": handle[:160],
+                "account_url": url,
+                "audience_note": (notes[0] if len(notes) > 0 else "")[:240],
+                "topic_note": (notes[1] if len(notes) > 1 else "")[:240],
+                "region_note": (notes[2] if len(notes) > 2 else "")[:160],
+                "channel_region": (notes[3] if len(notes) > 3 else notes[2] if len(notes) > 2 else "")[:160],
+                "follower_count": follower_count,
+                "like_count": like_count,
+                "comment_count": comment_count,
+                "account_score": account_score,
+                "priority": priority,
+                "raw_line": raw_line[:1500],
+            }
+        )
+    return rows
+
+
+_SOCIAL_HOT_KEYWORDS = (
+    "想買",
+    "買房",
+    "買日本",
+    "預算",
+    "预算",
+    "貸款",
+    "贷款",
+    "頭期",
+    "首付",
+    "自住",
+    "收租",
+    "投資",
+    "投资",
+    "看房",
+    "看屋",
+    "約看",
+    "预约",
+    "價格",
+    "价格",
+    "稅",
+    "税",
+    "移住",
+    "永住",
+    "法人",
+    "民宿",
+    "大阪",
+    "東京",
+    "东京",
+    "沖繩",
+    "冲绳",
+    "京都",
+    "福岡",
+    "北海道",
+    "マンション",
+    "不動産",
+    "不动产",
+    "房產",
+    "房产",
+    "buy",
+    "budget",
+    "loan",
+    "mortgage",
+    "invest",
+    "investment",
+    "rental",
+    "rent",
+    "tokyo",
+    "osaka",
+    "property",
+    "real estate",
+    "japan",
+)
+
+_SOCIAL_WARM_KEYWORDS = (
+    "請問",
+    "请问",
+    "了解",
+    "有興趣",
+    "有兴趣",
+    "私訊",
+    "私信",
+    "dm",
+    "line",
+    "微信",
+    "wechat",
+    "資料",
+    "资料",
+    "介紹",
+    "介绍",
+    "怎麼",
+    "怎么",
+    "可以嗎",
+    "可以吗",
+    "interested",
+    "details",
+    "info",
+    "dm me",
+    "how much",
+    "where",
+    "?",
+    "？",
+)
+
+
+_SOCIAL_AREA_HINTS: dict[str, tuple[str, ...]] = {
+    "東京": ("東京", "东京", "tokyo", "新宿", "澀谷", "渋谷", "池袋", "品川", "港區", "港区"),
+    "大阪": ("大阪", "osaka", "梅田", "難波", "心齋橋", "心斋桥"),
+    "京都": ("京都", "kyoto"),
+    "福岡": ("福岡", "福冈", "fukuoka", "博多"),
+    "沖繩": ("沖繩", "沖縄", "冲绳", "okinawa"),
+    "北海道": ("北海道", "札幌", "sapporo", "hokkaido"),
+    "名古屋": ("名古屋", "nagoya"),
+}
+
+
+def _infer_social_persona(row: dict[str, Any]) -> dict[str, Any]:
+    text_raw = " ".join(
+        str(row.get(k) or "")
+        for k in ("interaction_text", "extra_note", "source_account", "campaign", "interaction_type")
+    )
+    text = text_raw.lower()
+    preferred_area = ""
+    for area, hints in _SOCIAL_AREA_HINTS.items():
+        if any(h.lower() in text or h in text_raw for h in hints):
+            preferred_area = area
+            break
+    budget_hint = ""
+    budget_patterns = (
+        r"(\d+(?:\.\d+)?)\s*(?:萬|万)\s*(?:日圓|日元|円|jpy|yen)?",
+        r"(?:nt\$?|台幣|新台幣|twd)\s*(\d+(?:\.\d+)?)\s*(?:萬|万)?",
+        r"(\d+(?:\.\d+)?)\s*(?:m|million)\s*(?:jpy|yen|twd|nt)?",
+        r"(?:預算|预算|budget)[^\d]{0,12}(\d+(?:\.\d+)?)",
+    )
+    for pat in budget_patterns:
+        m = re.search(pat, text_raw, re.I)
+        if m:
+            budget_hint = m.group(0)[:80]
+            break
+    intent = ""
+    tags: list[str] = []
+    if any(k in text or k in text_raw for k in ("投資", "投资", "收租", "租金", "報酬", "报酬", "yield", "roi", "rental", "investment", "invest")):
+        intent = "投資/收租"
+        tags.append("投資意圖")
+    if any(k in text or k in text_raw for k in ("自住", "移住", "搬去", "住日本", "自用", "live in", "relocation")):
+        intent = intent or "自住/移住"
+        tags.append("自住移住")
+    if any(k in text or k in text_raw for k in ("民宿", "airbnb", "短租", "旅宿")):
+        intent = "民宿/短租"
+        tags.append("短租民宿")
+    if any(k in text or k in text_raw for k in ("貸款", "贷款", "loan", "mortgage", "頭期", "首付")):
+        tags.append("貸款/頭期款")
+    if preferred_area:
+        tags.append(f"偏好{preferred_area}")
+    if budget_hint:
+        tags.append("有預算訊號")
+    channel_region = preferred_area or str(row.get("channel_region") or "").strip()
+    return {
+        "preferred_area": preferred_area,
+        "budget_hint": budget_hint,
+        "investment_intent": intent or "未明",
+        "persona_tags": list(dict.fromkeys(tags))[:8],
+        "channel_region": channel_region[:160],
+    }
+
+
+def _parse_social_interactions(
+    text: str,
+    *,
+    default_platform: str = "",
+    account_rows: list[dict[str, Any]] | None = None,
+    campaign: str = "",
+    limit: int = 120,
+) -> list[dict[str, Any]]:
+    accounts = account_rows or []
+    first_account = accounts[0] if accounts else {}
+    account_map = {
+        str(a.get("account_handle") or "").strip().lower(): a
+        for a in accounts
+        if str(a.get("account_handle") or "").strip()
+    }
+    out: list[dict[str, Any]] = []
+    for raw_line, cells in _social_rows_from_text(text, max_rows=max(1, min(500, limit))):
+        platform = ""
+        source_account = ""
+        prospect_handle = ""
+        display_name = ""
+        interaction_type = ""
+        interaction_text = ""
+        post_url = ""
+        profile_url = ""
+        extras: list[str] = []
+
+        idx = 0
+        if cells:
+            p0 = _social_platform_from_url_or_text(cells[0])
+            if p0:
+                platform = p0
+                idx = 1
+        platform = platform or _social_platform_from_url_or_text(default_platform) or str(first_account.get("platform") or "social")
+        remain = cells[idx:]
+        urls: list[str] = []
+        non_urls: list[str] = []
+        for cell in remain:
+            c = str(cell or "").strip()
+            if re.match(r"https?://", c, re.I):
+                urls.append(c[:1200])
+            else:
+                non_urls.append(c)
+        for u in urls:
+            low = u.lower()
+            looks_post = any(
+                x in low
+                for x in (
+                    "/p/",
+                    "/reel/",
+                    "/tv/",
+                    "/posts/",
+                    "/video/",
+                    "/videos/",
+                    "/status/",
+                    "youtube.com/watch",
+                    "youtu.be/",
+                )
+            )
+            looks_profile = any(x in low for x in ("/@", "tiktok.com/@", "threads.net/@"))
+            if looks_post and not post_url:
+                post_url = u
+            elif looks_profile and not profile_url:
+                profile_url = u
+            elif not post_url:
+                post_url = u
+            elif not profile_url:
+                profile_url = u
+        if non_urls:
+            source_account = non_urls[0][:160]
+        if len(non_urls) > 1:
+            prospect_handle = non_urls[1][:160]
+        if len(non_urls) > 2:
+            interaction_type = non_urls[2][:80]
+        if len(non_urls) > 3:
+            interaction_text = non_urls[3][:2000]
+        if len(non_urls) > 4:
+            display_name = non_urls[4][:160]
+        if len(non_urls) > 5:
+            extras = non_urls[5:]
+        if not source_account:
+            source_account = str(first_account.get("account_handle") or "")[:160]
+        acc_match = account_map.get(source_account.strip().lower()) or first_account
+        if not interaction_text and non_urls:
+            interaction_text = non_urls[-1][:2000]
+        if not prospect_handle:
+            m = re.search(r"@[\w.\-_\u4e00-\u9fff]+", raw_line)
+            prospect_handle = m.group(0)[:160] if m else ""
+        if not interaction_type:
+            low_line = raw_line.lower()
+            if "dm" in low_line or "私訊" in raw_line or "私信" in raw_line:
+                interaction_type = "dm"
+            elif "追蹤" in raw_line or "关注" in raw_line or "follow" in low_line:
+                interaction_type = "follow"
+            elif "收藏" in raw_line or "save" in low_line:
+                interaction_type = "save"
+            elif "留言" in raw_line or "comment" in low_line:
+                interaction_type = "comment"
+            else:
+                interaction_type = "comment"
+        row = {
+            "campaign": campaign[:120],
+            "platform": (platform or "social")[:40],
+            "source_account": source_account[:160],
+            "source_account_url": str(acc_match.get("account_url") or "")[:1200],
+            "prospect_handle": prospect_handle[:160],
+            "display_name": display_name[:160],
+            "profile_url": profile_url[:1200],
+            "post_url": post_url[:1200],
+            "interaction_type": interaction_type[:80],
+            "interaction_text": interaction_text[:2000],
+            "extra_note": "｜".join(extras)[:500],
+            "channel_region": str(acc_match.get("channel_region") or acc_match.get("region_note") or "")[:160],
+            "account_follower_count": int(acc_match.get("follower_count") or 0),
+            "account_like_count": int(acc_match.get("like_count") or 0),
+            "account_comment_count": int(acc_match.get("comment_count") or 0),
+            "account_score": int(acc_match.get("account_score") or 0),
+            "raw_line": raw_line[:2000],
+        }
+        out.append(_score_social_radar_lead(row))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _score_social_radar_lead(row: dict[str, Any]) -> dict[str, Any]:
+    text = f"{row.get('interaction_type','')} {row.get('interaction_text','')} {row.get('extra_note','')}".lower()
+    zh_text = f"{row.get('interaction_type','')} {row.get('interaction_text','')} {row.get('extra_note','')}"
+    persona = _infer_social_persona(row)
+    score = 18
+    reasons: list[str] = []
+    itype = str(row.get("interaction_type") or "").strip().lower()
+    type_bonus = {
+        "dm": 32,
+        "私訊": 32,
+        "私信": 32,
+        "comment": 18,
+        "留言": 18,
+        "save": 16,
+        "收藏": 16,
+        "share": 14,
+        "follow": 10,
+        "追蹤": 10,
+        "关注": 10,
+        "like": 6,
+    }
+    for k, v in type_bonus.items():
+        if k in itype:
+            score += v
+            reasons.append(f"互動型態：{row.get('interaction_type')}")
+            break
+    hot_hits = [k for k in _SOCIAL_HOT_KEYWORDS if k.lower() in text or k in zh_text]
+    warm_hits = [k for k in _SOCIAL_WARM_KEYWORDS if k.lower() in text or k in zh_text]
+    if hot_hits:
+        score += min(34, 12 + len(hot_hits) * 5)
+        reasons.append("高意圖詞：" + "、".join(hot_hits[:5]))
+    if warm_hits:
+        score += min(20, 6 + len(warm_hits) * 3)
+        reasons.append("可培養詞：" + "、".join(warm_hits[:5]))
+    if row.get("profile_url"):
+        score += 4
+    if row.get("post_url"):
+        score += 4
+    if row.get("prospect_handle"):
+        score += 4
+    if persona.get("preferred_area"):
+        score += 8
+        reasons.append(f"偏好城市：{persona.get('preferred_area')}")
+    if persona.get("budget_hint"):
+        score += 14
+        reasons.append(f"預算訊號：{persona.get('budget_hint')}")
+    if persona.get("investment_intent") and persona.get("investment_intent") != "未明":
+        score += 9
+        reasons.append(f"意圖：{persona.get('investment_intent')}")
+    if int(row.get("account_score") or 0) >= 70:
+        score += 5
+        reasons.append("來源帳號互動量高")
+    score = max(0, min(100, int(score)))
+    if score >= 76:
+        stage = "hot"
+        intent_label = "高意願，優先私訊/導入 AI 盤點"
+    elif score >= 52:
+        stage = "warm"
+        intent_label = "中意願，先用內容回覆導流"
+    elif score >= 30:
+        stage = "nurture"
+        intent_label = "可培養，加入再行銷名單"
+    else:
+        stage = "observe"
+        intent_label = "觀察名單，低打擾追蹤"
+    if not reasons:
+        reasons.append("尚未出現明確購屋訊號")
+    handle = str(row.get("prospect_handle") or row.get("display_name") or "這位朋友").strip()
+    platform = str(row.get("platform") or "社群").strip()
+    source_account = str(row.get("source_account") or "").strip()
+    comment = str(row.get("interaction_text") or "").strip()
+    site = get_effective_site_url().rstrip("/") or ""
+    social_note = f"{platform} {handle}".strip()
+    support_url = ""
+    if site:
+        support_url = site + "/?" + urlencode({"open_support": "1", "social_lead": social_note[:120]})
+    if stage == "hot":
+        persona_hint = "、".join(
+            x
+            for x in [
+                str(persona.get("preferred_area") or ""),
+                str(persona.get("budget_hint") or ""),
+                str(persona.get("investment_intent") or ""),
+            ]
+            if x and x != "未明"
+        )
+        suggested = (
+            f"{handle} 您剛剛提到的問題很適合先做預算/用途/區域盤點。"
+            f"{('我看到您偏向 ' + persona_hint + '，') if persona_hint else ''}"
+            f"我可以請 AI 顧問先幫您整理日本房產方向，再由真人接手。{(' 這裡填一下：' + support_url) if support_url else ''}"
+        )
+    elif stage == "warm":
+        suggested = (
+            f"{handle} 這題可以先從預算、持有目的和城市來判斷。"
+            f"我整理了一個 AI 諮詢入口，填幾個條件就能先篩方向。{(' ' + support_url) if support_url else ''}"
+        )
+    else:
+        suggested = (
+            f"{handle} 日本房產會因區域、用途和稅務差很多；如果之後想比較，可以先用 AI 顧問整理條件。"
+        )
+    route_lines = [
+        "【社群獲客雷達導入】",
+        f"平台：{platform}",
+        f"參考帳號：{source_account or '未標示'}",
+        f"潛在客戶：{handle}",
+        f"互動：{row.get('interaction_type') or 'comment'}",
+        f"意願分：{score}｜{intent_label}",
+        f"渠道區域：{persona.get('channel_region') or row.get('channel_region') or '未判斷'}",
+        f"偏好城市：{persona.get('preferred_area') or '未判斷'}",
+        f"預算訊號：{persona.get('budget_hint') or '未判斷'}",
+        f"投資/用途意圖：{persona.get('investment_intent') or '未明'}",
+    ]
+    if comment:
+        route_lines.append(f"留言/訊息：{comment[:600]}")
+    if row.get("post_url"):
+        route_lines.append(f"貼文：{row.get('post_url')}")
+    route_lines.append("請 AI 先判斷客戶可能需求，回覆時引導補齊：用途、預算、城市/區域、現金/貸款、時間表，並在高意願時轉真人留單。")
+    out = dict(row)
+    out.update(
+        {
+            "score": score,
+            "stage": stage,
+            "intent_label": intent_label,
+            "reason": "；".join(reasons),
+            "suggested_reply": suggested[:1200],
+            "route_message": "\n".join(route_lines)[:2000],
+            "support_url": support_url[:1200],
+            "channel_region": str(persona.get("channel_region") or row.get("channel_region") or "")[:160],
+            "preferred_area": str(persona.get("preferred_area") or "")[:120],
+            "budget_hint": str(persona.get("budget_hint") or "")[:160],
+            "investment_intent": str(persona.get("investment_intent") or "未明")[:120],
+            "persona_tags": persona.get("persona_tags") or [],
+            "persona_tags_json": json.dumps(persona.get("persona_tags") or [], ensure_ascii=False),
+        }
+    )
+    return out
+
+
+def _save_social_radar_payload(
+    *,
+    accounts: list[dict[str, Any]],
+    leads: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    saved: list[dict[str, Any]] = []
+    with get_conn() as conn:
+        _ensure_social_radar_tables(conn)
+        for a in accounts:
+            conn.execute(
+                """
+                INSERT INTO social_radar_accounts (
+                    platform, account_handle, account_url, audience_note, topic_note, region_note,
+                    channel_region, follower_count, like_count, comment_count, account_score,
+                    priority, raw_line, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(platform, account_handle) DO UPDATE SET
+                    account_url=excluded.account_url,
+                    audience_note=excluded.audience_note,
+                    topic_note=excluded.topic_note,
+                    region_note=excluded.region_note,
+                    channel_region=excluded.channel_region,
+                    follower_count=excluded.follower_count,
+                    like_count=excluded.like_count,
+                    comment_count=excluded.comment_count,
+                    account_score=excluded.account_score,
+                    priority=excluded.priority,
+                    raw_line=excluded.raw_line,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (
+                    str(a.get("platform") or "")[:40],
+                    str(a.get("account_handle") or "")[:160],
+                    str(a.get("account_url") or "")[:1200],
+                    str(a.get("audience_note") or "")[:240],
+                    str(a.get("topic_note") or "")[:240],
+                    str(a.get("region_note") or "")[:160],
+                    str(a.get("channel_region") or "")[:160],
+                    int(a.get("follower_count") or 0),
+                    int(a.get("like_count") or 0),
+                    int(a.get("comment_count") or 0),
+                    int(a.get("account_score") or 0),
+                    int(a.get("priority") or 50),
+                    str(a.get("raw_line") or "")[:1500],
+                ),
+            )
+        for lead in leads:
+            raw_json = json.dumps(lead, ensure_ascii=False)[:120000]
+            cur = conn.execute(
+                """
+                INSERT INTO social_radar_leads (
+                    campaign, platform, source_account, source_account_url,
+                    prospect_handle, display_name, profile_url, post_url,
+                    interaction_type, interaction_text, score, stage, intent_label,
+                    reason, suggested_reply, route_message, support_url,
+                    channel_region, preferred_area, budget_hint, investment_intent, persona_tags_json,
+                    status, raw_json,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, CURRENT_TIMESTAMP)
+                """,
+                (
+                    str(lead.get("campaign") or "")[:120],
+                    str(lead.get("platform") or "")[:40],
+                    str(lead.get("source_account") or "")[:160],
+                    str(lead.get("source_account_url") or "")[:1200],
+                    str(lead.get("prospect_handle") or "")[:160],
+                    str(lead.get("display_name") or "")[:160],
+                    str(lead.get("profile_url") or "")[:1200],
+                    str(lead.get("post_url") or "")[:1200],
+                    str(lead.get("interaction_type") or "")[:80],
+                    str(lead.get("interaction_text") or "")[:2000],
+                    int(lead.get("score") or 0),
+                    str(lead.get("stage") or "")[:40],
+                    str(lead.get("intent_label") or "")[:160],
+                    str(lead.get("reason") or "")[:1000],
+                    str(lead.get("suggested_reply") or "")[:1200],
+                    str(lead.get("route_message") or "")[:2000],
+                    str(lead.get("support_url") or "")[:1200],
+                    str(lead.get("channel_region") or "")[:160],
+                    str(lead.get("preferred_area") or "")[:120],
+                    str(lead.get("budget_hint") or "")[:160],
+                    str(lead.get("investment_intent") or "")[:120],
+                    str(lead.get("persona_tags_json") or json.dumps(lead.get("persona_tags") or [], ensure_ascii=False))[:2000],
+                    raw_json,
+                ),
+            )
+            row = dict(lead)
+            row["id"] = int(cur.lastrowid or 0)
+            saved.append(row)
+        conn.commit()
+    return saved
+
+
+def _load_social_radar_lead_from_db(lead_id: int) -> dict[str, Any] | None:
+    if int(lead_id or 0) <= 0:
+        return None
+    with get_conn() as conn:
+        _ensure_social_radar_tables(conn)
+        row = conn.execute(
+            """
+            SELECT id, campaign, platform, source_account, source_account_url,
+                   prospect_handle, display_name, profile_url, post_url, interaction_type,
+                   interaction_text, score, stage, intent_label, reason, suggested_reply,
+                   route_message, support_url, channel_region, preferred_area, budget_hint,
+                   investment_intent, persona_tags_json, status, raw_json, created_at, updated_at
+            FROM social_radar_leads
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (int(lead_id),),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def _format_interest_cases_for_prompt(
+    rows: list[dict[str, Any]],
+    *,
+    max_chars: int = 2200,
+    max_items: int = 5,
+) -> str:
+    if not rows:
+        return ""
+    head = (
+        "【客戶已選案件（本輪會話）】以下是客戶主動加入智能客服想進一步詢問的案件。"
+        "只當顧問承接背景，不要主動加推新案件；"
+        "若資訊不足，本輪只補問 1 個最重要條件。\n\n"
+    )
+    parts: list[str] = [head]
+    total = len(head)
+    for i, r in enumerate(rows[: max(1, int(max_items or 1))], 1):
+        rr = _interest_case_row_with_derived_article_url(dict(r))
+        sid = int(rr.get("source_item_id") or 0)
+        cid = int(rr.get("content_id") or 0)
+        id_line = ""
+        if sid > 0:
+            id_line = f"站內案件編號：{sid}（個案路徑 /case/{sid}）\n"
+        elif cid > 0:
+            id_line = f"內容編號 content_id：{cid}\n"
+        block = (
+            f"[客戶關注{i}] {str(rr.get('title') or '未命名案件')[:200]}\n"
+            f"{id_line}"
+            f"買賣租:{str(rr.get('transaction_label_zh') or '—')[:40]}｜區域:{str(rr.get('jp_region_display_zh') or '—')[:80]}｜交通:{str(rr.get('transit_line_zh') or '—')[:80]}\n"
+            f"價格:{str(rr.get('price_text_hant') or '—')[:60]}｜格局:{str(rr.get('layout_text_hant') or '—')[:60]}｜坪數:{str(rr.get('area_text_hant') or '—')[:60]}｜類型:{str(rr.get('building_type_zh') or '—')[:60]}\n"
+            f"站內:{str(rr.get('article_url') or '-')[:300]}\n"
+            f"來源:{str(rr.get('item_url') or '-')[:300]}\n"
+        )
+        if total + len(block) > max_chars:
+            break
+        parts.append(block)
+        total += len(block)
+    return "\n".join(parts)
+
+
+def _format_interest_cases_for_tg(rows: list[dict[str, Any]], *, max_items: int = 5) -> str:
+    if not rows:
+        return "（本輪未提供已選案件）"
+    lines: list[str] = []
+    for i, r in enumerate(rows[: max(1, max_items)], start=1):
+        rr = _interest_case_row_with_derived_article_url(dict(r))
+        title = str(rr.get("title") or "未命名案件")[:120]
+        sid = int(rr.get("source_item_id") or 0)
+        sid_txt = f"{sid}" if sid > 0 else "—"
+        tx = str(rr.get("transaction_label_zh") or "—")[:24]
+        price = str(rr.get("price_text_hant") or "—")[:28]
+        area = str(rr.get("jp_region_display_zh") or "—")[:40]
+        src = str(rr.get("source_name") or "—")[:40]
+        item_u = str(rr.get("item_url") or "").strip()
+        article_u = str(rr.get("article_url") or "").strip()
+        lines.append(
+            f"{i}. {title}\n"
+            f"   來源：{src}｜編號：{sid_txt}｜{tx}｜價格:{price}｜區域:{area}\n"
+            f"   站內案件：{article_u or '—'}\n"
+            f"   原站物件：{item_u or '—'}"
+        )
+    return "\n".join(lines)
+
+
+def _format_support_client_search_context(
+    fig_kw: str,
+    fig_reg: str,
+    dlg_kw: str,
+    *,
+    fig_price: str = "",
+    fig_layout: str = "",
+    fig_types: list[str] | None = None,
+) -> str:
+    parts: list[str] = []
+    r = (fig_reg or "").strip()
+    if r:
+        parts.append(f"③區／區域篩選：{r}")
+    fp = (fig_price or "").strip()
+    if fp and fp != "不限":
+        parts.append(f"③總價條件：{fp}")
+    fl = (fig_layout or "").strip()
+    if fl and fl != "不限":
+        parts.append(f"③格局條件：{fl}")
+    ft = [str(x or "").strip() for x in (fig_types or []) if str(x or "").strip()]
+    if ft:
+        parts.append(f"③物件類型：{'、'.join(ft[:8])}")
+    fk = (fig_kw or "").strip()
+    if fk:
+        parts.append(f"③案件關鍵字（智慧查詢）：{fk}")
+    dk = (dlg_kw or "").strip()
+    if dk:
+        parts.append(f"頂部／對話關鍵字：{dk}")
+    if not parts:
+        return ""
+    return (
+        "【使用者在本頁的搜尋脈絡（僅供理解需求，不要自動推薦案件）】\n" + "\n".join(parts)
+    )
+
+
+def _support_interest_coaching_block(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return ""
+    return (
+        "【對話策略｜已選意向案件】\n"
+        "使用者主動加入「已選案件」代表有興趣，但本輪只確認他的問題與下一步，不推薦新案件、不列清單。\n"
+        "回覆重點：先承接已選案件會整理給顧問，再只問 1 個關鍵條件，例如用途、預算、格局或地區。\n"
+        "若使用者想找真人或輸入「人工」，引導留 LINE/電話/WeChat，並說明會把已選案件一併整理。\n\n"
+    )
+
+
+def _require_admin_password(request: Request) -> None:
+    admin_password = str(request.headers.get("x-admin-password") or "").strip()
+    if admin_password != ADMIN_PANEL_PASSWORD:
+        raise HTTPException(status_code=401, detail="後台管理密碼錯誤")
+
+
+@app.post("/api/admin/change-password")
+def api_admin_change_password(request: Request, payload: AdminChangePasswordBody):
+    """變更後台密碼：寫入 data/admin_panel_password.txt（優先於環境變數預設值）。"""
+    _require_admin_password(request)
+    global ADMIN_PANEL_PASSWORD
+    new_p = payload.new_password.strip()
+    if len(new_p) < 4:
+        raise HTTPException(status_code=400, detail="新密碼過短")
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _ADMIN_PASSWORD_FILE.write_text(new_p + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"無法寫入密碼檔：{exc}") from exc
+    ADMIN_PANEL_PASSWORD = new_p
+    return JSONResponse({"ok": True, "message": "密碼已更新"})
+
+
+def _apply_admin_llm_settings(payload: AdminLlmSettingsPut) -> None:
+    if payload.active_provider is not None:
+        ap = str(payload.active_provider).strip().lower()
+        if ap in ("deepseek", "gemini"):
+            set_kv("llm_active_provider", ap)
+
+    def _optional_text(key: str, val: str | None) -> None:
+        if val is None:
+            return
+        v = str(val).strip()
+        if v:
+            set_kv(key, v)
+        else:
+            delete_kv(key)
+
+    _optional_text("llm_docs_url", payload.docs_url)
+    _optional_text("deepseek_base_url", payload.deepseek_base_url)
+    _optional_text("deepseek_model", payload.deepseek_model)
+    _optional_text("gemini_base_url", payload.gemini_base_url)
+    _optional_text("gemini_model", payload.gemini_model)
+
+    if payload.clear_deepseek_api_key:
+        delete_kv("deepseek_api_key")
+    elif payload.deepseek_api_key is not None and str(payload.deepseek_api_key).strip():
+        set_kv("deepseek_api_key", str(payload.deepseek_api_key).strip())
+
+    if payload.clear_gemini_api_key:
+        delete_kv("gemini_api_key")
+    elif payload.gemini_api_key is not None and str(payload.gemini_api_key).strip():
+        set_kv("gemini_api_key", str(payload.gemini_api_key).strip())
+
+
+def _mask_telegram_token(token: str) -> str:
+    t = (token or "").strip()
+    if not t:
+        return ""
+    if len(t) <= 12:
+        return "********"
+    return f"{t[:8]}…{t[-4:]}"
+
+
+def _normalize_telegram_bot_token(raw: str) -> str:
+    """Strip noise; extract `123456:ABC-...` if user pasted a full api.telegram.org URL."""
+    t = str(raw or "").strip()
+    if not t:
+        return ""
+    t = t.replace("\ufeff", "").strip().strip('"').strip("'")
+    # 誤貼整段 URL
+    m = re.search(r"(?:api\.telegram\.org/bot|telegram\.org/bot)(?P<tok>\d+:[A-Za-z0-9_-]+)", t, flags=re.I)
+    if m:
+        return m.group("tok").strip()
+    # 行首多餘 "bot" 字樣
+    if re.match(r"^bot\d+:", t, flags=re.I):
+        t = re.sub(r"^bot", "", t, count=1, flags=re.I)
+    return t.strip()
+
+
+def _sanitize_telegram_error_detail(exc: BaseException) -> str:
+    """Avoid leaking bot token in client-visible messages (httpx URLs)."""
+    s = str(exc).strip()
+    if not s:
+        return "未知錯誤"
+    return re.sub(
+        r"https://api\.telegram\.org/bot[^/\s]+/",
+        "https://api.telegram.org/bot[已隱藏]/",
+        s,
+        flags=re.IGNORECASE,
+    )
+
+
+def _telegram_sendmessage_http_error_line(r) -> str:
+    """從 sendMessage 回應組出可讀錯誤（HTTP 4xx 時本體可能為 JSON）。"""
+    sc = int(getattr(r, "status_code", None) or 0)
+    raw = ""
+    try:
+        raw = (r.text or "")[:1200]
+    except Exception:
+        raw = ""
+    desc, ec = "", ""
+    if raw.strip():
+        try:
+            d = json.loads(raw)
+            if isinstance(d, dict):
+                desc = str(d.get("description") or "").strip()
+                if d.get("error_code") is not None:
+                    ec = str(d.get("error_code"))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+    parts: list[str] = [f"HTTP {sc}"]
+    if ec:
+        parts.append(f"error_code={ec}")
+    if desc:
+        parts.append(desc)
+    elif raw.strip():
+        parts.append(raw.strip().replace("\n", " ")[:220])
+    if not desc:
+        parts.append(
+            "常見原因：此 Chat 尚未與「這一隻」Bot 建立私訊（請先對該 Bot 傳 /start 或按「開始」）；"
+            "或 Chat ID 與目前 Bot Token 不對應（勿混用多列帳號的 Bot／Chat）。"
+        )
+    return "Telegram sendMessage — " + " — ".join(parts)
+
+
+def _coerce_telegram_chat_id_param(chat_id: str) -> str | int:
+    """Telegram sendMessage 接受字串或整數；負數群組 id 亦用整數較一致。"""
+    s = str(chat_id or "").strip()
+    if not s:
+        return s
+    try:
+        return int(s, 10)
+    except ValueError:
+        return s
+
+
+def _telegram_bot_token_format_ok(token: str) -> bool:
+    """Telegram BotFather token is always `digits:alphanum_dash_underscore` (colon exactly once)."""
+    t = (token or "").strip()
+    if not t or t.count(":") != 1:
+        return False
+    left, right = t.split(":", 1)
+    if not re.fullmatch(r"\d{5,}", left):
+        return False
+    if not re.fullmatch(r"[A-Za-z0-9_-]{20,}", right):
+        return False
+    return True
+
+
+KV_TELEGRAM_ACCOUNTS_JSON = "telegram_accounts_json"
+KV_TELEGRAM_ACTIVE_ACCOUNT_ID = "telegram_active_account_id"
+KV_SUPPORT_NOTIFY_CHANNELS = "support_notify_channels"
+KV_LINE_CHANNEL_ACCESS_TOKEN = "line_channel_access_token"
+KV_LINE_CHANNEL_SECRET = "line_channel_secret"
+KV_LINE_STAFF_USER_ID = "line_staff_user_id"
+KV_LINE_WEBHOOK_URL = "line_webhook_url"
+
+
+def _normalize_notify_channels(values: object) -> list[str]:
+    if isinstance(values, str):
+        raw = re.split(r"[,\s]+", values)
+    elif isinstance(values, list):
+        raw = values
+    else:
+        raw = []
+    out: list[str] = []
+    for value in raw:
+        s = str(value or "").strip().lower()
+        if s in {"tg", "telegram"}:
+            s = "telegram"
+        elif s in {"line", "lineoa", "line_oa"}:
+            s = "line"
+        else:
+            continue
+        if s not in out:
+            out.append(s)
+    return out
+
+
+def _support_notify_channels() -> list[str]:
+    raw = get_kv(KV_SUPPORT_NOTIFY_CHANNELS, "").strip()
+    channels = _normalize_notify_channels(raw)
+    return channels or ["telegram"]
+
+
+def _support_notify_channel_enabled(channel: str) -> bool:
+    ch = str(channel or "").strip().lower()
+    return ch in _support_notify_channels()
+
+
+def _set_support_notify_channels(values: object) -> None:
+    channels = _normalize_notify_channels(values)
+    if not channels:
+        channels = ["telegram"]
+    set_kv(KV_SUPPORT_NOTIFY_CHANNELS, ",".join(channels))
+
+
+def _sanitize_telegram_account_id(raw: str) -> str:
+    s = str(raw or "").strip().lower()
+    s = re.sub(r"[^a-z0-9_-]+", "", s)
+    return s[:64]
+
+
+def _telegram_account_token_key(account_id: str) -> str:
+    aid = _sanitize_telegram_account_id(account_id)
+    return f"telegram_acc_token__{aid}" if aid else "telegram_acc_token__"
+
+
+def _telegram_poll_offset_key(account_id: str) -> str:
+    aid = _sanitize_telegram_account_id(account_id)
+    return f"telegram_poll_offset__{aid}" if aid else "telegram_poll_offset__"
+
+
+def _telegram_migrate_legacy_if_needed() -> None:
+    if (get_kv(KV_TELEGRAM_ACCOUNTS_JSON, "") or "").strip():
+        return
+    tok = _normalize_telegram_bot_token(get_kv("telegram_bot_token", ""))
+    chat = get_kv("telegram_chat_id", "").strip()
+    if not tok and not chat:
+        return
+    leg = "legacy"
+    if tok:
+        set_kv(_telegram_account_token_key(leg), tok)
+    meta = [{"id": leg, "label": "預設（自舊版匯入）", "chat_id": chat}]
+    set_kv(KV_TELEGRAM_ACCOUNTS_JSON, json.dumps(meta, ensure_ascii=False))
+    if not (get_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, "") or "").strip():
+        set_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, leg)
+
+
+def _telegram_accounts_meta_list() -> list[dict[str, str]]:
+    _telegram_migrate_legacy_if_needed()
+    raw = (get_kv(KV_TELEGRAM_ACCOUNTS_JSON, "") or "").strip()
+    out: list[dict[str, str]] = []
+    if not raw:
+        return out
+    try:
+        arr = json.loads(raw)
+        if not isinstance(arr, list):
+            return out
+        for it in arr:
+            if not isinstance(it, dict):
+                continue
+            aid = _sanitize_telegram_account_id(str(it.get("id") or ""))
+            if not aid:
+                continue
+            out.append(
+                {
+                    "id": aid,
+                    "label": str(it.get("label") or "")[:120],
+                    "chat_id": str(it.get("chat_id") or "").strip()[:64],
+                }
+            )
+    except Exception:
+        return out
+    return out
+
+
+def _telegram_get_active_account_id() -> str:
+    _telegram_migrate_legacy_if_needed()
+    ids = [x["id"] for x in _telegram_accounts_meta_list()]
+    cur = _sanitize_telegram_account_id(get_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, "").strip())
+    if cur and cur in ids:
+        return cur
+    return ids[0] if ids else "legacy"
+
+
+def _sync_legacy_kv_from_active() -> None:
+    """維持舊鍵 telegram_bot_token / telegram_chat_id = 目前使用中帳號，相容舊程式路徑。"""
+    aid = _telegram_get_active_account_id()
+    tok = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid), ""))
+    chat = ""
+    for m in _telegram_accounts_meta_list():
+        if m.get("id") == aid:
+            chat = str(m.get("chat_id") or "").strip()
+            break
+    if tok:
+        set_kv("telegram_bot_token", tok)
+    if chat:
+        set_kv("telegram_chat_id", chat)
+
+
+def _telegram_active_credentials() -> tuple[str, str]:
+    aid = _telegram_get_active_account_id()
+    tok = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid), ""))
+    chat = ""
+    for m in _telegram_accounts_meta_list():
+        if m.get("id") == aid:
+            chat = str(m.get("chat_id") or "").strip()
+            break
+    return tok, chat
+
+
+def _telegram_credentials_for_optional_account(account_id: str | None) -> tuple[str, str]:
+    """指定 account_id 時取該列 Bot Token + Chat ID；None 時等同使用中帳號。"""
+    if not account_id:
+        return _telegram_active_credentials()
+    aid = _sanitize_telegram_account_id(str(account_id))
+    ids = [x["id"] for x in _telegram_accounts_meta_list()]
+    if aid not in ids:
+        return "", ""
+    tok = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid), ""))
+    chat = ""
+    for m in _telegram_accounts_meta_list():
+        if m.get("id") == aid:
+            chat = str(m.get("chat_id") or "").strip()
+            break
+    return tok, chat
+
+
+def _telegram_all_staff_chat_ids() -> list[str]:
+    out: list[str] = []
+    for m in _telegram_accounts_meta_list():
+        c = str(m.get("chat_id") or "").strip()
+        if c and c not in out:
+            out.append(c)
+    return out
+
+
+def _telegram_account_id_for_staff_chat(chat_id: str) -> str:
+    cid = str(chat_id or "").strip()
+    if not cid:
+        return ""
+    for m in _telegram_accounts_meta_list():
+        if str(m.get("chat_id") or "").strip() == cid:
+            return str(m.get("id") or "").strip()
+    return ""
+
+
+def admin_telegram_snapshot() -> dict:
+    _telegram_migrate_legacy_if_needed()
+    meta = _telegram_accounts_meta_list()
+    active_id = _telegram_get_active_account_id()
+    accounts_out: list[dict[str, Any]] = []
+    for m in meta:
+        aid = m["id"]
+        tok = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid), ""))
+        fmt_ok = _telegram_bot_token_format_ok(tok) if tok else False
+        accounts_out.append(
+            {
+                "id": aid,
+                "label": m.get("label") or "",
+                "chat_id": m.get("chat_id") or "",
+                "bot_token_set": bool(tok),
+                "bot_token_format_ok": fmt_ok,
+                "bot_token_masked": _mask_telegram_token(tok),
+                "is_active": aid == active_id,
+            }
+        )
+    tok_a, chat_a = _telegram_active_credentials()
+    fmt_active = _telegram_bot_token_format_ok(tok_a) if tok_a else False
+    return {
+        "active_account_id": active_id,
+        "accounts": accounts_out,
+        "chat_id": chat_a,
+        "bot_token_set": bool(tok_a),
+        "bot_token_format_ok": fmt_active,
+        "bot_token_masked": _mask_telegram_token(tok_a),
+    }
+
+
+def _apply_admin_telegram_settings(payload: AdminTelegramPut) -> None:
+    if payload.accounts is not None:
+        seen: set[str] = set()
+        meta_out: list[dict[str, str]] = []
+        for row in payload.accounts:
+            rid = _sanitize_telegram_account_id(str(row.id or ""))
+            if not rid:
+                raise HTTPException(status_code=400, detail="每個顧問帳號必須有 id（英數、底線、連字）。")
+            if rid in seen:
+                raise HTTPException(status_code=400, detail=f"重複的帳號 id：{rid}")
+            seen.add(rid)
+            if row.remove:
+                delete_kv(_telegram_account_token_key(rid))
+                continue
+            meta_out.append(
+                {
+                    "id": rid,
+                    "label": str(row.label or "")[:120],
+                    "chat_id": str(row.chat_id or "").strip()[:64],
+                }
+            )
+            if row.clear_bot_token:
+                delete_kv(_telegram_account_token_key(rid))
+            elif row.bot_token is not None and str(row.bot_token).strip():
+                nt = _normalize_telegram_bot_token(str(row.bot_token))
+                if not _telegram_bot_token_format_ok(nt):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Bot Token 格式不正確：須為「數字:英數底線」（例：7123456789:AAH…），請到 @BotFather → /mybots → 選 Bot → API Token 整段複製，勿只貼密鑰或含網址。",
+                    )
+                set_kv(_telegram_account_token_key(rid), nt)
+        set_kv(KV_TELEGRAM_ACCOUNTS_JSON, json.dumps(meta_out, ensure_ascii=False))
+        ids = [x["id"] for x in meta_out]
+        if payload.active_account_id is not None:
+            want = _sanitize_telegram_account_id(payload.active_account_id)
+            if want and want in ids:
+                set_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, want)
+            elif ids:
+                set_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, ids[0])
+        elif ids:
+            cur = _sanitize_telegram_account_id(get_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, ""))
+            if not cur or cur not in ids:
+                set_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, ids[0])
+        _sync_legacy_kv_from_active()
+        return
+
+    _telegram_migrate_legacy_if_needed()
+    ids_all = [x["id"] for x in _telegram_accounts_meta_list()]
+    aid = _telegram_get_active_account_id()
+    tgt = _sanitize_telegram_account_id(str(payload.save_as_account_id or ""))
+    if tgt and tgt in ids_all:
+        aid = tgt
+    raw = (get_kv(KV_TELEGRAM_ACCOUNTS_JSON, "") or "").strip()
+    if raw:
+        try:
+            arr = json.loads(raw)
+            if isinstance(arr, list) and payload.chat_id is not None:
+                ch = str(payload.chat_id).strip()
+                for it in arr:
+                    if isinstance(it, dict) and _sanitize_telegram_account_id(str(it.get("id") or "")) == aid:
+                        it["chat_id"] = ch
+                        break
+                set_kv(KV_TELEGRAM_ACCOUNTS_JSON, json.dumps(arr, ensure_ascii=False))
+        except Exception:
+            if payload.chat_id is not None:
+                set_kv("telegram_chat_id", str(payload.chat_id).strip())
+    elif payload.chat_id is not None:
+        set_kv("telegram_chat_id", str(payload.chat_id).strip())
+
+    if payload.clear_bot_token:
+        delete_kv(_telegram_account_token_key(aid))
+        delete_kv("telegram_bot_token")
+    elif payload.bot_token is not None and str(payload.bot_token).strip():
+        nt = _normalize_telegram_bot_token(str(payload.bot_token))
+        if not _telegram_bot_token_format_ok(nt):
+            raise HTTPException(
+                status_code=400,
+                detail="Bot Token 格式不正確：須為「數字:英數底線」（例：7123456789:AAH…），請到 @BotFather → /mybots → 選 Bot → API Token 整段複製，勿只貼密鑰或含網址。",
+            )
+        set_kv(_telegram_account_token_key(aid), nt)
+
+    if payload.active_account_id is not None:
+        want = _sanitize_telegram_account_id(payload.active_account_id)
+        ids = [x["id"] for x in _telegram_accounts_meta_list()]
+        if want and want in ids:
+            set_kv(KV_TELEGRAM_ACTIVE_ACCOUNT_ID, want)
+
+    _sync_legacy_kv_from_active()
+
+
+def _normalize_line_secret(raw: str) -> str:
+    return str(raw or "").replace("\ufeff", "").strip().strip('"').strip("'")
+
+
+def _normalize_line_token(raw: str) -> str:
+    return str(raw or "").replace("\ufeff", "").strip().strip('"').strip("'")
+
+
+def _normalize_line_user_id(raw: str) -> str:
+    return str(raw or "").strip()[:120]
+
+
+def _line_push_target_id_kind(raw: str) -> str:
+    s = _normalize_line_user_id(raw)
+    if re.match(r"^U[0-9a-f]{20,}$", s, flags=re.I):
+        return "user"
+    if re.match(r"^C[0-9a-f]{20,}$", s, flags=re.I):
+        return "group"
+    if re.match(r"^R[0-9a-f]{20,}$", s, flags=re.I):
+        return "room"
+    return ""
+
+
+def _mask_line_token(token: str) -> str:
+    t = (token or "").strip()
+    if not t:
+        return ""
+    if len(t) <= 16:
+        return "****************"
+    return f"{t[:8]}...{t[-6:]}"
+
+
+def _line_channel_access_token() -> str:
+    return _normalize_line_token(get_kv(KV_LINE_CHANNEL_ACCESS_TOKEN, "") or os.getenv("LINE_CHANNEL_ACCESS_TOKEN", ""))
+
+
+def _line_channel_secret() -> str:
+    return _normalize_line_secret(get_kv(KV_LINE_CHANNEL_SECRET, "") or os.getenv("LINE_CHANNEL_SECRET", ""))
+
+
+def _line_staff_user_id() -> str:
+    return _normalize_line_user_id(get_kv(KV_LINE_STAFF_USER_ID, "") or os.getenv("LINE_STAFF_USER_ID", ""))
+
+
+def _line_webhook_url() -> str:
+    return str(get_kv(KV_LINE_WEBHOOK_URL, "") or os.getenv("LINE_WEBHOOK_URL", "")).strip()[:500]
+
+
+def _line_configured_for_staff_push() -> bool:
+    return bool(_line_channel_access_token() and _line_staff_user_id())
+
+
+def _line_signature_ok(raw_body: bytes, signature: str, secret: str) -> bool:
+    if not secret:
+        return True
+    sig = str(signature or "").strip()
+    if not sig:
+        return False
+    digest = hmac.new(secret.encode("utf-8"), raw_body or b"", hashlib.sha256).digest()
+    expected = base64.b64encode(digest).decode("ascii")
+    return hmac.compare_digest(expected, sig)
+
+
+def _sanitize_line_error_detail(exc: BaseException) -> str:
+    s = str(exc).strip()
+    if not s:
+        return "LINE API error"
+    token = _line_channel_access_token()
+    if token:
+        s = s.replace(token, "[LINE_TOKEN_HIDDEN]")
+    s = re.sub(r"Bearer\s+[A-Za-z0-9+/=._-]+", "Bearer [LINE_TOKEN_HIDDEN]", s, flags=re.I)
+    return s[:700]
+
+
+def _line_api_error_line(r) -> str:
+    sc = int(getattr(r, "status_code", None) or 0)
+    raw = ""
+    try:
+        raw = (r.text or "")[:1200]
+    except Exception:
+        raw = ""
+    msg = ""
+    if raw.strip():
+        try:
+            d = json.loads(raw)
+            if isinstance(d, dict):
+                msg = str(d.get("message") or d.get("details") or "").strip()
+        except Exception:
+            msg = raw.strip().replace("\n", " ")[:220]
+    return f"LINE API HTTP {sc}" + (f" — {msg[:400]}" if msg else "")
+
+
+def admin_line_snapshot() -> dict:
+    token = _line_channel_access_token()
+    secret = _line_channel_secret()
+    staff = _line_staff_user_id()
+    webhook_url = _line_webhook_url()
+    return {
+        "channel_access_token_set": bool(token),
+        "channel_access_token_masked": _mask_line_token(token),
+        "channel_secret_set": bool(secret),
+        "staff_user_id": staff,
+        "webhook_url": webhook_url,
+        "notify_channels": _support_notify_channels(),
+        "configured": bool(token and secret and staff),
+    }
+
+
+def _apply_admin_line_settings(payload: AdminLinePut) -> None:
+    if payload.clear_channel_access_token:
+        delete_kv(KV_LINE_CHANNEL_ACCESS_TOKEN)
+    elif payload.channel_access_token is not None and str(payload.channel_access_token).strip():
+        set_kv(KV_LINE_CHANNEL_ACCESS_TOKEN, _normalize_line_token(str(payload.channel_access_token)))
+
+    if payload.clear_channel_secret:
+        delete_kv(KV_LINE_CHANNEL_SECRET)
+    elif payload.channel_secret is not None and str(payload.channel_secret).strip():
+        set_kv(KV_LINE_CHANNEL_SECRET, _normalize_line_secret(str(payload.channel_secret)))
+
+    if payload.staff_user_id is not None:
+        staff_target = _normalize_line_user_id(payload.staff_user_id)
+        if staff_target and not _line_push_target_id_kind(staff_target):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "LINE 顧問收件 ID 必須是 U 開頭的使用者 ID、C 開頭的群組 ID，"
+                    "或 R 開頭的聊天室 ID；Channel ID（例如 2010088821）不能接收推播。"
+                ),
+            )
+        set_kv(KV_LINE_STAFF_USER_ID, staff_target)
+
+    if payload.webhook_url is not None:
+        set_kv(KV_LINE_WEBHOOK_URL, str(payload.webhook_url or "").strip()[:500])
+
+    if payload.notify_channels is not None:
+        _set_support_notify_channels(payload.notify_channels)
+
+
+def _telegram_get_me_json(account_id: str | None = None) -> dict:
+    if account_id:
+        aid = _sanitize_telegram_account_id(str(account_id))
+        token = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid), ""))
+    else:
+        token = _telegram_active_credentials()[0]
+    if not token:
+        raise RuntimeError("telegram bot token not configured")
+    if not _telegram_bot_token_format_ok(token):
+        raise RuntimeError(
+            "telegram bot token format invalid (expect 123456789:AAH… from @BotFather /mybots → API Token)"
+        )
+    # 勿使用 raise_for_status()：部分環境下 httpx 例外字串會帶上含 token 的 URL，不宜回傳給前端。
+    try:
+        with httpx.Client(timeout=18.0) as client:
+            r = client.get(f"https://api.telegram.org/bot{token}/getMe")
+    except httpx.RequestError:
+        raise RuntimeError("無法連線 Telegram API，請檢查網路或稍後再試。") from None
+    code = int(r.status_code or 0)
+    if code == 404:
+        raise RuntimeError(
+            "Telegram 回傳 404：此 Token 無效、已重置或並非 @BotFather 完整 API Token（須為「數字:密鑰」，勿只貼密鑰）。請勾選「清除 Token」後到 @BotFather 重新複製並「儲存 Telegram」。"
+        )
+    if code == 401:
+        raise RuntimeError(
+            "Telegram 回傳 401：Token 未獲授權或已失效，請在 @BotFather 重新產生或複製正確的 API Token。"
+        )
+    if code >= 400:
+        raise RuntimeError(f"Telegram getMe HTTP {code}")
+    try:
+        return r.json()
+    except ValueError:
+        raise RuntimeError("Telegram 回傳非 JSON，請稍後再試。") from None
+
+
+def _telegram_send_message(text: str, *, reply_to_message_id: int | None = None) -> dict:
+    token, chat = _telegram_active_credentials()
+    token = _normalize_telegram_bot_token(token)
+    if not token:
+        raise RuntimeError("telegram bot token not configured")
+    if not chat:
+        raise RuntimeError("telegram chat_id not configured")
+    body: dict[str, Any] = {"chat_id": _coerce_telegram_chat_id_param(chat), "text": (text or "")[:3900]}
+    if reply_to_message_id is not None:
+        body["reply_to_message_id"] = int(reply_to_message_id)
+    try:
+        with httpx.Client(timeout=25.0) as client:
+            r = client.post(f"https://api.telegram.org/bot{token}/sendMessage", json=body)
+    except httpx.RequestError:
+        raise RuntimeError("無法連線 Telegram API（sendMessage），請稍後再試。") from None
+    sc = int(r.status_code or 0)
+    if sc == 404:
+        raise RuntimeError(
+            "Telegram sendMessage 回傳 404：請確認 Chat ID 為數字、且曾對該 Bot 按「開始」；並確認 Bot Token 正確。"
+        )
+    if sc == 401:
+        raise RuntimeError("Telegram sendMessage 回傳 401：Token 無效或已失效。")
+    if sc >= 400:
+        raise RuntimeError(_telegram_sendmessage_http_error_line(r))
+    try:
+        data = r.json()
+    except ValueError:
+        raise RuntimeError("Telegram sendMessage 回傳非 JSON。") from None
+    if not isinstance(data, dict) or not data.get("ok"):
+        dmsg = str((data or {}).get("description") or "")[:400]
+        ec = (data or {}).get("error_code")
+        extra = f"error_code={ec} — " if ec is not None else ""
+        raise RuntimeError((extra + dmsg) or str(data or r.text)[:400])
+    return data
+
+
+def _telegram_send_and_bridge(text: str, session_id: str, kind: str = "notify") -> dict:
+    """發送 Telegram 通知並記錄 message_id ↔ session_id，供顧問「回覆該則」雙向溝通。"""
+    data = _telegram_send_message(text)
+    mid = (data.get("result") or {}).get("message_id")
+    chat = _telegram_active_credentials()[1].strip()
+    sid = (session_id or "").strip()[:120]
+    if mid is None or not chat or not sid:
+        return data
+    try:
+        _ensure_telegram_session_tables()
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO telegram_outbound_bridge
+                (telegram_chat_id, telegram_message_id, session_id, kind)
+                VALUES (?, ?, ?, ?)
+                """,
+                (chat, int(mid), sid, (kind or "notify")[:40]),
+            )
+            conn.commit()
+    except Exception:
+        pass
+    return data
+
+
+def _telegram_send_to_chat_raw(
+    chat_id: str,
+    text: str,
+    *,
+    reply_to_message_id: int | None = None,
+    bot_token: str | None = None,
+) -> dict:
+    """發送至任意 chat_id（例如 Webhook 內回覆顧問說明）。"""
+    token = _normalize_telegram_bot_token(bot_token or "") or _telegram_active_credentials()[0]
+    if not token:
+        raise RuntimeError("telegram bot token not configured")
+    body: dict[str, Any] = {"chat_id": _coerce_telegram_chat_id_param(str(chat_id)), "text": (text or "")[:3900]}
+    if reply_to_message_id is not None:
+        body["reply_to_message_id"] = int(reply_to_message_id)
+    with httpx.Client(timeout=25.0) as client:
+        r = client.post(f"https://api.telegram.org/bot{token}/sendMessage", json=body)
+    sc = int(r.status_code or 0)
+    if sc >= 400:
+        raise RuntimeError(_telegram_sendmessage_http_error_line(r))
+    data = r.json()
+    if not isinstance(data, dict) or not data.get("ok"):
+        dmsg = str((data or {}).get("description") or "")[:400]
+        ec = (data or {}).get("error_code")
+        extra = f"error_code={ec} — " if ec is not None else ""
+        raise RuntimeError((extra + dmsg) or str(data or "")[:400])
+    return data
+
+
+def _telegram_is_placeholder_webhook_url(url: str) -> bool:
+    s = str(url or "").strip().lower()
+    if not s:
+        return False
+    return any(host in s for host in ("example.com", "localhost", "127.0.0.1", "::1"))
+
+
+def _telegram_poll_updates_for_account(account_id: str, token: str, use_limit: int) -> dict[str, Any]:
+    """單一 Bot：getUpdates 後處理更新（與 Webhook 並存時若已設公開 Webhook 則跳過輪詢）。"""
+    aid = _sanitize_telegram_account_id(account_id)
+    offset_raw = str(get_kv(_telegram_poll_offset_key(aid), "0") or "0").strip()
+    try:
+        offset = max(0, int(offset_raw or "0"))
+    except ValueError:
+        offset = 0
+    webhook_url = ""
+    pending_update_count = 0
+    with httpx.Client(timeout=20.0) as client:
+        info_resp = client.get(f"https://api.telegram.org/bot{token}/getWebhookInfo")
+        info_data = info_resp.json() if info_resp.content else {}
+        info_result = info_data.get("result") if isinstance(info_data, dict) else {}
+        webhook_url = str((info_result or {}).get("url") or "").strip()
+        pending_update_count = int((info_result or {}).get("pending_update_count") or 0)
+
+        if webhook_url and _telegram_is_placeholder_webhook_url(webhook_url):
+            try:
+                delete_resp = client.post(
+                    f"https://api.telegram.org/bot{token}/deleteWebhook",
+                    json={"drop_pending_updates": False},
+                )
+                delete_data = delete_resp.json() if delete_resp.content else {}
+                if isinstance(delete_data, dict) and delete_data.get("ok"):
+                    _push_telegram_debug_event(
+                        "poll_release_placeholder_webhook",
+                        webhook_url=webhook_url,
+                        account_id=aid,
+                    )
+                    webhook_url = ""
+            except Exception as exc:
+                _push_telegram_debug_event(
+                    "poll_release_placeholder_webhook_error",
+                    webhook_url=webhook_url,
+                    account_id=aid,
+                    detail=_sanitize_telegram_error_detail(exc),
+                )
+
+        if webhook_url:
+            return {
+                "status": "webhook_active",
+                "webhook_url": webhook_url,
+                "pending_update_count": pending_update_count,
+                "account_id": aid,
+            }
+
+        updates_resp = client.get(
+            f"https://api.telegram.org/bot{token}/getUpdates",
+            params={"offset": offset, "limit": use_limit, "timeout": 0},
+        )
+        updates_data = updates_resp.json() if updates_resp.content else {}
+        if not isinstance(updates_data, dict) or not updates_data.get("ok"):
+            raise RuntimeError(
+                str((updates_data or {}).get("description") or "telegram getUpdates failed")[:400]
+            )
+        updates = updates_data.get("result") if isinstance(updates_data.get("result"), list) else []
+        max_update_id = offset - 1
+        processed = 0
+        for update in updates:
+            if not isinstance(update, dict):
+                continue
+            try:
+                update_id = int(update.get("update_id") or 0)
+            except Exception:
+                update_id = 0
+            if update_id > max_update_id:
+                max_update_id = update_id
+            try:
+                _process_telegram_update(update, bot_token=token)
+                processed += 1
+            except Exception as exc:
+                _push_telegram_debug_event(
+                    "poll_update_process_error",
+                    update_id=update_id,
+                    account_id=aid,
+                    detail=_sanitize_telegram_error_detail(exc),
+                )
+        next_offset = max(offset, max_update_id + 1) if updates else offset
+        if next_offset != offset:
+            set_kv(_telegram_poll_offset_key(aid), str(next_offset))
+        if updates:
+            _push_telegram_debug_event(
+                "poll_updates_applied",
+                account_id=aid,
+                update_count=len(updates),
+                processed=processed,
+                next_offset=next_offset,
+            )
+        return {
+            "status": "polled",
+            "update_count": len(updates),
+            "processed": processed,
+            "next_offset": next_offset,
+            "pending_update_count": pending_update_count,
+            "webhook_url": "",
+            "account_id": aid,
+        }
+
+
+def _telegram_poll_updates_once(*, force: bool = False, limit: int = 40) -> dict[str, Any]:
+    """Fallback：輪詢所有已設 Token 的 Bot（各 Bot 獨立 offset）。"""
+    global _telegram_pull_last_run_ts, _telegram_pull_last_result
+
+    _telegram_migrate_legacy_if_needed()
+    pairs: list[tuple[str, str]] = []
+    for m in _telegram_accounts_meta_list():
+        aid = m["id"]
+        tok = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid), ""))
+        if tok and _telegram_bot_token_format_ok(tok):
+            pairs.append((aid, tok))
+    if not pairs:
+        return {"ok": False, "status": "bot_token_missing"}
+
+    now = time.time()
+    with _telegram_pull_lock:
+        if (
+            not force
+            and _telegram_pull_last_result
+            and (now - float(_telegram_pull_last_run_ts or 0.0)) < _TELEGRAM_POLL_MIN_INTERVAL_SEC
+        ):
+            return dict(_telegram_pull_last_result)
+
+        result: dict[str, Any] = {"ok": False, "status": "idle"}
+        try:
+            use_limit = max(1, min(100, int(limit or 40)))
+            subs: list[dict[str, Any]] = []
+            for aid, tok in pairs:
+                subs.append(_telegram_poll_updates_for_account(aid, tok, use_limit))
+            polled = [s for s in subs if s.get("status") == "polled"]
+            webhook_blocks = [s for s in subs if s.get("status") == "webhook_active"]
+            if polled:
+                total_u = sum(int(s.get("update_count") or 0) for s in polled)
+                total_p = sum(int(s.get("processed") or 0) for s in polled)
+                pend_max = max((int(s.get("pending_update_count") or 0) for s in subs), default=0)
+                result = {
+                    "ok": True,
+                    "status": "polled",
+                    "update_count": total_u,
+                    "processed": total_p,
+                    "accounts": subs,
+                    "pending_update_count": pend_max,
+                    "webhook_url": "",
+                }
+            elif webhook_blocks and len(webhook_blocks) == len(subs):
+                pend_max = max((int(s.get("pending_update_count") or 0) for s in subs), default=0)
+                result = {
+                    "ok": False,
+                    "status": "webhook_active",
+                    "webhook_url": webhook_blocks[0].get("webhook_url"),
+                    "accounts": subs,
+                    "pending_update_count": pend_max,
+                }
+            else:
+                result = {"ok": False, "status": "idle", "accounts": subs}
+        except Exception as exc:
+            result = {
+                "ok": False,
+                "status": "poll_error",
+                "detail": _sanitize_telegram_error_detail(exc),
+            }
+            _push_telegram_debug_event("poll_updates_error", detail=result["detail"])
+
+        _telegram_pull_last_run_ts = time.time()
+        _telegram_pull_last_result = dict(result)
+        return dict(result)
+
+
+def _ensure_telegram_session_tables() -> None:
+    init_db()
+    with get_conn() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS telegram_chat_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL UNIQUE,
+                telegram_chat_id TEXT NOT NULL UNIQUE,
+                telegram_user_id TEXT NOT NULL DEFAULT '',
+                chat_type TEXT NOT NULL DEFAULT '',
+                chat_title TEXT NOT NULL DEFAULT '',
+                username TEXT NOT NULL DEFAULT '',
+                first_name TEXT NOT NULL DEFAULT '',
+                last_name TEXT NOT NULL DEFAULT '',
+                last_inbound_text TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_tg_chat_sessions_updated_at
+            ON telegram_chat_sessions(updated_at DESC, id DESC);
+
+            CREATE TABLE IF NOT EXISTS telegram_outbound_bridge (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_chat_id TEXT NOT NULL,
+                telegram_message_id INTEGER NOT NULL,
+                session_id TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(telegram_chat_id, telegram_message_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_tg_bridge_session
+            ON telegram_outbound_bridge(session_id, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_tg_bridge_chat_message
+            ON telegram_outbound_bridge(telegram_chat_id, telegram_message_id);
+            CREATE INDEX IF NOT EXISTS idx_tg_bridge_chat_recent
+            ON telegram_outbound_bridge(telegram_chat_id, id DESC);
+
+            CREATE TABLE IF NOT EXISTS telegram_staff_inbox (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                body TEXT NOT NULL,
+                telegram_from_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_tg_inbox_session_id
+            ON telegram_staff_inbox(session_id, id);
+            """
+        )
+        conn.commit()
+
+
+def _ensure_support_channel_tables() -> None:
+    init_db()
+    with get_conn() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS support_staff_inbox (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                body TEXT NOT NULL,
+                source_channel TEXT NOT NULL DEFAULT '',
+                source_from_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_support_staff_inbox_session_id
+            ON support_staff_inbox(session_id, id);
+
+            CREATE TABLE IF NOT EXISTS line_chat_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL UNIQUE,
+                line_user_id TEXT NOT NULL UNIQUE,
+                display_name TEXT NOT NULL DEFAULT '',
+                last_inbound_text TEXT NOT NULL DEFAULT '',
+                conversation_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_line_chat_sessions_updated_at
+            ON line_chat_sessions(updated_at DESC, id DESC);
+
+            CREATE TABLE IF NOT EXISTS line_outbound_bridge (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                line_user_id TEXT NOT NULL,
+                line_request_id TEXT NOT NULL DEFAULT '',
+                session_id TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_line_bridge_session
+            ON line_outbound_bridge(session_id, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_line_bridge_user_recent
+            ON line_outbound_bridge(line_user_id, id DESC);
+
+            CREATE TABLE IF NOT EXISTS line_staff_inbox (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                body TEXT NOT NULL,
+                line_from_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_line_inbox_session_id
+            ON line_staff_inbox(session_id, id);
+            """
+        )
+        cols = {str(row[1]) for row in conn.execute("PRAGMA table_info(line_chat_sessions)").fetchall()}
+        if "conversation_json" not in cols:
+            conn.execute("ALTER TABLE line_chat_sessions ADD COLUMN conversation_json TEXT NOT NULL DEFAULT '[]'")
+        conn.commit()
+
+
+def _insert_support_staff_inbox_message(
+    session_id: str,
+    body: str,
+    *,
+    source_channel: str,
+    source_from_id: str = "",
+) -> bool:
+    sid = _normalize_support_session_id(session_id)
+    text = str(body or "").strip()
+    if not sid or not text:
+        return False
+    channel = str(source_channel or "").strip().lower()[:30] or "advisor"
+    from_id = str(source_from_id or "").strip()[:120]
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO support_staff_inbox (session_id, body, source_channel, source_from_id)
+                VALUES (?, ?, ?, ?)
+                """,
+                (sid[:120], text[:8000], channel, from_id),
+            )
+            conn.commit()
+        label = "LINE" if channel == "line" else "Telegram" if channel == "telegram" else channel.upper()
+        try:
+            _append_turn_to_latest_handoff_conversation(
+                sid,
+                role="assistant",
+                content=f"（{label} 顧問）{text[:7900]}",
+            )
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+def _session_id_from_telegram_chat_id(chat_id: str) -> str:
+    raw = str(chat_id or "").strip()
+    if not raw:
+        return f"tg-{uuid4().hex[:16]}"
+    safe = re.sub(r"[^0-9A-Za-z_-]+", "_", raw).strip("_")
+    if not safe:
+        safe = uuid4().hex[:16]
+    return f"tg-{safe[:100]}"
+
+
+def _normalize_support_session_id(raw: str) -> str:
+    """正規化客服 session；空值或佔位符（- / none）時回傳空字串。"""
+    s = str(raw or "").strip()[:120]
+    if not s:
+        return ""
+    if s.lower() in {"-", "—", "none", "null", "undefined", "n/a"}:
+        return ""
+    return s
+
+
+def _support_session_has_telegram_thread(session_id: str) -> bool:
+    """判斷此網頁客服 session 是否已進入真人/Telegram 接續脈絡。"""
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        return False
+    try:
+        _ensure_telegram_session_tables()
+        with get_conn() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                  (SELECT COUNT(1) FROM telegram_outbound_bridge WHERE session_id = ?) AS bridge_count,
+                  (SELECT COUNT(1) FROM telegram_staff_inbox WHERE session_id = ?) AS inbox_count,
+                  (SELECT COUNT(1) FROM human_handoff_requests WHERE session_id = ?) AS handoff_count
+                """,
+                (sid, sid, sid),
+            ).fetchone()
+        if not row:
+            return False
+        return any(int(row[k] or 0) > 0 for k in ("bridge_count", "inbox_count", "handoff_count"))
+    except Exception:
+        return False
+
+
+def _upsert_telegram_chat_session(
+    *,
+    chat_id: str,
+    from_id: str = "",
+    chat_type: str = "",
+    chat_title: str = "",
+    username: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    last_inbound_text: str = "",
+) -> str:
+    cid = str(chat_id or "").strip()
+    if not cid:
+        return ""
+    _ensure_telegram_session_tables()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT session_id
+            FROM telegram_chat_sessions
+            WHERE telegram_chat_id = ?
+            LIMIT 1
+            """,
+            (cid,),
+        ).fetchone()
+        sid = str(row["session_id"] or "").strip() if row else ""
+        action = "update"
+        if not sid:
+            sid = _session_id_from_telegram_chat_id(cid)
+            action = "insert"
+            conn.execute(
+                """
+                INSERT INTO telegram_chat_sessions (
+                    session_id, telegram_chat_id, telegram_user_id, chat_type, chat_title,
+                    username, first_name, last_name, last_inbound_text
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    sid,
+                    cid,
+                    str(from_id or "")[:80],
+                    str(chat_type or "")[:40],
+                    str(chat_title or "")[:200],
+                    str(username or "")[:120],
+                    str(first_name or "")[:120],
+                    str(last_name or "")[:120],
+                    str(last_inbound_text or "")[:2000],
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE telegram_chat_sessions
+                SET
+                    telegram_user_id = COALESCE(NULLIF(?, ''), telegram_user_id),
+                    chat_type = COALESCE(NULLIF(?, ''), chat_type),
+                    chat_title = COALESCE(NULLIF(?, ''), chat_title),
+                    username = COALESCE(NULLIF(?, ''), username),
+                    first_name = COALESCE(NULLIF(?, ''), first_name),
+                    last_name = COALESCE(NULLIF(?, ''), last_name),
+                    last_inbound_text = COALESCE(NULLIF(?, ''), last_inbound_text),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE telegram_chat_id = ?
+                """,
+                (
+                    str(from_id or "")[:80],
+                    str(chat_type or "")[:40],
+                    str(chat_title or "")[:200],
+                    str(username or "")[:120],
+                    str(first_name or "")[:120],
+                    str(last_name or "")[:120],
+                    str(last_inbound_text or "")[:2000],
+                    cid,
+                ),
+            )
+        conn.commit()
+    _push_telegram_debug_event(
+        "session_write",
+        action=action,
+        session_id=sid,
+        telegram_chat_id=cid,
+        telegram_user_id=from_id,
+        chat_type=chat_type,
+        username=username,
+    )
+    return sid
+
+
+def _lookup_telegram_chat_id_by_session(session_id: str) -> str:
+    sid = str(session_id or "").strip()[:120]
+    if not sid:
+        return ""
+    _ensure_telegram_session_tables()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT telegram_chat_id
+            FROM telegram_chat_sessions
+            WHERE session_id = ?
+            LIMIT 1
+            """,
+            (sid,),
+        ).fetchone()
+    return str(row["telegram_chat_id"] or "").strip() if row else ""
+
+
+def _bind_session_to_telegram_chat(
+    *,
+    session_id: str,
+    chat_id: str,
+    username: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    chat_title: str = "",
+) -> dict[str, str]:
+    sid = _normalize_support_session_id(session_id)
+    cid = str(chat_id or "").strip()
+    if not sid:
+        raise RuntimeError("missing session_id")
+    if not cid:
+        raise RuntimeError("missing chat_id")
+    _ensure_telegram_session_tables()
+    with get_conn() as conn:
+        # 避免 UNIQUE(session_id/chat_id) 衝突：先移除既有綁定再重建。
+        conn.execute("DELETE FROM telegram_chat_sessions WHERE session_id = ? OR telegram_chat_id = ?", (sid, cid))
+        conn.execute(
+            """
+            INSERT INTO telegram_chat_sessions (
+                session_id, telegram_chat_id, telegram_user_id, chat_type, chat_title,
+                username, first_name, last_name, last_inbound_text, updated_at
+            )
+            VALUES (?, ?, '', '', ?, ?, ?, ?, '[manual bind]', CURRENT_TIMESTAMP)
+            """,
+            (
+                sid,
+                cid,
+                str(chat_title or "")[:200],
+                str(username or "")[:120],
+                str(first_name or "")[:120],
+                str(last_name or "")[:120],
+            ),
+        )
+        conn.commit()
+    return {"session_id": sid, "telegram_chat_id": cid}
+
+
+def _insert_telegram_staff_inbox_message(session_id: str, body: str, from_id: str = "") -> bool:
+    sid = _normalize_support_session_id(session_id)
+    text = str(body or "").strip()
+    if not sid or not text:
+        return False
+    try:
+        _ensure_telegram_session_tables()
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO telegram_staff_inbox (session_id, body, telegram_from_id)
+                VALUES (?, ?, ?)
+                """,
+                (sid[:120], text[:8000], str(from_id or "")[:40]),
+            )
+            conn.commit()
+        return _insert_support_staff_inbox_message(
+            sid,
+            text,
+            source_channel="telegram",
+            source_from_id=from_id,
+        )
+    except Exception:
+        return False
+
+
+def _telegram_send_by_session(session_id: str, text: str) -> dict:
+    sid = str(session_id or "").strip()[:120]
+    if not sid:
+        raise RuntimeError("missing session_id")
+    text_clean = str(text or "").strip()
+    chat_id = _lookup_telegram_chat_id_by_session(sid)
+    if not chat_id:
+        inbox_written = _insert_telegram_staff_inbox_message(sid, text_clean, "admin_send_by_session")
+        fallback_text = (
+            "【Session 未綁定客戶 Telegram】\n"
+            f"Session：{sid}\n"
+            + (
+                "狀態：找不到客戶 chat_id，已改寫入網站智能客服對話；客戶網頁端輪詢後會收到。\n\n"
+                if inbox_written
+                else "狀態：找不到客戶 chat_id，且寫入網站智能客服對話失敗；已改送顧問群提醒人工介入。\n\n"
+            )
+            + "原本要發送給客戶的內容：\n"
+            f"{text_clean[:3400]}"
+        )
+        try:
+            data = _telegram_send_and_bridge(fallback_text[:3900], sid, "session_unbound_fallback")
+        except Exception as exc:
+            if inbox_written:
+                out = {"ok": True, "result": {}, "_delivery_mode": "web_inbox_fallback"}
+                out["_delivery_note"] = "session_unbound_written_to_web_inbox_but_staff_notice_failed"
+                out["_staff_notice_error"] = _sanitize_telegram_error_detail(exc)
+                return out
+            raise RuntimeError(
+                "session_id not bound to Telegram chat；且顧問群 fallback 發送也失敗："
+                + _sanitize_telegram_error_detail(exc)
+                + " — 若僅要測 Bot 是否通，請用「進階」里的「測試連線並發送」；一鍵通知需 Session 已綁定，且 fallback 走「使用中」帳號的 Chat ID，請先對該 Bot 按「開始」或確認群組 id 正確。"
+            ) from exc
+        out = dict(data or {})
+        out["_delivery_mode"] = "web_inbox_fallback" if inbox_written else "fallback_staff_chat"
+        out["_delivery_note"] = (
+            "session_unbound_written_to_web_inbox"
+            if inbox_written
+            else "session_unbound_auto_forward_to_staff"
+        )
+        return out
+    data = _telegram_send_to_chat_raw(chat_id, text)
+    mid = (data.get("result") or {}).get("message_id")
+    if mid is not None:
+        try:
+            _ensure_telegram_session_tables()
+            with get_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO telegram_outbound_bridge
+                    (telegram_chat_id, telegram_message_id, session_id, kind)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (chat_id, int(mid), sid, "session_push"),
+                )
+                conn.commit()
+        except Exception:
+            pass
+    out = dict(data or {})
+    out["_delivery_mode"] = "direct_customer_chat"
+    out["_delivery_note"] = ""
+    return out
+
+
+def _telegram_send_support_customer_followup(
+    *,
+    session_id: str,
+    message: str,
+    reason: str = "客戶於網頁智能客服繼續回覆",
+    selected_cases: list[dict[str, Any]] | None = None,
+) -> dict:
+    sid = _normalize_support_session_id(session_id)
+    msg = str(message or "").strip()
+    if not sid:
+        raise RuntimeError("missing session_id")
+    if not msg:
+        raise RuntimeError("missing message")
+    lines = [
+        "【網頁客戶回覆｜Telegram 雙向對談】",
+        "↩️ 回覆本則訊息可傳給該網頁客戶。",
+        f"Session：{sid}",
+        f"原因：{str(reason or '').strip()[:220] or '客戶於網頁智能客服繼續回覆'}",
+        "",
+        f"客戶：{msg[:1500]}",
+    ]
+    rows = list(selected_cases or [])[:5]
+    if rows:
+        lines.append("")
+        lines.append("客戶已選案件：")
+        lines.append(_format_interest_cases_for_tg(rows, max_items=5))
+    return _telegram_send_and_bridge("\n".join(lines)[:3900], sid, "support_customer_followup")
+
+
+def _process_telegram_staff_message(
+    msg: dict[str, Any],
+    chat_id: str,
+    from_id: str,
+    *,
+    bot_token: str | None = None,
+) -> None:
+    text_raw = (msg.get("text") or msg.get("caption") or "").strip()
+    message_id = msg.get("message_id")
+    reply_to = msg.get("reply_to_message") or {}
+    reply_mid = reply_to.get("message_id")
+
+    if text_raw in ("/start", "/help") or text_raw.startswith("/help@"):
+        try:
+            hint = (
+                "SCLAW 雙向客服\n\n"
+                "① 對「系統推播的通知」按 **回覆**，文字會送到對應網頁客戶（Session 已綁定）。\n"
+                "② 或發送：\n"
+                "`/reply <Session完整ID> 您的訊息`\n\n"
+                "Session ID 見每則通知內「Session：」後的編號。"
+            )
+            _telegram_send_to_chat_raw(
+                chat_id,
+                hint,
+                reply_to_message_id=int(message_id) if message_id else None,
+                bot_token=bot_token,
+            )
+        except Exception:
+            pass
+        return
+
+    session_id: str | None = None
+    body_text = text_raw
+    if reply_mid is not None:
+        try:
+            init_db()
+            with get_conn() as conn:
+                row = conn.execute(
+                    """
+                    SELECT session_id FROM telegram_outbound_bridge
+                    WHERE telegram_chat_id = ? AND telegram_message_id = ?
+                    LIMIT 1
+                    """,
+                    (chat_id, int(reply_mid)),
+                ).fetchone()
+                if row:
+                    session_id = _normalize_support_session_id(str(row["session_id"] or "")) or None
+        except Exception:
+            session_id = None
+        if not session_id:
+            try:
+                reply_text = str(reply_to.get("text") or reply_to.get("caption") or "")
+                m2 = re.search(r"Session[：:]\s*([^\s\n]+)", reply_text, flags=re.IGNORECASE)
+                if m2:
+                    session_id = _normalize_support_session_id(m2.group(1))
+            except Exception:
+                session_id = None
+
+    if not session_id and text_raw:
+        m = re.match(r"^/r(?:eply)?(?:@[A-Za-z0-9_]+)?\s+(\S+)\s+([\s\S]+)$", text_raw, flags=re.IGNORECASE)
+        if m:
+            session_id = _normalize_support_session_id(m.group(1))
+            body_text = (m.group(2) or "").strip()
+
+    if not session_id and text_raw:
+        m_session = re.search(r"(?:Session|Session ID|客服\s*Session)[：:]\s*([^\s\n]+)", text_raw, flags=re.IGNORECASE)
+        if m_session:
+            session_id = _normalize_support_session_id(m_session.group(1))
+            body_text = (text_raw[: m_session.start()] + text_raw[m_session.end() :]).strip(" \t\r\n-—:：")
+            if not body_text:
+                body_text = text_raw
+
+    if not session_id:
+        # 友善降噪：顧問若未用 reply 指令，但在 staff chat 直接回覆文字，嘗試綁到最近一筆推播 Session。
+        staff_chats = _telegram_all_staff_chat_ids()
+        if staff_chats and (chat_id in staff_chats or from_id in staff_chats):
+            try:
+                _ensure_telegram_session_tables()
+                with get_conn() as conn:
+                    row = conn.execute(
+                        """
+                        SELECT session_id
+                        FROM telegram_outbound_bridge
+                        WHERE telegram_chat_id IN (?, ?)
+                        ORDER BY id DESC
+                        LIMIT 1
+                        """,
+                        (chat_id, from_id),
+                    ).fetchone()
+                if row:
+                    session_id = _normalize_support_session_id(str(row["session_id"] or ""))
+            except Exception:
+                session_id = session_id
+
+    if not session_id or not body_text:
+        _push_telegram_debug_event(
+            "staff_message_ignored",
+            telegram_chat_id=chat_id,
+            telegram_from_id=from_id,
+            reason="missing_session_or_body",
+            has_reply=bool(reply_mid is not None),
+            text_preview=text_raw[:160],
+        )
+        if text_raw and not text_raw.startswith("/"):
+            try:
+                _telegram_send_to_chat_raw(
+                    chat_id,
+                    "請「回覆」本 Bot 先前發出的那一則通知訊息，或使用：\n/reply <Session> 您的文字\n\nSession 見通知內「Session：」欄位。",
+                    reply_to_message_id=int(message_id) if message_id else None,
+                    bot_token=bot_token,
+                )
+            except Exception:
+                pass
+        return
+
+    try:
+        if not _insert_telegram_staff_inbox_message(session_id, body_text, from_id):
+            raise RuntimeError("insert telegram_staff_inbox failed")
+        _push_telegram_debug_event(
+            "staff_inbox_write",
+            session_id=session_id[:120],
+            telegram_chat_id=chat_id,
+            telegram_from_id=from_id,
+            body_preview=body_text[:220],
+        )
+    except Exception:
+        _push_telegram_debug_event(
+            "staff_inbox_write_error",
+            session_id=(session_id or "")[:120],
+            telegram_chat_id=chat_id,
+            telegram_from_id=from_id,
+        )
+
+
+def _process_telegram_customer_message(
+    msg: dict[str, Any],
+    chat_id: str,
+    from_id: str,
+    *,
+    bot_token: str | None = None,
+) -> None:
+    text_raw = (msg.get("text") or msg.get("caption") or "").strip()
+    chat = msg.get("chat") or {}
+    from_user = msg.get("from") or {}
+    session_id = _upsert_telegram_chat_session(
+        chat_id=chat_id,
+        from_id=from_id,
+        chat_type=str(chat.get("type") or ""),
+        chat_title=str(chat.get("title") or ""),
+        username=str(from_user.get("username") or ""),
+        first_name=str(from_user.get("first_name") or ""),
+        last_name=str(from_user.get("last_name") or ""),
+        last_inbound_text=text_raw,
+    )
+    if not session_id:
+        return
+    if text_raw in ("/start", "/help") or text_raw.startswith("/help@"):
+        try:
+            _telegram_send_to_chat_raw(
+                chat_id,
+                (
+                    "已啟用 SCLAW Bot 會話。\n"
+                    f"Session ID：{session_id}\n\n"
+                    "之後後台可用此 Session ID 主動推送訊息給此會話。"
+                ),
+                reply_to_message_id=int(msg.get("message_id")) if msg.get("message_id") else None,
+                bot_token=bot_token,
+            )
+        except Exception:
+            pass
+
+
+def _process_telegram_member_update(update: dict[str, Any]) -> None:
+    """Bot 被加入群組或對話時，先建立 session 綁定。"""
+    payload = update.get("my_chat_member") or update.get("chat_member")
+    if not isinstance(payload, dict):
+        return
+    chat = payload.get("chat") or {}
+    cid = str(chat.get("id") or "").strip()
+    if not cid:
+        return
+    from_user = payload.get("from") or {}
+    _upsert_telegram_chat_session(
+        chat_id=cid,
+        from_id=str(from_user.get("id") or ""),
+        chat_type=str(chat.get("type") or ""),
+        chat_title=str(chat.get("title") or ""),
+        username=str(from_user.get("username") or ""),
+        first_name=str(from_user.get("first_name") or ""),
+        last_name=str(from_user.get("last_name") or ""),
+    )
+
+
+def _process_telegram_update(update: dict[str, Any], *, bot_token: str | None = None) -> None:
+    """Webhook 更新：顧問 chat 走回覆橋接；其他 chat 自動建 session 綁定。"""
+    tok_effective = _normalize_telegram_bot_token(bot_token or "") or _telegram_active_credentials()[0]
+    if not tok_effective:
+        _push_telegram_debug_event("webhook_skipped_no_token", update_id=update.get("update_id"))
+        return
+    _process_telegram_member_update(update)
+    msg = update.get("message") or update.get("edited_message")
+    if not isinstance(msg, dict):
+        return
+    chat = msg.get("chat") or {}
+    chat_id = str(chat.get("id") or "").strip()
+    from_user = msg.get("from") or {}
+    from_id = str(from_user.get("id") or "").strip()
+    text_raw = (msg.get("text") or msg.get("caption") or "").strip()
+    if not chat_id:
+        return
+    staff_ids = _telegram_all_staff_chat_ids()
+    active_staff_chat = _telegram_active_credentials()[1].strip()
+    aid_route = _telegram_account_id_for_staff_chat(chat_id) or _telegram_account_id_for_staff_chat(from_id)
+    route_token = tok_effective
+    if aid_route:
+        rt = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid_route), ""))
+        if rt:
+            route_token = rt
+    staff_debug = ",".join(staff_ids[:6]) + ("…" if len(staff_ids) > 6 else "")
+    _push_telegram_debug_event(
+        "webhook_update_route_check",
+        update_id=update.get("update_id"),
+        telegram_chat_id=chat_id,
+        telegram_from_id=from_id,
+        staff_chat_ids_preview=staff_debug,
+        has_text=bool((msg.get("text") or msg.get("caption") or "").strip()),
+    )
+    if text_raw and re.match(r"^/r(?:eply)?(?:@[A-Za-z0-9_]+)?\s+\S+\s+[\s\S]+$", text_raw, flags=re.IGNORECASE):
+        _push_telegram_debug_event(
+            "webhook_route_reply_cmd_any_chat",
+            telegram_chat_id=chat_id,
+            telegram_from_id=from_id,
+        )
+        _process_telegram_staff_message(msg, chat_id, from_id, bot_token=tok_effective)
+        return
+
+    is_staff_chat = bool(staff_ids and chat_id in staff_ids)
+    is_staff_user = bool(staff_ids and from_id in staff_ids)
+    is_active_staff_user = bool(active_staff_chat and from_id == active_staff_chat)
+    if staff_ids and (is_staff_chat or is_staff_user or is_active_staff_user):
+        _push_telegram_debug_event(
+            "webhook_route_staff",
+            telegram_chat_id=chat_id,
+            telegram_from_id=from_id,
+            by_chat_id=is_staff_chat,
+            by_from_id=is_staff_user or is_active_staff_user,
+        )
+        _process_telegram_staff_message(msg, chat_id, from_id, bot_token=route_token)
+        return
+    _push_telegram_debug_event(
+        "webhook_route_customer",
+        telegram_chat_id=chat_id,
+        telegram_from_id=from_id,
+    )
+    _process_telegram_customer_message(msg, chat_id, from_id, bot_token=tok_effective)
+
+
+def _session_id_from_line_user_id(line_user_id: str) -> str:
+    raw = str(line_user_id or "").strip()
+    if not raw:
+        return f"line-{uuid4().hex[:16]}"
+    safe = re.sub(r"[^0-9A-Za-z_-]+", "_", raw).strip("_")
+    if not safe:
+        safe = uuid4().hex[:16]
+    return f"line-{safe[:96]}"
+
+
+def _line_source_id(source: dict[str, Any]) -> str:
+    if not isinstance(source, dict):
+        return ""
+    return str(source.get("userId") or source.get("groupId") or source.get("roomId") or "").strip()
+
+
+def _upsert_line_chat_session(
+    *,
+    line_user_id: str,
+    display_name: str = "",
+    last_inbound_text: str = "",
+) -> str:
+    luid = _normalize_line_user_id(line_user_id)
+    if not luid:
+        return ""
+    _ensure_support_channel_tables()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT session_id
+            FROM line_chat_sessions
+            WHERE line_user_id = ?
+            LIMIT 1
+            """,
+            (luid,),
+        ).fetchone()
+        sid = str(row["session_id"] or "").strip() if row else ""
+        action = "update"
+        if not sid:
+            sid = _session_id_from_line_user_id(luid)
+            action = "insert"
+            conn.execute(
+                """
+                INSERT INTO line_chat_sessions (
+                    session_id, line_user_id, display_name, last_inbound_text
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (sid, luid, str(display_name or "")[:200], str(last_inbound_text or "")[:2000]),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE line_chat_sessions
+                SET
+                    display_name = COALESCE(NULLIF(?, ''), display_name),
+                    last_inbound_text = COALESCE(NULLIF(?, ''), last_inbound_text),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE line_user_id = ?
+                """,
+                (str(display_name or "")[:200], str(last_inbound_text or "")[:2000], luid),
+            )
+        conn.commit()
+    _push_telegram_debug_event(
+        "line_session_write",
+        action=action,
+        session_id=sid,
+        line_user_id=luid,
+        channel="line",
+    )
+    return sid
+
+
+def _lookup_line_user_id_by_session(session_id: str) -> str:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        return ""
+    _ensure_support_channel_tables()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT line_user_id
+            FROM line_chat_sessions
+            WHERE session_id = ?
+            LIMIT 1
+            """,
+            (sid,),
+        ).fetchone()
+    return str(row["line_user_id"] or "").strip() if row else ""
+
+
+def _bind_session_to_line_user(*, session_id: str, line_user_id: str, display_name: str = "") -> dict[str, str]:
+    sid = _normalize_support_session_id(session_id)
+    luid = _normalize_line_user_id(line_user_id)
+    if not sid:
+        raise RuntimeError("missing session_id")
+    if not luid:
+        raise RuntimeError("missing line_user_id")
+    _ensure_support_channel_tables()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM line_chat_sessions WHERE session_id = ? OR line_user_id = ?", (sid, luid))
+        conn.execute(
+            """
+            INSERT INTO line_chat_sessions (
+                session_id, line_user_id, display_name, last_inbound_text, updated_at
+            )
+            VALUES (?, ?, ?, '[manual bind]', CURRENT_TIMESTAMP)
+            """,
+            (sid, luid, str(display_name or "")[:200]),
+        )
+        conn.commit()
+    return {"session_id": sid, "line_user_id": luid}
+
+
+def _line_text_messages(text: str, *, limit: int = 4900, max_messages: int = 5) -> list[dict[str, str]]:
+    raw = str(text or "").strip()
+    if not raw:
+        raw = "（無內容）"
+    chunks: list[str] = []
+    rest = raw
+    while rest and len(chunks) < max_messages:
+        if len(rest) <= limit:
+            chunks.append(rest)
+            break
+        cut = rest.rfind("\n", 0, limit)
+        if cut < 1200:
+            cut = limit
+        chunks.append(rest[:cut].strip())
+        rest = rest[cut:].strip()
+    if rest and chunks:
+        tail = "\n\n（內容過長，已截斷）"
+        chunks[-1] = (chunks[-1][: max(0, limit - len(tail))] + tail).strip()
+    return [{"type": "text", "text": chunk[:limit]} for chunk in chunks[:max_messages] if chunk]
+
+
+def _line_auth_headers(token: str | None = None) -> dict[str, str]:
+    tok = _normalize_line_token(token or "") or _line_channel_access_token()
+    if not tok:
+        raise RuntimeError("LINE channel access token not configured")
+    return {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
+
+
+def _line_get_bot_info_json() -> dict:
+    try:
+        with httpx.Client(timeout=18.0) as client:
+            r = client.get("https://api.line.me/v2/bot/info", headers=_line_auth_headers())
+    except httpx.RequestError:
+        raise RuntimeError("無法連線 LINE API，請檢查網路或稍後再試。") from None
+    if int(r.status_code or 0) >= 400:
+        raise RuntimeError(_line_api_error_line(r))
+    try:
+        return r.json()
+    except ValueError:
+        raise RuntimeError("LINE get bot info 回傳非 JSON。") from None
+
+
+def _line_get_profile_json(user_id: str) -> dict:
+    uid = _normalize_line_user_id(user_id)
+    if not uid or _line_push_target_id_kind(uid) != "user":
+        raise RuntimeError("LINE profile 只能查 U 開頭的 user ID")
+    try:
+        with httpx.Client(timeout=18.0) as client:
+            r = client.get(f"https://api.line.me/v2/bot/profile/{uid}", headers=_line_auth_headers())
+    except httpx.RequestError:
+        raise RuntimeError("無法連線 LINE API（profile）。") from None
+    if int(r.status_code or 0) >= 400:
+        raise RuntimeError(_line_api_error_line(r))
+    try:
+        return r.json()
+    except ValueError:
+        raise RuntimeError("LINE profile 回傳非 JSON。") from None
+
+
+def _line_push_text(to_user_id: str, text: str) -> dict:
+    to = _normalize_line_user_id(to_user_id)
+    if not to:
+        raise RuntimeError("missing LINE user ID")
+    body = {"to": to, "messages": _line_text_messages(text)}
+    try:
+        with httpx.Client(timeout=25.0) as client:
+            r = client.post("https://api.line.me/v2/bot/message/push", headers=_line_auth_headers(), json=body)
+    except httpx.RequestError:
+        raise RuntimeError("無法連線 LINE API（push message）。") from None
+    if int(r.status_code or 0) >= 400:
+        raise RuntimeError(_line_api_error_line(r))
+    return {"ok": True, "request_id": str(r.headers.get("x-line-request-id") or "")}
+
+
+def _line_reply_text(reply_token: str, text: str) -> dict:
+    rt = str(reply_token or "").strip()
+    if not rt or set(rt) == {"0"}:
+        raise RuntimeError("missing LINE reply token")
+    body = {"replyToken": rt, "messages": _line_text_messages(text)}
+    try:
+        with httpx.Client(timeout=25.0) as client:
+            r = client.post("https://api.line.me/v2/bot/message/reply", headers=_line_auth_headers(), json=body)
+    except httpx.RequestError:
+        raise RuntimeError("無法連線 LINE API（reply message）。") from None
+    if int(r.status_code or 0) >= 400:
+        raise RuntimeError(_line_api_error_line(r))
+    return {"ok": True, "request_id": str(r.headers.get("x-line-request-id") or "")}
+
+
+def _line_reply_or_push(reply_token: str, to_user_id: str, text: str) -> dict:
+    if str(reply_token or "").strip():
+        try:
+            return _line_reply_text(reply_token, text)
+        except Exception:
+            pass
+    return _line_push_text(to_user_id, text)
+
+
+def _line_send_and_bridge(text: str, session_id: str, kind: str = "notify") -> dict:
+    staff_user_id = _line_staff_user_id()
+    if not staff_user_id:
+        raise RuntimeError("LINE staff user ID not configured")
+    data = _line_push_text(staff_user_id, text)
+    sid = _normalize_support_session_id(session_id)
+    if sid:
+        try:
+            _ensure_support_channel_tables()
+            with get_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO line_outbound_bridge (line_user_id, line_request_id, session_id, kind)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        staff_user_id,
+                        str((data or {}).get("request_id") or "")[:120],
+                        sid,
+                        str(kind or "notify")[:40],
+                    ),
+                )
+                conn.commit()
+        except Exception:
+            pass
+    return data
+
+
+def _insert_line_staff_inbox_message(session_id: str, body: str, from_id: str = "") -> bool:
+    sid = _normalize_support_session_id(session_id)
+    text = str(body or "").strip()
+    if not sid or not text:
+        return False
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO line_staff_inbox (session_id, body, line_from_id)
+                VALUES (?, ?, ?)
+                """,
+                (sid[:120], text[:8000], str(from_id or "")[:120]),
+            )
+            conn.commit()
+        return _insert_support_staff_inbox_message(
+            sid,
+            text,
+            source_channel="line",
+            source_from_id=from_id,
+        )
+    except Exception:
+        return False
+
+
+def _line_send_by_session(session_id: str, text: str) -> dict:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        raise RuntimeError("missing session_id")
+    text_clean = str(text or "").strip()
+    line_user_id = _lookup_line_user_id_by_session(sid)
+    if not line_user_id:
+        inbox_written = _insert_line_staff_inbox_message(sid, text_clean, "admin_send_by_session")
+        fallback_text = (
+            "【Session 未綁定客戶 LINE】\n"
+            f"Session：{sid}\n"
+            + (
+                "狀態：找不到客戶 LINE user ID，已改寫入網站智能客服對話；客戶網頁端輪詢後會收到。\n\n"
+                if inbox_written
+                else "狀態：找不到客戶 LINE user ID，且寫入網站智能客服對話失敗；已改送 LINE 顧問提醒人工介入。\n\n"
+            )
+            + "原本要發送給客戶的內容：\n"
+            f"{text_clean[:3400]}"
+        )
+        try:
+            data = _line_send_and_bridge(fallback_text[:4900], sid, "session_unbound_fallback")
+        except Exception as exc:
+            if inbox_written:
+                return {
+                    "ok": True,
+                    "request_id": "",
+                    "_delivery_mode": "web_inbox_fallback",
+                    "_delivery_note": "session_unbound_written_to_web_inbox_but_staff_notice_failed",
+                    "_staff_notice_error": _sanitize_line_error_detail(exc),
+                }
+            raise RuntimeError(
+                "session_id not bound to LINE user；且 LINE 顧問 fallback 發送也失敗："
+                + _sanitize_line_error_detail(exc)
+            ) from exc
+        out = dict(data or {})
+        out["_delivery_mode"] = "web_inbox_fallback" if inbox_written else "fallback_staff_line"
+        out["_delivery_note"] = (
+            "session_unbound_written_to_web_inbox"
+            if inbox_written
+            else "session_unbound_auto_forward_to_line_staff"
+        )
+        return out
+    data = _line_push_text(line_user_id, text_clean)
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO line_outbound_bridge (line_user_id, line_request_id, session_id, kind)
+                VALUES (?, ?, ?, ?)
+                """,
+                (line_user_id, str((data or {}).get("request_id") or "")[:120], sid, "session_push"),
+            )
+            conn.commit()
+    except Exception:
+        pass
+    out = dict(data or {})
+    out["_delivery_mode"] = "direct_customer_line"
+    out["_delivery_note"] = ""
+    return out
+
+
+def _line_send_support_customer_followup(
+    *,
+    session_id: str,
+    message: str,
+    reason: str = "客戶於網頁智能客服繼續回覆",
+    selected_cases: list[dict[str, Any]] | None = None,
+) -> dict:
+    sid = _normalize_support_session_id(session_id)
+    msg = str(message or "").strip()
+    if not sid:
+        raise RuntimeError("missing session_id")
+    if not msg:
+        raise RuntimeError("missing message")
+    lines = [
+        "【網頁客戶回覆｜LINE 雙向對談】",
+        "請用 /reply <Session> 訊息 回覆該網頁客戶。",
+        f"Session：{sid}",
+        f"原因：{str(reason or '').strip()[:220] or '客戶於網頁智能客服繼續回覆'}",
+        "",
+        f"客戶：{msg[:1500]}",
+    ]
+    rows = list(selected_cases or [])[:5]
+    if rows:
+        lines.append("")
+        lines.append("客戶已選案件：")
+        lines.append(_format_interest_cases_for_tg(rows, max_items=5))
+    return _line_send_and_bridge("\n".join(lines)[:4900], sid, "support_customer_followup")
+
+
+def _support_session_has_line_thread(session_id: str) -> bool:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        return False
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                  (SELECT COUNT(1) FROM line_outbound_bridge WHERE session_id = ?) AS bridge_count,
+                  (SELECT COUNT(1) FROM line_staff_inbox WHERE session_id = ?) AS inbox_count,
+                  (SELECT COUNT(1) FROM support_staff_inbox WHERE session_id = ? AND source_channel = 'line') AS generic_count,
+                  (SELECT COUNT(1) FROM human_handoff_requests WHERE session_id = ?) AS handoff_count
+                """,
+                (sid, sid, sid, sid),
+            ).fetchone()
+        if not row:
+            return False
+        return any(int(row[k] or 0) > 0 for k in ("bridge_count", "inbox_count", "generic_count", "handoff_count"))
+    except Exception:
+        return False
+
+
+def _line_latest_session_for_staff(line_user_id: str) -> str:
+    luid = _normalize_line_user_id(line_user_id)
+    if not luid:
+        return ""
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            row = conn.execute(
+                """
+                SELECT session_id
+                FROM line_outbound_bridge
+                WHERE line_user_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (luid,),
+            ).fetchone()
+        return _normalize_support_session_id(str(row["session_id"] or "")) if row else ""
+    except Exception:
+        return ""
+
+
+def _line_load_conversation(session_id: str) -> list[dict[str, str]]:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        return []
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT conversation_json FROM line_chat_sessions WHERE session_id = ? LIMIT 1",
+                (sid,),
+            ).fetchone()
+        raw = str(row["conversation_json"] or "[]") if row else "[]"
+        arr = json.loads(raw)
+        if not isinstance(arr, list):
+            return []
+        out: list[dict[str, str]] = []
+        for it in arr[-20:]:
+            if not isinstance(it, dict):
+                continue
+            role = str(it.get("role") or "").strip()
+            content = str(it.get("content") or "").strip()
+            if role in {"user", "assistant"} and content:
+                out.append({"role": role, "content": content[:8000]})
+        return out
+    except Exception:
+        return []
+
+
+def _line_save_conversation(session_id: str, history: list[dict[str, str]]) -> None:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        return
+    clean: list[dict[str, str]] = []
+    for it in list(history or [])[-24:]:
+        if not isinstance(it, dict):
+            continue
+        role = str(it.get("role") or "").strip()
+        content = str(it.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            clean.append({"role": role, "content": content[:8000]})
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE line_chat_sessions
+                SET conversation_json = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE session_id = ?
+                """,
+                (json.dumps(clean, ensure_ascii=False), sid),
+            )
+            conn.commit()
+    except Exception:
+        pass
+
+
+def _line_build_smart_support_reply(session_id: str, text_raw: str) -> str:
+    history = _line_load_conversation(session_id)
+    payload = ChatSupportRequest(
+        message=text_raw,
+        history=history[-12:],
+        use_knowledge=True,
+        knowledge_query=text_raw,
+        sales_session_id=session_id,
+        persona_region="tw",
+        knowledge_days=72,
+        knowledge_merged_max=26,
+        knowledge_zh_variant="hant",
+    )
+    resp = api_ai_chat_support(payload)
+    data: dict[str, Any] = {}
+    try:
+        body = getattr(resp, "body", b"") or b"{}"
+        data = json.loads(body.decode("utf-8"))
+    except Exception:
+        data = {}
+    reply = str(data.get("reply") or data.get("detail") or "已收到，我先幫您整理資訊。").strip()
+    history.append({"role": "user", "content": text_raw[:8000]})
+    history.append({"role": "assistant", "content": reply[:8000]})
+    _line_save_conversation(session_id, history)
+    return reply
+
+
+def _process_line_staff_message(event: dict[str, Any], line_from_id: str, reply_token: str = "") -> None:
+    msg = event.get("message") or {}
+    text_raw = str(msg.get("text") or "").strip()
+    if not text_raw:
+        return
+    session_id = ""
+    body_text = text_raw
+    if text_raw in ("/start", "/help"):
+        hint = (
+            "SCLAW LINE 雙向客服\n\n"
+            "請用：\n"
+            "/reply <Session完整ID> 您的訊息\n\n"
+            "Session ID 見每則顧問通知內「Session：」後的編號。"
+        )
+        try:
+            _line_reply_or_push(reply_token, line_from_id, hint)
+        except Exception:
+            pass
+        return
+    m = re.match(r"^/r(?:eply)?\s+(\S+)\s+([\s\S]+)$", text_raw, flags=re.IGNORECASE)
+    if m:
+        session_id = _normalize_support_session_id(m.group(1))
+        body_text = (m.group(2) or "").strip()
+    if not session_id:
+        m_session = re.search(r"(?:Session|Session ID|客服\s*Session)[：:]\s*([^\s\n]+)", text_raw, flags=re.IGNORECASE)
+        if m_session:
+            session_id = _normalize_support_session_id(m_session.group(1))
+            body_text = (text_raw[: m_session.start()] + text_raw[m_session.end() :]).strip(" \t\r\n-—:：") or text_raw
+    if not session_id:
+        session_id = _line_latest_session_for_staff(line_from_id)
+    if not session_id or not body_text:
+        _push_telegram_debug_event(
+            "line_staff_message_ignored",
+            channel="line",
+            line_from_id=line_from_id,
+            reason="missing_session_or_body",
+            text_preview=text_raw[:160],
+        )
+        try:
+            _line_reply_or_push(
+                reply_token,
+                line_from_id,
+                "請使用：\n/reply <Session> 您的文字\n\nSession 見通知內「Session：」欄位。",
+            )
+        except Exception:
+            pass
+        return
+    if _insert_line_staff_inbox_message(session_id, body_text, line_from_id):
+        _push_telegram_debug_event(
+            "line_staff_inbox_write",
+            channel="line",
+            session_id=session_id[:120],
+            line_from_id=line_from_id,
+            body_preview=body_text[:220],
+        )
+        try:
+            _line_reply_or_push(reply_token, line_from_id, f"已送到智能客服 Session：{session_id}")
+        except Exception:
+            pass
+    else:
+        _push_telegram_debug_event(
+            "line_staff_inbox_write_error",
+            channel="line",
+            session_id=(session_id or "")[:120],
+            line_from_id=line_from_id,
+        )
+
+
+def _process_line_customer_message(event: dict[str, Any], line_source_id: str, reply_token: str = "") -> None:
+    msg = event.get("message") or {}
+    text_raw = str(msg.get("text") or "").strip()
+    source = event.get("source") or {}
+    display_name = str(source.get("displayName") or "")
+    session_id = _upsert_line_chat_session(
+        line_user_id=line_source_id,
+        display_name=display_name,
+        last_inbound_text=text_raw,
+    )
+    if not session_id:
+        return
+    if not text_raw:
+        try:
+            _line_reply_or_push(reply_token, line_source_id, "目前請用文字訊息與智能客服對話。")
+        except Exception:
+            pass
+        return
+    if text_raw in ("/start", "/help"):
+        try:
+            _line_reply_or_push(
+                reply_token,
+                line_source_id,
+                f"已啟用 SCLAW LINE 智能客服。\nSession ID：{session_id}\n\n請直接輸入想了解的日本房產問題，或輸入「人工」轉真人顧問。",
+            )
+        except Exception:
+            pass
+        return
+    try:
+        reply = _line_build_smart_support_reply(session_id, text_raw)
+    except Exception as exc:
+        _push_telegram_debug_event(
+            "line_smart_reply_error",
+            channel="line",
+            session_id=session_id,
+            line_user_id=line_source_id,
+            detail=_sanitize_line_error_detail(exc),
+        )
+        reply = "已收到訊息，但智能客服暫時無法產生完整回覆。請稍後再試，或輸入「人工」讓顧問接手。"
+    try:
+        _line_reply_or_push(reply_token, line_source_id, reply[:12000])
+    except Exception as exc:
+        _push_telegram_debug_event(
+            "line_reply_error",
+            channel="line",
+            session_id=session_id,
+            line_user_id=line_source_id,
+            detail=_sanitize_line_error_detail(exc),
+        )
+
+
+def _process_line_event(event: dict[str, Any]) -> None:
+    if not isinstance(event, dict):
+        return
+    etype = str(event.get("type") or "")
+    source = event.get("source") or {}
+    line_source_id = _line_source_id(source)
+    line_user_id = str(source.get("userId") or "").strip()
+    reply_token = str(event.get("replyToken") or "").strip()
+    if not line_source_id:
+        return
+    if etype == "follow":
+        sid = _upsert_line_chat_session(line_user_id=line_source_id)
+        try:
+            _line_reply_or_push(
+                reply_token,
+                line_source_id,
+                f"已加入 SCLAW LINE 智能客服。\nSession ID：{sid}\n\n請直接輸入問題，或輸入「人工」轉真人顧問。",
+            )
+        except Exception:
+            pass
+        return
+    if etype != "message":
+        return
+    msg = event.get("message") or {}
+    text_raw = str(msg.get("text") or "").strip() if isinstance(msg, dict) else ""
+    staff_id = _line_staff_user_id()
+    is_staff = bool(staff_id and (line_user_id == staff_id or line_source_id == staff_id))
+    if is_staff:
+        _process_line_staff_message(event, line_user_id or line_source_id, reply_token)
+        return
+    _process_line_customer_message(event, line_source_id, reply_token)
+
+
+def _normalize_str_list(values: list[str], max_items: int = 12) -> list[str]:
+    out: list[str] = []
+    for value in list(values or []):
+        text = str(value or "").strip()
+        if text and text not in out:
+            out.append(text)
+        if len(out) >= max_items:
+            break
+    return out
+
+
+def _load_offline_support_scenarios(enabled_only: bool = True) -> list[dict]:
+    where_sql = "WHERE enabled = 1" if enabled_only else ""
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT scene_id, label, keywords_json, conclusion, bullets_json, enabled, priority, updated_at
+            FROM offline_support_scenarios
+            {where_sql}
+            ORDER BY priority DESC, updated_at DESC, id DESC
+            """
+        ).fetchall()
+    out: list[dict] = []
+    for row in rows:
+        try:
+            keywords = json.loads(str(row["keywords_json"] or "[]"))
+        except Exception:
+            keywords = []
+        try:
+            bullets = json.loads(str(row["bullets_json"] or "[]"))
+        except Exception:
+            bullets = []
+        out.append(
+            {
+                "id": str(row["scene_id"] or "").strip(),
+                "label": str(row["label"] or "").strip(),
+                "keywords": _normalize_str_list(list(keywords or []), max_items=24),
+                "conclusion": str(row["conclusion"] or "").strip(),
+                "bullets": _normalize_str_list(list(bullets or []), max_items=8),
+                "enabled": bool(int(row["enabled"] or 0)),
+                "priority": int(row["priority"] or 0),
+                "updated_at": str(row["updated_at"] or ""),
+            }
+        )
+    return out
+
+
+OFFLINE_SUPPORT_SCENARIOS = [
+    {
+        "id": "loan",
+        "label": "貸款與利率",
+        "keywords": ["貸款", "利率", "頭期款", "銀行", "審核", "房貸"],
+        "conclusion": "先確認可貸成數與月負擔，再反推可承受總價，成交成功率會更高。",
+        "bullets": [
+            "先盤點：自備款、收入證明、還款年限與可接受月付。",
+            "比較三個重點：利率、可貸成數、外國人申貸限制。",
+            "以同預算做「自住 vs 投資」雙版本試算，再決定看屋路線。",
+        ],
+    },
+    {
+        "id": "investment",
+        "label": "投資回報比較",
+        "keywords": ["投資", "報酬率", "roi", "租金", "收租", "回本"],
+        "conclusion": "投資判斷要同時看租金回報與風險成本，不能只看單點高報酬。",
+        "bullets": [
+            "先做三案比較：總價、租金、空置風險、管理與修繕成本。",
+            "以保守情境試算淨收益，避免只看理想化毛報酬。",
+            "優先挑選交通、需求穩定與流動性較高的區域。",
+        ],
+    },
+    {
+        "id": "process",
+        "label": "購屋流程與文件",
+        "keywords": ["流程", "文件", "簽約", "過戶", "看屋", "斡旋"],
+        "conclusion": "先把流程節點與文件一次排好，能大幅降低交易延誤與風險。",
+        "bullets": [
+            "流程建議：需求確認 -> 看屋比較 -> 條件談判 -> 契約審閱 -> 交割過戶。",
+            "文件先備：身份、資金來源、貸款資料與聯絡窗口。",
+            "每個節點都保留風險檢核，避免簽約後才補件。",
+        ],
+    },
+    {
+        "id": "risk",
+        "label": "法規與稅務風險",
+        "keywords": ["風險", "稅", "法規", "限制", "違規", "成本"],
+        "conclusion": "先把法規與稅務風險說清楚，再談投資回報，才是可成交方案。",
+        "bullets": [
+            "確認持有與交易稅負、管理費、修繕與空置成本。",
+            "外國人常見限制需前置確認，避免後段卡關。",
+            "所有投資估算需加上保守安全邊際。",
+        ],
+    },
+    {
+        "id": "low_interest",
+        "label": "低意願挽回",
+        "keywords": ["沒興趣", "先不用", "不考慮", "不買", "取消"],
+        "conclusion": "目前先改低打擾模式，提供精簡重點，保留後續回流入口。",
+        "bullets": [
+            "先給一頁式比較摘要：成本、風險、可行性。",
+            "降低操作門檻，只保留必要決策資訊。",
+            "約定下一次回訪節點，避免過度推銷。",
+        ],
+    },
+]
+
+
+def _seed_offline_support_scenarios_if_empty() -> None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT COUNT(1) AS c FROM offline_support_scenarios").fetchone()
+        if int((row or {"c": 0})["c"] or 0) > 0:
+            return
+        for item in OFFLINE_SUPPORT_SCENARIOS:
+            conn.execute(
+                """
+                INSERT INTO offline_support_scenarios (
+                    scene_id, label, keywords_json, conclusion, bullets_json, enabled, priority
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(item.get("id") or "").strip(),
+                    str(item.get("label") or "").strip() or "未命名場景",
+                    json.dumps(_normalize_str_list(list(item.get("keywords") or []), max_items=24), ensure_ascii=False),
+                    str(item.get("conclusion") or "").strip(),
+                    json.dumps(_normalize_str_list(list(item.get("bullets") or []), max_items=8), ensure_ascii=False),
+                    1,
+                    100,
+                ),
+            )
+        conn.commit()
+
+
+def _load_support_qa_training(enabled_only: bool = True) -> list[dict[str, Any]]:
+    where_sql = "WHERE enabled = 1" if enabled_only else ""
+    with get_conn() as conn:
+        try:
+            rows = conn.execute(
+                f"""
+                SELECT qa_id, label, keywords_json, answer_body, enabled, priority, updated_at
+                FROM support_qa_training
+                {where_sql}
+                ORDER BY priority DESC, updated_at DESC, id DESC
+                """
+            ).fetchall()
+        except Exception:
+            return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            keywords = json.loads(str(row["keywords_json"] or "[]"))
+        except Exception:
+            keywords = []
+        out.append(
+            {
+                "id": str(row["qa_id"] or "").strip(),
+                "label": str(row["label"] or "").strip(),
+                "keywords": _normalize_str_list(list(keywords or []), max_items=24),
+                "answer_body": str(row["answer_body"] or ""),
+                "enabled": bool(int(row["enabled"] or 0)),
+                "priority": int(row["priority"] or 0),
+                "updated_at": str(row["updated_at"] or ""),
+            }
+        )
+    return out
+
+
+def _seed_support_qa_training_if_empty() -> None:
+    """Seed built-in Japanese real-estate FAQ guidance rows without overwriting admin edits."""
+    with get_conn() as conn:
+        try:
+            conn.execute("SELECT COUNT(1) AS c FROM support_qa_training").fetchone()
+        except Exception:
+            return
+        defaults: list[dict[str, Any]] = list(JP_REAL_ESTATE_GUIDANCE_FAQS)
+        defaults.append(
+            {
+                "qa_id": "demo_tokyo_100man",
+                "label": "東京低價購屋試探（示範）",
+                "keywords": ["100萬", "100万", "一百萬", "一百万", "低價", "低价", "能買嗎", "能买吗", "可以買嗎", "可以买吗"],
+                "answer_body": (
+                    "依日本市場行情，東京核心區很難只用 100 萬日圓買到可正常居住與流通的房產。\n"
+                    "這類問題建議先改看「總預算」而不是單一售價，因為還會有稅金、登記費、管理費、修繕積立金與固定資產稅/都市計畫稅。\n\n"
+                    "{links}"
+                ),
+                "priority": 180,
+            }
+        )
+        for item in defaults:
+            qa_id = str(item.get("qa_id") or "").strip()
+            label = str(item.get("label") or qa_id).strip()
+            body = str(item.get("answer_body") or "").strip()
+            kws = _normalize_str_list(list(item.get("keywords") or []), max_items=32)
+            if not qa_id or not label or not body or not kws:
+                continue
+            if qa_id.startswith("jp_property_") or qa_id == "demo_tokyo_100man":
+                cur = conn.execute(
+                    """
+                    UPDATE support_qa_training
+                    SET label = ?, keywords_json = ?, answer_body = ?, enabled = 1, priority = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE qa_id = ?
+                    """,
+                    (
+                        label,
+                        json.dumps(kws, ensure_ascii=False),
+                        body,
+                        int(item.get("priority") or 100),
+                        qa_id,
+                    ),
+                )
+                if int(cur.rowcount or 0) > 0:
+                    continue
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO support_qa_training (qa_id, label, keywords_json, answer_body, enabled, priority)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    qa_id,
+                    label,
+                    json.dumps(kws, ensure_ascii=False),
+                    body,
+                    1,
+                    int(item.get("priority") or 100),
+                ),
+            )
+        conn.commit()
+
+
+def _match_support_qa_training(message: str) -> dict[str, Any] | None:
+    """關鍵字命中時回傳優先序最高之一則 Q&A（與離線場景分開）。"""
+    text = str(message or "").strip()
+    if not text:
+        return None
+    lower = text.lower()
+    rows = _load_support_qa_training(enabled_only=True)
+    guided = match_jp_real_estate_guidance(text)
+    guided_id = str((guided or {}).get("qa_id") or "").strip()
+    if guided_id:
+        for row in rows:
+            if str(row.get("id") or "") == guided_id:
+                return row
+    best_score = 0
+    best_row: dict[str, Any] | None = None
+    for row in rows:
+        kws = [str(k).lower() for k in (row.get("keywords") or [])]
+        hits = [k for k in kws if k and k in lower]
+        if not hits:
+            continue
+        score = len(hits) * 10000 + max(len(k) for k in hits) * 100 + int(row.get("priority") or 0)
+        if score > best_score:
+            best_score = score
+            best_row = row
+    return best_row
+
+
+def _matched_keywords_from_text(text: str, keywords: list[str]) -> list[str]:
+    low = str(text or "").strip().lower()
+    if not low:
+        return []
+    hits: list[str] = []
+    for kw in keywords or []:
+        k = str(kw or "").strip()
+        if not k:
+            continue
+        if k.lower() in low:
+            hits.append(k)
+    return _normalize_str_list(hits, max_items=24)
+
+
+def _strip_json_fence_text(raw: str) -> str:
+    t = str(raw or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```(?:json)?\s*", "", t, flags=re.IGNORECASE)
+        t = re.sub(r"\s*```\s*$", "", t)
+    return t.strip()
+
+
+def _slug_support_qa_id(raw: str, *, fallback: str = "qa_item", max_len: int = 56) -> str:
+    s = str(raw or "").strip().lower()
+    s = s.replace(" ", "_").replace("/", "_")
+    s = re.sub(r"[^a-z0-9_]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    if not s:
+        s = fallback
+    return s[:max_len].strip("_") or fallback
+
+
+def _next_available_support_qa_id(conn: sqlite3.Connection, base_id: str) -> str:
+    bid = _slug_support_qa_id(base_id, fallback="qa_item")
+    cand = bid
+    suffix = 2
+    while True:
+        row = conn.execute("SELECT 1 FROM support_qa_training WHERE qa_id = ? LIMIT 1", (cand,)).fetchone()
+        if not row:
+            return cand
+        cand = f"{bid}_{suffix}"
+        suffix += 1
+
+
+def _build_support_qa_generate_prompt(
+    *,
+    topic: str,
+    generate_count: int,
+    scene: dict[str, Any] | None,
+) -> str:
+    scene_lines: list[str] = []
+    if scene:
+        scene_lines.append(f"場景名稱：{str(scene.get('label') or '').strip()}")
+        kws = [str(k).strip() for k in (scene.get("keywords") or []) if str(k).strip()]
+        if kws:
+            scene_lines.append(f"場景關鍵字：{', '.join(kws[:12])}")
+        conc = str(scene.get("conclusion") or "").strip()
+        if conc:
+            scene_lines.append(f"場景結論方向：{conc}")
+        for b in (scene.get("bullets") or [])[:4]:
+            bs = str(b).strip()
+            if bs:
+                scene_lines.append(f"- {bs}")
+    scene_block = "\n".join(scene_lines) if scene_lines else "（未指定場景，請以一般日本不動產顧問語境生成）"
+    return (
+        "請生成可直接放入客服 Q&A 訓練資料庫的 JSON。\n"
+        "輸出規範：\n"
+        "1) 只輸出 JSON，不要 markdown。\n"
+        "2) JSON 格式必須是：{\"items\":[...]}。\n"
+        "3) items 長度必須等於要求篇數。\n"
+        "4) 每個 item 欄位：qa_id(英文數字底線)、label(繁中)、keywords(陣列至少4個)、answer_body(繁中多行)。\n"
+        "5) answer_body 最後一行必須保留 {links} 佔位。\n"
+        "6) 內容主題限日本不動產顧問，語氣口語但專業，不得捏造法規細節。\n\n"
+        f"主題：{topic}\n"
+        f"篇數：{int(generate_count)}\n"
+        f"場景參考：\n{scene_block}\n"
+    )
+
+
+def _normalize_generated_support_qa_items(raw: str, *, max_items: int) -> list[dict[str, Any]]:
+    parsed = json.loads(_strip_json_fence_text(raw))
+    src = parsed.get("items") if isinstance(parsed, dict) else None
+    if not isinstance(src, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for i, row in enumerate(src[: max(1, int(max_items))], start=1):
+        if not isinstance(row, dict):
+            continue
+        label = str(row.get("label") or "").strip()
+        qa_id_raw = str(row.get("qa_id") or "").strip()
+        keywords_raw = row.get("keywords")
+        keywords_list: list[str] = []
+        if isinstance(keywords_raw, list):
+            keywords_list = [str(x).strip() for x in keywords_raw]
+        elif isinstance(keywords_raw, str):
+            keywords_list = re.split(r"[,\n、，/]+", keywords_raw)
+        keywords = _normalize_str_list(keywords_list, max_items=24)
+        body = str(row.get("answer_body") or "").strip()
+        if not label or not body or not keywords:
+            continue
+        if "{links}" not in body and "{no_kb_links}" not in body:
+            body = f"{body.rstrip()}\n\n{{links}}"
+        fallback_id = f"qa_item_{i}"
+        qa_id = _slug_support_qa_id(qa_id_raw or label or fallback_id, fallback=fallback_id)
+        out.append({"qa_id": qa_id, "label": label, "keywords": keywords, "answer_body": body[:12000]})
+    return out
+
+
+def _support_crm_inject_mode() -> str:
+    m = get_kv(KV_SUPPORT_CRM_MODE, "both").strip().lower()
+    return m if m in ("full", "compact", "both") else "both"
+
+
+def _support_crm_enabled_runtime() -> bool:
+    v = get_kv(KV_SUPPORT_CRM_ENABLED, "1").strip().lower()
+    return v not in ("0", "false", "off", "no")
+
+
+def _compose_support_crm_addon_from_parts(full: str, compact: str, examples: str, mode: str) -> str:
+    chunks: list[str] = []
+    if mode in ("full", "both"):
+        t = (full or "").strip()
+        if t:
+            chunks.append(t)
+    if mode in ("compact", "both"):
+        t = (compact or "").strip()
+        if t:
+            chunks.append(t)
+    t = (examples or "").strip()
+    if t:
+        chunks.append(t)
+    return "\n\n---\n\n".join(chunks)[:16000]
+
+
+def support_crm_system_addon_for_llm() -> str:
+    if not _support_crm_enabled_runtime():
+        return ""
+    sf = get_kv(KV_SUPPORT_CRM_FULL).strip() or SUPPORT_CRM_DEFAULT_FULL
+    sc = get_kv(KV_SUPPORT_CRM_COMPACT).strip() or SUPPORT_CRM_DEFAULT_COMPACT
+    se = get_kv(KV_SUPPORT_CRM_EXAMPLES).strip() or SUPPORT_CRM_DEFAULT_EXAMPLES
+    return _compose_support_crm_addon_from_parts(sf, sc, se, _support_crm_inject_mode())
+
+
+def admin_support_crm_prompt_snapshot() -> dict[str, Any]:
+    sf_raw = get_kv(KV_SUPPORT_CRM_FULL).strip()
+    sc_raw = get_kv(KV_SUPPORT_CRM_COMPACT).strip()
+    se_raw = get_kv(KV_SUPPORT_CRM_EXAMPLES).strip()
+    sf = sf_raw or SUPPORT_CRM_DEFAULT_FULL
+    sc = sc_raw or SUPPORT_CRM_DEFAULT_COMPACT
+    se = se_raw or SUPPORT_CRM_DEFAULT_EXAMPLES
+    mode = _support_crm_inject_mode()
+    en = _support_crm_enabled_runtime()
+    addon = _compose_support_crm_addon_from_parts(sf, sc, se, mode) if en else ""
+    return {
+        "enabled": en,
+        "inject_mode": mode,
+        "full_prompt": sf,
+        "compact_prompt": sc,
+        "examples": se,
+        "stored_empty": {"full": not sf_raw, "compact": not sc_raw, "examples": not se_raw},
+        "injected_char_count": len(addon),
+    }
+
+
+def _match_support_scenario(message: str) -> dict | None:
+    """若使用者訊息命中後台已建立場景關鍵字，回傳該場景 dict（含 id／label 等）；否則 None。"""
+    text = str(message or "").strip()
+    if not text:
+        return None
+    lower = text.lower()
+    scenario_rows = _load_offline_support_scenarios(enabled_only=True)
+    if not scenario_rows:
+        scenario_rows = [dict(s) for s in OFFLINE_SUPPORT_SCENARIOS]
+    for row in scenario_rows:
+        kws = [str(k).lower() for k in row.get("keywords", [])]
+        if any(k and k in lower for k in kws):
+            return row
+    return None
+
+
+def _compose_scenario_coaching_text(scenario: dict) -> str:
+    parts = [
+        f"場景名稱：{scenario.get('label') or ''}",
+        f"建議結論方向：{scenario.get('conclusion') or ''}",
+    ]
+    for b in (scenario.get("bullets") or [])[:5]:
+        parts.append(f"可引用重點：{b}")
+    return "\n".join(parts)[:4000]
+
+
+def _support_coaching_with_tone(scenario_coaching: str, matched: dict | None) -> str:
+    """智能客服：先場景語意與語氣，再交給模型結合知識庫。"""
+    tone = (
+        "【第一步｜後台場景與語氣】若下列有場景命中，請先順著場景結論方向理解使用者，不要硬套無關話術。"
+        "語氣務必口語化、有真人溫度，像熟朋友顧問在 LINE／私訊打字；可用「您」「我這邊先幫您對了一下站內案件」；"
+        "避免公文腔、避免一次丟出過長清單。\n\n"
+    )
+    body = (scenario_coaching or "").strip()
+    if body:
+        return (tone + body)[:4200]
+    return tone.strip()
+
+
+def _pick_support_listing_links(knowledge_meta: dict[str, Any], *, limit: int = 4) -> list[dict[str, str]]:
+    """合併本站案件、後台重點推薦與知識庫條目；排除門戶總覽 URL 與爬蟲占位標題（去重）。"""
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for chunk in knowledge_meta.get("managed_cases") or []:
+        if not isinstance(chunk, dict):
+            continue
+        item_u = str(chunk.get("item_url") or "").strip()
+        art_u = str(chunk.get("article_url") or "").strip()
+        u = art_u if art_u.startswith("http") else item_u
+        if not u.startswith("http") or u in seen or url_is_portal_broad_hub(u):
+            continue
+        tit = listing_title_or_fallback(str(chunk.get("title_display") or "").strip(), u)[:240]
+        seen.add(u)
+        tx = str(chunk.get("transaction_label_zh") or "").strip()
+        reg = str(chunk.get("jp_region_display_zh") or "").strip()
+        note = "本站案件（優先）"
+        if tx or reg:
+            note = f"{note}｜{tx or '—'}｜{reg or '—'}"
+        out.append(
+            {
+                "title": tit,
+                "url": u,
+                "note": note,
+                "source": str(chunk.get("source_name") or "").strip(),
+            }
+        )
+        if len(out) >= limit:
+            return out
+    for chunk in knowledge_meta.get("featured_recommendations") or []:
+        if not isinstance(chunk, dict):
+            continue
+        u = str(chunk.get("item_url") or "").strip()
+        if not u.startswith("http") or u in seen or url_is_portal_broad_hub(u):
+            continue
+        tit = listing_title_or_fallback(str(chunk.get("title_display") or "").strip(), u)[:240]
+        seen.add(u)
+        w = int(chunk.get("featured_weight") or 0)
+        out.append(
+            {
+                "title": tit,
+                "url": u,
+                "note": f"站內重點推薦｜權重 {w}",
+                "source": str(chunk.get("source_name") or "").strip(),
+            }
+        )
+        if len(out) >= limit:
+            return out
+    for it in knowledge_meta.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        u = str(it.get("item_url") or "").strip()
+        if not u.startswith("http") or u in seen or url_is_portal_broad_hub(u):
+            continue
+        tit = listing_title_or_fallback(str(it.get("title_display") or "").strip(), u)[:240]
+        seen.add(u)
+        mt = "關鍵字命中" if str(it.get("match_type") or "") == "keyword" else "近期補齊"
+        out.append(
+            {
+                "title": tit,
+                "url": u,
+                "note": f"站內摘錄｜{mt}",
+                "source": str(it.get("source_name") or "").strip(),
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _offline_low_intent_soft_block(message: str) -> str | None:
+    """極短句、試探性出價／賣價：客戶側軟引導（不否定、先釐清）。"""
+    t = (message or "").strip()
+    if len(t) > 56:
+        return None
+    if re.search(r"100\s*快|一百萬?\s*(可以)?賣|隨便賣|隨口賣|試問賣|亂賣|隨便問", t):
+        return (
+            "先溫和承接：一句話的數字往往還沒包含稅費、管理費、修繕積立金與貸款條件，也未必對應得到市面實際可成交的物件。"
+            "建議先不急著否定對方，而是幫他把「自住或收租、偏好的地區、可接受的總預算帶、打算持有幾年」講清楚，再對照下方摘錄或請顧問協助。"
+        )
+    if len(t) <= 22 and re.search(r"(賣|買|租|價|售|購)", t) and re.search(r"\d", t):
+        return (
+            "訊息稍短，我先以常見置產架構回覆：日本不動產決策通常要同時看「標的＋持有成本＋資金與貸款」；您若補上地區與用途，會更容易對到站內案件與文章。"
+        )
+    return None
+
+
+def _offline_transit_station_hint(message: str) -> str | None:
+    """與車站／徒步相關時給一句實務提醒，避免離線回覆只剩通用三軸。"""
+    m = (message or "").strip()
+    if not m:
+        return None
+    keys = ("車站", "駅", "徒步", "步行", "走路", "直達", "5分鐘", "5分钟", "十分鐘", "十分钟", "分鐘", "分钟内", "分內")
+    if not any(k in m for k in keys):
+        return None
+    return "車站徒步分鐘數多為估算，實際受出口、路線與天候影響；可比對換乘與多線可達性。"
+
+
+def _offline_reference_links_block(links: list[dict[str, str]]) -> str:
+    """僅在畫面上無摺疊摘錄區時，於離線回覆內補短清單（避免與 UI 重複長列表）。"""
+    if not links:
+        return ""
+    lines = ["若您想直接開連結，可先從這幾則摘錄看起（另開新視窗）："]
+    for i, row in enumerate(links, start=1):
+        tit = str(row.get("title") or "—").strip()
+        u = str(row.get("url") or "").strip()
+        lines.append(f"{i}. {tit} — {u}")
+    return "\n".join(lines)
+
+
+def _merge_support_qa_answer_body(raw: str, *, excerpt: str, links_block: str) -> str:
+    """支援占位：{excerpt}、{links}；{no_kb_links} 不附自動連結；{no_auto_footer} 由呼叫端不追加結尾。"""
+    s0 = str(raw or "")
+    no_kb = "{no_kb_links}" in s0
+    s = s0.replace("{no_kb_links}", "").replace("{no_auto_footer}", "").strip()
+    s = s.replace("{excerpt}", excerpt)
+    lb = (links_block or "").strip()
+    if "{links}" in s0:
+        s = s.replace("{links}", "" if no_kb else lb)
+    elif not no_kb and lb:
+        s = s.rstrip() + "\n\n" + lb
+    return s.strip()
+
+
+def _support_first_missing_field(missing_fields: list[str] | None = None) -> str:
+    fields = [str(x or "").strip() for x in (missing_fields or []) if str(x or "").strip()]
+    if not fields:
+        return ""
+    preferred = ("用途", "預算", "地區", "車站", "類型", "格局", "貸款", "購買時間")
+    for key in preferred:
+        for field in fields:
+            if key in field:
+                return key
+    return fields[0]
+
+
+def _support_single_followup_question(
+    message: str,
+    *,
+    missing_fields: list[str] | None = None,
+    intent_ref: int = 0,
+) -> str:
+    """智能客服採一問一答：依當下問題只補一個最有價值的追問。"""
+    text = str(message or "")
+    first_missing = _support_first_missing_field(missing_fields)
+    if first_missing in ("用途",):
+        return "請問您這次主要是自住、收租，還是資產配置？"
+    if first_missing in ("預算",):
+        return "您方便先給一個總預算上限嗎？"
+    if first_missing in ("地區", "車站"):
+        return "您比較想看東京哪一區或哪條通勤線？"
+    if first_missing in ("類型",):
+        return "您偏好公寓、一戶建，還是先不限類型？"
+    if first_missing in ("格局",):
+        return "您最低可接受幾房或多大坪數？"
+    if first_missing in ("貸款",):
+        return "您預計用現金購買，還是希望評估日本房貸？"
+    if re.search(r"(稅|税|費用|费用|成本|管理費|管理费|修繕|修缮|固都稅|固定資產)", text, re.I):
+        return "您想先估算購買時的一次性成本，還是每年的持有成本？"
+    if re.search(r"(流程|採購|采购|如何購買|如何购买|怎么买|怎麼買|簽約|签约)", text, re.I):
+        return "您目前是已看好物件，還是先了解完整購買流程？"
+    if re.search(r"(貸款|贷款|房貸|房贷|銀行|银行|融資|融资)", text, re.I):
+        return "您預計用現金購買，還是希望評估日本房貸？"
+    if re.search(r"(外國人|外国人|海外|非日本|永住|居留)", text, re.I):
+        return "您是想自住，還是投資收租？"
+    if re.search(r"(租金|投報|回報|報酬|收益|投資)", text, re.I):
+        return "您比較在意租金收益，還是日後轉售流通性？"
+    if intent_ref >= 42:
+        return "我下一步先幫您看用途，還是先抓預算？"
+    return "您想先了解稅金、購買流程，還是貸款條件？"
+
+
+def _support_concise_answer_body(text: str, *, max_lines: int = 4, max_chars: int = 520) -> str:
+    """把訓練答案壓成客服一問一答可讀長度，完整來源仍留在摺疊區/知識庫。"""
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    keep: list[str] = []
+    previous_blank = False
+    for line in raw.splitlines():
+        t = line.strip()
+        if not t:
+            if keep and not previous_blank:
+                keep.append("")
+                previous_blank = True
+            continue
+        previous_blank = False
+        if re.search(r"^(官方參考|官方参考|參考連結|参考链接|延伸閱讀|延伸阅读)\b", t, re.I):
+            break
+        if re.search(r"https?://", t, re.I):
+            continue
+        keep.append(t)
+        if len([x for x in keep if x.strip()]) >= max_lines:
+            break
+    out = "\n".join(keep).strip()
+    if len(out) <= max_chars:
+        return out
+    clipped = out[:max_chars].rstrip()
+    cut = max(clipped.rfind("。"), clipped.rfind("？"), clipped.rfind("?"), clipped.rfind("；"), clipped.rfind(";"))
+    if cut >= max_chars * 0.55:
+        return clipped[: cut + 1].strip()
+    return clipped.rstrip("，,、；;") + "。"
+
+
+def _support_message_explicit_case_request(message: str) -> bool:
+    text = str(message or "").strip()
+    if not text or match_jp_real_estate_guidance(text):
+        return False
+    if re.search(r"(找房|看房|找物件|看物件|找案件|看案件|推薦.*(?:房|物件|案件)|推荐.*(?:房|物件|案件))", text, re.I):
+        return True
+    has_case_word = re.search(r"(案件|物件|房源|房子|公寓|一戶建|一户建|マンション|房產|房地產|不動產|不动产)", text, re.I)
+    has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|比較|比较|比對|比对|清單|清单|連結|链接|URL|編號|编号|已選|已选|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
+    return bool(has_case_word and has_action)
+
+
+def _offline_support_standard_footer(
+    *,
+    intent_ref: int,
+    next_question: str = "",
+) -> str:
+    q = (next_question or "").strip()
+    if not q:
+        q = _support_single_followup_question("", intent_ref=intent_ref)
+    lines: list[str] = [q]
+    lines.append("提醒：實際稅費與貸款條件以契約與銀行審核為準。")
+    return "\n".join(lines)
+
+
+def _build_offline_support_reply(message: str, knowledge_meta: dict, persona_region: str = "tw") -> str:
+    """離線回覆：口語、對客；場景／訓練細節留在後台與後續 LLM 系統提示，不在此處貼標籤。"""
+    _ = persona_region
+    text = str(message or "").strip()
+    excerpt = (text[:160] or "您的提問").replace("\n", " ").strip()
+    intent_ref = _calc_sales_intent_score(text, knowledge_meta)
+    prop_listing = bool(knowledge_meta.get("property_listing_intent"))
+    if bool(knowledge_meta.get("purchase_discovery_mode")):
+        return _build_purchase_discovery_reply(
+            text,
+            selected_cases=list(knowledge_meta.get("selected_cases") or []),
+            missing_fields=list((knowledge_meta.get("purchase_discovery") or {}).get("missing_fields") or []),
+        )
+    qa_hit = _match_support_qa_training(text)
+    if prop_listing and not qa_hit:
+        next_q = _support_single_followup_question(
+            text,
+            missing_fields=list((knowledge_meta.get("purchase_discovery") or {}).get("missing_fields") or []),
+            intent_ref=intent_ref,
+        )
+        lines: list[str] = [
+            f"收到，我先不推薦案件，先把「{excerpt}」當成找房方向來釐清。",
+            "條件還不完整時，直接丟物件容易失準；先抓用途與預算會比較準。",
+        ]
+        lines.extend(["", _offline_support_standard_footer(intent_ref=intent_ref, next_question=next_q)])
+        return sanitize_support_chat_visible_reply("\n".join(lines).strip())
+
+    if qa_hit:
+        raw_ab = str(qa_hit.get("answer_body") or "")
+        core = _support_concise_answer_body(
+            _merge_support_qa_answer_body(raw_ab, excerpt=excerpt, links_block="")
+        )
+        parts = [core or f"可以，我先依您提到的「{excerpt}」整理重點。"]
+        if "{no_auto_footer}" not in raw_ab:
+            parts.extend(
+                [
+                    "",
+                    _offline_support_standard_footer(
+                        intent_ref=intent_ref,
+                        next_question=_support_single_followup_question(text, intent_ref=intent_ref),
+                    ),
+                ]
+            )
+        return sanitize_support_chat_visible_reply("\n".join(parts).strip())
+
+    scenario = _match_support_scenario(text)
+    if not scenario:
+        scenario = {
+            "label": "一般諮詢",
+            "conclusion": "先釐清用途、預算與風險，再收斂地區與交通。",
+            "bullets": [
+                "自住／投資目標不同，指標勿混用。",
+                "持有成本含稅費、管理費、修繕積立金與貸款條件。",
+            ],
+        }
+    transit = _offline_transit_station_hint(text)
+    conclusion = str(scenario.get("conclusion") or "").strip() or "請依需求、預算與風險逐步收斂標的。"
+    soft = _offline_low_intent_soft_block(text)
+    lines: list[str] = [f"我這邊先依您提到的「{excerpt}」回覆如下。", ""]
+    if soft:
+        lines.append(soft)
+        lines.append("")
+    lines.append(conclusion)
+    for b in (scenario.get("bullets") or [])[:2]:
+        bs = str(b).strip()
+        if bs:
+            lines.append(bs)
+    if transit:
+        lines.append(transit)
+    lines.extend(
+        [
+            "",
+            _offline_support_standard_footer(
+                intent_ref=intent_ref,
+                next_question=_support_single_followup_question(text, intent_ref=intent_ref),
+            ),
+        ]
+    )
+    return sanitize_support_chat_visible_reply("\n".join(lines).strip())
+
+
+@app.get("/api/admin/offline-scenarios")
+def api_admin_list_offline_scenarios(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, "items": _load_offline_support_scenarios(enabled_only=False)})
+
+
+@app.post("/api/admin/offline-scenarios")
+def api_admin_create_offline_scenario(payload: OfflineScenarioUpsertRequest, request: Request):
+    _require_admin_password(request)
+    scene_id = str(payload.scene_id or "").strip().lower()
+    if not scene_id:
+        raise HTTPException(status_code=400, detail="missing scene_id")
+    label = str(payload.label or "").strip()
+    conclusion = str(payload.conclusion or "").strip()
+    if not label or not conclusion:
+        raise HTTPException(status_code=400, detail="label/conclusion required")
+    with get_conn() as conn:
+        exists = conn.execute("SELECT 1 FROM offline_support_scenarios WHERE scene_id = ? LIMIT 1", (scene_id,)).fetchone()
+        if exists:
+            raise HTTPException(status_code=409, detail="scene_id already exists")
+        conn.execute(
+            """
+            INSERT INTO offline_support_scenarios (
+                scene_id, label, keywords_json, conclusion, bullets_json, enabled, priority, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                scene_id,
+                label,
+                json.dumps(_normalize_str_list(payload.keywords, max_items=24), ensure_ascii=False),
+                conclusion,
+                json.dumps(_normalize_str_list(payload.bullets, max_items=8), ensure_ascii=False),
+                1 if payload.enabled else 0,
+                int(payload.priority),
+            ),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.put("/api/admin/offline-scenarios/{scene_id}")
+def api_admin_update_offline_scenario(scene_id: str, payload: OfflineScenarioUpsertRequest, request: Request):
+    _require_admin_password(request)
+    scene_id_n = str(scene_id or "").strip().lower()
+    if not scene_id_n:
+        raise HTTPException(status_code=400, detail="missing scene_id")
+    label = str(payload.label or "").strip()
+    conclusion = str(payload.conclusion or "").strip()
+    if not label or not conclusion:
+        raise HTTPException(status_code=400, detail="label/conclusion required")
+    with get_conn() as conn:
+        row = conn.execute("SELECT 1 FROM offline_support_scenarios WHERE scene_id = ? LIMIT 1", (scene_id_n,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="scenario not found")
+        conn.execute(
+            """
+            UPDATE offline_support_scenarios
+            SET label = ?, keywords_json = ?, conclusion = ?, bullets_json = ?, enabled = ?, priority = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE scene_id = ?
+            """,
+            (
+                label,
+                json.dumps(_normalize_str_list(payload.keywords, max_items=24), ensure_ascii=False),
+                conclusion,
+                json.dumps(_normalize_str_list(payload.bullets, max_items=8), ensure_ascii=False),
+                1 if payload.enabled else 0,
+                int(payload.priority),
+                scene_id_n,
+            ),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/api/admin/offline-scenarios/{scene_id}")
+def api_admin_delete_offline_scenario(scene_id: str, request: Request):
+    _require_admin_password(request)
+    scene_id_n = str(scene_id or "").strip().lower()
+    if not scene_id_n:
+        raise HTTPException(status_code=400, detail="missing scene_id")
+    with get_conn() as conn:
+        conn.execute("DELETE FROM offline_support_scenarios WHERE scene_id = ?", (scene_id_n,))
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/admin/support-qa")
+def api_admin_list_support_qa(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, "items": _load_support_qa_training(enabled_only=False)})
+
+
+@app.post("/api/admin/support-qa")
+def api_admin_create_support_qa(payload: SupportQaUpsertRequest, request: Request):
+    _require_admin_password(request)
+    qa_id = str(payload.qa_id or "").strip().lower().replace(" ", "_").replace("/", "_")
+    if not qa_id:
+        raise HTTPException(status_code=400, detail="missing qa_id")
+    label = str(payload.label or "").strip()
+    body = str(payload.answer_body or "").strip()
+    if not label or not body:
+        raise HTTPException(status_code=400, detail="label/answer_body required")
+    if len(body) > 12000:
+        raise HTTPException(status_code=400, detail="answer_body too long (max 12000)")
+    kws = _normalize_str_list(list(payload.keywords), max_items=24)
+    if not kws:
+        raise HTTPException(status_code=400, detail="keywords required")
+    with get_conn() as conn:
+        exists = conn.execute("SELECT 1 FROM support_qa_training WHERE qa_id = ? LIMIT 1", (qa_id,)).fetchone()
+        if exists:
+            raise HTTPException(status_code=409, detail="qa_id already exists")
+        conn.execute(
+            """
+            INSERT INTO support_qa_training (qa_id, label, keywords_json, answer_body, enabled, priority, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                qa_id,
+                label or qa_id,
+                json.dumps(kws, ensure_ascii=False),
+                body,
+                1 if payload.enabled else 0,
+                int(payload.priority),
+            ),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/admin/support-qa/generate")
+def api_admin_generate_support_qa(payload: SupportQaGenerateRequest, request: Request):
+    _require_admin_password(request)
+    topic = str(payload.topic or "").strip()
+    if len(topic) < 2:
+        raise HTTPException(status_code=400, detail="topic required")
+    rp = resolve_llm_provider((payload.llm_provider or "").strip() or None)
+    _, _, default_model = get_chat_credentials(rp)
+    use_model = (payload.model or "").strip() or default_model
+    if not use_model:
+        raise HTTPException(status_code=400, detail="missing model")
+    if not is_llm_configured(rp):
+        hint = llm_configuration_hint(rp).strip()
+        raise HTTPException(
+            status_code=503,
+            detail=hint
+            or (
+                f"LLM 尚未設定（供應商：{rp}）。請在後台「AI 供應商」填寫 Base URL 與 API Key 並儲存，"
+                "或在 .env 設定 DEEPSEEK_*／GEMINI_* 後重啟服務。"
+            ),
+        )
+    scene_id = str(payload.scene_id or "").strip().lower()
+    scene: dict[str, Any] | None = None
+    if scene_id:
+        scene = next(
+            (s for s in _load_offline_support_scenarios(enabled_only=False) if str(s.get("id") or "").strip().lower() == scene_id),
+            None,
+        )
+        if not scene:
+            raise HTTPException(status_code=404, detail="scene not found")
+    gc = max(1, min(10, int(payload.generate_count)))
+    prompt = _build_support_qa_generate_prompt(topic=topic, generate_count=gc, scene=scene)
+    messages = [
+        {
+            "role": "system",
+            "content": "你是日本不動產顧問團隊的後台資料編輯助手，只能輸出符合指定格式的 JSON。",
+        },
+        {"role": "user", "content": prompt},
+    ]
+    try:
+        raw = chat_completion(
+            messages,
+            model=use_model,
+            temperature=0.35,
+            timeout_sec=60.0,
+            provider=rp,
+            max_tokens=2800,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"llm_generate_failed: {format_llm_exception_for_user(exc)}",
+        ) from exc
+    try:
+        items = _normalize_generated_support_qa_items(raw, max_items=gc)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"invalid_json_from_llm: {type(exc).__name__}: {exc}") from exc
+    if not items:
+        raise HTTPException(status_code=502, detail="llm returned empty items")
+    enabled_flag = 1 if bool(payload.enabled) else 0
+    base_priority = max(0, min(1000, int(payload.base_priority)))
+    created: list[dict[str, Any]] = []
+    with get_conn() as conn:
+        for idx, item in enumerate(items):
+            qa_id = _next_available_support_qa_id(conn, str(item.get("qa_id") or ""))
+            priority = max(0, min(1000, base_priority - idx))
+            conn.execute(
+                """
+                INSERT INTO support_qa_training (qa_id, label, keywords_json, answer_body, enabled, priority, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (
+                    qa_id,
+                    str(item.get("label") or qa_id)[:240],
+                    json.dumps(_normalize_str_list(list(item.get("keywords") or []), max_items=24), ensure_ascii=False),
+                    str(item.get("answer_body") or "")[:12000],
+                    enabled_flag,
+                    priority,
+                ),
+            )
+            created.append(
+                {
+                    "id": qa_id,
+                    "label": str(item.get("label") or qa_id),
+                    "keywords": _normalize_str_list(list(item.get("keywords") or []), max_items=24),
+                    "priority": priority,
+                }
+            )
+        conn.commit()
+    return JSONResponse(
+        {
+            "ok": True,
+            "created_count": len(created),
+            "items": created,
+            "llm": {"provider": rp, "model": use_model},
+        }
+    )
+
+
+@app.put("/api/admin/support-qa/{qa_id}")
+def api_admin_update_support_qa(qa_id: str, payload: SupportQaUpsertRequest, request: Request):
+    _require_admin_password(request)
+    qa_id_n = str(qa_id or "").strip().lower()
+    if not qa_id_n:
+        raise HTTPException(status_code=400, detail="missing qa_id")
+    label = str(payload.label or "").strip()
+    body = str(payload.answer_body or "").strip()
+    if not label or not body:
+        raise HTTPException(status_code=400, detail="label/answer_body required")
+    if len(body) > 12000:
+        raise HTTPException(status_code=400, detail="answer_body too long (max 12000)")
+    kws = _normalize_str_list(list(payload.keywords), max_items=24)
+    if not kws:
+        raise HTTPException(status_code=400, detail="keywords required")
+    with get_conn() as conn:
+        row = conn.execute("SELECT 1 FROM support_qa_training WHERE qa_id = ? LIMIT 1", (qa_id_n,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="qa not found")
+        conn.execute(
+            """
+            UPDATE support_qa_training
+            SET label = ?, keywords_json = ?, answer_body = ?, enabled = ?, priority = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE qa_id = ?
+            """,
+            (
+                label or qa_id_n,
+                json.dumps(kws, ensure_ascii=False),
+                body,
+                1 if payload.enabled else 0,
+                int(payload.priority),
+                qa_id_n,
+            ),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/api/admin/support-qa/{qa_id}")
+def api_admin_delete_support_qa(qa_id: str, request: Request):
+    _require_admin_password(request)
+    qa_id_n = str(qa_id or "").strip().lower()
+    if not qa_id_n:
+        raise HTTPException(status_code=400, detail="missing qa_id")
+    with get_conn() as conn:
+        conn.execute("DELETE FROM support_qa_training WHERE qa_id = ?", (qa_id_n,))
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/admin/support-match-preview")
+def api_admin_support_match_preview(payload: SupportMatchPreviewRequest, request: Request):
+    _require_admin_password(request)
+    msg = str(payload.message or "").strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="message required")
+    matched_scene = _match_support_scenario(msg)
+    matched_qa = _match_support_qa_training(msg)
+    scene_hits = _matched_keywords_from_text(msg, list((matched_scene or {}).get("keywords") or []))
+    qa_hits = _matched_keywords_from_text(msg, list((matched_qa or {}).get("keywords") or []))
+    preview_reply = _build_offline_support_reply(
+        message=msg,
+        knowledge_meta={"row_count": 0, "distinct_sources": 0, "items": [], "managed_case_count": 0, "featured_count": 0},
+        persona_region=str(payload.persona_region or "tw"),
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "matched_scene": (
+                {
+                    "id": matched_scene.get("id"),
+                    "label": matched_scene.get("label"),
+                    "priority": matched_scene.get("priority"),
+                    "hit_keywords": scene_hits,
+                }
+                if matched_scene
+                else None
+            ),
+            "matched_qa": (
+                {
+                    "id": matched_qa.get("id"),
+                    "label": matched_qa.get("label"),
+                    "priority": matched_qa.get("priority"),
+                    "hit_keywords": qa_hits,
+                }
+                if matched_qa
+                else None
+            ),
+            "offline_reply_preview": preview_reply,
+        }
+    )
+
+
+@app.get("/api/admin/support-crm-prompt")
+def api_admin_get_support_crm_prompt(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, **admin_support_crm_prompt_snapshot()})
+
+
+@app.put("/api/admin/support-crm-prompt")
+def api_admin_put_support_crm_prompt(payload: SupportCrmPromptPut, request: Request):
+    _require_admin_password(request)
+    if payload.enabled is not None:
+        set_kv(KV_SUPPORT_CRM_ENABLED, "1" if payload.enabled else "0")
+    if payload.inject_mode is not None:
+        m = str(payload.inject_mode).strip().lower()
+        if m not in ("full", "compact", "both"):
+            raise HTTPException(status_code=400, detail="inject_mode must be full|compact|both")
+        set_kv(KV_SUPPORT_CRM_MODE, m)
+    if payload.full_prompt is not None:
+        set_kv(KV_SUPPORT_CRM_FULL, str(payload.full_prompt))
+    if payload.compact_prompt is not None:
+        set_kv(KV_SUPPORT_CRM_COMPACT, str(payload.compact_prompt))
+    if payload.examples is not None:
+        set_kv(KV_SUPPORT_CRM_EXAMPLES, str(payload.examples))
+    return JSONResponse({"ok": True, **admin_support_crm_prompt_snapshot()})
+
+
+@app.delete("/api/admin/support-crm-prompt")
+def api_admin_delete_support_crm_prompt(request: Request):
+    """清除 app_kv 中的 CRM 提示詞設定，還原為程式內建預設與預設開啟。"""
+    _require_admin_password(request)
+    for k in (
+        KV_SUPPORT_CRM_FULL,
+        KV_SUPPORT_CRM_COMPACT,
+        KV_SUPPORT_CRM_EXAMPLES,
+        KV_SUPPORT_CRM_MODE,
+        KV_SUPPORT_CRM_ENABLED,
+    ):
+        delete_kv(k)
+    return JSONResponse({"ok": True, **admin_support_crm_prompt_snapshot()})
+
+
+@app.get("/api/admin/llm-settings")
+def api_admin_get_llm_settings(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, **admin_llm_settings_snapshot()})
+
+
+@app.put("/api/admin/llm-settings")
+def api_admin_put_llm_settings(payload: AdminLlmSettingsPut, request: Request):
+    _require_admin_password(request)
+    _apply_admin_llm_settings(payload)
+    return JSONResponse({"ok": True, **admin_llm_settings_snapshot()})
+
+
+@app.get("/api/admin/site-dns-settings")
+def api_admin_get_site_dns_settings(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, **admin_site_dns_snapshot()})
+
+
+@app.put("/api/admin/site-dns-settings")
+def api_admin_put_site_dns_settings(payload: AdminSiteDnsPut, request: Request):
+    _require_admin_password(request)
+    apply_site_dns_settings(
+        public_site_url=payload.public_site_url,
+        public_site_url_aliases=payload.public_site_url_aliases,
+    )
+    return JSONResponse({"ok": True, **admin_site_dns_snapshot()})
+
+
+@app.get("/api/admin/telegram-settings")
+def api_admin_get_telegram_settings(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, **admin_telegram_snapshot()})
+
+
+@app.put("/api/admin/telegram-settings")
+def api_admin_put_telegram_settings(payload: AdminTelegramPut, request: Request):
+    _require_admin_password(request)
+    _apply_admin_telegram_settings(payload)
+    return JSONResponse({"ok": True, **admin_telegram_snapshot()})
+
+
+def _telegram_admin_test_response(payload: AdminTelegramTestPost) -> JSONResponse:
+    aid_opt = str(payload.account_id or "").strip() or None
+    if aid_opt and _sanitize_telegram_account_id(aid_opt) not in [x["id"] for x in _telegram_accounts_meta_list()]:
+        raise HTTPException(status_code=400, detail="指定的 account_id 不存在，請先於「多顧問帳號」儲存該列。")
+    token_pre, chat_pre = _telegram_credentials_for_optional_account(aid_opt)
+    if not token_pre:
+        raise HTTPException(
+            status_code=400,
+            detail="尚未儲存 Bot Token：請在對應顧問列貼上 BotFather 提供的 token，先按「儲存 Telegram」寫入本機資料庫後，再按「測試連線並發送」。（基於安全，不會使用尚未儲存的輸入框內容呼叫 Telegram。）",
+        )
+    if not _telegram_bot_token_format_ok(token_pre):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "已儲存的 Bot Token 格式不正確：須為「Bot 的數字ID:密鑰」（例：7123456789:AAH…），"
+                "勿只貼密鑰、勿把 Chat ID 當成前半段、勿貼網址。"
+                "請勾選「清除 Token」→ 到 @BotFather → /mybots → 選 Bot → API Token 整段複製 → 再「儲存 Telegram」。"
+            ),
+        )
+    if not chat_pre:
+        raise HTTPException(
+            status_code=400,
+            detail="尚未儲存 Chat ID：請填數字 Chat ID（可對自己的 Bot 傳訊後用 @userinfobot 等方式取得），按「儲存 Telegram」後再測試。",
+        )
+    try:
+        me = _telegram_get_me_json(account_id=aid_opt)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"getMe 失敗：{_sanitize_telegram_error_detail(exc)}") from exc
+    if not me.get("ok"):
+        raise HTTPException(status_code=400, detail=str(me))
+    msg = (payload.message or "SCLAW 連線測試").strip()[:500] or "SCLAW 連線測試"
+    try:
+        sent = _telegram_send_to_chat_raw(chat_pre, msg, bot_token=token_pre)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=_sanitize_telegram_error_detail(exc)) from exc
+    return JSONResponse(
+        {
+            "ok": True,
+            "account_id": _sanitize_telegram_account_id(aid_opt) if aid_opt else _telegram_get_active_account_id(),
+            "getMe": me.get("result"),
+            "sendMessage": sent.get("result"),
+            # 供後台顯示：實際送出的目標（與已儲存 meta 一致）；若仍收不到，多為看錯帳號或尚未對該 Bot 按「開始」
+            "chat_id_target": str(chat_pre or "").strip(),
+        }
+    )
+
+
+@app.post("/api/admin/telegram-test")
+def api_admin_telegram_test(payload: AdminTelegramTestPost, request: Request):
+    _require_admin_password(request)
+    return _telegram_admin_test_response(payload)
+
+
+@app.get("/api/telegram/settings")
+def api_telegram_settings_public_path(request: Request):
+    """與 GET /api/admin/telegram-settings 相同；路徑不含 admin，供少數代理／本機環境避開攔截。"""
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, **admin_telegram_snapshot()})
+
+
+@app.put("/api/telegram/settings")
+def api_telegram_settings_put_public_path(payload: AdminTelegramPut, request: Request):
+    _require_admin_password(request)
+    _apply_admin_telegram_settings(payload)
+    return JSONResponse({"ok": True, **admin_telegram_snapshot()})
+
+
+@app.post("/api/telegram/connection-test")
+def api_telegram_connection_test_public_path(payload: AdminTelegramTestPost, request: Request):
+    """與 POST /api/admin/telegram-test 相同；路徑不含 admin。"""
+    _require_admin_password(request)
+    return _telegram_admin_test_response(payload)
+
+
+@app.get("/api/admin/line-settings")
+def api_admin_get_line_settings(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, **admin_line_snapshot()})
+
+
+@app.put("/api/admin/line-settings")
+def api_admin_put_line_settings(payload: AdminLinePut, request: Request):
+    _require_admin_password(request)
+    _apply_admin_line_settings(payload)
+    return JSONResponse({"ok": True, **admin_line_snapshot()})
+
+
+@app.get("/api/line/settings")
+def api_line_settings_public_path(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, **admin_line_snapshot()})
+
+
+@app.put("/api/line/settings")
+def api_line_settings_put_public_path(payload: AdminLinePut, request: Request):
+    _require_admin_password(request)
+    _apply_admin_line_settings(payload)
+    return JSONResponse({"ok": True, **admin_line_snapshot()})
+
+
+def _line_admin_test_response(payload: AdminLineTestPost) -> JSONResponse:
+    if not _line_channel_access_token():
+        raise HTTPException(status_code=400, detail="尚未儲存 LINE Channel access token。")
+    to_user_id = _normalize_line_user_id(payload.to_user_id or "") or _line_staff_user_id()
+    if not to_user_id:
+        raise HTTPException(status_code=400, detail="尚未儲存 LINE 顧問 User ID。")
+    target_kind = _line_push_target_id_kind(to_user_id)
+    if not target_kind:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "LINE 測試收件 ID 必須是 U 開頭的使用者 ID、C 開頭的群組 ID，"
+                "或 R 開頭的聊天室 ID；Channel ID 不能接收推播。"
+            ),
+        )
+    try:
+        bot_info = _line_get_bot_info_json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"LINE bot info 失敗：{_sanitize_line_error_detail(exc)}") from exc
+    target_profile = {}
+    target_profile_error = ""
+    if target_kind == "user":
+        try:
+            target_profile = _line_get_profile_json(to_user_id)
+        except Exception as exc:
+            target_profile_error = _sanitize_line_error_detail(exc)
+    msg = str(payload.message or "SCLAW LINE 連線測試").strip()[:500] or "SCLAW LINE 連線測試"
+    try:
+        sent = _line_push_text(to_user_id, msg)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=_sanitize_line_error_detail(exc)) from exc
+    return JSONResponse(
+        {
+            "ok": True,
+            "bot": bot_info,
+            "push": sent,
+            "to_user_id": to_user_id,
+            "target_kind": target_kind,
+            "target_profile": target_profile,
+            "target_profile_error": target_profile_error,
+        }
+    )
+
+
+@app.post("/api/admin/line-test")
+def api_admin_line_test(payload: AdminLineTestPost, request: Request):
+    _require_admin_password(request)
+    return _line_admin_test_response(payload)
+
+
+@app.post("/api/line/connection-test")
+def api_line_connection_test_public_path(payload: AdminLineTestPost, request: Request):
+    _require_admin_password(request)
+    return _line_admin_test_response(payload)
+
+
+@app.get("/api/admin/line-webhook-info")
+def api_admin_line_webhook_info(request: Request):
+    _require_admin_password(request)
+    if not _line_channel_access_token():
+        raise HTTPException(status_code=400, detail="尚未儲存 LINE Channel access token。")
+    try:
+        with httpx.Client(timeout=18.0) as client:
+            r = client.get(
+                "https://api.line.me/v2/bot/channel/webhook/endpoint",
+                headers=_line_auth_headers(),
+            )
+        info = r.json() if (r.text or "").strip() else {}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=_sanitize_line_error_detail(exc)) from exc
+    if int(r.status_code or 0) >= 400:
+        raise HTTPException(status_code=400, detail=_line_api_error_line(r))
+    return JSONResponse(
+        {
+            "ok": True,
+            "stored_webhook_url": _line_webhook_url(),
+            "local_webhook_url_suggested": f"{(get_effective_site_url() or '').strip().rstrip('/')}/api/line/webhook"
+            if (get_effective_site_url() or "").strip()
+            else "",
+            "line": info,
+        }
+    )
+
+
+@app.post("/api/admin/line-register-webhook")
+def api_admin_line_register_webhook(payload: LineWebhookRegisterBody, request: Request):
+    _require_admin_password(request)
+    if not _line_channel_access_token():
+        raise HTTPException(status_code=400, detail="尚未儲存 LINE Channel access token。")
+    wh_url = str(payload.webhook_url or "").strip() or _line_webhook_url()
+    if not wh_url:
+        base = (get_effective_site_url() or "").strip().rstrip("/")
+        wh_url = f"{base}/api/line/webhook" if base else ""
+    if not wh_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="LINE Webhook URL 必須是 https:// 開頭。")
+    try:
+        with httpx.Client(timeout=25.0) as client:
+            r = client.put(
+                "https://api.line.me/v2/bot/channel/webhook/endpoint",
+                headers=_line_auth_headers(),
+                json={"endpoint": wh_url},
+            )
+        if int(r.status_code or 0) >= 400:
+            raise RuntimeError(_line_api_error_line(r))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=_sanitize_line_error_detail(exc)) from exc
+    set_kv(KV_LINE_WEBHOOK_URL, wh_url[:500])
+    return JSONResponse({"ok": True, "webhook_url": wh_url, "line_response": {"status_code": int(r.status_code or 0)}})
+
+
+@app.post("/api/admin/line-send-by-session")
+def api_admin_line_send_by_session(payload: TelegramSendBySessionPost, request: Request):
+    _require_admin_password(request)
+    sid = _normalize_support_session_id(payload.session_id or "")
+    text = str(payload.text or "").strip()[:4900]
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    if not text:
+        raise HTTPException(status_code=400, detail="missing text")
+    try:
+        sent = _line_send_by_session(sid, text)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=_sanitize_line_error_detail(exc)) from exc
+    return JSONResponse(
+        {
+            "ok": True,
+            "session_id": sid,
+            "delivery_mode": str(sent.get("_delivery_mode") or "direct_customer_line"),
+            "delivery_note": str(sent.get("_delivery_note") or ""),
+            "line": sent,
+        }
+    )
+
+
+@app.post("/api/admin/line-bind-session")
+def api_admin_line_bind_session(payload: LineBindSessionPost, request: Request):
+    _require_admin_password(request)
+    sid = _normalize_support_session_id(payload.session_id or "")
+    luid = _normalize_line_user_id(payload.line_user_id or "")
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    if not luid:
+        raise HTTPException(status_code=400, detail="missing line_user_id")
+    try:
+        row = _bind_session_to_line_user(
+            session_id=sid,
+            line_user_id=luid,
+            display_name=str(payload.display_name or "").strip(),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=_sanitize_line_error_detail(exc)) from exc
+    return JSONResponse({"ok": True, **row})
+
+
+@app.get("/api/admin/line-sessions")
+def api_admin_line_sessions(
+    request: Request,
+    q: str = Query(default=""),
+    limit: int = Query(default=80, ge=1, le=500),
+):
+    _require_admin_password(request)
+    _ensure_support_channel_tables()
+    qc = (q or "").strip()
+    with get_conn() as conn:
+        if qc:
+            like = f"%{qc}%"
+            rows = conn.execute(
+                """
+                SELECT session_id, line_user_id, display_name, last_inbound_text, created_at, updated_at
+                FROM line_chat_sessions
+                WHERE session_id LIKE ? OR line_user_id LIKE ? OR display_name LIKE ? OR last_inbound_text LIKE ?
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                (like, like, like, like, int(limit)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT session_id, line_user_id, display_name, last_inbound_text, created_at, updated_at
+                FROM line_chat_sessions
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+    return JSONResponse({"ok": True, "count": len(rows), "items": [dict(r) for r in rows]})
+
+
+async def _handle_line_webhook_request(request: Request, account_id: str = "") -> Response:
+    if request.method == "HEAD":
+        return Response(status_code=200)
+    if request.method == "GET":
+        return JSONResponse(
+            {
+                "ok": True,
+                "service": "sclaw-line-webhook",
+                "account_id": _sanitize_telegram_account_id(account_id),
+                "hint": "LINE 會以 POST 傳送 JSON events；正式請求需 X-Line-Signature 驗證。",
+            }
+        )
+    raw = await request.body()
+    secret = _line_channel_secret()
+    if secret and not _line_signature_ok(raw, request.headers.get("X-Line-Signature") or "", secret):
+        _push_telegram_debug_event("line_webhook_rejected_signature", channel="line", account_id=account_id)
+        return Response(status_code=401)
+    try:
+        body = json.loads(raw.decode("utf-8") if raw else "{}")
+    except Exception:
+        _push_telegram_debug_event("line_webhook_bad_json", channel="line", account_id=account_id)
+        return JSONResponse({"ok": False}, status_code=400)
+    events = body.get("events") if isinstance(body, dict) else []
+    if not isinstance(events, list):
+        events = []
+    _push_telegram_debug_event(
+        "line_webhook_hit",
+        channel="line",
+        account_id=account_id,
+        event_count=len(events),
+    )
+    for event in events[:20]:
+        if isinstance(event, dict):
+            threading.Thread(target=_process_line_event, args=(event,), daemon=True).start()
+    return JSONResponse({"ok": True})
+
+
+@app.api_route("/api/line/webhook", methods=["GET", "HEAD", "POST"])
+@app.api_route("/api/line/webhook/", methods=["GET", "HEAD", "POST"])
+async def api_line_webhook(request: Request):
+    return await _handle_line_webhook_request(request)
+
+
+@app.api_route("/api/bridge/line/webhook/{account_id}", methods=["GET", "HEAD", "POST"])
+async def api_line_bridge_webhook_for_account(account_id: str, request: Request):
+    return await _handle_line_webhook_request(request, account_id=account_id)
+
+
+@app.api_route("/api/telegram/webhook/{account_id}", methods=["GET", "HEAD", "POST"])
+async def api_telegram_webhook_for_account(account_id: str, request: Request):
+    """多 Bot：每個顧問帳號在 Telegram 註冊 `…/api/telegram/webhook/<帳號id>`（與舊路徑並存）。"""
+    if request.method == "HEAD":
+        return Response(status_code=200)
+    aid = _sanitize_telegram_account_id(account_id)
+    ids = [x["id"] for x in _telegram_accounts_meta_list()]
+    if aid not in ids:
+        return JSONResponse({"ok": False, "detail": "unknown account_id"}, status_code=404)
+    tok = _normalize_telegram_bot_token(get_kv(_telegram_account_token_key(aid), ""))
+    if not tok or not _telegram_bot_token_format_ok(tok):
+        return JSONResponse({"ok": False, "detail": "token missing or invalid for account"}, status_code=400)
+    if request.method == "GET":
+        return JSONResponse(
+            {
+                "ok": True,
+                "service": "sclaw-telegram-webhook",
+                "account_id": aid,
+                "hint": "請以此完整 URL 向 Telegram setWebhook；POST JSON 與舊 /api/telegram/webhook 相同。",
+            }
+        )
+    secret = get_kv("telegram_webhook_secret", "").strip()
+    if secret:
+        got = (request.headers.get("X-Telegram-Bot-Api-Secret-Token") or "").strip()
+        if got != secret:
+            _push_telegram_debug_event("webhook_rejected_secret", hint="secret_mismatch", account_id=aid)
+            return Response(status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        _push_telegram_debug_event("webhook_bad_json", account_id=aid)
+        return JSONResponse({"ok": False}, status_code=400)
+    if isinstance(body, dict):
+        msg = body.get("message") or body.get("edited_message") or {}
+        chat = msg.get("chat") if isinstance(msg, dict) else {}
+        from_user = msg.get("from") if isinstance(msg, dict) else {}
+        _push_telegram_debug_event(
+            "webhook_hit",
+            update_id=body.get("update_id"),
+            telegram_chat_id=(chat or {}).get("id"),
+            telegram_from_id=(from_user or {}).get("id"),
+            has_message=bool(msg),
+            account_id=aid,
+        )
+        _process_telegram_update(body, bot_token=tok)
+    return JSONResponse({"ok": True})
+
+
+@app.api_route("/api/telegram/webhook", methods=["GET", "HEAD", "POST"])
+@app.api_route("/api/telegram/webhook/", methods=["GET", "HEAD", "POST"])
+async def api_telegram_webhook(request: Request):
+    """Telegram Bot 更新入口：顧問「回覆」已綁定之通知，或 /reply <Session> 文字。需先於後台註冊 Webhook。
+
+    亦接受 GET/HEAD（瀏覽器或探測請求）；Telegram 正式更新僅使用 POST JSON。
+    同時註冊有無尾隨斜線之路徑，避免少數反向代理或誤設網址時出現非預期行為。
+    """
+    if request.method == "HEAD":
+        return Response(status_code=200)
+    if request.method == "GET":
+        return JSONResponse(
+            {
+                "ok": True,
+                "service": "sclaw-telegram-webhook",
+                "hint": "Telegram 以 POST 傳送 JSON update；若 getWebhookInfo 顯示 405，請確認公開網址允許 POST 至此路徑。",
+            }
+        )
+    secret = get_kv("telegram_webhook_secret", "").strip()
+    if secret:
+        got = (request.headers.get("X-Telegram-Bot-Api-Secret-Token") or "").strip()
+        if got != secret:
+            _push_telegram_debug_event("webhook_rejected_secret", hint="secret_mismatch")
+            return Response(status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        _push_telegram_debug_event("webhook_bad_json")
+        return JSONResponse({"ok": False}, status_code=400)
+    if isinstance(body, dict):
+        msg = body.get("message") or body.get("edited_message") or {}
+        chat = msg.get("chat") if isinstance(msg, dict) else {}
+        from_user = msg.get("from") if isinstance(msg, dict) else {}
+        _push_telegram_debug_event(
+            "webhook_hit",
+            update_id=body.get("update_id"),
+            telegram_chat_id=(chat or {}).get("id"),
+            telegram_from_id=(from_user or {}).get("id"),
+            has_message=bool(msg),
+        )
+        _tok, _ = _telegram_active_credentials()
+        _process_telegram_update(body, bot_token=_tok)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/support/telegram-inbox")
+def api_support_telegram_inbox(
+    session_id: str = Query(..., description="與網頁智能客服相同的 session（localStorage sales_session）"),
+    after_id: int = Query(0, ge=0),
+):
+    """網頁輪詢：取得顧問自 Telegram / LINE 回覆、尚未顯示之訊息。"""
+    sid = (session_id or "").strip()[:120]
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    pull_meta: dict[str, Any] = {}
+    try:
+        pull_meta = _telegram_poll_updates_once()
+    except Exception:
+        pull_meta = {"ok": False, "status": "poll_error"}
+    _ensure_telegram_session_tables()
+    _ensure_support_channel_tables()
+    with get_conn() as conn:
+        meta_row = conn.execute(
+            """
+            SELECT COUNT(*) AS total_count, COALESCE(MAX(id), 0) AS latest_id
+            FROM support_staff_inbox
+            WHERE session_id = ?
+            """,
+            (sid,),
+        ).fetchone()
+        rows = conn.execute(
+            """
+            SELECT id, body, source_channel, source_from_id, created_at
+            FROM support_staff_inbox
+            WHERE session_id = ? AND id > ?
+            ORDER BY id ASC
+            LIMIT 80
+            """,
+            (sid, int(after_id)),
+        ).fetchall()
+        thread_row = conn.execute(
+            """
+            SELECT
+              (SELECT COUNT(1) FROM telegram_outbound_bridge WHERE session_id = ?) AS bridge_count,
+              (SELECT COUNT(1) FROM line_outbound_bridge WHERE session_id = ?) AS line_bridge_count,
+              (SELECT COUNT(1) FROM support_staff_inbox WHERE session_id = ? AND source_channel = 'telegram') AS telegram_inbox_count,
+              (SELECT COUNT(1) FROM support_staff_inbox WHERE session_id = ? AND source_channel = 'line') AS line_inbox_count,
+              (SELECT COUNT(1) FROM human_handoff_requests WHERE session_id = ?) AS handoff_count
+            """,
+            (sid, sid, sid, sid, sid),
+        ).fetchone()
+    items = [
+        {
+            "id": int(r["id"]),
+            "body": str(r["body"] or ""),
+            "source_channel": str(r["source_channel"] or ""),
+            "source_from_id": str(r["source_from_id"] or ""),
+            "telegram_from_id": str(r["source_from_id"] or ""),
+            "created_at": str(r["created_at"] or ""),
+        }
+        for r in rows
+    ]
+    latest_id = int((meta_row or {"latest_id": 0})["latest_id"] or 0)
+    total_count = int((meta_row or {"total_count": 0})["total_count"] or 0)
+    bridge_count = int((thread_row or {"bridge_count": 0})["bridge_count"] or 0)
+    line_bridge_count = int((thread_row or {"line_bridge_count": 0})["line_bridge_count"] or 0)
+    telegram_inbox_count = int((thread_row or {"telegram_inbox_count": 0})["telegram_inbox_count"] or 0)
+    line_inbox_count = int((thread_row or {"line_inbox_count": 0})["line_inbox_count"] or 0)
+    handoff_count = int((thread_row or {"handoff_count": 0})["handoff_count"] or 0)
+    thread_active = bool(total_count > 0 or bridge_count > 0 or line_bridge_count > 0 or handoff_count > 0)
+    return JSONResponse(
+        {
+            "ok": True,
+            "items": items,
+            "session_id": sid,
+            "after_id": int(after_id),
+            "latest_id": latest_id,
+            "total_count": total_count,
+            "bridge_count": bridge_count,
+            "line_bridge_count": line_bridge_count,
+            "telegram_inbox_count": telegram_inbox_count,
+            "line_inbox_count": line_inbox_count,
+            "handoff_count": handoff_count,
+            "thread_active": thread_active,
+            "telegram_pull": pull_meta,
+        }
+    )
+
+
+@app.get("/api/admin/telegram-sessions")
+def api_admin_telegram_sessions(
+    request: Request,
+    q: str = Query(default=""),
+    limit: int = Query(default=80, ge=1, le=500),
+):
+    """列出 Telegram chat 與 session 綁定，供主動推播查詢。"""
+    _require_admin_password(request)
+    _ensure_telegram_session_tables()
+    qc = (q or "").strip()
+    with get_conn() as conn:
+        if qc:
+            like = f"%{qc}%"
+            rows = conn.execute(
+                """
+                SELECT
+                  session_id, telegram_chat_id, telegram_user_id, chat_type, chat_title,
+                  username, first_name, last_name, last_inbound_text, created_at, updated_at
+                FROM telegram_chat_sessions
+                WHERE
+                  session_id LIKE ? OR telegram_chat_id LIKE ? OR telegram_user_id LIKE ? OR
+                  username LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR chat_title LIKE ?
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                (like, like, like, like, like, like, like, int(limit)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT
+                  session_id, telegram_chat_id, telegram_user_id, chat_type, chat_title,
+                  username, first_name, last_name, last_inbound_text, created_at, updated_at
+                FROM telegram_chat_sessions
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+    items = [dict(r) for r in rows]
+    return JSONResponse({"ok": True, "count": len(items), "items": items})
+
+
+@app.get("/api/admin/telegram-debug-recent")
+def api_admin_telegram_debug_recent(
+    request: Request,
+    limit: int = Query(default=80, ge=1, le=260),
+):
+    _require_admin_password(request)
+    with _telegram_debug_lock:
+        rows = list(_telegram_debug_events)[-int(limit):]
+    return JSONResponse(
+        {
+            "ok": True,
+            "count": len(rows),
+            "items": rows,
+            "server_time": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
+@app.get("/api/admin/telegram-debug-session-trace")
+def api_admin_telegram_debug_session_trace(
+    request: Request,
+    session_id: str = Query(..., description="要追蹤的客服 session id"),
+    limit: int = Query(default=20, ge=1, le=120),
+):
+    _require_admin_password(request)
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    init_db()
+    _ensure_telegram_session_tables()
+    n = int(limit)
+    with get_conn() as conn:
+        binds = conn.execute(
+            """
+            SELECT
+              session_id, telegram_chat_id, telegram_user_id, chat_type, chat_title,
+              username, first_name, last_name, last_inbound_text, created_at, updated_at
+            FROM telegram_chat_sessions
+            WHERE session_id = ?
+            ORDER BY updated_at DESC, id DESC
+            """,
+            (sid,),
+        ).fetchall()
+        inbox_rows = conn.execute(
+            """
+            SELECT id, session_id, body, telegram_from_id, created_at
+            FROM telegram_staff_inbox
+            WHERE session_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (sid, n),
+        ).fetchall()
+        bridge_rows = conn.execute(
+            """
+            SELECT id, telegram_chat_id, telegram_message_id, session_id, kind, created_at
+            FROM telegram_outbound_bridge
+            WHERE session_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (sid, n),
+        ).fetchall()
+        inbox_count_row = conn.execute(
+            "SELECT COUNT(*) AS c FROM telegram_staff_inbox WHERE session_id = ?",
+            (sid,),
+        ).fetchone()
+        bridge_count_row = conn.execute(
+            "SELECT COUNT(*) AS c FROM telegram_outbound_bridge WHERE session_id = ?",
+            (sid,),
+        ).fetchone()
+    return JSONResponse(
+        {
+            "ok": True,
+            "session_id": sid,
+            "bind_count": len(binds),
+            "inbox_count": int((inbox_count_row or {"c": 0})["c"] or 0),
+            "bridge_count": int((bridge_count_row or {"c": 0})["c"] or 0),
+            "binds": [dict(r) for r in binds],
+            "recent_inbox": [dict(r) for r in inbox_rows],
+            "recent_bridge": [dict(r) for r in bridge_rows],
+            "server_time": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
+@app.post("/api/admin/telegram-send-by-session")
+def api_admin_telegram_send_by_session(payload: TelegramSendBySessionPost, request: Request):
+    """用 session_id 主動推播到已綁定的 Telegram chat。"""
+    _require_admin_password(request)
+    sid = str(payload.session_id or "").strip()[:120]
+    text = str(payload.text or "").strip()[:3900]
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    if not text:
+        raise HTTPException(status_code=400, detail="missing text")
+    try:
+        sent = _telegram_send_by_session(sid, text)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=_sanitize_telegram_error_detail(exc)) from exc
+    return JSONResponse(
+        {
+            "ok": True,
+            "session_id": sid,
+            "delivery_mode": str(sent.get("_delivery_mode") or "direct_customer_chat"),
+            "delivery_note": str(sent.get("_delivery_note") or ""),
+            "sendMessage": sent.get("result"),
+        }
+    )
+
+
+@app.post("/api/admin/telegram-bind-session")
+def api_admin_telegram_bind_session(payload: TelegramBindSessionPost, request: Request):
+    """手動綁定網頁 session_id 與 Telegram chat_id（客戶已加入 Bot 時可立即推送）。"""
+    _require_admin_password(request)
+    sid = _normalize_support_session_id(payload.session_id or "")
+    cid = str(payload.chat_id or "").strip()
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    if not cid:
+        raise HTTPException(status_code=400, detail="missing chat_id")
+    try:
+        row = _bind_session_to_telegram_chat(
+            session_id=sid,
+            chat_id=cid,
+            username=str(payload.username or "").strip(),
+            first_name=str(payload.first_name or "").strip(),
+            last_name=str(payload.last_name or "").strip(),
+            chat_title=str(payload.chat_title or "").strip(),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=_sanitize_telegram_error_detail(exc)) from exc
+    return JSONResponse({"ok": True, **row})
+
+
+@app.get("/api/admin/telegram-webhook-info")
+def api_admin_telegram_webhook_info(
+    request: Request,
+    account_id: str = Query(default=""),
+):
+    _require_admin_password(request)
+    aid_opt = str(account_id or "").strip() or None
+    token, _ch = _telegram_credentials_for_optional_account(aid_opt)
+    token = _normalize_telegram_bot_token(token)
+    if not token or not _telegram_bot_token_format_ok(token):
+        raise HTTPException(status_code=400, detail="請先儲存有效的 Bot Token（或選對顧問帳號）")
+    try:
+        with httpx.Client(timeout=18.0) as client:
+            r = client.get(f"https://api.telegram.org/bot{token}/getWebhookInfo")
+        tg = r.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)[:200]) from exc
+    base = (get_effective_site_url() or "").strip().rstrip("/")
+    secret = get_kv("telegram_webhook_secret", "").strip()
+    acc_slug = ""
+    if aid_opt:
+        acc_slug = "/" + _sanitize_telegram_account_id(aid_opt)
+    elif base:
+        acc_slug = "/" + _telegram_get_active_account_id()
+    return JSONResponse(
+        {
+            "ok": True,
+            "site_url": base,
+            "account_id": _sanitize_telegram_account_id(aid_opt) if aid_opt else _telegram_get_active_account_id(),
+            "webhook_url_suggested": f"{base}/api/telegram/webhook{acc_slug}" if base else "",
+            "webhook_url_legacy": f"{base}/api/telegram/webhook" if base else "",
+            "webhook_secret_configured": bool(secret),
+            "telegram": tg,
+        }
+    )
+
+
+@app.post("/api/admin/telegram-register-webhook")
+def api_admin_telegram_register_webhook(payload: TelegramWebhookRegisterBody, request: Request):
+    """向 Telegram 註冊 HTTPS Webhook，並產生／沿用 secret_token（寫入 app_kv）。"""
+    _require_admin_password(request)
+    aid_opt = str(payload.account_id or "").strip() or None
+    token, _c = _telegram_credentials_for_optional_account(aid_opt)
+    token = _normalize_telegram_bot_token(token)
+    if not token or not _telegram_bot_token_format_ok(token):
+        raise HTTPException(status_code=400, detail="請先儲存有效的 Bot Token（或選對顧問帳號）")
+    base = (payload.public_base_url or get_effective_site_url() or "").strip().rstrip("/")
+    if not base.startswith("https://"):
+        raise HTTPException(
+            status_code=400,
+            detail="需公開 HTTPS 網址（例：https://your-domain.com）。本機請用內網穿透取得 HTTPS 後再註冊。",
+        )
+    secret = get_kv("telegram_webhook_secret", "").strip()
+    if not secret or len(secret) < 12:
+        secret = uuid4().hex + uuid4().hex
+        set_kv("telegram_webhook_secret", secret[:256])
+        secret = get_kv("telegram_webhook_secret", "").strip()
+    acc_part = ""
+    if aid_opt:
+        acc_part = "/" + _sanitize_telegram_account_id(aid_opt)
+    else:
+        acc_part = "/" + _telegram_get_active_account_id()
+    wh_url = f"{base}/api/telegram/webhook{acc_part}"
+    try:
+        with httpx.Client(timeout=28.0) as client:
+            r = client.post(
+                f"https://api.telegram.org/bot{token}/setWebhook",
+                data={"url": wh_url, "secret_token": secret[:256]},
+            )
+        info = r.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)[:300]) from exc
+    if not isinstance(info, dict) or not info.get("ok"):
+        desc = ""
+        if isinstance(info, dict):
+            desc = str(info.get("description") or info)[:500]
+        raise HTTPException(status_code=400, detail=desc or "setWebhook 失敗")
+    return JSONResponse(
+        {
+            "ok": True,
+            "webhook_url": wh_url,
+            "account_id": _sanitize_telegram_account_id(aid_opt) if aid_opt else _telegram_get_active_account_id(),
+            "secret_token_length": len(secret[:256]),
+            "telegram_response": info,
+        }
+    )
+
+
+_INTEREST_PICK_MARKER = "【留單勾選諮詢案件】"
+
+
+def _interest_pick_line_count_from_note(note: str | None) -> int:
+    """When `support_session_case_interest` has no rows, infer count from merged留單 note text."""
+    text = (note or "").strip()
+    if _INTEREST_PICK_MARKER not in text:
+        return 0
+    tail = text.split(_INTEREST_PICK_MARKER, 1)[1].strip()
+    m = re.search(r"(?m)^【", tail)
+    if m:
+        tail = tail[: m.start()]
+    return len([ln for ln in tail.splitlines() if ln.strip()])
+
+
+def _effective_handoff_interest_count(note: str | None, db_count: int) -> int:
+    return max(int(db_count or 0), _interest_pick_line_count_from_note(note))
+
+
+@app.get("/api/admin/handoff-requests")
+def api_admin_handoff_requests(
+    request: Request,
+    q: str = Query(default="", description="模糊查詢：姓名/電話/信箱/備註/Session/動作/場景/對話/AI整理"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=5, le=100),
+):
+    _require_admin_password(request)
+    page_size = min(100, max(5, int(page_size)))
+    page = max(1, int(page))
+    offset = (page - 1) * page_size
+    with get_conn() as conn:
+        qc = (q or "").strip()
+        where_sql = "1=1"
+        params: list[Any] = []
+        if qc:
+            like = f"%{qc}%"
+            where_sql = (
+                "("
+                + " OR ".join(
+                    [
+                        "name LIKE ?",
+                        "phone LIKE ?",
+                        "email LIKE ?",
+                        "note LIKE ?",
+                        "action_id LIKE ?",
+                        "session_id LIKE ?",
+                        "matched_scene_label LIKE ?",
+                        "matched_scene_id LIKE ?",
+                        "context_message LIKE ?",
+                        "opinion LIKE ?",
+                        "ai_handoff_summary LIKE ?",
+                        "conversation_json LIKE ?",
+                    ]
+                )
+                + ")"
+            )
+            params.extend([like] * 12)
+
+        total = int(
+            conn.execute(f"SELECT COUNT(1) AS c FROM human_handoff_requests WHERE {where_sql}", params).fetchone()["c"]
+        )
+        rows = conn.execute(
+            f"""
+            SELECT
+              id, name, phone, email, note, user_agent,
+              action_id, session_id, matched_scene_id, matched_scene_label,
+              (
+                SELECT COUNT(1)
+                FROM support_session_case_interest i
+                WHERE i.session_id = human_handoff_requests.session_id
+              ) AS interested_case_count,
+              COALESCE(LENGTH(conversation_json), 0) AS conversation_chars,
+              created_at
+            FROM human_handoff_requests
+            WHERE {where_sql}
+            ORDER BY created_at DESC, id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (*params, page_size, offset),
+        ).fetchall()
+    items = []
+    for r in rows:
+        d = dict(r)
+        full_note = d.get("note") or ""
+        db_ic = int(d.get("interested_case_count") or 0)
+        items.append(
+            {
+                "id": d.get("id"),
+                "name": (d.get("name") or "")[:80],
+                "phone": (d.get("phone") or "")[:40],
+                "email": (d.get("email") or "")[:80],
+                "note": full_note[:120],
+                "action_id": d.get("action_id") or "",
+                "session_id": d.get("session_id") or "",
+                "matched_scene_label": d.get("matched_scene_label") or "",
+                "matched_scene_id": d.get("matched_scene_id") or "",
+                "interested_case_count": _effective_handoff_interest_count(full_note, db_ic),
+                "conversation_chars": int(d.get("conversation_chars") or 0),
+                "created_at": d.get("created_at") or "",
+            }
+        )
+    return JSONResponse({"ok": True, "total": total, "page": page, "page_size": page_size, "items": items})
+
+
+@app.get("/api/admin/handoff-requests/{handoff_id}")
+def api_admin_handoff_request_detail(handoff_id: int, request: Request):
+    _require_admin_password(request)
+    hid = int(handoff_id)
+    case_rows: list[dict[str, Any]] = []
+    staff_rows: list[dict[str, Any]] = []
+    _ensure_support_channel_tables()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+              id, name, phone, email, note, user_agent,
+              action_id, session_id, matched_scene_id, matched_scene_label,
+              context_message, opinion, questionnaire_json, conversation_json,
+              scenario_weights_json, ai_handoff_summary, created_at
+            FROM human_handoff_requests
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (hid,),
+        ).fetchone()
+        if row:
+            sid = str(row["session_id"] or "").strip()[:120]
+            if sid:
+                _ensure_support_case_interest_table(conn)
+                case_rows = [
+                    _interest_case_row_with_derived_article_url(dict(r))
+                    for r in conn.execute(
+                        """
+                        SELECT
+                          case_key, source_item_id, content_id, title, source_name,
+                          item_url, article_url, transaction_label_zh, jp_region_display_zh,
+                          transit_line_zh, price_text_hant, layout_text_hant, area_text_hant, building_type_zh,
+                        updated_at
+                      FROM support_session_case_interest
+                      WHERE session_id = ?
+                      ORDER BY updated_at DESC, id DESC
+                      LIMIT 30
+                      """,
+                      (sid,),
+                  ).fetchall()
+                ]
+                try:
+                    staff_rows = [
+                        dict(r)
+                        for r in conn.execute(
+                            """
+                            SELECT id, body, source_channel, source_from_id, created_at
+                            FROM support_staff_inbox
+                            WHERE session_id = ?
+                            ORDER BY id DESC
+                            LIMIT 80
+                            """,
+                            (sid,),
+                        ).fetchall()
+                    ]
+                except Exception:
+                    staff_rows = []
+    if not row:
+        raise HTTPException(status_code=404, detail="handoff not found")
+    d = dict(row)
+    conv: list = []
+    raw_c = str(d.get("conversation_json") or "").strip()
+    if raw_c:
+        try:
+            conv = json.loads(raw_c)
+            if not isinstance(conv, list):
+                conv = []
+        except Exception:
+            conv = []
+    d.pop("conversation_json", None)
+    d["conversation"] = conv
+    sw_raw = str(d.pop("scenario_weights_json", "") or "").strip()
+    sw: list = []
+    if sw_raw:
+        try:
+            sw = json.loads(sw_raw)
+            if not isinstance(sw, list):
+                sw = []
+        except Exception:
+            sw = []
+    d["scenario_weights"] = sw
+    q_raw = str(d.pop("questionnaire_json", "") or "").strip()
+    q_obj: dict[str, Any] = {}
+    if q_raw:
+        try:
+            q_obj = json.loads(q_raw)
+            if not isinstance(q_obj, dict):
+                q_obj = {}
+        except Exception:
+            q_obj = {}
+    d["questionnaire"] = q_obj
+    d["interested_cases"] = case_rows
+    d["staff_inbox"] = list(reversed(staff_rows))
+    return JSONResponse({"ok": True, "item": d})
+
+
+@app.delete("/api/admin/handoff-requests/{handoff_id}")
+def api_admin_handoff_request_delete(handoff_id: int, request: Request):
+    _require_admin_password(request)
+    hid = int(handoff_id)
+    session_id = ""
+    deleted_interest_case_count = 0
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT id, session_id
+            FROM human_handoff_requests
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (hid,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="handoff not found")
+        session_id = str(row["session_id"] or "").strip()[:120]
+        cur = conn.execute("DELETE FROM human_handoff_requests WHERE id = ?", (hid,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="handoff not found")
+        if session_id:
+            remain = int(
+                conn.execute(
+                    "SELECT COUNT(1) AS c FROM human_handoff_requests WHERE session_id = ?",
+                    (session_id,),
+                ).fetchone()["c"]
+            )
+            if remain <= 0:
+                _ensure_support_case_interest_table(conn)
+                deleted_interest_case_count = int(
+                    conn.execute(
+                        "DELETE FROM support_session_case_interest WHERE session_id = ?",
+                        (session_id,),
+                    ).rowcount
+                    or 0
+                )
+        conn.commit()
+    return JSONResponse(
+        {
+            "ok": True,
+            "deleted_id": hid,
+            "session_id": session_id,
+            "deleted_interest_case_count": deleted_interest_case_count,
+        }
+    )
+
+
+def _admin_cases_where_params(
+    *,
+    q: str,
+    transaction: str,
+    region_code: str,
+    jp_area: str,
+    jp_line_id: int = 0,
+    jp_station_id: int = 0,
+    walk_max: int = 0,
+) -> tuple[str, list[Any]]:
+    parts: list[str] = ["1=1"]
+    params: list[Any] = []
+    tx_sql, tx_params = transaction_sql_clause(transaction)
+    parts.append(f"({tx_sql})")
+    params.extend(tx_params)
+    rc = (region_code or "").strip()
+    if rc:
+        parts.append("c.region_code = ?")
+        params.append(rc)
+    ja = (jp_area or "").strip()
+    if ja:
+        like = f"%{ja}%"
+        parts.append(
+            "("
+            "c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ? OR c.body_zh_hant LIKE ? OR "
+            "c.body_zh_hans LIKE ? OR s.title_original LIKE ?"
+            ")"
+        )
+        params.extend([like, like, like, like, like])
+    sid = max(0, int(jp_station_id or 0))
+    if sid > 0:
+        parts.append("c.jp_station_id = ?")
+        params.append(sid)
+    lid = max(0, int(jp_line_id or 0))
+    if lid > 0 and sid <= 0:
+        parts.append("c.jp_station_id IN (SELECT station_id FROM jp_trans_station WHERE line_id = ?)")
+        params.append(lid)
+    wmax = max(0, int(walk_max or 0))
+    if wmax > 0:
+        parts.append("(COALESCE(c.walk_min,0) = 0 OR COALESCE(c.walk_min,0) <= ?)")
+        params.append(wmax)
+    qc = (q or "").strip()
+    if qc:
+        like = f"%{qc}%"
+        parts.append(
+            "("
+            "c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ? OR c.body_zh_hant LIKE ? OR "
+            "c.body_zh_hans LIKE ? OR s.title_original LIKE ? OR s.item_url LIKE ?"
+            ")"
+        )
+        params.extend([like, like, like, like, like, like])
+    return " AND ".join(parts), params
+
+
+_CASE_CSV_COLUMNS: list[str] = [
+    "content_id",
+    "title_zh_hant",
+    "case_transaction_override",
+    "case_jp_region_override",
+    "case_transit_override",
+    "jp_station_id",
+    "walk_min",
+    "featured_weight",
+    "listing_media_json",
+]
+
+
+def _parse_listing_media_field(val: Any) -> list[Any]:
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        s = val.strip()
+        if not s:
+            return []
+        try:
+            parsed = json.loads(s)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+    return []
+
+
+def _listing_media_to_json_str(val: Any) -> str:
+    try:
+        return json.dumps(_parse_listing_media_field(val), ensure_ascii=False)
+    except Exception:
+        return "[]"
+
+
+_SOCIAL_TG_ROOT_ENV = "DIGITAL_HUMAN_TG_BOT_ROOT"
+_SOCIAL_TG_DEFAULT_ROOT = Path(r"D:\digital_human_tg_bot")
+_SOCIAL_TG_FILE_COLUMNS = {
+    "source_video": "source_video_path",
+    "avatar_image": "avatar_image_path",
+    "extracted_audio": "extracted_audio_path",
+    "cloned_audio": "cloned_audio_path",
+    "final_video": "final_video_path",
+}
+_SOCIAL_AI_PROVIDERS = {
+    "gpt": {
+        "label": "GPT",
+        "base_key": "social_case_ai_gpt_base_url",
+        "api_key": "social_case_ai_gpt_api_key",
+        "model_key": "social_case_ai_gpt_model",
+        "default_model": "gpt-5.4",
+    },
+    "gemini": {
+        "label": "Gemini",
+        "base_key": "social_case_ai_gemini_base_url",
+        "api_key": "social_case_ai_gemini_api_key",
+        "model_key": "social_case_ai_gemini_model",
+        "default_model": "gemini-3-flash-preview",
+    },
+}
+_SOCIAL_IMAGE_PROVIDER = {
+    "label": "香蕉生圖",
+    "base_key": "social_case_ai_banana_base_url",
+    "api_key": "social_case_ai_banana_api_key",
+    "model_key": "social_case_ai_banana_model",
+    "default_model": "gemini-2.5-flash-image",
+}
+
+
+class SocialAiCopyPost(BaseModel):
+    source_item_id: int = 0
+    provider: str = "gpt"
+    platform: str = "auto"
+    instruction: str = ""
+    duration_seconds: int = Field(default=30, ge=8, le=120)
+    selected_image_urls: list[str] = Field(default_factory=list)
+    selected_segments: list[dict[str, Any]] = Field(default_factory=list)
+    segment_mode: str = "core"
+
+
+class SocialBananaImagePost(BaseModel):
+    source_item_id: int = 0
+    provider: str = "banana"
+    purpose: str = "cover"
+    prompt: str = ""
+    size: str = "1024x1024"
+    reference_image_data_url: str = ""
+    reference_image_url: str = ""
+    scene: str = "cooperation_intro"
+    identity_lock: bool = True
+    case_scene_context: str = ""
+    case_scene_image_urls: list[str] = Field(default_factory=list)
+
+
+class SocialAvatarUploadPost(BaseModel):
+    source_item_id: int = 0
+    image_data_url: str = ""
+    label: str = ""
+    scene: str = "uploaded_agent"
+    identity_lock: bool = True
+
+
+class SocialAiSettingsPut(BaseModel):
+    gpt_base_url: str | None = None
+    gpt_api_key: str | None = None
+    gpt_model: str | None = None
+    gemini_base_url: str | None = None
+    gemini_api_key: str | None = None
+    gemini_model: str | None = None
+    banana_base_url: str | None = None
+    banana_api_key: str | None = None
+    banana_model: str | None = None
+
+
+class SocialSeedanceVideoPost(BaseModel):
+    source_item_id: int = 0
+    prompt: str = ""
+    duration: int = Field(default=10, ge=4, le=15)
+    resolution: str = "720p"
+    ratio: str = "9:16"
+    image_urls: list[str] = Field(default_factory=list)
+    video_urls: list[str] = Field(default_factory=list)
+    audio_urls: list[str] = Field(default_factory=list)
+    generate_audio: bool = True
+    real_person_mode: bool = True
+    return_last_frame: bool = False
+    seed: int = -1
+    workflow_id: str = ""
+
+
+def _social_tg_root() -> Path:
+    raw = str(os.getenv(_SOCIAL_TG_ROOT_ENV) or "").strip()
+    if raw:
+        return Path(raw)
+    local = Path.cwd().parent / "digital_human_tg_bot"
+    if local.exists():
+        return local
+    return _SOCIAL_TG_DEFAULT_ROOT
+
+
+def _social_tg_web_url() -> str:
+    return str(os.getenv("DIGITAL_HUMAN_TG_WEB_URL") or "http://localhost:8091").strip() or "http://localhost:8091"
+
+
+_SOCIAL_SEEDANCE_DEFAULT_WORKFLOW_ID = "2059860266723971073"
+_SOCIAL_SEEDANCE_API_DETAIL_ID = "2034917373414539277"
+_SOCIAL_SEEDANCE_ENDPOINT = "/openapi/v2/bytedance/seedance-2.0-global/multimodal-video"
+_SOCIAL_SEEDANCE_QUERY_ENDPOINT = "/openapi/v2/query"
+_SOCIAL_SEEDANCE_DOC_URL = (
+    "https://www.runninghub.cn/call-api/api-detail/"
+    f"{_SOCIAL_SEEDANCE_API_DETAIL_ID}?apiType=1"
+)
+
+
+def _social_seedance_records_path() -> Path:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return DATA_DIR / "social_case_seedance_tasks.json"
+
+
+def _social_seedance_base_url() -> str:
+    raw = (
+        str(os.getenv("SOCIAL_CASE_SEEDANCE_BASE_URL") or "").strip()
+        or str(os.getenv("RUNNINGHUB_BASE_URL") or "").strip()
+        or str(get_kv("social_case_seedance_base_url", "") or "").strip()
+        or "https://www.runninghub.ai"
+    )
+    return raw.rstrip("/") or "https://www.runninghub.ai"
+
+
+def _social_seedance_read_env_value(path: Path, names: set[str]) -> str:
+    if not path.is_file():
+        return ""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except Exception:
+        return ""
+    for line in lines:
+        raw = line.strip()
+        if not raw or raw.startswith("#") or "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        if key.strip() in names:
+            return value.strip().strip('"').strip("'")
+    return ""
+
+
+def _social_seedance_write_env_values(path: Path, updates: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    seen: set[str] = set()
+    out: list[str] = []
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            out.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in updates:
+            out.append(f"{key}={updates[key]}")
+            seen.add(key)
+        else:
+            out.append(line)
+    for key, value in updates.items():
+        if key not in seen:
+            out.append(f"{key}={value}")
+    path.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+
+
+def _social_seedance_api_key() -> str:
+    kv_keys = (
+        "social_case_seedance_api_key",
+        "social_case_runninghub_api_key",
+        "runninghub_api_key",
+        "engine_api_key",
+    )
+    for key in kv_keys:
+        value = str(get_kv(key, "") or "").strip()
+        if value:
+            return value
+    for key in ("SOCIAL_CASE_SEEDANCE_API_KEY", "ENGINE_API_KEY", "RUNNINGHUB_API_KEY"):
+        value = str(os.getenv(key) or "").strip()
+        if value:
+            return value
+    env_value = _social_seedance_read_env_value(
+        _social_tg_root() / ".env",
+        {"SOCIAL_CASE_SEEDANCE_API_KEY", "ENGINE_API_KEY", "RUNNINGHUB_API_KEY"},
+    )
+    if env_value:
+        return env_value
+    return ""
+
+
+def _social_seedance_config_snapshot() -> dict[str, Any]:
+    key = _social_seedance_api_key()
+    return {
+        "provider": "runninghub",
+        "model": "seedance-2.0-global/multimodal-video",
+        "workflow_id": str(os.getenv("SOCIAL_CASE_SEEDANCE_WORKFLOW_ID") or get_kv("social_case_seedance_workflow_id", "") or _SOCIAL_SEEDANCE_DEFAULT_WORKFLOW_ID),
+        "api_detail_id": _SOCIAL_SEEDANCE_API_DETAIL_ID,
+        "api_detail_url": _SOCIAL_SEEDANCE_DOC_URL,
+        "base_url": _social_seedance_base_url(),
+        "endpoint": _SOCIAL_SEEDANCE_ENDPOINT,
+        "query_endpoint": _SOCIAL_SEEDANCE_QUERY_ENDPOINT,
+        "api_key_configured": bool(key),
+        "api_key_masked": _social_mask_secret(key),
+    }
+
+
+def _social_seedance_load_records() -> list[dict[str, Any]]:
+    path = _social_seedance_records_path()
+    if not path.is_file():
+        return []
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    rows = loaded if isinstance(loaded, list) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _social_seedance_save_records(rows: list[dict[str, Any]]) -> None:
+    path = _social_seedance_records_path()
+    safe_rows = [row for row in rows if isinstance(row, dict)]
+    path.write_text(json.dumps(safe_rows[:120], ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _social_seedance_records(limit: int = 20) -> list[dict[str, Any]]:
+    rows = _social_seedance_load_records()
+    rows.sort(key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""), reverse=True)
+    return rows[: max(1, min(80, int(limit or 20)))]
+
+
+def _social_seedance_patch_record(task_id: str, patch: dict[str, Any]) -> dict[str, Any]:
+    tid = str(task_id or "").strip()
+    if not tid:
+        raise HTTPException(status_code=400, detail="missing task_id")
+    rows = _social_seedance_load_records()
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    found = None
+    for row in rows:
+        if str(row.get("task_id") or "") == tid:
+            row.update(patch)
+            row["updated_at"] = now
+            found = row
+            break
+    if found is None:
+        found = {"task_id": tid, "created_at": now, "updated_at": now, **patch}
+        rows.insert(0, found)
+    _social_seedance_save_records(rows)
+    return found
+
+
+def _social_seedance_external_urls(urls: list[Any], *, limit: int) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    blocked_hosts = {"127.0.0.1", "localhost", "::1"}
+    for raw in urls:
+        url = str(raw or "").strip()
+        if not url.lower().startswith(("http://", "https://")):
+            continue
+        host = (urlparse(url).hostname or "").lower()
+        if host in blocked_hosts:
+            continue
+        key = url.lower().rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(url)
+        if len(out) >= max(1, int(limit or 1)):
+            break
+    return out
+
+
+def _social_seedance_sales_prompt(item: dict[str, Any], *, image_count: int, video_count: int, extra_prompt: str = "") -> str:
+    title = _social_text(item.get("title") or item.get("seo_title") or item.get("title_original") or "Japanese real-estate listing", limit=120)
+    facts = dict(item.get("facts") or {})
+    fact_line = " / ".join([_social_text(v, limit=48) for v in facts.values() if str(v or "").strip()][:5])
+    points = " / ".join([_social_text(x, limit=70) for x in (item.get("selling_points") or []) if str(x or "").strip()][:5])
+    image_refs = " ".join(f"@Image {idx}" for idx in range(1, image_count + 1))
+    video_refs = " ".join(f"@Video {idx}" for idx in range(1, video_count + 1))
+    refs = " ".join(x for x in (image_refs, video_refs) if x).strip()
+    extra = _social_text(extra_prompt, limit=1600)
+    parts = [
+        refs,
+        "Create a premium Japanese real-estate sales video for TikTok and Xiaohongshu.",
+        f"Property: {title}.",
+        f"Key facts: {fact_line}." if fact_line else "",
+        f"Selling points: {points}." if points else "",
+        "Use smooth cinematic camera movement, bright natural lighting, clean luxury real-estate advertising style, clear room-to-room progression, and native ambience audio.",
+        "Structure: first 2 seconds strong hook, then exterior or location value, interior/layout highlights, final call-to-action for inquiry.",
+        "Avoid showing source-site watermarks or UI text. Do not invent legal guarantees. Keep the tone trustworthy, warm, and high-conversion.",
+        extra,
+    ]
+    return re.sub(r"\s+", " ", " ".join(p for p in parts if p).strip())[:8000]
+
+
+def _social_seedance_first_result(payload: dict[str, Any]) -> dict[str, str]:
+    results = payload.get("results") if isinstance(payload, dict) else []
+    if not isinstance(results, list):
+        return {"url": "", "output_type": ""}
+    selected: dict[str, Any] | None = None
+    for row in results:
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("url") or "").strip()
+        if not url:
+            continue
+        out_type = str(row.get("outputType") or row.get("fileType") or "").strip().lower()
+        if out_type in {"mp4", "mov", "webm", "video"}:
+            selected = row
+            break
+        if selected is None:
+            selected = row
+    if not selected:
+        return {"url": "", "output_type": ""}
+    return {
+        "url": str(selected.get("url") or "").strip(),
+        "output_type": str(selected.get("outputType") or selected.get("fileType") or "").strip(),
+    }
+
+
+def _social_seedance_submit(payload: SocialSeedanceVideoPost, item: dict[str, Any]) -> dict[str, Any]:
+    api_key = _social_seedance_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="RunningHub API Key 尚未設定，請先在影片引擎設定填入 Key。")
+    images = _social_seedance_external_urls(list(payload.image_urls or []) or list(item.get("property_images") or []), limit=9)
+    videos = _social_seedance_external_urls(list(payload.video_urls or []) or list(item.get("video_urls") or []), limit=3)
+    audios = _social_seedance_external_urls(list(payload.audio_urls or []), limit=3)
+    prompt = _social_seedance_sales_prompt(
+        item,
+        image_count=len(images),
+        video_count=len(videos),
+        extra_prompt=str(payload.prompt or ""),
+    )
+    duration = max(4, min(15, int(payload.duration or 10)))
+    resolution = str(payload.resolution or "720p").strip() or "720p"
+    ratio = str(payload.ratio or "9:16").strip() or "9:16"
+    request_body = {
+        "prompt": prompt,
+        "resolution": resolution,
+        "duration": str(duration),
+        "imageUrls": images,
+        "videoUrls": videos,
+        "audioUrls": audios,
+        "generateAudio": bool(payload.generate_audio),
+        "ratio": ratio,
+        "realPersonMode": bool(payload.real_person_mode),
+        "conversionSlots": ["all"],
+        "returnLastFrame": bool(payload.return_last_frame),
+        "seed": int(payload.seed if payload.seed is not None else -1),
+    }
+    request_body = {k: v for k, v in request_body.items() if v not in ([], "", None)}
+    cfg = _social_seedance_config_snapshot()
+    url = f"{cfg['base_url']}{_SOCIAL_SEEDANCE_ENDPOINT}"
+    try:
+        with httpx.Client(timeout=httpx.Timeout(120.0, connect=12.0), follow_redirects=True) as client:
+            resp = client.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=request_body,
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"RunningHub seedance request failed: {type(exc).__name__}: {exc}") from exc
+    if resp.status_code >= 400:
+        detail = (resp.text or "").replace("\r\n", " ").replace("\n", " ").strip()
+        raise HTTPException(status_code=502, detail=detail[:900] or f"RunningHub HTTP {resp.status_code}")
+    try:
+        body = resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="RunningHub returned non-JSON response") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=502, detail="RunningHub response is not an object")
+    if str(body.get("errorCode") or "").strip() or str(body.get("status") or "").upper() == "FAILED":
+        raise HTTPException(status_code=502, detail=str(body.get("errorMessage") or body)[:900])
+    task_id = str(body.get("taskId") or body.get("task_id") or "").strip()
+    if not task_id:
+        raise HTTPException(status_code=502, detail=f"RunningHub response missing taskId: {json.dumps(body, ensure_ascii=False)[:900]}")
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    record = {
+        "task_id": task_id,
+        "source_item_id": int(item.get("source_item_id") or payload.source_item_id or 0),
+        "title": str(item.get("title") or ""),
+        "status": str(body.get("status") or "RUNNING"),
+        "workflow_id": str(payload.workflow_id or cfg["workflow_id"]),
+        "api_detail_id": _SOCIAL_SEEDANCE_API_DETAIL_ID,
+        "api_detail_url": _SOCIAL_SEEDANCE_DOC_URL,
+        "model": cfg["model"],
+        "duration": duration,
+        "resolution": resolution,
+        "ratio": ratio,
+        "image_count": len(images),
+        "video_count": len(videos),
+        "prompt": prompt,
+        "request": request_body,
+        "response": body,
+        "results": body.get("results"),
+        "video_url": _social_seedance_first_result(body).get("url", ""),
+        "created_at": now,
+        "updated_at": now,
+    }
+    rows = [record] + [row for row in _social_seedance_load_records() if str(row.get("task_id") or "") != task_id]
+    _social_seedance_save_records(rows)
+    return record
+
+
+def _social_seedance_query(task_id: str) -> dict[str, Any]:
+    api_key = _social_seedance_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="RunningHub API Key 尚未設定。")
+    tid = str(task_id or "").strip()
+    if not tid:
+        raise HTTPException(status_code=400, detail="missing task_id")
+    cfg = _social_seedance_config_snapshot()
+    try:
+        with httpx.Client(timeout=httpx.Timeout(90.0, connect=10.0), follow_redirects=True) as client:
+            resp = client.post(
+                f"{cfg['base_url']}{_SOCIAL_SEEDANCE_QUERY_ENDPOINT}",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"taskId": tid},
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"RunningHub query failed: {type(exc).__name__}: {exc}") from exc
+    if resp.status_code >= 400:
+        detail = (resp.text or "").replace("\r\n", " ").replace("\n", " ").strip()
+        raise HTTPException(status_code=502, detail=detail[:900] or f"RunningHub HTTP {resp.status_code}")
+    try:
+        body = resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="RunningHub query returned non-JSON response") from exc
+    first = _social_seedance_first_result(body if isinstance(body, dict) else {})
+    record = _social_seedance_patch_record(
+        tid,
+        {
+            "status": str((body or {}).get("status") or ""),
+            "error_code": str((body or {}).get("errorCode") or ""),
+            "error_message": str((body or {}).get("errorMessage") or ""),
+            "results": (body or {}).get("results"),
+            "video_url": first.get("url", ""),
+            "output_type": first.get("output_type", ""),
+            "query_response": body,
+        },
+    )
+    return record
+
+
+_SOCIAL_SOURCE_LABEL_RE = re.compile(
+    r"(\[?\s*(?:SUUMO|LIFULL\s*HOME'?S|LIFULL|HOME'?S|at\s*home|Yahoo!?|Rakuten|楽天|YES1|OHEYASU|イエステーション|ホームズ|不動産情報)\s*\]?)",
+    re.I,
+)
+
+
+def _social_strip_source_labels(value: Any) -> str:
+    s = _SOCIAL_SOURCE_LABEL_RE.sub("", str(value or ""))
+    s = re.sub(r"^\s*[\[\]【】｜|:：,，、\-/]+", "", s)
+    s = re.sub(r"\s*[\[\]【】｜|:：,，、\-/]+\s*$", "", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _social_text(value: Any, *, limit: int = 280) -> str:
+    s = re.sub(r"<[^>]+>", " ", _social_strip_source_labels(value))
+    s = re.sub(r"\s+", " ", s).strip()
+    if limit > 0 and len(s) > limit:
+        return s[: max(0, limit - 1)].rstrip() + "..."
+    return s
+
+
+def _social_first_match(patterns: list[str], text: str) -> str:
+    for pat in patterns:
+        m = re.search(pat, text, re.I)
+        if m:
+            return _social_text(m.group(0), limit=80)
+    return ""
+
+
+def _social_case_facts(row: dict[str, Any], meta: dict[str, Any]) -> dict[str, str]:
+    blob = "\n".join(
+        [
+            str(row.get("title_zh_hant") or ""),
+            str(row.get("title_original") or ""),
+            str(row.get("body_zh_hant") or "")[:3000],
+            str(row.get("body_original") or "")[:4200],
+        ]
+    )
+    facts: dict[str, str] = {}
+    price = _social_first_match(
+        [
+            r"(?:價格|總價|售價|租金|月租)[:：\s]*[^\n。]{1,60}?(?=\s*(?:格局|間取り|專有|建物|土地|面積|所在地|地図|地圖|交通|築|樓層|階|來源|管理費|修繕|$))",
+            r"(?:約\s*)?\d[\d,.]*\s*(?:億\s*)?(?:万円|萬円|万円|日圓|円|JPY|NTD|台幣)",
+        ],
+        blob,
+    )
+    price = re.sub(r"^(?:價格|總價|售價|租金|月租)[:：\s]*", "", price).strip()
+    layout = _social_first_match(
+        [
+            r"\b\d+\s*(?:LDK|DK|K|R)\b",
+            r"(?:格局|間取り)[:：\s]*[^\n,，。]{2,28}",
+            r"[一二三四五六七八九十\d]+\s*(?:房|室)\s*[一二三四五六七八九十\d]*\s*(?:廳|厅)?",
+        ],
+        blob,
+    )
+    area = _social_first_match(
+        [
+            r"\d+(?:\.\d+)?\s*(?:㎡|m²|m2|平方公尺|平方メートル|坪)",
+            r"(?:建物面積|専有面積|土地面積|面積)[:：\s]*[^\n,，。]{2,34}",
+        ],
+        blob,
+    )
+    walk_min = int(row.get("walk_min") or 0)
+    transit = _social_text(meta.get("transit_line_zh") or row.get("case_transit_override") or "", limit=90)
+    if walk_min > 0 and transit and "步行" not in transit and "徒歩" not in transit:
+        transit = f"{transit} 步行約 {walk_min} 分"
+    region = _social_text(meta.get("jp_region_display_zh") or row.get("case_jp_region_override") or "", limit=80)
+    if price:
+        facts["價格"] = price
+    if layout:
+        facts["格局"] = layout
+    if area:
+        facts["面積"] = area
+    if transit:
+        facts["交通"] = transit
+    if region:
+        facts["區域"] = region
+    return facts
+
+
+def _social_title(row: dict[str, Any]) -> str:
+    title = _social_text(row.get("title_zh_hant") or row.get("seo_title") or row.get("title_original") or "", limit=96)
+    if title.lower().startswith(("http://", "https://")):
+        title = _social_text(row.get("source_name") or row.get("item_url") or "日本房產精選案件", limit=96)
+    return title or "日本房產精選案件"
+
+
+def _social_case_score(
+    row: dict[str, Any],
+    *,
+    image_count: int,
+    video_count: int,
+    facts: dict[str, str],
+    property_image_count: int,
+    agent_image_count: int,
+) -> tuple[int, list[str]]:
+    blob = "\n".join(
+        [
+            str(row.get("title_zh_hant") or ""),
+            str(row.get("title_original") or ""),
+            str(row.get("body_zh_hant") or "")[:1800],
+            str(row.get("body_original") or "")[:2400],
+        ]
+    )
+    reasons: list[str] = []
+    score = 34
+    fw = int(row.get("featured_weight") or 0)
+    if fw:
+        score += min(18, max(0, fw))
+        reasons.append(f"站內精選權重 {fw}")
+    if property_image_count >= 4:
+        score += 18
+        reasons.append("室內/室外圖量足夠做輪播")
+    elif property_image_count >= 2:
+        score += 10
+        reasons.append("已有可用案件圖片")
+    if video_count > 0:
+        score += 18
+        reasons.append("已有影片素材可剪短影音")
+    if agent_image_count > 0:
+        score += 7
+        reasons.append("可搭配數字人第一人稱介紹")
+    if facts.get("交通"):
+        score += 9
+        reasons.append("交通賣點清楚")
+    if facts.get("價格"):
+        score += 7
+        reasons.append("價格資訊可直接入文案")
+    if facts.get("格局") or facts.get("面積"):
+        score += 7
+        reasons.append("空間資訊完整")
+    hot_words = (
+        "駅近",
+        "徒歩",
+        "車庫",
+        "南向",
+        "角部屋",
+        "新築",
+        "リフォーム",
+        "投資",
+        "民泊",
+        "眺望",
+        "公園",
+        "學區",
+        "学区",
+        "海",
+        "庭",
+        "高層",
+        "稀有",
+    )
+    if any(w in blob for w in hot_words):
+        score += 9
+        reasons.append("標題/內文帶有高吸引力關鍵字")
+    if not reasons:
+        reasons.append("以最新日本房產案件優先排序")
+    return min(100, max(1, score)), reasons[:5]
+
+
+def _social_platform_recommendation(
+    *,
+    image_count: int,
+    video_count: int,
+    facts: dict[str, str],
+    score: int,
+) -> dict[str, str]:
+    if video_count > 0:
+        return {
+            "code": "douyin_tiktok",
+            "label": "抖音 / TikTok",
+            "reason": "已有影片素材，適合用 3 秒開場鉤子加 30 秒口播快速轉化。",
+        }
+    if image_count >= 5 and len(facts) >= 3:
+        return {
+            "code": "xiaohongshu",
+            "label": "小紅書",
+            "reason": "圖片與生活化資訊完整，適合做封面、輪播與收藏型長文案。",
+        }
+    if score >= 78:
+        return {
+            "code": "both",
+            "label": "小紅書 + 抖音 / TikTok",
+            "reason": "賣點集中，可同時做圖文種草與短影音導流。",
+        }
+    return {
+        "code": "xiaohongshu",
+        "label": "小紅書",
+        "reason": "目前以圖文呈現更穩，短影音可用分鏡補足素材。",
+    }
+
+
+def _social_make_hashtags(item: dict[str, Any]) -> str:
+    tags = ["#日本房產", "#海外置產", "#日本買房"]
+    region = _social_text((item.get("facts") or {}).get("區域") or "", limit=20)
+    if region:
+        tags.append("#" + re.sub(r"\s+", "", region)[:18])
+    if (item.get("platform") or {}).get("code") == "douyin_tiktok":
+        tags.extend(["#抖音房產", "#TikTokRealEstate"])
+    else:
+        tags.extend(["#小紅書房產", "#日本生活"])
+    return " ".join(dict.fromkeys(tags))
+
+
+def _social_unique_media_urls(urls: list[Any], *, limit: int = 8) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for u in urls:
+        s = str(u or "").strip()
+        if not s or not s.lower().startswith(("http://", "https://", "/")):
+            continue
+        key = unquote(s).strip().lower().rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+        if len(out) >= max(1, int(limit or 8)):
+            break
+    return out
+
+
+def _social_image_role_from_url(url: str, idx: int) -> str:
+    lu = unquote(str(url or "")).lower()
+    if any(k in lu for k in ("madori", "floor", "layout", "plan", "間取り")):
+        return "格局圖"
+    if any(k in lu for k in ("gaikan", "exterior", "outside", "facade", "building", "外観", "外觀")):
+        return "外觀/建物"
+    if any(k in lu for k in ("living", "interior", "room", "naikan", "kitchen", "bath", "toilet", "bed", "室内", "室內")):
+        return "室內空間"
+    if idx == 0:
+        return "封面主圖"
+    if idx in (1, 2, 3):
+        return "室內/格局重點"
+    return "外觀/周邊補充"
+
+
+def _social_sales_image_plan(
+    item: dict[str, Any],
+    *,
+    selected_image_urls: list[Any] | None = None,
+    max_images: int = 8,
+) -> list[dict[str, Any]]:
+    facts = dict(item.get("facts") or {})
+    points = [str(x) for x in (item.get("selling_points") or []) if str(x).strip()]
+    selected = _social_unique_media_urls(list(selected_image_urls or []), limit=max_images)
+    property_images = list(item.get("property_images") or [])
+    fallback = property_images if property_images else list(item.get("agent_images") or [])
+    urls = _social_unique_media_urls(selected + fallback, limit=max_images)
+    hook = facts.get("交通") or facts.get("區域") or facts.get("價格") or "案件核心賣點"
+    out: list[dict[str, Any]] = []
+    for idx, url in enumerate(urls):
+        role = _social_image_role_from_url(url, idx)
+        if role == "封面主圖":
+            cue = f"用這張做開場封面，第一句直接打出 {hook}。"
+        elif "室內" in role or role == "格局圖":
+            cue = "用於說明採光、動線、格局和實際可利用空間。"
+        elif "外觀" in role:
+            cue = "用於補強建物外觀、管理質感、周邊與到站生活機能。"
+        else:
+            cue = points[min(idx, len(points) - 1)] if points else "補充案件生活場景與可出租性。"
+        out.append(
+            {
+                "order": idx + 1,
+                "url": url,
+                "role": role,
+                "copy_hint": cue,
+            }
+        )
+    return out
+
+
+def _social_build_storyboard(
+    *,
+    property_images: list[str],
+    agent_images: list[str],
+    video_urls: list[str],
+    facts: dict[str, str],
+) -> list[dict[str, str]]:
+    media_pool = list(video_urls[:2]) + list(property_images[:6]) + list(agent_images[:1])
+    if not media_pool:
+        media_pool = [""]
+    labels = [
+        ("0-3 秒", "外觀或第一張主圖", "先給最有記憶點的畫面，口播丟出地段/價格鉤子。"),
+        ("3-8 秒", "室內空間", "切客廳、採光或格局圖，強調居住感。"),
+        ("8-14 秒", "機能/交通", "搭配周邊、車站或外觀畫面，說明通勤與生活半徑。"),
+        ("14-22 秒", "投資/自住理由", "切換第二、第三張室內圖，補上面積、格局與稀缺性。"),
+        ("22-30 秒", "第一人稱收尾", "人物小窗自然口播 CTA，邀約私訊看完整資料與預約賞屋。"),
+    ]
+    out: list[dict[str, str]] = []
+    for i, (timecode, title, direction) in enumerate(labels):
+        u = media_pool[min(i, len(media_pool) - 1)]
+        media_type = "video" if str(u).lower().endswith((".mp4", ".webm", ".mov", ".m3u8")) else "image"
+        if i == 2 and facts.get("交通"):
+            direction = f"{direction} 交通句：{facts['交通']}"
+        out.append({"timecode": timecode, "title": title, "direction": direction, "media_url": u, "media_type": media_type})
+    return out
+
+
+def _social_build_content_pack(item: dict[str, Any]) -> dict[str, Any]:
+    facts = dict(item.get("facts") or {})
+    title = str(item.get("title") or "日本房產精選案件")
+    hook_fact = facts.get("交通") or facts.get("區域") or facts.get("價格") or "日本置產熱門條件"
+    points = list(item.get("selling_points") or [])
+    point_line = "、".join(points[:3]) if points else "地段、空間與生活機能一次看"
+    hashtags = _social_make_hashtags(item)
+    image_plan = _social_sales_image_plan(item, max_images=8)
+    cover_main = _social_text(title, limit=22)
+    cover_sub = _social_text(hook_fact, limit=26)
+    complete_intro = "\n".join(
+        [
+            f"案件：{title}",
+            f"核心賣點：{hook_fact}",
+            f"銷售重點：{point_line}",
+            "圖片節奏：先用封面主圖建立記憶點，再接室內採光、格局動線，最後補外觀與周邊生活機能。",
+        ]
+    )
+    xhs_copy = "\n".join(
+        [
+            f"{cover_main}",
+            f"這案子的第一眼賣點是：{hook_fact}。",
+            f"我會把它定位成「可自住、也容易被收藏比較」的日本房產：{point_line}。",
+            f"看圖先抓三件事：動線是否順、採光是否舒服、周邊生活是否能支撐長住或出租。",
+            "想看完整地址、費用與可預約時段，直接私訊我「日本案件」。",
+            hashtags,
+        ]
+    )
+    short_caption = (
+        f"30 秒看懂這個日本房產案：{hook_fact}。"
+        f"{point_line}。想拿完整資料，私訊「日本案件」。 {hashtags}"
+    )
+    tk_caption = (
+        f"Japan property quick tour: {hook_fact}. "
+        "DM for full details, viewing schedule, and buying cost breakdown. "
+        "#JapanProperty #RealEstate #海外置產"
+    )
+    voiceover = _social_complete_voiceover_script(item, 75)
+    voiceover_seconds = _social_estimated_voiceover_seconds(voiceover)
+    agent_brief = (
+        "由數字人或真人以第一人稱自然介紹；開頭 3 秒先講最強賣點，中段配室內/室外素材，最後用私訊 CTA 收口。"
+    )
+    return {
+        "cover_text": {"main": cover_main, "sub": cover_sub, "badge": (item.get("platform") or {}).get("label", "")},
+        "complete_case_intro": complete_intro,
+        "sales_image_plan": image_plan,
+        "image_post_copy": xhs_copy,
+        "video_script": short_caption,
+        "digital_human_video_script": voiceover,
+        "voiceover_seconds": voiceover_seconds,
+        "xiaohongshu_copy": xhs_copy,
+        "douyin_caption": short_caption,
+        "tiktok_caption": tk_caption,
+        "voiceover_30s": voiceover,
+        "agent_brief": agent_brief,
+        "digital_human_payload": {
+            "target_duration_seconds": voiceover_seconds,
+            "script_text": voiceover,
+            "case_title": title,
+            "source_item_id": item.get("source_item_id"),
+            "content_id": item.get("content_id"),
+            "image_urls": [x["url"] for x in image_plan],
+            "sales_image_plan": image_plan,
+            "video_urls": item.get("video_urls", [])[:4],
+            "agent_image_urls": item.get("agent_images", [])[:3],
+            "suggested_platform": (item.get("platform") or {}).get("label", ""),
+            "tg_workbench_url": _social_tg_web_url(),
+        },
+    }
+
+
+def _social_fact_lookup(item: dict[str, Any], *labels: str, limit: int = 90) -> str:
+    facts = dict((item or {}).get("facts") or {})
+    wanted = [str(x).strip().lower() for x in labels if str(x).strip()]
+    for key, value in facts.items():
+        k = str(key or "").strip().lower()
+        if any(w in k for w in wanted):
+            text = _social_text(value, limit=limit)
+            if text:
+                return text
+    for label in labels:
+        text = _social_text(facts.get(label) or "", limit=limit)
+        if text:
+            return text
+    return ""
+
+
+def _social_platform_hashtags(item: dict[str, Any]) -> str:
+    region = _social_fact_lookup(item, "區域", "地區", "位置", limit=18)
+    tags = [
+        "#日本房產",
+        "#日本不動產",
+        "#海外置產",
+        "#日本買房",
+        "#房產投資",
+    ]
+    if region:
+        tags.append("#" + re.sub(r"\s+", "", region)[:18])
+    if int(item.get("video_count") or 0) > 0:
+        tags.extend(["#抖音房產", "#TikTokRealEstate"])
+    else:
+        tags.extend(["#小紅書房產", "#日本生活"])
+    return " ".join(dict.fromkeys(tags))
+
+
+def _social_image_role_clean(url: str, order: int) -> str:
+    lu = unquote(str(url or "")).lower()
+    if any(x in lu for x in ("madori", "floor", "layout", "plan")):
+        return "格局與動線"
+    if any(x in lu for x in ("gaikan", "exterior", "building", "facade", "outside")):
+        return "外觀與建物"
+    if any(x in lu for x in ("living", "room", "interior", "kitchen", "bath", "toilet", "bed")):
+        return "室內與機能"
+    if any(x in lu for x in ("map", "station", "access", "route", "chizu")):
+        return "交通與周邊"
+    roles = ["封面主圖", "室內亮點", "格局補充", "外觀補充", "交通生活圈", "投資賣點", "細節補圖", "CTA 補圖"]
+    return roles[min(max(order - 1, 0), len(roles) - 1)]
+
+
+def _social_clean_image_plan(item: dict[str, Any], pack: dict[str, Any], *, limit: int = 8) -> list[dict[str, Any]]:
+    raw_plan = pack.get("sales_image_plan") if isinstance(pack.get("sales_image_plan"), list) else []
+    urls = [str(x.get("url") or "").strip() for x in raw_plan if isinstance(x, dict) and str(x.get("url") or "").strip()]
+    urls.extend(list(item.get("property_images") or []))
+    urls.extend(list(item.get("agent_images") or []))
+    urls = _social_unique_media_urls(urls, limit=limit)
+    points = [str(x).strip() for x in (item.get("selling_points") or []) if str(x).strip()]
+    out: list[dict[str, Any]] = []
+    for idx, url in enumerate(urls, 1):
+        role = _social_image_role_clean(url, idx)
+        if idx == 1:
+            hint = "封面要讓人一眼看懂地段、價格或最大亮點，適合作為小紅書首圖與短影片開場。"
+        elif "室內" in role:
+            hint = "補充採光、收納、裝修狀態與居住感，避免只講感覺，要對應到實際畫面。"
+        elif "格局" in role:
+            hint = "說明房型、動線、可出租或自住的使用方式。"
+        elif "外觀" in role:
+            hint = "說明建物管理感、街區印象與第一眼信任感。"
+        elif "交通" in role:
+            hint = "交代車站、步行時間、生活機能與通勤便利性。"
+        else:
+            hint = points[(idx - 1) % len(points)] if points else "補充案件條件，讓圖文與影片資訊更完整。"
+        out.append({"order": idx, "url": url, "role": role, "copy_hint": hint})
+    return out
+
+
+def _social_enrich_platform_content_pack(item: dict[str, Any], pack: dict[str, Any]) -> dict[str, Any]:
+    pack = dict(pack or {})
+    title = _social_text(item.get("title") or "日本房產精選案件", limit=80)
+    region = _social_fact_lookup(item, "區域", "地區", "位置", limit=70)
+    traffic = _social_fact_lookup(item, "交通", "車站", "沿線", "駅", limit=90)
+    price = _social_fact_lookup(item, "價格", "售價", "總價", "price", limit=70)
+    layout = _social_fact_lookup(item, "格局", "間取り", "房型", limit=70)
+    area = _social_fact_lookup(item, "面積", "專有", "建物", limit=70)
+    points = [str(x).strip() for x in (item.get("selling_points") or []) if str(x).strip()]
+    image_plan = _social_clean_image_plan(item, pack, limit=8)
+    image_lines = [f"{row['order']}. {row['role']}｜{row['copy_hint']}" for row in image_plan]
+    fact_lines = [
+        f"區域：{region}" if region else "",
+        f"交通：{traffic}" if traffic else "",
+        f"價格：{price}" if price else "",
+        f"格局：{layout}" if layout else "",
+        f"面積：{area}" if area else "",
+    ]
+    fact_lines = [x for x in fact_lines if x]
+    point_lines = [f"- {p}" for p in points[:5]]
+    if not point_lines and fact_lines:
+        point_lines = [f"- {x}" for x in fact_lines[:5]]
+    hook = traffic or region or price or (points[0] if points else "交通、格局、圖片與來源資料都已整理")
+    hashtags = _social_platform_hashtags(item)
+    source_line = f"完整案件頁：{item.get('case_url') or item.get('item_url') or ''}".strip()
+
+    complete_intro = "\n".join(
+        [
+            f"案件：{title}",
+            f"一句話亮點：{hook}",
+            "",
+            "核心條件",
+            *(fact_lines or ["資料仍在補齊，請以原站與案件頁為準。"]),
+            "",
+            "銷售重點",
+            *(point_lines or ["- 先看地段、交通、格局與圖片完整度，再判斷是否預約賞屋。"]),
+            "",
+            f"素材完整度：圖片 {len(image_plan)} 張、影片 {int(item.get('video_count') or 0)} 支、案件分數 {int(item.get('score') or 0)}。",
+            source_line,
+        ]
+    ).strip()
+
+    xhs_copy = "\n".join(
+        [
+            f"{title}",
+            "",
+            f"先看重點：{hook}",
+            "",
+            "案件條件",
+            *(fact_lines or ["區域、交通、價格與格局仍在補齊，建議先看完整案件頁。"]),
+            "",
+            "為什麼值得看",
+            *(point_lines or ["- 適合先做收藏與比較，再確認預算、管理費、修繕與出租條件。"]),
+            "",
+            "圖片閱讀順序",
+            *(image_lines or ["1. 先補充原站圖片，再生成圖文與短影片素材。"]),
+            "",
+            "想看完整圖片、費用、交通與預約賞屋資訊，可以打開案件頁或私訊詢問。",
+            hashtags,
+        ]
+    ).strip()
+
+    xhs_copy = (
+        xhs_copy
+        + "\n\n看房前建議確認\n"
+        "- 原站照片是否包含外觀、室內、格局、交通與周邊。\n"
+        "- 價格、管理費、修繕積立金、屋齡與權利型態要一起看。\n"
+        "- 若作為出租或投資，需再確認租金行情、空置風險與持有成本。\n"
+        "- 若自住，優先確認通勤時間、生活機能、採光與收納。\n\n"
+        "私訊可整理\n"
+        "- 完整圖片與案件頁\n"
+        "- 賞屋動線與費用明細\n"
+        "- 小紅書圖文 / 抖音短影片素材"
+    ).strip()
+
+    douyin_caption = "\n".join(
+        [
+            f"{title}",
+            f"30 秒看點：{hook}",
+            *(fact_lines[:4] or []),
+            "想看完整圖文、費用明細與預約賞屋，請看案件頁。",
+            hashtags,
+        ]
+    ).strip()
+
+    douyin_caption = (
+        douyin_caption
+        + "\n\n影片節奏：先放主圖鉤子，再切室內、格局、交通與生活圈，最後引導看完整案件頁。"
+        + "\n留言或私訊可拿完整圖文與預約賞屋資訊。"
+    ).strip()
+
+    video_script = "\n".join(
+        [
+            "0-3 秒｜封面鉤子",
+            f"用主圖帶出：{hook}",
+            "",
+            "3-10 秒｜核心條件",
+            "快速交代區域、交通、價格、格局與面積。",
+            "",
+            "10-22 秒｜圖片走讀",
+            *(image_lines[:5] or ["依序展示外觀、室內、格局、交通與生活機能。"]),
+            "",
+            "22-30 秒｜行動呼籲",
+            "提醒觀眾到案件頁看完整資料，或私訊索取費用與賞屋時間。",
+        ]
+    ).strip()
+
+    voiceover = " ".join(
+        [
+            f"大家好，這次帶你看一個日本房產案件：{title}。",
+            f"這案最先要看的亮點是{hook}。",
+            "，".join(fact_lines) + "。" if fact_lines else "",
+            "銷售上建議先用圖片建立信任感，再補交通、格局、管理與生活機能。",
+            "如果你想看完整圖片、費用明細或預約賞屋，可以到案件頁查看，或直接私訊詢問。",
+        ]
+    ).replace("。。", "。").strip()
+
+    pack.update(
+        {
+            "complete_case_intro": complete_intro,
+            "sales_image_plan": image_plan,
+            "image_post_copy": xhs_copy,
+            "xiaohongshu_copy": xhs_copy,
+            "douyin_caption": douyin_caption,
+            "tiktok_caption": douyin_caption + "\n#JapanProperty #RealEstate",
+            "video_script": video_script,
+            "digital_human_video_script": voiceover,
+            "voiceover_30s": voiceover,
+            "voiceover_seconds": _social_estimated_voiceover_seconds(voiceover),
+            "agent_brief": "以真實案件資料為主，影片需依圖片順序展示外觀、室內、格局、交通與周邊；不可捏造價格、收益或不存在的設備。",
+            "platform_payloads": {
+                "xiaohongshu": {
+                    "title": title,
+                    "text": xhs_copy,
+                    "image_urls": [row["url"] for row in image_plan],
+                    "format": "圖文",
+                },
+                "douyin": {
+                    "title": title,
+                    "caption": douyin_caption,
+                    "video_script": video_script,
+                    "image_urls": [row["url"] for row in image_plan],
+                    "format": "短影片",
+                },
+            },
+        }
+    )
+    payload = dict(pack.get("digital_human_payload") or {})
+    payload.update(
+        {
+            "script_text": voiceover,
+            "target_duration_seconds": pack["voiceover_seconds"],
+            "case_title": title,
+            "image_urls": [row["url"] for row in image_plan],
+            "sales_image_plan": image_plan,
+            "platform_payloads": pack["platform_payloads"],
+        }
+    )
+    pack["digital_human_payload"] = payload
+    return pack
+
+
+def _social_mask_secret(value: str) -> str:
+    s = str(value or "").strip()
+    if not s:
+        return ""
+    if len(s) <= 10:
+        return "********"
+    return f"{s[:4]}...{s[-4:]}"
+
+
+def _social_provider_config(provider: str) -> dict[str, str]:
+    p = str(provider or "").strip().lower()
+    if p not in _SOCIAL_AI_PROVIDERS:
+        raise HTTPException(status_code=400, detail="provider must be gpt or gemini")
+    meta = _SOCIAL_AI_PROVIDERS[p]
+    base = str(get_kv(str(meta["base_key"]), "") or "").strip().rstrip("/")
+    key = str(get_kv(str(meta["api_key"]), "") or "").strip()
+    model = str(get_kv(str(meta["model_key"]), "") or meta["default_model"]).strip()
+    return {"provider": p, "label": str(meta["label"]), "base_url": base, "api_key": key, "model": model}
+
+
+def _social_image_config() -> dict[str, str]:
+    meta = _SOCIAL_IMAGE_PROVIDER
+    base = str(get_kv(str(meta["base_key"]), "") or "").strip().rstrip("/")
+    key = str(get_kv(str(meta["api_key"]), "") or "").strip()
+    model = str(get_kv(str(meta["model_key"]), "") or meta["default_model"]).strip()
+    return {"label": str(meta["label"]), "base_url": base, "api_key": key, "model": model}
+
+
+def _social_image_provider_config(provider: str) -> dict[str, str]:
+    p = str(provider or "banana").strip().lower()
+    if p in {"gpt", "gpt-image", "gpt_image", "gpt-image-2"}:
+        base_cfg = _social_provider_config("gpt")
+        model = str(get_kv("social_case_ai_gpt_image_model", "") or "gpt-image-2").strip()
+        return {
+            "provider": "gpt-image",
+            "label": "GPT Image 2",
+            "base_url": base_cfg["base_url"],
+            "api_key": base_cfg["api_key"],
+            "model": model,
+        }
+    img = _social_image_config()
+    return {
+        "provider": "banana",
+        "label": "Banana2 / Gemini Image",
+        "base_url": img["base_url"],
+        "api_key": img["api_key"],
+        "model": img["model"],
+    }
+
+
+def _social_ai_settings_snapshot() -> dict[str, Any]:
+    providers: dict[str, Any] = {}
+    for pid in _SOCIAL_AI_PROVIDERS:
+        cfg = _social_provider_config(pid)
+        providers[pid] = {
+            "label": cfg["label"],
+            "base_url": cfg["base_url"],
+            "model": cfg["model"],
+            "api_key_set": bool(cfg["api_key"]),
+            "api_key_masked": _social_mask_secret(cfg["api_key"]),
+        }
+    img = _social_image_config()
+    return {
+        "providers": providers,
+        "banana_image": {
+            "label": img["label"],
+            "base_url": img["base_url"],
+            "model": img["model"],
+            "api_key_set": bool(img["api_key"]),
+            "api_key_masked": _social_mask_secret(img["api_key"]),
+        },
+        "image_providers": {
+            "gpt-image": {
+                "label": _social_image_provider_config("gpt-image")["label"],
+                "model": _social_image_provider_config("gpt-image")["model"],
+                "api_key_set": bool(_social_image_provider_config("gpt-image")["api_key"]),
+            },
+            "banana": {
+                "label": _social_image_provider_config("banana")["label"],
+                "model": _social_image_provider_config("banana")["model"],
+                "api_key_set": bool(_social_image_provider_config("banana")["api_key"]),
+            },
+        },
+    }
+
+
+def _social_set_optional_kv(key: str, value: str | None) -> None:
+    if value is None:
+        return
+    s = str(value).strip()
+    if s:
+        set_kv(key, s)
+
+
+def _social_model_candidates(provider: str, configured_model: str) -> list[str]:
+    models = [str(configured_model or "").strip()]
+    p = str(provider or "").strip().lower()
+    if p == "gpt":
+        models.extend(
+            [
+                "gpt-5.4",
+                "gpt-5.5",
+                "gpt-5.3-codex",
+            ]
+        )
+    elif p == "gemini":
+        models.extend(
+            [
+                "gemini-3-flash-preview",
+                "gemini-3-pro-preview",
+                "gemini-3.1-pro-preview",
+            ]
+        )
+    out: list[str] = []
+    seen: set[str] = set()
+    for model in models:
+        if not model:
+            continue
+        key = model.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(model)
+    return out
+
+
+def _social_is_model_route_error(status_code: int, body: str) -> bool:
+    text = str(body or "").lower()
+    return int(status_code or 0) in (400, 404, 429, 503) and any(
+        marker in text
+        for marker in (
+            "model_not_found",
+            "model not found",
+            "no available channel",
+            "no available distributor",
+            "无可用渠道",
+            "不存在",
+        )
+    )
+
+
+def _social_apply_ai_settings(payload: SocialAiSettingsPut) -> None:
+    _social_set_optional_kv("social_case_ai_gpt_base_url", payload.gpt_base_url)
+    _social_set_optional_kv("social_case_ai_gpt_api_key", payload.gpt_api_key)
+    _social_set_optional_kv("social_case_ai_gpt_model", payload.gpt_model)
+    _social_set_optional_kv("social_case_ai_gemini_base_url", payload.gemini_base_url)
+    _social_set_optional_kv("social_case_ai_gemini_api_key", payload.gemini_api_key)
+    _social_set_optional_kv("social_case_ai_gemini_model", payload.gemini_model)
+    _social_set_optional_kv("social_case_ai_banana_base_url", payload.banana_base_url)
+    _social_set_optional_kv("social_case_ai_banana_api_key", payload.banana_api_key)
+    _social_set_optional_kv("social_case_ai_banana_model", payload.banana_model)
+
+
+def _social_llm_chat(
+    *,
+    provider: str,
+    messages: list[dict[str, str]],
+    temperature: float = 0.7,
+    max_tokens: int = 1400,
+    allow_provider_fallback: bool = True,
+) -> str:
+    cfg = _social_provider_config(provider)
+    if not cfg["base_url"] or not cfg["api_key"]:
+        raise HTTPException(status_code=400, detail=f"{cfg['label']} is not configured")
+    headers = {"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json"}
+    url = f"{cfg['base_url']}/v1/chat/completions"
+    route_errors: list[str] = []
+    candidates = _social_model_candidates(str(provider or ""), cfg["model"])
+    for model in candidates:
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": float(temperature),
+            "max_tokens": int(max_tokens),
+        }
+        try:
+            with httpx.Client(timeout=httpx.Timeout(90.0, connect=12.0)) as client:
+                resp = client.post(url, headers=headers, json=payload)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"{cfg['label']} request failed: {type(exc).__name__}: {exc}") from exc
+        if resp.status_code >= 400:
+            body = (resp.text or "").strip().replace("\r\n", " ").replace("\n", " ")
+            if _social_is_model_route_error(resp.status_code, body):
+                route_errors.append(f"{model}: HTTP {resp.status_code}")
+                if model != candidates[-1]:
+                    continue
+                break
+            raise HTTPException(status_code=502, detail=f"{cfg['label']} HTTP {resp.status_code}: {body[:900]}")
+        try:
+            data = resp.json()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"{cfg['label']} returned non-JSON response") from exc
+        choices = data.get("choices") or []
+        if not choices:
+            raise HTTPException(status_code=502, detail=f"{cfg['label']} response missing choices")
+        msg = choices[0].get("message") or {}
+        text = msg.get("content")
+        if not isinstance(text, str) or not text.strip():
+            raise HTTPException(status_code=502, detail=f"{cfg['label']} response missing text")
+        return text.strip()
+
+    provider_key = str(provider or "").strip().lower()
+    if allow_provider_fallback and provider_key in ("gpt", "gemini"):
+        fallback_provider = "gpt" if provider_key == "gemini" else "gemini"
+        fallback_cfg = _social_provider_config(fallback_provider)
+        if fallback_cfg["base_url"] and fallback_cfg["api_key"]:
+            return _social_llm_chat(
+                provider=fallback_provider,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                allow_provider_fallback=False,
+            )
+    detail = f"{cfg['label']} model unavailable"
+    if route_errors:
+        detail += ": " + "; ".join(route_errors)
+    raise HTTPException(status_code=502, detail=detail)
+
+
+def _social_extract_json_object(text: str) -> dict[str, Any]:
+    raw = str(text or "").strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I).strip()
+    raw = re.sub(r"\s*```$", "", raw).strip()
+    try:
+        data = json.loads(raw)
+    except Exception:
+        m = re.search(r"\{[\s\S]*\}", raw)
+        if not m:
+            raise
+        data = json.loads(m.group(0))
+    if not isinstance(data, dict):
+        raise ValueError("AI JSON is not an object")
+    return data
+
+
+def _social_ai_prompt(
+    item: dict[str, Any],
+    platform: str,
+    instruction: str,
+    *,
+    duration_seconds: int = 30,
+    selected_image_urls: list[Any] | None = None,
+) -> list[dict[str, str]]:
+    seconds = max(8, min(120, int(duration_seconds or 30)))
+    media_plan = _social_sales_image_plan(item, selected_image_urls=selected_image_urls, max_images=8)
+    payload = {
+        "case_title": item.get("title"),
+        "facts": item.get("facts"),
+        "selling_points": item.get("selling_points"),
+        "source_name": item.get("source_name"),
+        "body_excerpt": item.get("body_excerpt"),
+        "current_pack": item.get("content_pack"),
+        "suggested_platform": item.get("platform"),
+        "duration_seconds": seconds,
+        "sales_image_plan": media_plan,
+        "image_count": item.get("image_count"),
+        "video_count": item.get("video_count"),
+    }
+    user = (
+        "請為日本房產案件產出社群發布素材。目標是吸引小紅書、抖音、TikTok 客戶私訊。"
+        "請只輸出 JSON object，不要 Markdown。"
+        "JSON 欄位必須包含：cover_text{main,sub,badge}, complete_case_intro, sales_image_plan, "
+        "image_post_copy, video_script, digital_human_video_script, xiaohongshu_copy, douyin_caption, "
+        "tiktok_caption, voiceover_30s, agent_brief, platform_label, platform_reason。"
+        f"口播與視頻腳本長度請設定為約 {seconds} 秒，繁體中文，像本人第一人稱自然介紹。"
+        "sales_image_plan 必須沿用案件資料內的圖片 URL，不可新增不存在的圖片，不可重複 URL；"
+        "每張圖片都要給 role 與 copy_hint，並依圖片順序安排室內、室外、格局或周邊銷售重點。"
+        "文案要明確對應圖片：先說這張圖要帶出的賣點，再銜接案件價格、交通、格局、面積或區域資訊。"
+        "小紅書文案要適合圖文收藏，抖音/TikTok 要有前三秒鉤子和私訊 CTA；數字人口播視頻要可直接交給 TG 數字人或真人錄製，不要自稱房仲業務。"
+        f"指定平台：{platform or 'auto'}。額外要求：{instruction or '無'}。案件資料："
+        + json.dumps(payload, ensure_ascii=False)
+    )
+    return [
+        {
+            "role": "system",
+            "content": "你是日本房產社群短影音編導與房仲成交文案顧問，輸出精準、可直接發布的繁體中文內容。",
+        },
+        {"role": "user", "content": user},
+    ]
+
+
+def _social_ai_pack_from_response(
+    item: dict[str, Any],
+    ai_data: dict[str, Any],
+    *,
+    duration_seconds: int = 30,
+    selected_image_urls: list[Any] | None = None,
+) -> dict[str, Any]:
+    pack = dict(item.get("content_pack") or {})
+    seconds = max(8, min(120, int(duration_seconds or 30)))
+    local_plan = _social_sales_image_plan(item, selected_image_urls=selected_image_urls, max_images=8)
+    cover = ai_data.get("cover_text") if isinstance(ai_data.get("cover_text"), dict) else {}
+    pack["cover_text"] = {
+        "main": _social_text(cover.get("main") or (pack.get("cover_text") or {}).get("main") or item.get("title"), limit=28),
+        "sub": _social_text(cover.get("sub") or (pack.get("cover_text") or {}).get("sub") or "", limit=34),
+        "badge": _social_text(cover.get("badge") or ai_data.get("platform_label") or (item.get("platform") or {}).get("label") or "", limit=18),
+    }
+    ai_plan = ai_data.get("sales_image_plan")
+    if isinstance(ai_plan, list):
+        hint_by_url: dict[str, dict[str, Any]] = {}
+        for row in ai_plan:
+            if not isinstance(row, dict):
+                continue
+            u = str(row.get("url") or "").strip()
+            if u:
+                hint_by_url[unquote(u).lower().rstrip("/")] = row
+        merged_plan: list[dict[str, Any]] = []
+        for row in local_plan:
+            extra = hint_by_url.get(unquote(str(row.get("url") or "")).lower().rstrip("/"), {})
+            merged_plan.append(
+                {
+                    **row,
+                    "role": _social_text(extra.get("role") or row.get("role") or "", limit=28),
+                    "copy_hint": _social_text(extra.get("copy_hint") or row.get("copy_hint") or "", limit=160),
+                }
+            )
+        pack["sales_image_plan"] = merged_plan
+    else:
+        pack["sales_image_plan"] = local_plan
+    for key in (
+        "complete_case_intro",
+        "image_post_copy",
+        "video_script",
+        "digital_human_video_script",
+        "xiaohongshu_copy",
+        "douyin_caption",
+        "tiktok_caption",
+        "voiceover_30s",
+        "agent_brief",
+    ):
+        val = ai_data.get(key)
+        if isinstance(val, str) and val.strip():
+            pack[key] = val.strip()
+    if not pack.get("voiceover_30s") and pack.get("digital_human_video_script"):
+        pack["voiceover_30s"] = str(pack.get("digital_human_video_script") or "")
+    pack["voiceover_seconds"] = seconds
+    pack["digital_human_payload"] = {
+        **dict(pack.get("digital_human_payload") or {}),
+        "target_duration_seconds": seconds,
+        "script_text": str(pack.get("voiceover_30s") or ""),
+        "digital_human_video_script": str(pack.get("digital_human_video_script") or pack.get("voiceover_30s") or ""),
+        "case_title": item.get("title"),
+        "source_item_id": item.get("source_item_id"),
+        "content_id": item.get("content_id"),
+        "image_urls": [str(x.get("url") or "") for x in (pack.get("sales_image_plan") or []) if str(x.get("url") or "").strip()],
+        "sales_image_plan": pack.get("sales_image_plan") or local_plan,
+        "video_urls": item.get("video_urls", [])[:4],
+        "agent_image_urls": item.get("agent_images", [])[:3],
+        "suggested_platform": ai_data.get("platform_label") or (item.get("platform") or {}).get("label", ""),
+        "tg_workbench_url": _social_tg_web_url(),
+    }
+    return pack
+
+
+def _social_banana_prompt(item: dict[str, Any], prompt: str) -> str:
+    cover = (item.get("content_pack") or {}).get("cover_text") or {}
+    base = (
+        "Create a premium vertical 9:16 social media cover image for a Japanese real estate listing. "
+        "Use a sophisticated, realistic property-marketing style, bright natural light, clean composition, "
+        "no fake logos, no unreadable text, leave safe space for Chinese title overlay. "
+        f"Case title: {item.get('title')}. Main hook: {cover.get('sub') or (item.get('platform') or {}).get('reason')}. "
+        f"Selling points: {', '.join([str(x) for x in (item.get('selling_points') or [])[:4]])}."
+    )
+    extra = str(prompt or "").strip()
+    return f"{base} Extra direction: {extra}" if extra else base
+
+
+def _social_avatar_scene_prompt(scene: str) -> str:
+    code = str(scene or "cooperation_intro").strip().lower()
+    scenes = {
+        "cooperation_intro": (
+            "Scene: a professional real-estate cooperation introduction meeting, "
+            "the agent is presenting a listing to partners or clients in a bright conference room."
+        ),
+        "property_showroom": (
+            "Scene: a premium property showroom or sales gallery with subtle architectural models "
+            "and listing materials in the background."
+        ),
+        "onsite_walkthrough": (
+            "Scene: inside a clean modern apartment during an on-site walkthrough, with natural light "
+            "and understated interior details behind the agent."
+        ),
+        "online_briefing": (
+            "Scene: an online consultation setup, the agent faces camera from a tidy office desk with "
+            "a professional real-estate briefing atmosphere."
+        ),
+        "luxury_office": (
+            "Scene: a quiet premium real-estate office with a city view, suitable for high-trust "
+            "investment property consultation."
+        ),
+    }
+    return scenes.get(code, scenes["cooperation_intro"])
+
+
+def _social_agent_avatar_prompt(
+    item: dict[str, Any],
+    prompt: str,
+    *,
+    has_reference: bool,
+    scene: str = "cooperation_intro",
+    identity_lock: bool = True,
+    case_scene_context: str = "",
+    case_scene_image_urls: list[str] | None = None,
+) -> str:
+    base = (
+        "Create a realistic professional real-estate agent portrait for a digital-human talking video. "
+        "The person should wear a tailored dark business suit and white shirt, with a confident, friendly, "
+        "premium property-consultant look. "
+        f"{_social_avatar_scene_prompt(scene)} "
+        "front-facing half-body composition, clear face, natural lighting, no text, no logo, no watermark. "
+        "Make it suitable as an avatar image for real-estate voiceover video."
+    )
+    if has_reference:
+        if identity_lock:
+            base += (
+                " Identity lock is mandatory: use the uploaded reference photo as the same person. "
+                "Preserve facial identity, face shape, age impression, skin tone, glasses, hairstyle, hairline, "
+                "eye spacing, nose, mouth, and overall expression. Do not beautify into a different person, "
+                "do not change ethnicity, do not make the face younger or older, and do not alter distinctive features. "
+                "Only change outfit, posture, lighting, and scene to fit the business introduction context."
+            )
+        else:
+            base += (
+                " Use the uploaded reference photo as a loose style reference while changing the outfit to formal business attire."
+            )
+    else:
+        base += (
+            " Keep this as a stable reusable persona for future listing videos, with consistent face, hair, glasses, and suit style."
+        )
+    case_hint = _social_text(item.get("title") or "", limit=80)
+    if case_hint:
+        base += f" The avatar will introduce this listing: {case_hint}."
+    context = _social_text(case_scene_context, limit=520)
+    if context:
+        base += (
+            " Case-aware direction: generate the agent as if presenting this exact listing. "
+            f"Use the listing context for background mood, staging, and sales posture: {context}. "
+            "Blend indoor, exterior, route, and neighborhood atmosphere when appropriate, while keeping the person realistic and professional."
+        )
+    scene_urls = [
+        str(u or "").strip()
+        for u in (case_scene_image_urls or [])
+        if str(u or "").strip()
+    ][:6]
+    if scene_urls:
+        base += (
+            " The selected case scene materials include indoor/exterior/surrounding references. "
+            "Use them only as visual context; do not copy source text, signs, watermarks, logos, or UI artifacts. "
+            f"Reference scene URLs for context: {' | '.join(scene_urls)}."
+        )
+    extra = str(prompt or "").strip()
+    return f"{base} Extra direction: {extra}" if extra else base
+
+
+def _social_static_url_to_path(url: str) -> Path | None:
+    raw = str(url or "").strip()
+    if not raw.startswith("/static/"):
+        return None
+    return (Path.cwd() / raw.lstrip("/")).resolve()
+
+
+def _social_save_image_bytes(data: bytes, *, mime_type: str = "image/png", prefix: str = "banana") -> dict[str, str]:
+    ext = mimetypes.guess_extension(mime_type) or ".png"
+    if ext == ".jpe":
+        ext = ".jpg"
+    out_dir = Path("static/uploads/social-case-workbench")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}{ext}"
+    path = out_dir / name
+    path.write_bytes(data)
+    url = "/" + str(path).replace("\\", "/")
+    return {"image_url": url, "image_path": str(path.resolve())}
+
+
+def _social_save_b64_image(b64_text: str, *, mime_type: str = "image/png", prefix: str = "banana") -> dict[str, str]:
+    raw = str(b64_text or "").strip()
+    if not raw:
+        raise ValueError("empty image data")
+    if "," in raw and raw.lower().startswith("data:"):
+        head, raw = raw.split(",", 1)
+        m = re.match(r"data:([^;]+)", head, re.I)
+        if m:
+            mime_type = m.group(1)
+    return _social_save_image_bytes(base64.b64decode(raw), mime_type=mime_type, prefix=prefix)
+
+
+def _social_download_image_to_static(url: str, *, prefix: str = "image") -> dict[str, str]:
+    raw = str(url or "").strip()
+    if not raw:
+        return {"image_url": "", "image_path": ""}
+    local = _social_static_url_to_path(raw)
+    if local and local.exists():
+        return {"image_url": raw, "image_path": str(local)}
+    if not raw.lower().startswith(("http://", "https://")):
+        return {"image_url": raw, "image_path": ""}
+    try:
+        with httpx.Client(timeout=httpx.Timeout(45.0, connect=8.0), follow_redirects=True) as client:
+            resp = client.get(raw)
+    except Exception:
+        return {"image_url": raw, "image_path": ""}
+    if resp.status_code >= 400 or not resp.content:
+        return {"image_url": raw, "image_path": ""}
+    mime_type = resp.headers.get("content-type", "image/png").split(";", 1)[0].strip() or "image/png"
+    saved = _social_save_image_bytes(resp.content, mime_type=mime_type, prefix=prefix)
+    return saved
+
+
+def _social_avatar_presets_path() -> Path:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return DATA_DIR / "social_case_avatar_presets.json"
+
+
+def _social_batch_records_path() -> Path:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return DATA_DIR / "social_case_batch_records.json"
+
+
+def _social_batch_records(limit: int = 20) -> list[dict[str, Any]]:
+    path = _social_batch_records_path()
+    rows: list[Any] = []
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                rows = loaded
+        except Exception:
+            rows = []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        batch_id = str(row.get("batch_id") or row.get("id") or "").strip()
+        if not batch_id:
+            continue
+        out.append(
+            {
+                "batch_id": batch_id,
+                "status": str(row.get("status") or "running").strip(),
+                "created_at": str(row.get("created_at") or "").strip(),
+                "updated_at": str(row.get("updated_at") or "").strip(),
+                "title": _social_text(row.get("title") or batch_id, limit=120),
+                "summary": _social_text(row.get("summary") or "", limit=220),
+                "counts": row.get("counts") if isinstance(row.get("counts"), dict) else {},
+                "config": row.get("config") if isinstance(row.get("config"), dict) else {},
+                "items": row.get("items") if isinstance(row.get("items"), list) else [],
+                "task_ids": row.get("task_ids") if isinstance(row.get("task_ids"), list) else [],
+                "errors": row.get("errors") if isinstance(row.get("errors"), list) else [],
+            }
+        )
+    out.sort(key=lambda x: str(x.get("updated_at") or x.get("created_at") or ""), reverse=True)
+    return out[: max(1, min(80, int(limit or 20)))]
+
+
+def _social_compact_batch_records(limit: int = 20) -> list[dict[str, Any]]:
+    compact_rows: list[dict[str, Any]] = []
+    for row in _social_batch_records(limit=limit):
+        config = row.get("config") if isinstance(row.get("config"), dict) else {}
+        counts = row.get("counts") if isinstance(row.get("counts"), dict) else {}
+        slim_items: list[dict[str, Any]] = []
+        for item in (row.get("items") or [])[:24]:
+            if not isinstance(item, dict):
+                continue
+            result = item.get("result") if isinstance(item.get("result"), dict) else {}
+            slim_result = {
+                key: result.get(key)
+                for key in (
+                    "final_video_url",
+                    "portrait_video_url",
+                    "landscape_video_url",
+                    "thumbnail_url",
+                    "assets_manifest_url",
+                    "sales_brief_url",
+                    "sales_brief_json_url",
+                )
+                if result.get(key)
+            }
+            if result.get("completed_at"):
+                slim_result["completed_at"] = result.get("completed_at")
+            slim_items.append(
+                {
+                    "source_item_id": int(item.get("source_item_id") or 0),
+                    "title": _social_text(item.get("title") or "", limit=100),
+                    "status": str(item.get("status") or "").strip(),
+                    "task_id": str(item.get("task_id") or "").strip(),
+                    "fallback": bool(item.get("fallback", False)),
+                    "error": _social_text(item.get("error") or "", limit=180),
+                    "result": slim_result,
+                }
+            )
+        compact_rows.append(
+            {
+                "batch_id": row.get("batch_id"),
+                "status": row.get("status"),
+                "created_at": row.get("created_at"),
+                "updated_at": row.get("updated_at"),
+                "title": row.get("title"),
+                "summary": row.get("summary"),
+                "counts": counts,
+                "config": {
+                    "provider": config.get("provider"),
+                    "area": config.get("area"),
+                    "sort": config.get("sort"),
+                    "case_count": config.get("case_count"),
+                    "duration_seconds": config.get("duration_seconds"),
+                    "segment_mode_label": config.get("segment_mode_label"),
+                    "voiceover_style_label": config.get("voiceover_style_label"),
+                    "digital_human_layout_label": config.get("digital_human_layout_label"),
+                },
+                "items": slim_items,
+                "task_ids": [str(x) for x in (row.get("task_ids") or [])[:40] if str(x).strip()],
+                "errors": [
+                    {
+                        "source_item_id": int(err.get("source_item_id") or 0),
+                        "stage": str(err.get("stage") or "").strip(),
+                        "message": _social_text(err.get("message") or "", limit=180),
+                    }
+                    for err in (row.get("errors") or [])[:8]
+                    if isinstance(err, dict)
+                ],
+            }
+        )
+    return compact_rows
+
+
+def _social_save_batch_record(record: dict[str, Any]) -> dict[str, Any]:
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    batch_id = str(record.get("batch_id") or record.get("id") or "").strip()
+    if not batch_id:
+        batch_id = f"batch_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
+    existing = _social_batch_records(limit=80)
+    current = next((row for row in existing if row.get("batch_id") == batch_id), {})
+    merged = {**current, **record, "batch_id": batch_id, "updated_at": now}
+    merged.setdefault("created_at", current.get("created_at") or now)
+    merged.setdefault("status", "running")
+    merged.setdefault("title", batch_id)
+    rows = [merged, *[row for row in existing if row.get("batch_id") != batch_id]]
+    _social_batch_records_path().write_text(json.dumps(rows[:80], ensure_ascii=False, indent=2), encoding="utf-8")
+    return merged
+
+
+def _social_patch_batch_record(batch_id: str, patch: dict[str, Any]) -> dict[str, Any]:
+    raw = str(batch_id or "").strip()
+    if not raw:
+        return {}
+    current = next((row for row in _social_batch_records(limit=80) if row.get("batch_id") == raw), {"batch_id": raw})
+    merged = dict(current)
+    for key, value in patch.items():
+        if key == "counts" and isinstance(value, dict):
+            merged[key] = {**(merged.get(key) if isinstance(merged.get(key), dict) else {}), **value}
+        elif key == "task_ids" and isinstance(value, list):
+            seen: set[str] = set()
+            merged[key] = [
+                x
+                for x in [*(merged.get(key) if isinstance(merged.get(key), list) else []), *value]
+                if (str(x) and not (str(x) in seen or seen.add(str(x))))
+            ]
+        elif key == "errors" and isinstance(value, list):
+            merged[key] = [*(merged.get(key) if isinstance(merged.get(key), list) else []), *value][-30:]
+        else:
+            merged[key] = value
+    return _social_save_batch_record(merged)
+
+
+def _social_static_url_for_path(path: Path) -> str:
+    try:
+        rel = path.resolve().relative_to((Path.cwd() / "static").resolve())
+        return "/static/" + str(rel).replace("\\", "/")
+    except Exception:
+        return ""
+
+
+def _social_system_avatar_presets() -> list[dict[str, Any]]:
+    rows = [
+        (
+            "system_avatar_property_showroom",
+            "系統預設｜房產展示中心西裝中介",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090249_0cd946f6.jpg"),
+            "property_showroom",
+        ),
+        (
+            "system_avatar_cooperation_intro",
+            "系統預設｜合作簡報西裝中介",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090208_ce074391.jpg"),
+            "cooperation_intro",
+        ),
+        (
+            "system_avatar_onsite_walkthrough",
+            "系統預設｜室內帶看西裝中介",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090410_8c3d44a5.jpg"),
+            "onsite_walkthrough",
+        ),
+        (
+            "system_avatar_luxury_office",
+            "系統預設｜高端辦公室顧問",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090750_b0e561c2.jpg"),
+            "luxury_office",
+        ),
+        (
+            "system_avatar_online_briefing",
+            "系統預設｜線上說明會顧問",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090704_c362c82a.jpg"),
+            "online_briefing",
+        ),
+        (
+            "system_avatar_neighborhood_intro",
+            "系統預設｜街區生活介紹顧問",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090257_627a7764.jpg"),
+            "cooperation_intro",
+        ),
+        (
+            "system_avatar_model_room",
+            "系統預設｜樣品屋介紹顧問",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090248_c2d5544f.jpg"),
+            "property_showroom",
+        ),
+        (
+            "system_avatar_premium_briefing",
+            "系統預設｜精品案簡報顧問",
+            Path("static/uploads/social-case-workbench/avatar_20260524_090019_b29a5487.jpg"),
+            "luxury_office",
+        ),
+    ]
+    out: list[dict[str, Any]] = []
+    for preset_id, label, path, scene in rows:
+        if not path.exists():
+            continue
+        out.append(
+            {
+                "id": preset_id,
+                "label": label,
+                "image_url": _social_static_url_for_path(path),
+                "image_path": str(path.resolve()),
+                "provider": "system",
+                "model": "local-scene-preset",
+                "scene": scene,
+                "identity_lock": True,
+                "source_item_id": 0,
+                "created_at": "2026-05-24T09:02:49Z",
+            }
+        )
+    return out
+
+
+def _social_avatar_presets(limit: int = 30) -> list[dict[str, Any]]:
+    path = _social_avatar_presets_path()
+    raw: list[Any] = []
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                raw = loaded
+        except Exception:
+            raw = []
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in [*_social_system_avatar_presets(), *raw]:
+        if not isinstance(row, dict):
+            continue
+        image_url = str(row.get("image_url") or "").strip()
+        image_path = str(row.get("image_path") or "").strip()
+        if not image_url and not image_path:
+            continue
+        key = str(row.get("id") or image_path or image_url).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "id": str(row.get("id") or f"avatar_{len(out) + 1}"),
+                "label": _social_text(row.get("label") or "Agent avatar", limit=80),
+                "image_url": image_url,
+                "image_path": image_path,
+                "provider": str(row.get("provider") or "").strip(),
+                "model": str(row.get("model") or "").strip(),
+                "scene": str(row.get("scene") or "").strip(),
+                "identity_lock": bool(row.get("identity_lock", True)),
+                "source_item_id": int(row.get("source_item_id") or 0),
+                "created_at": str(row.get("created_at") or "").strip(),
+            }
+        )
+        if len(out) >= max(1, int(limit or 30)):
+            break
+    return out
+
+
+def _social_save_avatar_preset(
+    *,
+    image_url: str,
+    image_path: str,
+    provider: str,
+    model: str,
+    source_item_id: int,
+    label: str,
+    scene: str = "",
+    identity_lock: bool = True,
+) -> dict[str, Any]:
+    image_url = str(image_url or "").strip()
+    image_path = str(image_path or "").strip()
+    if not image_url and not image_path:
+        return {}
+    presets: list[dict[str, Any]] = []
+    path = _social_avatar_presets_path()
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                presets = [row for row in loaded if isinstance(row, dict) and str(row.get("provider") or "") != "system"]
+        except Exception:
+            presets = []
+    key = (image_path or image_url).lower()
+    presets = [
+        row
+        for row in presets
+        if str(row.get("image_path") or row.get("image_url") or "").strip().lower() != key
+    ]
+    preset = {
+        "id": f"avatar_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}",
+        "label": _social_text(label or "Agent avatar", limit=80),
+        "image_url": image_url,
+        "image_path": image_path,
+        "provider": str(provider or "").strip(),
+        "model": str(model or "").strip(),
+        "scene": str(scene or "").strip(),
+        "identity_lock": bool(identity_lock),
+        "source_item_id": int(source_item_id or 0),
+        "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+    }
+    presets.insert(0, preset)
+    _social_avatar_presets_path().write_text(
+        json.dumps(presets[:30], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return preset
+
+
+def _social_google_image_generation(
+    cfg: dict[str, str],
+    *,
+    prompt: str,
+    size: str,
+    reference: tuple[bytes, str] | None,
+    prefix: str,
+) -> dict[str, str]:
+    aspect = "1:1"
+    if "1792" in str(size) or "16" in str(size):
+        aspect = "9:16"
+    parts: list[dict[str, Any]] = [{"text": prompt}]
+    if reference:
+        ref_bytes, mime_type = reference
+        parts.append({"inlineData": {"mimeType": mime_type, "data": base64.b64encode(ref_bytes).decode("ascii")}})
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": {
+            "responseModalities": ["IMAGE"],
+            "imageConfig": {"aspectRatio": aspect, "imageSize": "2K"},
+        },
+    }
+    url = f"{cfg['base_url']}/v1beta/models/{cfg['model']}:generateContent"
+    headers = {"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json"}
+    with httpx.Client(timeout=httpx.Timeout(180.0, connect=12.0)) as client:
+        resp = client.post(url, headers=headers, json=payload)
+    if resp.status_code >= 400:
+        body = (resp.text or "").strip().replace("\r\n", " ").replace("\n", " ")
+        raise HTTPException(status_code=502, detail=f"{cfg['label']} Google image HTTP {resp.status_code}: {body[:900]}")
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    for cand in candidates:
+        content = cand.get("content") or {}
+        for part in content.get("parts") or []:
+            inline = part.get("inlineData") or part.get("inline_data") or {}
+            b64 = inline.get("data") or inline.get("b64_json")
+            if b64:
+                return _social_save_b64_image(str(b64), mime_type=str(inline.get("mimeType") or inline.get("mime_type") or "image/png"), prefix=prefix)
+            file_data = part.get("fileData") or part.get("file_data") or {}
+            uri = str(file_data.get("fileUri") or file_data.get("uri") or "").strip()
+            if uri:
+                return _social_download_image_to_static(uri, prefix=prefix)
+            text = str(part.get("text") or "").strip()
+            m = re.search(r"!\[[^\]]*\]\((https?://[^)\s]+)\)", text) or re.search(r"(https?://\S+)", text)
+            if m:
+                return _social_download_image_to_static(m.group(1), prefix=prefix)
+    raise HTTPException(status_code=502, detail=f"{cfg['label']} Google image response missing image")
+
+
+def _social_reference_image_bytes(data_url: str = "", image_url: str = "") -> tuple[bytes, str] | None:
+    raw = str(data_url or "").strip()
+    if raw:
+        mime_type = "image/png"
+        if "," in raw and raw.lower().startswith("data:"):
+            head, raw = raw.split(",", 1)
+            m = re.match(r"data:([^;]+)", head, re.I)
+            if m:
+                mime_type = m.group(1)
+        try:
+            return base64.b64decode(raw), mime_type
+        except Exception:
+            return None
+    url = str(image_url or "").strip()
+    if not url:
+        return None
+    local = _social_static_url_to_path(url)
+    if local and local.exists():
+        return local.read_bytes(), mimetypes.guess_type(str(local))[0] or "image/png"
+    if url.lower().startswith(("http://", "https://")):
+        with httpx.Client(timeout=httpx.Timeout(45.0, connect=8.0), follow_redirects=True) as client:
+            resp = client.get(url)
+        if resp.status_code < 400 and resp.content:
+            return resp.content, resp.headers.get("content-type", "image/png").split(";", 1)[0].strip() or "image/png"
+    return None
+
+
+def _social_banana_image(
+    item: dict[str, Any],
+    *,
+    prompt: str,
+    size: str,
+    provider: str = "banana",
+    purpose: str = "cover",
+    reference_image_data_url: str = "",
+    reference_image_url: str = "",
+    scene: str = "cooperation_intro",
+    identity_lock: bool = True,
+    case_scene_context: str = "",
+    case_scene_image_urls: list[str] | None = None,
+) -> dict[str, Any]:
+    cfg = _social_image_provider_config(provider)
+    if not cfg["base_url"] or not cfg["api_key"]:
+        raise HTTPException(status_code=400, detail=f"{cfg['label']} provider is not configured")
+    use_prompt = (
+        _social_agent_avatar_prompt(
+            item,
+            prompt,
+            has_reference=bool(str(reference_image_data_url or reference_image_url or "").strip()),
+            scene=scene,
+            identity_lock=identity_lock,
+            case_scene_context=case_scene_context,
+            case_scene_image_urls=case_scene_image_urls or [],
+        )
+        if str(purpose or "").strip().lower() in {"agent_avatar", "avatar", "digital_human"}
+        else _social_banana_prompt(item, prompt)
+    )
+    headers = {"Authorization": f"Bearer {cfg['api_key']}"}
+    resp: httpx.Response | None = None
+    ref = _social_reference_image_bytes(reference_image_data_url, reference_image_url)
+    prefix = "avatar" if str(purpose or "").lower() in {"agent_avatar", "avatar", "digital_human"} else "image"
+    if cfg["provider"] == "banana" and str(cfg["model"]).lower().startswith(("nano", "gemini")):
+        saved = _social_google_image_generation(cfg, prompt=use_prompt, size=size, reference=ref, prefix=prefix)
+        return {
+            "image_url": saved.get("image_url") or "",
+            "image_path": saved.get("image_path") or "",
+            "prompt": use_prompt,
+            "model": cfg["model"],
+            "provider": cfg["provider"],
+            "provider_label": cfg["label"],
+            "purpose": purpose,
+            "scene": scene,
+            "identity_lock": identity_lock,
+            "case_scene_context": case_scene_context,
+            "case_scene_image_urls": case_scene_image_urls or [],
+        }
+    try:
+        with httpx.Client(timeout=httpx.Timeout(180.0, connect=12.0)) as client:
+            if ref:
+                ref_bytes, mime_type = ref
+                files = {"image": ("reference.png", ref_bytes, mime_type)}
+                data = {"model": cfg["model"], "prompt": use_prompt, "size": size or "1024x1024", "n": "1"}
+                edit_url = f"{cfg['base_url']}/v1/images/edits"
+                resp = client.post(edit_url, headers=headers, data=data, files=files)
+            if resp is None or (resp.status_code >= 400 and ref):
+                payload = {"model": cfg["model"], "prompt": use_prompt, "size": size or "1024x1024", "n": 1}
+                if ref:
+                    payload["reference_image"] = reference_image_data_url or reference_image_url
+                json_headers = {**headers, "Content-Type": "application/json"}
+                url = f"{cfg['base_url']}/v1/images/generations"
+                resp = client.post(url, headers=json_headers, json=payload)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{cfg['label']} image request failed: {type(exc).__name__}: {exc}") from exc
+    if resp is None:
+        raise HTTPException(status_code=502, detail=f"{cfg['label']} image request did not return a response")
+    if resp.status_code >= 400:
+        body = (resp.text or "").strip().replace("\r\n", " ").replace("\n", " ")
+        raise HTTPException(status_code=502, detail=f"{cfg['label']} image HTTP {resp.status_code}: {body[:900]}")
+    try:
+        data = resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{cfg['label']} image returned non-JSON response") from exc
+    rows = data.get("data") or []
+    if not rows or not isinstance(rows[0], dict):
+        raise HTTPException(status_code=502, detail=f"{cfg['label']} image response missing data")
+    first = rows[0]
+    image_url = str(first.get("url") or "").strip()
+    saved: dict[str, str] = {"image_url": image_url, "image_path": ""}
+    if not image_url and first.get("b64_json"):
+        saved = _social_save_b64_image(
+            str(first.get("b64_json")),
+            mime_type=str(first.get("mime_type") or "image/png"),
+            prefix=prefix,
+        )
+        image_url = saved["image_url"]
+    elif image_url:
+        saved = _social_download_image_to_static(
+            image_url,
+            prefix=prefix,
+        )
+        image_url = saved.get("image_url") or image_url
+    if not image_url:
+        raise HTTPException(status_code=502, detail=f"{cfg['label']} image response missing image")
+    return {
+        "image_url": image_url,
+        "image_path": saved.get("image_path") or "",
+        "prompt": use_prompt,
+        "model": cfg["model"],
+        "provider": cfg["provider"],
+        "provider_label": cfg["label"],
+        "purpose": purpose,
+        "scene": scene,
+        "identity_lock": identity_lock,
+        "case_scene_context": case_scene_context,
+        "case_scene_image_urls": case_scene_image_urls or [],
+    }
+
+
+_SOCIAL_AREA_KEYWORDS: dict[str, list[str]] = {
+    "all": [],
+    "首都圏": ["首都圏", "首都圈", "東京", "神奈川", "埼玉", "千葉", "横浜", "横滨", "川崎"],
+    "關東": ["關東", "関東", "Kanto", "東京", "神奈川", "埼玉", "千葉", "茨城", "栃木", "群馬"],
+    "關西": ["關西", "関西", "Kansai", "大阪", "京都", "兵庫", "神戸", "奈良", "滋賀", "和歌山"],
+    "東京": ["東京", "Tokyo", "23区", "２３区"],
+    "大阪": ["大阪", "Osaka"],
+    "名古屋": ["名古屋", "Nagoya", "愛知"],
+    "福岡": ["福岡", "福冈", "Fukuoka"],
+    "北海道": ["北海道", "Hokkaido"],
+    "東北": ["東北", "Tohoku", "青森", "岩手", "宮城", "秋田", "山形", "福島"],
+    "甲信越": ["甲信越", "山梨", "長野", "新潟"],
+    "北陸": ["北陸", "富山", "石川", "福井"],
+    "東海": ["東海", "Tokai", "愛知", "静岡", "岐阜", "三重"],
+    "中國地方": ["中國地方", "中国地方", "Chugoku", "広島", "岡山", "山口", "鳥取", "島根"],
+    "四國": ["四國", "四国", "Shikoku", "香川", "徳島", "愛媛", "高知"],
+    "九州": ["九州", "Kyushu", "福岡", "熊本", "鹿児島", "長崎", "大分", "宮崎", "佐賀"],
+    "沖繩": ["沖繩", "冲绳", "沖縄", "Okinawa"],
+    "神奈川": ["神奈川", "Kanagawa", "横浜", "横滨", "川崎"],
+    "埼玉": ["埼玉", "Saitama", "さいたま"],
+    "千葉": ["千葉", "千叶", "Chiba"],
+    "横滨": ["横浜", "横滨", "Yokohama"],
+    "川崎": ["川崎", "Kawasaki"],
+    "京都市": ["京都市", "京都府", "Kyoto"],
+}
+
+
+def _social_area_options() -> list[dict[str, str]]:
+    labels = ["首都圏", "關東", "關西", *JP_AREA_FILTER_LABELS]
+    out: list[dict[str, str]] = [{"value": "all", "label": "全部日本地區"}]
+    seen = {"all"}
+    for label in labels:
+        value = str(label or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        out.append({"value": value, "label": value})
+    return out
+
+
+def _social_case_completeness(item: dict[str, Any]) -> int:
+    facts = dict(item.get("facts") or {})
+    score = 8
+    score += min(30, int(item.get("image_count") or 0) * 5)
+    score += min(8, int(item.get("video_count") or 0) * 4)
+    score += 16 if facts.get("交通") else 0
+    score += 12 if facts.get("價格") else 0
+    score += 10 if facts.get("格局") else 0
+    score += 8 if facts.get("面積") else 0
+    score += 8 if facts.get("區域") else 0
+    score += 10 if _social_fact_lookup(item, "交通", "車站", "沿線", "駅") else 0
+    score += 8 if _social_fact_lookup(item, "價格", "售價", "總價", "price") else 0
+    score += 7 if _social_fact_lookup(item, "格局", "間取り", "房型") else 0
+    score += 6 if _social_fact_lookup(item, "面積", "專有", "建物") else 0
+    score += 6 if _social_fact_lookup(item, "區域", "地區", "位置") else 0
+    score += 4 if item.get("body_excerpt") else 0
+    score += 4 if item.get("title") else 0
+    return max(0, min(100, score))
+
+
+def _social_item_area_blob(item: dict[str, Any]) -> str:
+    facts = dict(item.get("facts") or {})
+    return "\n".join(
+        [
+            str(facts.get("區域") or ""),
+            str(item.get("title") or ""),
+            str(item.get("source_name") or ""),
+            str(item.get("item_url") or ""),
+            str(item.get("body_excerpt") or ""),
+        ]
+    )
+
+
+def _social_case_area_label(item: dict[str, Any]) -> str:
+    blob = _social_item_area_blob(item)
+    for option in _social_area_options()[1:]:
+        value = option["value"]
+        keys = _SOCIAL_AREA_KEYWORDS.get(value) or [value]
+        if any(str(k) and re.search(re.escape(str(k)), blob, re.I) for k in keys):
+            return value
+    return _social_text((item.get("facts") or {}).get("區域") or "日本", limit=30)
+
+
+def _social_area_matches(item: dict[str, Any], area: str) -> bool:
+    selected = str(area or "all").strip()
+    if not selected or selected.lower() in {"all", "全部", "全部日本地區"}:
+        return True
+    blob = _social_item_area_blob(item)
+    keys = _SOCIAL_AREA_KEYWORDS.get(selected) or [selected]
+    return any(str(k) and re.search(re.escape(str(k)), blob, re.I) for k in keys)
+
+
+def _social_filter_area(items: list[dict[str, Any]], area: str) -> list[dict[str, Any]]:
+    return [item for item in items if _social_area_matches(item, area)]
+
+
+def _social_filter_query(items: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    q = str(query or "").strip().lower()
+    if not q:
+        return items
+    terms = [x for x in re.split(r"\s+", q) if x]
+    if not terms:
+        return items
+    out: list[dict[str, Any]] = []
+    for item in items:
+        facts = item.get("facts") or {}
+        blob = "\n".join(
+            [
+                str(item.get("title") or ""),
+                str(item.get("source_name") or ""),
+                str(item.get("item_url") or ""),
+                str(item.get("area_label") or ""),
+                str(item.get("traffic_label") or ""),
+                str(item.get("body_excerpt") or ""),
+                "\n".join(f"{k} {v}" for k, v in facts.items()),
+                "\n".join(str(x) for x in item.get("selling_points") or []),
+            ]
+        ).lower()
+        if all(term in blob for term in terms):
+            out.append(item)
+    return out
+
+
+def _social_media_source_family_score(media_url: str, source_url: str) -> int:
+    u = str(media_url or "").strip()
+    src = str(source_url or "").strip()
+    if not u:
+        return -999
+    try:
+        media_host = (urlparse(u).netloc or "").lower()
+        source_host = (urlparse(src).netloc or "").lower()
+    except Exception:
+        media_host = ""
+        source_host = ""
+    score = 0
+    families = (
+        ("suumo.", ("suumo.", "img01.suumo.com", "img02.suumo.com")),
+        ("homes.co.jp", ("homes.co.jp", "homes.jp", "image.homes.jp")),
+        ("athome.co.jp", ("athome.co.jp", "img.athome.co.jp")),
+        ("realestate.yahoo.co.jp", ("realestate.yahoo.co.jp", "yimg.jp")),
+        ("realestate.rakuten.co.jp", ("realestate.rakuten.co.jp", "rakuten.co.jp")),
+        ("yes1.co.jp", ("yes1.co.jp", "yes-station.jp")),
+        ("oheya-su.jp", ("oheya-su.jp", "oheyasuu.com")),
+    )
+    for src_token, media_tokens in families:
+        if src_token in source_host and any(tok in media_host for tok in media_tokens):
+            score += 90
+            break
+    if source_host and source_host in media_host:
+        score += 80
+    lu = u.lower()
+    dims = [int(x) for x in re.findall(r"[?&](?:w|h|width|height)=(\d{3,5})", lu)]
+    if dims and max(dims) >= 1200:
+        score += 36
+    elif any(lu.split("?", 1)[0].endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
+        score += 22
+    if any(tok in lu for tok in ("bukken", "smallimg", "resizeimage", "photo", "image.php", "gaikan", "naikan", "madori")):
+        score += 20
+    if is_likely_agent_portrait_image_url(u):
+        score -= 120
+    if _is_non_listing_asset_url(lu):
+        score -= 220
+    return score
+
+
+def _social_prioritize_source_media(urls: list[str], source_url: str, *, limit: int = 10) -> list[str]:
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for u in urls:
+        s = str(u or "").strip()
+        key = s.lower()
+        if not s or key in seen:
+            continue
+        seen.add(key)
+        uniq.append(s)
+    scored = [
+        (_social_media_source_family_score(u, source_url), idx, u)
+        for idx, u in enumerate(uniq)
+        if _row_image_url_is_usable(u)
+    ]
+    scored.sort(key=lambda row: (row[0], -row[1]), reverse=True)
+    return [u for _, _, u in scored[: max(1, min(20, int(limit or 10)))]]
+
+
+def _social_media_quality_label(item: dict[str, Any]) -> str:
+    imgs = [str(u or "").strip() for u in (item.get("property_images") or []) if str(u or "").strip()]
+    if not imgs:
+        return "待補原站素材"
+    source_host = ""
+    try:
+        source_host = (urlparse(str(item.get("item_url") or "")).netloc or "").lower()
+    except Exception:
+        source_host = ""
+
+    def same_source_family(media_url: str) -> bool:
+        try:
+            host = (urlparse(media_url).netloc or "").lower()
+        except Exception:
+            return False
+        families = (
+            ("suumo.", "suumo."),
+            ("homes.co.jp", "homes."),
+            ("homes.co.jp", "homes.jp"),
+            ("athome.co.jp", "athome.co.jp"),
+            ("realestate.yahoo.co.jp", "yahoo.co.jp"),
+            ("realestate.rakuten.co.jp", "rakuten.co.jp"),
+        )
+        return any(a in source_host and b in host for a, b in families) or bool(source_host and source_host in host)
+
+    source_like = 0
+    high_res = 0
+    direct_original = 0
+    for u in imgs[:12]:
+        lu = u.lower()
+        if same_source_family(u) or _social_media_source_family_score(u, str(item.get("item_url") or "")) >= 80:
+            source_like += 1
+        dims = [int(x) for x in re.findall(r"[?&](?:w|h|width|height)=(\d{3,5})", lu)]
+        if dims and max(dims) >= 1200:
+            high_res += 1
+        elif "resizeimage" not in lu and any(lu.split("?", 1)[0].endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
+            direct_original += 1
+    need = max(1, min(3, len(imgs)))
+    if source_like >= need and (high_res + direct_original) >= need:
+        return "原站高清素材"
+    if source_like >= need:
+        return "原站素材，清晰度待補強"
+    return "素材需回原站重抓"
+
+
+def _social_case_data_profile(item: dict[str, Any]) -> dict[str, Any]:
+    completeness = int(item.get("completeness_score") or 0)
+    image_count = int(item.get("image_count") or 0)
+    video_count = int(item.get("video_count") or 0)
+    data_time = (
+        str(item.get("data_time") or "").strip()
+        or str(item.get("last_checked_at") or "").strip()
+        or str(item.get("updated_at") or "").strip()
+        or str(item.get("published_at") or "").strip()
+        or str(item.get("crawled_at") or "").strip()
+    )
+    source_scores = [
+        _social_media_source_family_score(str(u or ""), str(item.get("item_url") or ""))
+        for u in (item.get("property_images") or [])[:12]
+    ]
+    source_media_count = sum(1 for score in source_scores if score >= 80)
+    high_quality_count = sum(1 for score in source_scores if score >= 110)
+    checks = [
+        ("交通", _social_fact_lookup(item, "交通", "徒歩", "駅", "access", limit=90) or item.get("traffic_label")),
+        ("價格", _social_fact_lookup(item, "價格", "価格", "price", limit=90)),
+        ("格局", _social_fact_lookup(item, "格局", "間取り", "layout", limit=90)),
+        ("面積", _social_fact_lookup(item, "面積", "専有", "土地", "㎡", limit=90)),
+        ("地區", item.get("area_label") or _social_fact_lookup(item, "區域", "地域", "都道府県", limit=90)),
+    ]
+    present = [{"label": label, "value": str(value or "").strip()} for label, value in checks if str(value or "").strip()]
+    missing = [label for label, value in checks if not str(value or "").strip()]
+    if completeness >= 85 and image_count >= 5:
+        quality_label = "完整可發布"
+    elif completeness >= 65 and image_count >= 3:
+        quality_label = "可發布，建議人工確認"
+    else:
+        quality_label = "待補資料後再發布"
+    return {
+        "freshness_label": f"最新檢查 {data_time}" if data_time else "等待最新檢查時間",
+        "quality_label": quality_label,
+        "media_label": f"{image_count} 張圖片 / {video_count} 支影片",
+        "media_quality_label": _social_media_quality_label(item),
+        "source_media_count": source_media_count,
+        "high_quality_count": high_quality_count,
+        "data_time": data_time,
+        "missing_fields": missing,
+        "present_fields": present,
+        "source_label": str(item.get("source_name") or "日本房地產來源").strip(),
+        "source_url": str(item.get("item_url") or "").strip(),
+        "publish_ready": bool(completeness >= 65 and image_count >= 1),
+    }
+
+
+def _social_row_to_item(row: dict[str, Any]) -> dict[str, Any]:
+    d = dict(row)
+    imgs, vids = extract_media_urls_from_row(d)
+    agent_images = [u for u in imgs if is_likely_agent_portrait_image_url(u)]
+    property_images = [u for u in imgs if not is_likely_agent_portrait_image_url(u)]
+    if not property_images:
+        property_images = list(imgs)
+    source_url = str(d.get("item_url") or "")
+    property_images = _social_prioritize_source_media(property_images, source_url, limit=10)
+    meta = infer_case_metadata(d)
+    facts = _social_case_facts(d, meta)
+    score, score_reasons = _social_case_score(
+        d,
+        image_count=len(imgs),
+        video_count=len(vids),
+        facts=facts,
+        property_image_count=len(property_images),
+        agent_image_count=len(agent_images),
+    )
+    platform = _social_platform_recommendation(
+        image_count=len(property_images),
+        video_count=len(vids),
+        facts=facts,
+        score=score,
+    )
+    selling_points = []
+    for key in ("交通", "價格", "格局", "面積", "區域"):
+        if facts.get(key):
+            selling_points.append(f"{key}：{facts[key]}")
+    selling_points.extend([r for r in score_reasons if r not in selling_points])
+    item = {
+        "content_id": int(d.get("content_id") or 0),
+        "source_item_id": int(d.get("source_item_id") or d.get("id") or 0),
+        "title": _social_title(d),
+        "source_name": _social_text(d.get("source_name") or "", limit=60),
+        "item_url": source_url,
+        "case_url": f"/case/{int(d.get('source_item_id') or d.get('id') or 0)}",
+        "updated_at": str(d.get("updated_at") or d.get("last_checked_at") or ""),
+        "published_at": str(d.get("published_at") or ""),
+        "crawled_at": str(d.get("crawled_at") or ""),
+        "last_checked_at": str(d.get("last_checked_at") or ""),
+        "data_time": str(d.get("last_checked_at") or d.get("crawled_at") or d.get("published_at") or d.get("updated_at") or ""),
+        "score": score,
+        "score_reasons": score_reasons,
+        "facts": facts,
+        "selling_points": selling_points[:7],
+        "platform": platform,
+        "property_images": property_images[:10],
+        "agent_images": agent_images[:5],
+        "video_urls": vids[:6],
+        "image_count": len(property_images),
+        "agent_image_count": len(agent_images),
+        "video_count": len(vids),
+        "body_excerpt": _social_text(d.get("body_zh_hant") or d.get("body_original") or "", limit=300),
+    }
+    item["storyboard"] = _social_build_storyboard(
+        property_images=item["property_images"],
+        agent_images=item["agent_images"],
+        video_urls=item["video_urls"],
+        facts=facts,
+    )
+    item["sales_image_plan"] = _social_sales_image_plan(item, max_images=8)
+    item["content_pack"] = _social_enrich_platform_content_pack(item, _social_build_content_pack(item))
+    item["area_label"] = _social_case_area_label(item)
+    item["traffic_label"] = facts.get("交通") or "交通待補"
+    item["completeness_score"] = _social_case_completeness(item)
+    item["case_data_profile"] = _social_case_data_profile(item)
+    item["publish_targets"] = [
+        {"code": "xhs", "label": "小紅書", "format": "圖文"},
+        {"code": "tk", "label": "TikTok", "format": "短影音"},
+        {"code": "douyin", "label": "抖音", "format": "短影音"},
+    ]
+    item["selection_summary"] = "｜".join(
+        part
+        for part in [
+            item["area_label"],
+            facts.get("交通") or "",
+            facts.get("價格") or "",
+            facts.get("格局") or "",
+        ]
+        if part
+    )
+    return item
+
+
+def _social_candidate_rows(limit: int) -> list[dict[str, Any]]:
+    sql = """
+        SELECT
+          c.id AS content_id,
+          c.seo_title,
+          c.title_zh_hant,
+          c.body_zh_hant,
+          c.updated_at,
+          c.region_code,
+          c.keyword_type,
+          c.topic_category,
+          COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+          COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+          COALESCE(c.case_transit_override, '') AS case_transit_override,
+          COALESCE(c.jp_station_id, 0) AS jp_station_id,
+          COALESCE(c.walk_min, 0) AS walk_min,
+          COALESCE(c.featured_weight, 0) AS featured_weight,
+          COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+          s.id AS source_item_id,
+          s.source_name,
+          s.item_url,
+          s.title_original,
+          substr(COALESCE(s.body_original,''),1,6000) AS body_original,
+          substr(COALESCE(s.image_urls,''),1,12000) AS image_urls,
+          s.access_status,
+          s.access_note,
+          s.published_at,
+          s.crawled_at,
+          s.last_checked_at,
+          COALESCE(s.content_kind, '') AS content_kind,
+          COALESCE(jst.station_name, '') AS jp_bind_station_name,
+          COALESCE(jln.line_name, '') AS jp_bind_line_name
+        FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
+        LEFT JOIN content_items c ON c.source_item_id = s.id
+        LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
+        LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+        WHERE s.content_kind = 'jp_listing'
+          AND s.access_status = 'public'
+        ORDER BY s.last_checked_at DESC, s.id DESC
+        LIMIT ?
+    """
+    fallback_sql = sql.replace(
+        "WHERE s.content_kind = 'jp_listing'\n          AND s.access_status = 'public'",
+        "WHERE s.access_status = 'public'",
+    )
+    with get_conn() as conn:
+        safe_limit = max(1, min(300, int(limit or 10)))
+        rows = conn.execute(sql, (safe_limit,)).fetchall()
+        if not rows:
+            rows = conn.execute(fallback_sql, (safe_limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _social_best_cases(limit: int = 8, *, area: str = "all") -> list[dict[str, Any]]:
+    safe_limit = max(1, min(50, int(limit or 8)))
+    rows = _social_candidate_rows(max(safe_limit, min(50, safe_limit * 3)))
+    items = [_social_row_to_item(r) for r in rows]
+    items = _social_filter_area(items, area)
+    items.sort(
+        key=lambda x: (
+            int(x.get("score") or 0),
+            int(x.get("completeness_score") or 0),
+            int(x.get("image_count") or 0),
+            str(x.get("data_time") or x.get("updated_at") or ""),
+        ),
+        reverse=True,
+    )
+    return items[:safe_limit]
+
+
+def _social_latest_cases(limit: int = 10, *, area: str = "all") -> list[dict[str, Any]]:
+    safe_limit = max(1, min(50, int(limit or 10)))
+    rows = _social_candidate_rows(max(safe_limit, min(50, safe_limit * 3)))
+    items = [_social_row_to_item(r) for r in rows]
+    items = _social_filter_area(items, area)
+    items.sort(
+        key=lambda x: (
+            str(x.get("data_time") or x.get("updated_at") or ""),
+            int(x.get("completeness_score") or 0),
+            int(x.get("score") or 0),
+            int(x.get("source_item_id") or 0),
+        ),
+        reverse=True,
+    )
+    return items[:safe_limit]
+
+
+def _social_case_by_source_item_id(source_item_id: int) -> dict[str, Any]:
+    sid = int(source_item_id or 0)
+    if sid <= 0:
+        items = _social_best_cases(1)
+        if not items:
+            raise HTTPException(status_code=404, detail="no social-ready cases")
+        return items[0]
+    sql = """
+        SELECT
+          c.id AS content_id,
+          c.seo_title,
+          c.title_zh_hant,
+          c.body_zh_hant,
+          c.updated_at,
+          c.region_code,
+          c.keyword_type,
+          c.topic_category,
+          COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+          COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+          COALESCE(c.case_transit_override, '') AS case_transit_override,
+          COALESCE(c.jp_station_id, 0) AS jp_station_id,
+          COALESCE(c.walk_min, 0) AS walk_min,
+          COALESCE(c.featured_weight, 0) AS featured_weight,
+          COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+          s.id AS source_item_id,
+          s.source_name,
+          s.item_url,
+          s.title_original,
+          substr(COALESCE(s.body_original,''),1,6000) AS body_original,
+          substr(COALESCE(s.image_urls,''),1,12000) AS image_urls,
+          s.access_status,
+          s.access_note,
+          s.published_at,
+          s.crawled_at,
+          s.last_checked_at,
+          COALESCE(s.content_kind, '') AS content_kind,
+          COALESCE(jst.station_name, '') AS jp_bind_station_name,
+          COALESCE(jln.line_name, '') AS jp_bind_line_name
+        FROM source_items s
+        LEFT JOIN content_items c ON c.source_item_id = s.id
+        LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
+        LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+        WHERE s.id = ?
+        LIMIT 1
+    """
+    with get_conn() as conn:
+        row = conn.execute(sql, (sid,)).fetchone()
+    if row:
+        d = dict(row)
+        if str(d.get("access_status") or "public").strip().lower() != "public":
+            detail = str(d.get("access_note") or "case delisted").strip()
+            raise HTTPException(status_code=404, detail=detail[:300] or "case delisted")
+        return _social_row_to_item(d)
+    raise HTTPException(status_code=404, detail="case not found")
+
+
+def _social_dt_from_ts(value: Any) -> str:
+    try:
+        ts = float(value)
+    except Exception:
+        return ""
+    if ts <= 0:
+        return ""
+    try:
+        return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return ""
+
+
+def _social_path_in_root(path: Path, root: Path) -> bool:
+    try:
+        rp = path.resolve(strict=False)
+        rr = root.resolve(strict=False)
+        return rp == rr or rr in rp.parents
+    except Exception:
+        return False
+
+
+def _social_resolve_tg_asset_path(raw_value: Any) -> Path | None:
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return None
+    root = _social_tg_root()
+    candidates: list[Path] = []
+    p = Path(raw)
+    candidates.append(p if p.is_absolute() else root / p)
+    parts = list(p.parts)
+    lower_parts = [x.lower() for x in parts]
+    if "digital_human_tg_bot" in lower_parts:
+        idx = lower_parts.index("digital_human_tg_bot")
+        tail = parts[idx + 1 :]
+        if tail:
+            candidates.append(root.joinpath(*tail))
+    for cand in candidates:
+        if _social_path_in_root(cand, root) and cand.is_file():
+            return cand
+    return None
+
+
+def _social_tg_file_url(task_id: str, kind: str, path_value: Any) -> str:
+    if str(kind or "") == "thumbnail" and str(task_id or "").strip():
+        return f"/api/social-case-workbench/tg-files/{task_id}/{kind}"
+    if _social_resolve_tg_asset_path(path_value) is None:
+        return ""
+    return f"/api/social-case-workbench/tg-files/{task_id}/{kind}"
+
+
+def _social_tg_task_manifest(work_dir: Any) -> dict[str, Any]:
+    raw = str(work_dir or "").strip()
+    if not raw:
+        return {}
+    root = _social_tg_root()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = root / path
+    manifest_path = path / "materials_manifest.json"
+    if not _social_path_in_root(manifest_path, root) or not manifest_path.is_file():
+        return {}
+    try:
+        loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _social_tg_audio_meta(work_dir: Any, cloned_audio_path: Any) -> dict[str, Any]:
+    manifest = _social_tg_task_manifest(work_dir)
+    audio_mode = str(manifest.get("audio_mode") or "").strip()
+    voice_clone_status = str(manifest.get("voice_clone_status") or "").strip()
+    voice_clone_error = str(manifest.get("voice_clone_error") or "").strip()
+    audio_name = Path(str(cloned_audio_path or "")).name.lower()
+    cloned_modes = {"existing_cloned_voice", "engine_cloned_voice", "cloned_voice"}
+    local_modes = {"local_tts", "local_tts_preview", "fallback_tts"}
+    is_cloned_audio = audio_mode in cloned_modes or (audio_name == "cloned_voice.flac" and audio_mode not in local_modes)
+    if voice_clone_status.lower() in {"failed", "unavailable"}:
+        is_cloned_audio = False
+    return {
+        "audio_mode": audio_mode,
+        "is_cloned_audio": bool(is_cloned_audio),
+        "voice_clone_status": voice_clone_status,
+        "voice_clone_error": voice_clone_error,
+    }
+
+
+def _social_voice_video_presets_path() -> Path:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return DATA_DIR / "social_case_voice_video_presets.json"
+
+
+def _social_voice_video_upload_dir() -> Path:
+    path = Path("static/uploads/social-case-workbench/voice-videos")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _social_load_voice_video_rows() -> list[dict[str, Any]]:
+    path = _social_voice_video_presets_path()
+    if not path.exists():
+        return []
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    return [row for row in loaded if isinstance(row, dict)] if isinstance(loaded, list) else []
+
+
+def _social_resolve_voice_source_path(raw_value: Any) -> Path | None:
+    tg_path = _social_resolve_tg_asset_path(raw_value)
+    if tg_path is not None:
+        return tg_path
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    roots = [
+        _social_voice_video_upload_dir(),
+        Path.cwd() / "static" / "uploads" / "social-case-workbench",
+    ]
+    for root in roots:
+        if _social_path_in_root(candidate, root) and candidate.is_file():
+            return candidate
+    return None
+
+
+def _social_custom_voice_video_presets(limit: int = 40) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in _social_load_voice_video_rows():
+        preset_id = str(row.get("id") or "").strip()
+        source_path = str(row.get("source_video_path") or "").strip()
+        if not preset_id or not source_path:
+            continue
+        source = _social_resolve_voice_source_path(source_path)
+        out.append(
+            {
+                "id": preset_id,
+                "label": _social_text(row.get("label") or row.get("original_filename") or preset_id, limit=120),
+                "kind": "uploaded_video",
+                "source_video_path": source_path,
+                "avatar_image_path": str(row.get("avatar_image_path") or "").strip(),
+                "source_exists": bool(source),
+                "avatar_exists": bool(row.get("avatar_image_path")),
+                "task_id": "",
+                "status": "saved",
+                "created_at_text": str(row.get("created_at_text") or "").strip(),
+                "summary": _social_text(row.get("summary") or "Uploaded video for voice clone preview.", limit=120),
+                "file_size": int(row.get("file_size") or 0),
+                "original_filename": str(row.get("original_filename") or "").strip(),
+                "is_default": bool(row.get("is_default")),
+                "preview_url": f"/api/social-case-workbench/tg-voice-preview/{quote(preset_id, safe='')}",
+            }
+        )
+    out.sort(key=lambda x: (0 if x.get("is_default") else 1, str(x.get("created_at_text") or "")), reverse=True)
+    out.sort(key=lambda x: 0 if x.get("is_default") else 1)
+    return out[: max(1, min(80, int(limit or 40)))]
+
+
+def _social_extract_video_avatar_preset(video_path: Path, *, label: str, source_item_id: int = 0) -> dict[str, Any] | None:
+    try:
+        import cv2  # type: ignore
+    except Exception:
+        return None
+    cap = None
+    try:
+        cap = cv2.VideoCapture(str(video_path))
+        frame = None
+        for _ in range(60):
+            ok, candidate = cap.read()
+            if ok and candidate is not None:
+                frame = candidate
+                break
+        if frame is None:
+            return None
+        out_dir = Path("static/uploads/social-case-workbench")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"avatar_from_video_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}.jpg"
+        if not cv2.imwrite(str(out_path), frame):
+            return None
+        image_url = _social_static_url_for_path(out_path)
+        if not image_url:
+            return None
+        return _social_save_avatar_preset(
+            image_url=image_url,
+            image_path=str(out_path.resolve()),
+            provider="video-upload",
+            model="first-frame",
+            source_item_id=int(source_item_id or 0),
+            label=_social_text(label or "Avatar from video", limit=80),
+            scene="uploaded_voice_video",
+            identity_lock=True,
+        )
+    except Exception:
+        return None
+    finally:
+        try:
+            if cap is not None:
+                cap.release()
+        except Exception:
+            pass
+
+
+def _social_save_voice_video_preset(
+    *,
+    source_video_path: str,
+    label: str,
+    original_filename: str,
+    file_size: int,
+    source_item_id: int = 0,
+    avatar_image_path: str = "",
+) -> dict[str, Any]:
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    preset_id = f"uploaded_voice:{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
+    row = {
+        "id": preset_id,
+        "label": _social_text(label or original_filename or "Voice clone video", limit=120),
+        "source_video_path": source_video_path,
+        "avatar_image_path": str(avatar_image_path or "").strip(),
+        "original_filename": original_filename,
+        "file_size": int(file_size or 0),
+        "source_item_id": int(source_item_id or 0),
+        "created_at": now,
+        "created_at_text": datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+        "summary": "Uploaded video for voice clone preview.",
+    }
+    rows = [row, *[old for old in _social_load_voice_video_rows() if old.get("id") != preset_id]]
+    _social_voice_video_presets_path().write_text(json.dumps(rows[:80], ensure_ascii=False, indent=2), encoding="utf-8")
+    return next((item for item in _social_custom_voice_video_presets(limit=80) if item.get("id") == preset_id), row)
+
+
+def _social_tg_voice_presets() -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = _social_custom_voice_video_presets(limit=80)
+    seen_ids = {str(row.get("id") or "") for row in out}
+    try:
+        with httpx.Client(timeout=httpx.Timeout(2.5, connect=0.8), follow_redirects=True) as client:
+            resp = client.get(f"{_social_tg_web_url().rstrip('/')}/api/voice-presets")
+        if resp.status_code >= 400:
+            return out
+        data = resp.json()
+    except Exception:
+        return out
+    rows = data.get("presets") if isinstance(data, dict) else []
+    if isinstance(rows, list):
+        for row in rows[:80]:
+            if not isinstance(row, dict):
+                continue
+            preset_id = str(row.get("id") or "").strip()
+            if not preset_id or preset_id in seen_ids:
+                continue
+            seen_ids.add(preset_id)
+            out.append(
+                {
+                    "id": preset_id,
+                    "label": _social_text(row.get("label") or preset_id, limit=120),
+                    "kind": str(row.get("kind") or "").strip(),
+                    "source_video_path": str(row.get("source_video_path") or "").strip(),
+                    "avatar_image_path": str(row.get("avatar_image_path") or "").strip(),
+                    "source_exists": bool(row.get("source_exists")),
+                    "avatar_exists": bool(row.get("avatar_exists")),
+                    "task_id": str(row.get("task_id") or "").strip(),
+                    "status": str(row.get("status") or "").strip(),
+                    "created_at_text": str(row.get("created_at_text") or "").strip(),
+                    "summary": _social_text(row.get("summary") or "", limit=120),
+                    "preview_url": f"/api/social-case-workbench/tg-voice-preview/{quote(preset_id, safe='')}",
+                }
+            )
+    return out
+
+
+def _social_tg_snapshot(limit: int = 8) -> dict[str, Any]:
+    root = _social_tg_root()
+    db_path = root / "data" / "workbench.db"
+    out: dict[str, Any] = {
+        "root": str(root),
+        "web_url": _social_tg_web_url(),
+        "database_path": str(db_path),
+        "available": bool(root.exists()),
+        "web_available": False,
+        "database_available": bool(db_path.is_file()),
+        "engine_health": None,
+        "counts": {},
+        "recent_tasks": [],
+        "voice_presets": [],
+        "start_command": f"cd {root} ; .\\.venv\\Scripts\\python.exe main.py",
+    }
+    try:
+        with httpx.Client(timeout=httpx.Timeout(3.0, connect=1.0)) as client:
+            resp = client.get(_social_tg_web_url())
+            out["web_available"] = bool(resp.status_code < 500)
+            if out["web_available"]:
+                try:
+                    health = client.get(f"{_social_tg_web_url().rstrip('/')}/api/engine-health")
+                    if health.status_code < 500:
+                        out["engine_health"] = health.json()
+                except Exception:
+                    out["engine_health"] = None
+    except Exception:
+        out["web_available"] = False
+    out["voice_presets"] = _social_tg_voice_presets()
+    if not db_path.is_file():
+        return out
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=2.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            counts = conn.execute(
+                "SELECT status, COUNT(1) AS total FROM workspace_tasks GROUP BY status"
+            ).fetchall()
+            out["counts"] = {str(r["status"]): int(r["total"] or 0) for r in counts}
+            rows = conn.execute(
+                """
+                SELECT id, submitter_label, source, source_video_path, avatar_image_path,
+                       work_dir,
+                       final_video_path, cloned_audio_path, script_text, target_duration_seconds, status,
+                       current_stage, summary, error_message, created_at, updated_at
+                FROM workspace_tasks
+                ORDER BY
+                  CASE
+                    WHEN status = 'completed' AND TRIM(COALESCE(final_video_path, '')) <> '' THEN 0
+                    WHEN status IN ('queued', 'processing') THEN 1
+                    ELSE 2
+                  END,
+                  updated_at DESC,
+                  created_at DESC
+                LIMIT ?
+                """,
+                (max(1, min(20, int(limit or 8))),),
+            ).fetchall()
+            tasks: list[dict[str, Any]] = []
+            for r in rows:
+                d = dict(r)
+                tid = str(d.get("id") or "")
+                work_dir = str(d.get("work_dir") or "").strip()
+                final_video_fallback = str(Path(work_dir) / "digital_human.mp4") if work_dir else ""
+                avatar_image_fallback = str(Path(work_dir) / "avatar_image.jpg") if work_dir else ""
+                portrait_video = str(Path(work_dir) / "case_intro_with_digital_human_portrait_9x16.mp4") if work_dir else ""
+                landscape_video = str(Path(work_dir) / "case_intro_with_digital_human_landscape_16x9.mp4") if work_dir else ""
+                audio_meta = _social_tg_audio_meta(work_dir, d.get("cloned_audio_path"))
+                latest_stage = ""
+                latest_message = ""
+                cloned_audio_path = str(d.get("cloned_audio_path") or "").strip()
+                status = str(d.get("status") or "")
+                final_video_url = _social_tg_file_url(tid, "final_video", d.get("final_video_path")) or _social_tg_file_url(tid, "final_video", final_video_fallback)
+                portrait_video_url = _social_tg_file_url(tid, "portrait_video", portrait_video)
+                landscape_video_url = _social_tg_file_url(tid, "landscape_video", landscape_video)
+                thumbnail_url = _social_tg_file_url(tid, "thumbnail", str(Path(work_dir) / "thumbnail.jpg") if work_dir else "")
+                status_key = status.lower()
+                source_text = str(d.get("source") or "")
+                source_item_id = 0
+                source_match = re.search(r"(?:social-case|source_item|case)[:#-]?(\d+)", source_text, re.I)
+                if source_match:
+                    source_item_id = int(source_match.group(1) or 0)
+                if not (final_video_url or portrait_video_url or landscape_video_url) and status_key not in {"queued", "processing", "failed", "cancelled", "canceled"}:
+                    continue
+                try:
+                    evt = conn.execute(
+                        "SELECT stage, message FROM workspace_task_events WHERE task_id = ? ORDER BY id DESC LIMIT 1",
+                        (tid,),
+                    ).fetchone()
+                    if evt:
+                        latest_stage = _social_text(evt["stage"] or "", limit=160)
+                        latest_message = _social_text(evt["message"] or "", limit=160)
+                except Exception:
+                    pass
+                tasks.append(
+                    {
+                        "id": tid,
+                        "status": status,
+                        "submitter_label": str(d.get("submitter_label") or ""),
+                        "source": source_text,
+                        "source_item_id": source_item_id,
+                        "created_at": _social_dt_from_ts(d.get("created_at")),
+                        "updated_at": _social_dt_from_ts(d.get("updated_at")),
+                        "target_duration_seconds": d.get("target_duration_seconds"),
+                        "script_preview": _social_text(d.get("script_text") or "", limit=140),
+                        "current_stage": latest_stage or _social_text(d.get("current_stage") or "", limit=160),
+                        "summary": _social_text(d.get("summary") or latest_message or d.get("error_message") or "", limit=140),
+                        "error_message": _social_text(d.get("error_message") or "", limit=180),
+                        "audio_mode": audio_meta["audio_mode"],
+                        "is_cloned_audio": audio_meta["is_cloned_audio"],
+                        "voice_clone_status": audio_meta["voice_clone_status"],
+                        "voice_clone_error": _social_text(audio_meta["voice_clone_error"], limit=180),
+                        "voice_audio_ext": Path(cloned_audio_path).suffix.lstrip(".").lower() or "wav",
+                        "final_video_url": final_video_url,
+                        "portrait_video_url": portrait_video_url,
+                        "landscape_video_url": landscape_video_url,
+                        "cloned_audio_url": _social_tg_file_url(tid, "cloned_audio", d.get("cloned_audio_path")),
+                        "thumbnail_url": thumbnail_url,
+                        "assets_manifest_url": _social_tg_file_url(tid, "assets_manifest", str(Path(work_dir) / "materials_manifest.json") if work_dir else ""),
+                        "script_url": _social_tg_file_url(tid, "script", str(Path(work_dir) / "case_script.txt") if work_dir else ""),
+                        "sales_brief_url": _social_tg_file_url(tid, "sales_brief", str(Path(work_dir) / "sales_brief.md") if work_dir else ""),
+                        "sales_brief_json_url": _social_tg_file_url(tid, "sales_brief_json", str(Path(work_dir) / "sales_brief.json") if work_dir else ""),
+                        "voice_clone_status_url": _social_tg_file_url(tid, "voice_clone_status", str(Path(work_dir) / "voice_clone_status.json") if work_dir else ""),
+                        "avatar_image_url": _social_tg_file_url(tid, "avatar_image", d.get("avatar_image_path"))
+                        or _social_tg_file_url(tid, "avatar_image", avatar_image_fallback),
+                    }
+                )
+            out["recent_tasks"] = tasks
+        finally:
+            conn.close()
+    except Exception as exc:
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
+def _social_tg_snapshot_cached(limit: int = 8, *, ttl_seconds: float = 20.0) -> dict[str, Any]:
+    safe_limit = max(1, min(20, int(limit or 8)))
+    now = time.monotonic()
+    with _SOCIAL_TG_SNAPSHOT_CACHE_LOCK:
+        hit = _SOCIAL_TG_SNAPSHOT_CACHE.get(safe_limit)
+        if hit and now - hit[0] <= max(1.0, float(ttl_seconds or 20.0)):
+            return json.loads(json.dumps(hit[1], ensure_ascii=False))
+    snap = _social_tg_snapshot(limit=safe_limit)
+    with _SOCIAL_TG_SNAPSHOT_CACHE_LOCK:
+        _SOCIAL_TG_SNAPSHOT_CACHE[safe_limit] = (time.monotonic(), snap)
+    return snap
+
+
+def _social_tg_cleanup_incomplete_tasks() -> dict[str, Any]:
+    root = _social_tg_root()
+    jobs_root = (root / "data" / "jobs").resolve()
+    db_path = root / "data" / "workbench.db"
+    report: dict[str, Any] = {
+        "database_path": str(db_path),
+        "jobs_root": str(jobs_root),
+        "deleted_tasks": 0,
+        "deleted_dirs": 0,
+        "kept_completed": 0,
+        "skipped_dirs": [],
+        "deleted_ids": [],
+    }
+    if not db_path.is_file():
+        return report
+    conn = sqlite3.connect(str(db_path), timeout=5.0)
+    conn.row_factory = sqlite3.Row
+    dirs_to_delete: list[Path] = []
+    try:
+        rows = conn.execute(
+            "SELECT id, status, work_dir, final_video_path FROM workspace_tasks"
+        ).fetchall()
+        for row in rows:
+            tid = str(row["id"] or "")
+            status = str(row["status"] or "")
+            work_dir = str(row["work_dir"] or "").strip()
+            final_path = str(row["final_video_path"] or "").strip()
+            wd = Path(work_dir) if work_dir else None
+            final_candidates = [
+                Path(final_path) if final_path else None,
+                (wd / "digital_human.mp4") if wd else None,
+                (wd / "case_intro_with_digital_human_portrait_9x16.mp4") if wd else None,
+                (wd / "case_intro_with_digital_human.mp4") if wd else None,
+            ]
+            has_final = any(p is not None and p.is_file() for p in final_candidates)
+            if status == "completed" and has_final:
+                report["kept_completed"] += 1
+                continue
+            report["deleted_ids"].append(tid)
+            if wd and wd.exists():
+                dirs_to_delete.append(wd)
+        ids = list(report["deleted_ids"])
+        for tid in ids:
+            conn.execute("DELETE FROM workspace_task_events WHERE task_id = ?", (tid,))
+            conn.execute("DELETE FROM workspace_tasks WHERE id = ?", (tid,))
+        conn.commit()
+        report["deleted_tasks"] = len(ids)
+    finally:
+        conn.close()
+    for raw_dir in dirs_to_delete:
+        try:
+            resolved = raw_dir.resolve()
+            if resolved == jobs_root or jobs_root not in resolved.parents:
+                report["skipped_dirs"].append(str(resolved))
+                continue
+            shutil.rmtree(resolved, ignore_errors=True)
+            report["deleted_dirs"] += 1
+        except Exception as exc:
+            report["skipped_dirs"].append(f"{raw_dir}: {type(exc).__name__}: {exc}")
+    report["deleted_ids"] = report["deleted_ids"][:80]
+    return report
+
+
+def _social_tg_clear_old_data(
+    *,
+    keep_task_ids: list[Any] | None = None,
+    keep_latest_completed: int = 1,
+    clear_batches: bool = True,
+    delete_processing: bool = False,
+) -> dict[str, Any]:
+    root = _social_tg_root()
+    jobs_root = (root / "data" / "jobs").resolve()
+    db_path = root / "data" / "workbench.db"
+    keep_ids = {str(x or "").strip() for x in (keep_task_ids or []) if str(x or "").strip()}
+    keep_latest = max(0, min(20, int(keep_latest_completed or 0)))
+    report: dict[str, Any] = {
+        "database_path": str(db_path),
+        "jobs_root": str(jobs_root),
+        "kept_task_ids": [],
+        "deleted_tasks": 0,
+        "deleted_dirs": 0,
+        "deleted_batches": 0,
+        "skipped_processing": 0,
+        "skipped_dirs": [],
+        "deleted_ids": [],
+    }
+    if not db_path.is_file():
+        return report
+    rows: list[sqlite3.Row] = []
+    conn = sqlite3.connect(str(db_path), timeout=5.0)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT id, status, work_dir, final_video_path, updated_at, finished_at FROM workspace_tasks ORDER BY updated_at DESC"
+        ).fetchall()
+        completed_with_final: list[sqlite3.Row] = []
+        for row in rows:
+            tid = str(row["id"] or "")
+            status = str(row["status"] or "")
+            work_dir = str(row["work_dir"] or "").strip()
+            final_path = str(row["final_video_path"] or "").strip()
+            wd = Path(work_dir) if work_dir else None
+            final_candidates = [
+                Path(final_path) if final_path else None,
+                (wd / "case_intro_with_digital_human_portrait_9x16.mp4") if wd else None,
+                (wd / "case_intro_with_digital_human_landscape_16x9.mp4") if wd else None,
+                (wd / "case_intro_with_digital_human.mp4") if wd else None,
+                (wd / "digital_human.mp4") if wd else None,
+            ]
+            has_final = any(p is not None and p.is_file() for p in final_candidates)
+            if status == "completed" and has_final:
+                completed_with_final.append(row)
+        for row in completed_with_final[:keep_latest]:
+            keep_ids.add(str(row["id"] or ""))
+        dirs_to_delete: list[Path] = []
+        for row in rows:
+            tid = str(row["id"] or "")
+            status = str(row["status"] or "")
+            if not tid:
+                continue
+            if tid in keep_ids:
+                continue
+            if status == "processing" and not delete_processing:
+                report["skipped_processing"] += 1
+                continue
+            report["deleted_ids"].append(tid)
+            work_dir = str(row["work_dir"] or "").strip()
+            if work_dir:
+                wd = Path(work_dir)
+                if wd.exists():
+                    dirs_to_delete.append(wd)
+        for tid in report["deleted_ids"]:
+            conn.execute("DELETE FROM workspace_task_events WHERE task_id = ?", (tid,))
+            conn.execute("DELETE FROM workspace_tasks WHERE id = ?", (tid,))
+        conn.commit()
+    finally:
+        conn.close()
+    report["deleted_tasks"] = len(report["deleted_ids"])
+    report["kept_task_ids"] = sorted(keep_ids)
+    for raw_dir in dirs_to_delete:
+        try:
+            resolved = raw_dir.resolve()
+            if resolved == jobs_root or jobs_root not in resolved.parents:
+                report["skipped_dirs"].append(str(resolved))
+                continue
+            shutil.rmtree(resolved, ignore_errors=True)
+            report["deleted_dirs"] += 1
+        except Exception as exc:
+            report["skipped_dirs"].append(f"{raw_dir}: {type(exc).__name__}: {exc}")
+    if clear_batches:
+        batch_rows = _social_batch_records(limit=80)
+        kept_batches = []
+        for row in batch_rows:
+            task_ids = {str(x or "").strip() for x in (row.get("task_ids") or []) if str(x or "").strip()}
+            if task_ids & keep_ids:
+                kept_batches.append(row)
+        _social_batch_records_path().write_text(json.dumps(kept_batches[:20], ensure_ascii=False, indent=2), encoding="utf-8")
+        report["deleted_batches"] = max(0, len(batch_rows) - len(kept_batches[:20]))
+    report["deleted_ids"] = report["deleted_ids"][:120]
+    return report
+
+
+def _social_generate_video_thumbnail(video_path: Path, thumbnail_path: Path) -> Path | None:
+    if not video_path.is_file():
+        return None
+    try:
+        from imageio_ffmpeg import get_ffmpeg_exe
+
+        thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            get_ffmpeg_exe(),
+            "-y",
+            "-ss",
+            "00:00:01",
+            "-i",
+            str(video_path),
+            "-frames:v",
+            "1",
+            "-q:v",
+            "3",
+            str(thumbnail_path),
+        ]
+        completed = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if int(completed.returncode or 0) == 0 and thumbnail_path.is_file():
+            return thumbnail_path
+    except Exception:
+        return None
+    return None
+
+
+def _social_tg_task_file(task_id: str, kind: str) -> Path:
+    tid = str(task_id or "").strip()
+    file_kind = str(kind or "").strip()
+    col = _SOCIAL_TG_FILE_COLUMNS.get(file_kind)
+    special_files = {
+        "portrait_video": "case_intro_with_digital_human_portrait_9x16.mp4",
+        "landscape_video": "case_intro_with_digital_human_landscape_16x9.mp4",
+        "thumbnail": "thumbnail.jpg",
+        "assets_manifest": "materials_manifest.json",
+        "script": "case_script.txt",
+        "sales_brief": "sales_brief.md",
+        "sales_brief_json": "sales_brief.json",
+        "voice_clone_status": "voice_clone_status.json",
+    }
+    special_kind = file_kind in special_files
+    if not tid or (not col and not special_kind):
+        raise HTTPException(status_code=404, detail="file not found")
+    root = _social_tg_root()
+    db_path = root / "data" / "workbench.db"
+    if not db_path.is_file():
+        raise HTTPException(status_code=404, detail="tg workbench database not found")
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=2.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                f"SELECT {col or 'final_video_path'} AS path_value, work_dir FROM workspace_tasks WHERE id = ? LIMIT 1",
+                (tid,),
+            ).fetchone()
+        finally:
+            conn.close()
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=f"cannot read tg task: {exc}") from exc
+    if not row:
+        raise HTTPException(status_code=404, detail="task not found")
+    raw = str(row["path_value"] or "").strip()
+    wd = str(row["work_dir"] or "").strip()
+    if special_kind and wd:
+        raw = str(Path(wd) / special_files[file_kind])
+        if file_kind == "thumbnail":
+            thumb = Path(raw)
+            if not thumb.is_file():
+                video_candidates = [
+                    Path(wd) / "case_intro_with_digital_human_portrait_9x16.mp4",
+                    Path(wd) / "case_intro_with_digital_human_landscape_16x9.mp4",
+                    Path(wd) / "case_intro_with_digital_human.mp4",
+                    Path(wd) / "digital_human.mp4",
+                    Path(str(row["path_value"] or "")) if str(row["path_value"] or "").strip() else None,
+                ]
+                for cand in video_candidates:
+                    if cand is not None and cand.is_file():
+                        made = _social_generate_video_thumbnail(cand, thumb)
+                        if made is not None:
+                            raw = str(made)
+                            break
+    if not raw and file_kind == "final_video":
+        wd = str(row["work_dir"] or "").strip()
+        raw = str(Path(wd) / "digital_human.mp4") if wd else ""
+    if not raw and file_kind == "avatar_image":
+        wd = str(row["work_dir"] or "").strip()
+        raw = str(Path(wd) / "avatar_image.jpg") if wd else ""
+    if not raw:
+        raise HTTPException(status_code=404, detail="file not found")
+    p = _social_resolve_tg_asset_path(raw)
+    if p is None:
+        raise HTTPException(status_code=404, detail="file not found")
+    return p
+
+
+def _social_adb_project_root() -> Path:
+    configured = str(os.getenv("ADBFACEBOOK_PROJECT_PATH") or "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return (Path(__file__).resolve().parent.parent / "adbfacebook").resolve()
+
+
+def _social_adb_db_path() -> Path:
+    configured = str(os.getenv("ADBFACEBOOK_DB_PATH") or "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return _social_adb_project_root() / "data" / "app.db"
+
+
+def _social_adb_platform(raw: Any) -> str:
+    value = str(raw or "").strip().lower()
+    if value in {"xhs", "xiaohongshu", "小紅書", "小红书"}:
+        return "xiaohongshu"
+    if value in {"tk", "tiktok", "抖音", "douyin"}:
+        return "tiktok"
+    raise HTTPException(status_code=400, detail="platform must be tiktok or xiaohongshu")
+
+
+_SOCIAL_ADB_DEDICATED_USERNAME = "pingatou@gmail.com"
+_SOCIAL_ADB_DEDICATED_PLATFORMS = {"tiktok", "xiaohongshu"}
+
+
+def _social_adb_pick_username(conn: sqlite3.Connection, requested: str = "", platform: str = "") -> tuple[str, bool]:
+    username = str(requested or os.getenv("ADB_CLOUD_PUBLISH_USERNAME") or "").strip()
+    if username:
+        row = conn.execute("SELECT pad_code FROM accounts WHERE username = ?", (username,)).fetchone()
+        has_pad = bool(row and str(row["pad_code"] or "").strip())
+        return username, has_pad
+    if platform in _SOCIAL_ADB_DEDICATED_PLATFORMS:
+        row = conn.execute(
+            "SELECT pad_code FROM accounts WHERE username = ?",
+            (_SOCIAL_ADB_DEDICATED_USERNAME,),
+        ).fetchone()
+        has_pad = bool(row and str(row["pad_code"] or "").strip())
+        return _SOCIAL_ADB_DEDICATED_USERNAME, has_pad
+    row = conn.execute(
+        """SELECT username, pad_code FROM accounts
+           WHERE TRIM(COALESCE(pad_code, '')) <> ''
+           ORDER BY created_at DESC LIMIT 1"""
+    ).fetchone()
+    if row:
+        return str(row["username"]), True
+    return "sclaw_cloud_publish", False
+
+
+def _social_adb_ensure_task_target_pad_column(conn: sqlite3.Connection) -> None:
+    cols = {str(row[1]) for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+    if "target_pad_code" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN target_pad_code TEXT NOT NULL DEFAULT ''")
+
+
+def _social_adb_recent_publish_tasks(conn: sqlite3.Connection, limit: int = 20) -> list[dict[str, Any]]:
+    try:
+        exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'").fetchone()
+        if not exists:
+            return []
+        _social_adb_ensure_task_target_pad_column(conn)
+        target_expr = "COALESCE(t.target_pad_code, '')"
+        rows = conn.execute(
+            f"""
+            SELECT t.id, t.username, t.platform, t.status, t.status_at, t.result, t.created_at,
+                   substr(COALESCE(t.text, ''), 1, 240) AS text_preview,
+                   {target_expr} AS target_pad_code,
+                   COALESCE(a.pad_code, '') AS account_pad_code,
+                   COALESCE(d.alias, '') AS pad_alias
+            FROM tasks t
+            LEFT JOIN accounts a ON a.username = t.username
+            LEFT JOIN devices d ON d.pad_code = COALESCE(NULLIF({target_expr}, ''), a.pad_code)
+            WHERE t.id LIKE 'sclaw_%' OR t.platform IN ('tiktok', 'xiaohongshu')
+            ORDER BY t.created_at DESC
+            LIMIT ?
+            """,
+            (max(1, min(80, int(limit or 20))),),
+        ).fetchall()
+    except Exception:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        d = dict(row)
+        platform = str(d.get("platform") or "")
+        d["platform_label"] = "小紅書" if platform == "xiaohongshu" else ("TikTok / 抖音" if platform == "tiktok" else platform)
+        d["created_at_label"] = _social_dt_from_ts(d.get("created_at")) or str(d.get("created_at") or "")
+        d["status_at_label"] = _social_dt_from_ts(d.get("status_at")) or str(d.get("status_at") or "")
+        target_pad = str(d.get("target_pad_code") or d.get("account_pad_code") or "")
+        d["pad_code"] = target_pad
+        d["device_label"] = str(d.get("pad_alias") or target_pad)
+        d["task_url"] = f"{str(os.getenv('ADBFACEBOOK_WEB_URL') or 'http://127.0.0.1:8080').rstrip('/')}/tasks?focus={quote(str(d.get('id') or ''))}"
+        out.append(d)
+    return out
+
+
+def _social_adb_cloud_devices_snapshot() -> dict[str, Any]:
+    db_path = _social_adb_db_path()
+    out: dict[str, Any] = {
+        "ok": db_path.is_file(),
+        "adb_db_path": str(db_path),
+        "adb_web_url": str(os.getenv("ADBFACEBOOK_WEB_URL") or "http://127.0.0.1:8080").rstrip("/"),
+        "dedicated_username": _SOCIAL_ADB_DEDICATED_USERNAME,
+        "dedicated_account": None,
+        "devices": [],
+        "accounts": [],
+        "credentials": {},
+        "cloud_sources": _social_vmos_cloud_sources(),
+        "publish_tasks": [],
+        "error": "" if db_path.is_file() else f"adbfacebook database not found: {db_path}",
+    }
+    if not db_path.is_file():
+        return out
+    conn = sqlite3.connect(str(db_path), timeout=5)
+    conn.row_factory = sqlite3.Row
+    try:
+        devices = conn.execute(
+            """
+            SELECT d.pad_code, COALESCE(d.alias, '') AS alias, d.last_seen, d.created_at,
+                   COUNT(a.username) AS binding_count
+            FROM devices d
+            LEFT JOIN accounts a ON a.pad_code = d.pad_code
+            GROUP BY d.pad_code
+            ORDER BY d.created_at DESC
+            """
+        ).fetchall()
+        accounts = conn.execute(
+            """
+            SELECT username, COALESCE(persona, '') AS persona, COALESCE(alias, '') AS alias,
+                   COALESCE(pad_code, '') AS pad_code, created_at,
+                   CASE WHEN COALESCE(password, '') <> '' THEN 1 ELSE 0 END AS has_password
+            FROM accounts
+            ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END, created_at DESC
+            """,
+            (_SOCIAL_ADB_DEDICATED_USERNAME,),
+        ).fetchall()
+        creds = conn.execute(
+            """
+            SELECT platform, COALESCE(login_handle, '') AS login_handle,
+                   CASE WHEN COALESCE(password, '') <> '' THEN 1 ELSE 0 END AS has_password,
+                   disabled_at, COALESCE(disabled_reason, '') AS disabled_reason
+            FROM account_credentials
+            WHERE username = ?
+            """,
+            (_SOCIAL_ADB_DEDICATED_USERNAME,),
+        ).fetchall()
+        out["devices"] = [dict(r) for r in devices]
+        out["accounts"] = [dict(r) for r in accounts]
+        out["credentials"] = {str(r["platform"]): dict(r) for r in creds}
+        out["publish_tasks"] = _social_adb_recent_publish_tasks(conn, limit=30)
+        out["dedicated_account"] = next(
+            (dict(r) for r in accounts if str(r["username"] or "") == _SOCIAL_ADB_DEDICATED_USERNAME),
+            None,
+        )
+    except Exception as exc:
+        out["ok"] = False
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        conn.close()
+    return out
+
+
+def _social_vmos2_config() -> dict[str, Any]:
+    raw_host = (
+        os.getenv("SCLAW_VMOS2_API_HOST")
+        or os.getenv("VMOS2_API_HOST")
+        or "api.vmoscloud.com"
+    )
+    host = str(raw_host or "api.vmoscloud.com").strip()
+    host = re.sub(r"^https?://", "", host, flags=re.I).strip().strip("/")
+    access_key = str(os.getenv("SCLAW_VMOS2_ACCESS_KEY") or os.getenv("VMOS2_ACCESS_KEY") or "").strip()
+    secret_key = str(os.getenv("SCLAW_VMOS2_SECRET_KEY") or os.getenv("VMOS2_SECRET_KEY") or "").strip()
+    label = str(os.getenv("SCLAW_VMOS2_LABEL") or "另一個 VMOS CLOUD").strip() or "另一個 VMOS CLOUD"
+    return {
+        "id": "vmos2",
+        "label": label,
+        "host": host,
+        "access_key": access_key,
+        "secret_key": secret_key,
+        "ready": bool(host and access_key and secret_key),
+    }
+
+
+def _social_update_env_values(updates: dict[str, str]) -> None:
+    env_file = Path.cwd() / ".env"
+    lines = env_file.read_text(encoding="utf-8").splitlines() if env_file.exists() else []
+    seen: set[str] = set()
+    out: list[str] = []
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
+            out.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in updates:
+            out.append(f"{key}={updates[key]}")
+            seen.add(key)
+        else:
+            out.append(line)
+    for key, value in updates.items():
+        if key not in seen:
+            out.append(f"{key}={value}")
+    env_file.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+    for key, value in updates.items():
+        os.environ[key] = value
+
+
+def _social_vmos_cloud_sources() -> list[dict[str, Any]]:
+    base = str(os.getenv("ADBFACEBOOK_WEB_URL") or "http://127.0.0.1:8080").rstrip("/")
+    vmos2 = _social_vmos2_config()
+    return [
+        {
+            "id": "adbfacebook",
+            "label": "VMOS CLOUD（8080 設備頁）",
+            "ready": True,
+            "hint": f"{base}/devices",
+        },
+        {
+            "id": "vmos_desktop",
+            "label": "VMOS CLOUD 桌面登入（pingatou@gmail.com）",
+            "ready": True,
+            "hint": "可讀取目前 VMOS Cloud 桌面版顯示的雲機；發布前仍會測試 ADB 通道。",
+        },
+        {
+            "id": "vmos2",
+            "label": vmos2["label"],
+            "ready": bool(vmos2["ready"]),
+            "host": vmos2["host"],
+            "access_key_set": bool(vmos2["access_key"]),
+            "secret_key_set": bool(vmos2["secret_key"]),
+            "hint": (
+                f"{vmos2['host']} 已配置"
+                if vmos2["ready"]
+                else "請在 SCLAW/.env 設定 SCLAW_VMOS2_ACCESS_KEY / SCLAW_VMOS2_SECRET_KEY"
+            ),
+        },
+    ]
+
+
+def _social_vmos_sign_headers(host: str, access_key: str, secret_key: str, body: dict[str, Any]) -> dict[str, str]:
+    service = "armcloud-paas"
+    content_type = "application/json;charset=UTF-8"
+    signed_headers = "content-type;host;x-content-sha256;x-date"
+    payload = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+    content_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    now = datetime.now(timezone.utc)
+    x_date = now.strftime("%Y%m%dT%H%M%SZ")
+    short_date = x_date[:8]
+    canonical = (
+        f"host:{host}\n"
+        f"x-date:{x_date}\n"
+        f"content-type:{content_type}\n"
+        f"signedHeaders:{signed_headers}\n"
+        f"x-content-sha256:{content_hash}"
+    )
+    scope = f"{short_date}/{service}/request"
+    string_to_sign = "\n".join(
+        [
+            "HMAC-SHA256",
+            x_date,
+            scope,
+            hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        ]
+    )
+    signing_key = hmac.new(
+        hmac.new(
+            hmac.new(secret_key.encode("utf-8"), short_date.encode("utf-8"), hashlib.sha256).digest(),
+            service.encode("utf-8"),
+            hashlib.sha256,
+        ).digest(),
+        b"request",
+        hashlib.sha256,
+    ).digest()
+    signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    return {
+        "content-type": content_type,
+        "x-date": x_date,
+        "x-host": host,
+        "x-content-sha256": content_hash,
+        "authorization": (
+            f"HMAC-SHA256 Credential={access_key}, "
+            f"SignedHeaders={signed_headers}, "
+            f"Signature={signature}"
+        ),
+    }
+
+
+def _social_vmos2_list_devices(page_size: int = 100) -> list[dict[str, Any]]:
+    cfg = _social_vmos2_config()
+    if not cfg["ready"]:
+        raise HTTPException(
+            status_code=400,
+            detail="另一個 VMOS CLOUD 尚未設定，請先在 SCLAW/.env 補上 SCLAW_VMOS2_ACCESS_KEY / SCLAW_VMOS2_SECRET_KEY。",
+        )
+    host = str(cfg["host"])
+    access_key = str(cfg["access_key"])
+    secret_key = str(cfg["secret_key"])
+    path = "/vcpcloud/api/padApi/infos"
+    results: list[dict[str, Any]] = []
+    with httpx.Client(timeout=httpx.Timeout(35.0, connect=8.0)) as client:
+        page = 1
+        while True:
+            body = {"pageNum": page, "pageSize": max(1, min(200, int(page_size or 100)))}
+            payload = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+            resp = client.post(
+                f"https://{host}{path}",
+                headers=_social_vmos_sign_headers(host, access_key, secret_key, body),
+                content=payload.encode("utf-8"),
+            )
+            if resp.status_code >= 400:
+                raise HTTPException(status_code=502, detail=f"另一個 VMOS CLOUD 拉取失敗: HTTP {resp.status_code}")
+            data = resp.json()
+            code = data.get("code")
+            if code not in (None, 0, 200, "0", "200"):
+                msg = data.get("msg") or data.get("message") or "unknown error"
+                raise HTTPException(status_code=502, detail=f"另一個 VMOS CLOUD 拉取失敗: {msg}")
+            page_data = ((data.get("data") or {}).get("pageData") or [])
+            if not isinstance(page_data, list):
+                page_data = []
+            results.extend([row for row in page_data if isinstance(row, dict)])
+            total_page = int((data.get("data") or {}).get("totalPage") or 1)
+            if page >= total_page or not page_data:
+                break
+            page += 1
+    return results
+
+
+def _social_vmos2_post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+    cfg = _social_vmos2_config()
+    if not cfg["ready"]:
+        raise HTTPException(status_code=400, detail="VMOS CLOUD 2 is not configured")
+    host = str(cfg["host"])
+    payload = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+    with httpx.Client(timeout=httpx.Timeout(35.0, connect=8.0)) as client:
+        resp = client.post(
+            f"https://{host}{path}",
+            headers=_social_vmos_sign_headers(host, str(cfg["access_key"]), str(cfg["secret_key"]), body),
+            content=payload.encode("utf-8"),
+        )
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"VMOS CLOUD 2 HTTP {resp.status_code}")
+    data = resp.json()
+    code = data.get("code")
+    if code not in (None, 0, 200, "0", "200"):
+        msg = data.get("msg") or data.get("message") or "unknown error"
+        raise HTTPException(status_code=502, detail=f"VMOS CLOUD 2 API failed: code={code}, msg={msg}")
+    return data
+
+
+def _social_vmos2_get_adb_info(pad_code: str) -> dict[str, Any]:
+    data = _social_vmos2_post(
+        "/vcpcloud/api/padApi/adb",
+        {"padCode": pad_code, "enable": True, "expireMinutes": 1440},
+    )
+    return dict((data or {}).get("data") or {})
+
+
+def _social_friendly_cloud_adb_message(message: str, pad_code: str = "") -> str:
+    text = str(message or "").strip()
+    low = text.lower()
+    pad = str(pad_code or "").strip()
+    prefix = f"雲機 {pad} " if pad else "雲機 "
+    if "instance not found" in low and ("系统繁忙" in text or "系統繁忙" in text or "busy" in low):
+        return (
+            f"{prefix}可在 VMOS CLOUD 帳號內看到，但 VMOS ADB 發布通道暫時繁忙。"
+            "請先在 VMOS 桌面打開該雲機一次，等待手機畫面進入桌面後，再回工作台按「測試連線／重試發布」。"
+        )
+    if "instance not found" in low:
+        return f"{prefix}未被 VMOS OpenAPI 找到；請在 8080 設備頁重新從桌面 VMOS 拉取設備，並確認帳號已切到此雲機。"
+    if "系统繁忙" in text or "系統繁忙" in text or "busy" in low:
+        return f"{prefix}VMOS ADB 發布通道回覆系統繁忙，稍後可直接按「測試連線／重試發布」。"
+    return text
+
+
+def _social_test_cloud_device(pad_code: str, source: str = "adbfacebook") -> dict[str, Any]:
+    pad = str(pad_code or "").strip()
+    if not pad:
+        raise HTTPException(status_code=400, detail="missing pad_code")
+    source_id = str(source or "adbfacebook").strip().lower()
+    if source_id in {"vmos_desktop", "vmos-web", "vmos_web", "desktop_vmos"}:
+        base = str(os.getenv("ADBFACEBOOK_WEB_URL") or "http://127.0.0.1:8080").rstrip("/")
+        source_label = "VMOS CLOUD 桌面登入（pingatou@gmail.com）"
+        try:
+            with httpx.Client(timeout=httpx.Timeout(45.0, connect=5.0)) as client:
+                resp = client.post(f"{base}/devices/{quote(pad, safe='')}/test")
+            if resp.status_code >= 400:
+                return {"ok": False, "pad_code": pad, "source": "vmos_desktop", "source_label": source_label, "message": f"HTTP {resp.status_code}"}
+            data = resp.json()
+            message = str(data.get("err") or data.get("message") or ("ADB available" if data.get("ok") else "test failed"))
+            if not data.get("ok"):
+                message = _social_friendly_cloud_adb_message(message, pad)
+            return {
+                "ok": bool(data.get("ok")),
+                "pad_code": pad,
+                "source": "vmos_desktop",
+                "source_label": source_label,
+                "message": message,
+            }
+        except Exception as exc:
+            return {"ok": False, "pad_code": pad, "source": "vmos_desktop", "source_label": source_label, "message": f"{type(exc).__name__}: {exc}"}
+    if source_id in {"vmos2", "other_vmos", "other-vmos", "vmos_cloud_2"}:
+        try:
+            info = _social_vmos2_get_adb_info(pad)
+            ok = bool(info.get("command") or info.get("adb"))
+            return {
+                "ok": ok,
+                "pad_code": pad,
+                "source": "vmos2",
+                "source_label": str(_social_vmos2_config()["label"]),
+                "message": "VMOS CLOUD 2 ADB available" if ok else "VMOS CLOUD 2 returned no ADB command",
+            }
+        except HTTPException as exc:
+            return {
+                "ok": False,
+                "pad_code": pad,
+                "source": "vmos2",
+                "source_label": str(_social_vmos2_config()["label"]),
+                "message": str(exc.detail),
+            }
+    base = str(os.getenv("ADBFACEBOOK_WEB_URL") or "http://127.0.0.1:8080").rstrip("/")
+    try:
+        with httpx.Client(timeout=httpx.Timeout(45.0, connect=5.0)) as client:
+            resp = client.post(f"{base}/devices/{quote(pad, safe='')}/test")
+        if resp.status_code >= 400:
+            return {"ok": False, "pad_code": pad, "source": "adbfacebook", "source_label": "VMOS CLOUD 8080", "message": f"HTTP {resp.status_code}"}
+        data = resp.json()
+        return {
+            "ok": bool(data.get("ok")),
+            "pad_code": pad,
+            "source": "adbfacebook",
+            "source_label": "VMOS CLOUD 8080",
+            "message": (
+                "ADB available"
+                if data.get("ok")
+                else _social_friendly_cloud_adb_message(str(data.get("err") or data.get("message") or "test failed"), pad)
+            ),
+        }
+    except Exception as exc:
+        return {"ok": False, "pad_code": pad, "source": "adbfacebook", "source_label": "VMOS CLOUD 8080", "message": f"{type(exc).__name__}: {exc}"}
+
+
+def _social_adb_switch_account_device(username: str, pad_code: str) -> dict[str, Any]:
+    db_path = _social_adb_db_path()
+    if not db_path.is_file():
+        raise HTTPException(status_code=503, detail=f"adbfacebook database not found: {db_path}")
+    user = str(username or _SOCIAL_ADB_DEDICATED_USERNAME).strip() or _SOCIAL_ADB_DEDICATED_USERNAME
+    pad = str(pad_code or "").strip()
+    conn = sqlite3.connect(str(db_path), timeout=5)
+    conn.row_factory = sqlite3.Row
+    try:
+        if pad and not conn.execute("SELECT 1 FROM devices WHERE pad_code = ?", (pad,)).fetchone():
+            raise HTTPException(status_code=404, detail=f"cloud device not found: {pad}")
+        row = conn.execute("SELECT username FROM accounts WHERE username = ?", (user,)).fetchone()
+        if not row:
+            conn.execute(
+                """
+                INSERT INTO accounts (username, persona, alias, pad_code, password, created_at)
+                VALUES (?, ?, ?, ?, NULL, ?)
+                """,
+                (
+                    user,
+                    "SCLAW cloud publisher",
+                    "TK / Xiaohongshu cloud publisher" if user == _SOCIAL_ADB_DEDICATED_USERNAME else user,
+                    pad or None,
+                    time.time(),
+                ),
+            )
+        else:
+            conn.execute("UPDATE accounts SET pad_code = ? WHERE username = ?", (pad or None, user))
+        conn.commit()
+    except HTTPException:
+        raise
+    finally:
+        conn.close()
+    return _social_adb_cloud_devices_snapshot()
+
+
+def _social_adb_import_vmos_devices_from_web(source: str = "adbfacebook") -> dict[str, Any]:
+    db_path = _social_adb_db_path()
+    if not db_path.is_file():
+        raise HTTPException(status_code=503, detail=f"adbfacebook database not found: {db_path}")
+    source_id = str(source or "adbfacebook").strip().lower()
+    source_label = "VMOS CLOUD（8080 設備頁）"
+    if source_id in {"vmos_desktop", "vmos-web", "vmos_web", "desktop_vmos"}:
+        source_label = "VMOS CLOUD 桌面登入（pingatou@gmail.com）"
+        base = str(os.getenv("ADBFACEBOOK_WEB_URL") or "http://127.0.0.1:8080").rstrip("/")
+        try:
+            with httpx.Client(timeout=httpx.Timeout(35.0, connect=5.0)) as client:
+                resp = client.get(f"{base}/api/devices/vmos-web")
+            if resp.status_code >= 400:
+                raise HTTPException(status_code=502, detail=f"{source_label} 拉取失敗: HTTP {resp.status_code}")
+            data = resp.json()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"{source_label} 拉取失敗: {type(exc).__name__}: {exc}") from exc
+        if not isinstance(data, dict) or not data.get("ok"):
+            raise HTTPException(status_code=502, detail=str((data or {}).get("err") or f"{source_label} returned no devices"))
+        items = data.get("items") if isinstance(data.get("items"), list) else []
+    elif source_id in {"vmos2", "other_vmos", "other-vmos", "vmos_cloud_2"}:
+        source_label = _social_vmos2_config()["label"]
+        try:
+            raw_items = _social_vmos2_list_devices()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"{source_label} 拉取失敗: {type(exc).__name__}: {exc}") from exc
+        items = [
+            {
+                "pad_code": str(row.get("padCode") or row.get("pad_code") or "").strip(),
+                "pad_name": str(row.get("padName") or row.get("pad_name") or "").strip(),
+                "status": row.get("padStatus") or row.get("status") or "",
+                "expire_at": row.get("expireTime") or row.get("expire_at") or "",
+            }
+            for row in raw_items
+        ]
+    else:
+        base = str(os.getenv("ADBFACEBOOK_WEB_URL") or "http://127.0.0.1:8080").rstrip("/")
+        try:
+            with httpx.Client(timeout=httpx.Timeout(35.0, connect=5.0)) as client:
+                resp = client.get(f"{base}/api/devices/vmos")
+            if resp.status_code >= 400:
+                raise HTTPException(status_code=502, detail=f"adbfacebook VMOS pull failed: HTTP {resp.status_code}")
+            data = resp.json()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"adbfacebook VMOS pull failed: {type(exc).__name__}: {exc}") from exc
+        if not isinstance(data, dict) or not data.get("ok"):
+            raise HTTPException(status_code=502, detail=str((data or {}).get("err") or "VMOS pull returned no devices"))
+        items = data.get("items") if isinstance(data.get("items"), list) else []
+    imported = skipped = updated = 0
+    conn = sqlite3.connect(str(db_path), timeout=5)
+    try:
+        now = time.time()
+        for row in items:
+            if not isinstance(row, dict):
+                continue
+            pad = str(row.get("pad_code") or row.get("padCode") or "").strip()
+            if not pad:
+                continue
+            alias = str(row.get("pad_name") or row.get("padName") or "").strip()
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO devices (pad_code, alias, created_at) VALUES (?, ?, ?)",
+                (pad, alias, now),
+            )
+            if cur.rowcount:
+                imported += 1
+            else:
+                skipped += 1
+                if alias:
+                    upd = conn.execute(
+                        """
+                        UPDATE devices
+                        SET alias = ?
+                        WHERE pad_code = ?
+                          AND (TRIM(COALESCE(alias, '')) = '' OR alias LIKE 'Acceptance Cloud%')
+                        """,
+                        (alias, pad),
+                    )
+                    if upd.rowcount:
+                        updated += 1
+        conn.commit()
+    finally:
+        conn.close()
+    snapshot = _social_adb_cloud_devices_snapshot()
+    snapshot["imported"] = imported
+    snapshot["skipped"] = skipped
+    snapshot["updated"] = updated
+    snapshot["vmos_count"] = len(items)
+    snapshot["source"] = source_id
+    snapshot["source_label"] = source_label
+    return snapshot
+
+
+def _social_adb_enqueue_cloud_publish(body: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
+    platform = _social_adb_platform(body.get("platform"))
+    target_pad_code = str(body.get("target_pad_code") or body.get("pad_code") or "").strip()
+    cloud_source = str(body.get("cloud_source") or body.get("source") or "adbfacebook").strip() or "adbfacebook"
+    db_path = _social_adb_db_path()
+    if not db_path.is_file():
+        raise HTTPException(status_code=503, detail=f"adbfacebook database not found: {db_path}")
+
+    now = time.time()
+    task_id = f"sclaw_{uuid4().hex[:10]}"
+    root = _social_adb_project_root()
+    batch_dir = root / "data" / "batches" / f"sclaw_cloud_publish_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{task_id}"
+    batch_dir.mkdir(parents=True, exist_ok=True)
+
+    media_urls = body.get("media_urls") if isinstance(body.get("media_urls"), list) else []
+    payload = {
+        "source": "SCLAW.social_case_workbench",
+        "source_item_id": int(body.get("source_item_id") or item.get("source_item_id") or 0),
+        "case_title": str(body.get("title") or item.get("title") or ""),
+        "platform": platform,
+        "target_pad_code": target_pad_code,
+        "cloud_source": cloud_source,
+        "text": str(body.get("text") or "").strip(),
+        "media_urls": [str(u) for u in media_urls if str(u or "").strip()],
+        "tg_video_task_id": str(body.get("tg_video_task_id") or ""),
+        "case_url": str(body.get("case_url") or item.get("case_url") or ""),
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    }
+    (batch_dir / "payload.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    conn = sqlite3.connect(str(db_path), timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'").fetchone():
+            raise HTTPException(status_code=503, detail="adbfacebook tasks table is not initialized")
+        _social_adb_ensure_task_target_pad_column(conn)
+        device_alias = ""
+        if target_pad_code:
+            row = conn.execute(
+                "SELECT COALESCE(alias, '') AS alias FROM devices WHERE pad_code = ?",
+                (target_pad_code,),
+            ).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail=f"cloud device not found: {target_pad_code}")
+            device_alias = str(row["alias"] or "")
+        username, has_pad = _social_adb_pick_username(conn, str(body.get("username") or ""), platform)
+        conn.execute(
+            """INSERT OR IGNORE INTO accounts
+               (username, persona, alias, pad_code, password, created_at)
+               VALUES (?, ?, ?, NULL, NULL, ?)""",
+            (username, "SCLAW 日本房仲雲機發布", "SCLAW 雲機發布", now),
+        )
+        if target_pad_code:
+            conn.execute("UPDATE accounts SET pad_code = ? WHERE username = ?", (target_pad_code, username))
+            has_pad = True
+        result_note = f"SCLAW queued cloud publish | pad={target_pad_code or 'account-bound'} | source={cloud_source}"
+        conn.execute(
+            """INSERT INTO tasks
+               (id, username, text, media_paths, batch_dir, scheduled_at, status,
+                status_at, result, created_at, platform, target_pad_code)
+               VALUES (?, ?, ?, '', ?, 0, 'pending', ?, ?, ?, ?, ?)""",
+            (
+                task_id,
+                username,
+                str(body.get("text") or "").strip(),
+                str(batch_dir),
+                now,
+                result_note,
+                now,
+                platform,
+                target_pad_code,
+            ),
+        )
+        conn.commit()
+    except HTTPException:
+        raise
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=409, detail=f"adbfacebook queue insert failed: {exc}") from exc
+    finally:
+        conn.close()
+
+    return {
+        "ok": True,
+        "task_id": task_id,
+        "username": username,
+        "platform": platform,
+        "platform_label": "小紅書" if platform == "xiaohongshu" else "TikTok",
+        "ready_for_scheduler": has_pad,
+        "batch_dir": str(batch_dir),
+        "adb_db_path": str(db_path),
+        "target_pad_code": target_pad_code,
+        "pad_code": target_pad_code,
+        "device_label": device_alias or target_pad_code,
+        "cloud_source": cloud_source,
+        "task_url": f"{str(os.getenv('ADBFACEBOOK_WEB_URL') or 'http://127.0.0.1:8080').rstrip('/')}/tasks?focus={quote(task_id)}",
+        "adb_tasks_url": f"{str(os.getenv('ADBFACEBOOK_WEB_URL') or 'http://127.0.0.1:8080').rstrip('/')}/tasks",
+    }
+
+
+def _social_adb_retry_cloud_publish_task(task_id: str) -> dict[str, Any]:
+    tid = str(task_id or "").strip()
+    if not re.fullmatch(r"sclaw_[A-Za-z0-9_\\-]{6,40}", tid):
+        raise HTTPException(status_code=400, detail="invalid SCLAW cloud publish task id")
+    db_path = _social_adb_db_path()
+    if not db_path.is_file():
+        raise HTTPException(status_code=503, detail=f"adbfacebook database not found: {db_path}")
+    conn = sqlite3.connect(str(db_path), timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'").fetchone():
+            raise HTTPException(status_code=503, detail="adbfacebook tasks table is not initialized")
+        _social_adb_ensure_task_target_pad_column(conn)
+        row = conn.execute(
+            """
+            SELECT t.id, t.status, t.username, COALESCE(t.target_pad_code, '') AS target_pad_code,
+                   COALESCE(a.pad_code, '') AS account_pad_code
+            FROM tasks t
+            LEFT JOIN accounts a ON a.username = t.username
+            WHERE t.id = ?
+            """,
+            (tid,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"task not found: {tid}")
+        status = str(row["status"] or "")
+        if status not in {"paused", "failed", "cancelled"}:
+            return {
+                "ok": True,
+                "task_id": tid,
+                "status": status,
+                "message": "task is already active",
+                **_social_adb_cloud_devices_snapshot(),
+            }
+        target_pad = str(row["target_pad_code"] or row["account_pad_code"] or "").strip()
+        now = time.time()
+        conn.execute(
+            """
+            UPDATE tasks
+            SET status = 'pending',
+                status_at = ?,
+                result = ?,
+                pause_type = NULL,
+                pause_prompt = NULL,
+                pause_options = NULL,
+                pause_screenshot = NULL,
+                pause_response = NULL,
+                paused_at = NULL,
+                pause_expires_at = NULL,
+                target_pad_code = COALESCE(NULLIF(target_pad_code, ''), ?)
+            WHERE id = ?
+            """,
+            (now, "SCLAW manual retry queued", target_pad, tid),
+        )
+        conn.commit()
+    except HTTPException:
+        raise
+    finally:
+        conn.close()
+    snapshot = _social_adb_cloud_devices_snapshot()
+    return {
+        "ok": True,
+        "task_id": tid,
+        "status": "pending",
+        "pad_code": target_pad,
+        "message": "retry queued",
+        **snapshot,
+    }
+
+
+@app.get("/social-case-workbench")
+def social_case_workbench_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="social_case_workbench.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "tg_web_url": _social_tg_web_url(),
+            "tg_root": str(_social_tg_root()),
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+@app.get("/api/social-case-workbench")
+def api_social_case_workbench(
+    limit: int = Query(default=10, ge=1, le=50),
+    sort: str = Query(default="latest"),
+    area: str = Query(default="all"),
+    q: str = Query(default=""),
+):
+    sort_key = str(sort or "score").strip().lower()
+    area_key = str(area or "all").strip()
+    query = str(q or "").strip()
+    if query:
+        search_pool = max(int(limit or 10), min(60, int(limit or 10) * 5))
+        rows = _social_candidate_rows(search_pool)
+        items = [_social_row_to_item(r) for r in rows]
+        items = _social_filter_area(items, area_key)
+        items = _social_filter_query(items, query)
+        if sort_key in ("latest", "date", "newest"):
+            items.sort(
+                key=lambda x: (
+                    str(x.get("data_time") or x.get("updated_at") or ""),
+                    int(x.get("completeness_score") or 0),
+                    int(x.get("score") or 0),
+                    int(x.get("source_item_id") or 0),
+                ),
+                reverse=True,
+            )
+        else:
+            items.sort(
+                key=lambda x: (
+                    int(x.get("score") or 0),
+                    int(x.get("completeness_score") or 0),
+                    int(x.get("image_count") or 0),
+                    str(x.get("data_time") or x.get("updated_at") or ""),
+                ),
+                reverse=True,
+            )
+        items = items[: max(1, min(50, int(limit or 10)))]
+    else:
+        items = _social_latest_cases(limit, area=area_key) if sort_key in ("latest", "date", "newest") else _social_best_cases(limit, area=area_key)
+    return JSONResponse(
+        {
+            "ok": True,
+            "items": items,
+            "selected": items[0] if items else None,
+            "sort": sort_key,
+            "area": area_key,
+            "query": query,
+            "limit": max(1, min(50, int(limit or 10))),
+            "area_options": _social_area_options(),
+            "tg": _social_tg_snapshot_cached(limit=8),
+            "seedance": _social_seedance_config_snapshot(),
+            "seedance_tasks": _social_seedance_records(limit=20),
+            "ai_settings": _social_ai_settings_snapshot(),
+            "avatar_presets": _social_avatar_presets(limit=30),
+            "voice_presets": _social_tg_voice_presets(),
+            "batch_records": _social_compact_batch_records(limit=20),
+            "data_refresh": case_auto_refresh_status(),
+            "quality_batch": case_quality_batch_status(),
+        }
+    )
+
+
+@app.get("/api/social-case-workbench/data-refresh")
+def api_social_case_workbench_data_refresh():
+    return JSONResponse({"ok": True, "data_refresh": case_auto_refresh_status(), "quality_batch": case_quality_batch_status()})
+
+
+@app.post("/api/social-case-workbench/data-refresh")
+def api_social_case_workbench_data_refresh_now():
+    before = case_auto_refresh_status()
+    if before.get("running"):
+        return JSONResponse({"ok": True, "queued": False, "data_refresh": before})
+    threading.Thread(
+        target=run_case_auto_refresh_once,
+        kwargs={"reason": "manual", "invalidate_caches": _invalidate_case_data_caches},
+        daemon=True,
+        name="case-auto-refresh-manual",
+    ).start()
+    return JSONResponse({"ok": True, "queued": True, "data_refresh": case_auto_refresh_status()})
+
+
+@app.post("/api/social-case-workbench/tg-cleanup-incomplete")
+def api_social_case_workbench_tg_cleanup_incomplete():
+    cleanup = _social_tg_cleanup_incomplete_tasks()
+    return JSONResponse({"ok": True, "cleanup": cleanup, "tg": _social_tg_snapshot(limit=20)})
+
+
+@app.post("/api/social-case-workbench/clear-old-data")
+def api_social_case_workbench_clear_old_data(payload: dict[str, Any] = Body(default={})):
+    body = dict(payload or {})
+    keep_task_ids = body.get("keep_task_ids") if isinstance(body.get("keep_task_ids"), list) else []
+    cleanup = _social_tg_clear_old_data(
+        keep_task_ids=keep_task_ids,
+        keep_latest_completed=int(body.get("keep_latest_completed") or 1),
+        clear_batches=bool(body.get("clear_batches", True)),
+        delete_processing=bool(body.get("delete_processing", False)),
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "cleanup": cleanup,
+            "tg": _social_tg_snapshot(limit=20),
+            "batch_records": _social_compact_batch_records(limit=20),
+        }
+    )
+
+
+@app.get("/api/social-case-workbench/ai-settings")
+def api_social_case_workbench_ai_settings():
+    return JSONResponse({"ok": True, **_social_ai_settings_snapshot()})
+
+
+@app.put("/api/social-case-workbench/ai-settings")
+def api_social_case_workbench_put_ai_settings(payload: SocialAiSettingsPut):
+    _social_apply_ai_settings(payload)
+    return JSONResponse({"ok": True, **_social_ai_settings_snapshot()})
+
+
+@app.get("/api/social-case-workbench/package")
+def api_social_case_workbench_package(
+    source_item_id: int = Query(default=0, ge=0),
+    platform: str = Query(default="auto"),
+):
+    item = _social_case_by_source_item_id(source_item_id)
+    requested = str(platform or "auto").strip().lower()
+    if requested in ("xiaohongshu", "xhs", "小紅書", "小红书"):
+        item["platform"] = {
+            "code": "xiaohongshu",
+            "label": "小紅書",
+            "reason": "已依指定媒體輸出：封面與輪播圖文優先。",
+        }
+        item["content_pack"] = _social_enrich_platform_content_pack(item, _social_build_content_pack(item))
+    elif requested in ("douyin", "tiktok", "tk", "抖音"):
+        item["platform"] = {
+            "code": "douyin_tiktok",
+            "label": "抖音 / TikTok",
+            "reason": "已依指定媒體輸出：短影音鉤子與 30 秒口播優先。",
+        }
+        item["content_pack"] = _social_enrich_platform_content_pack(item, _social_build_content_pack(item))
+    return JSONResponse({"ok": True, "item": item, "tg": _social_tg_snapshot(limit=8)})
+
+
+@app.post("/api/social-case-workbench/cloud-publish")
+def api_social_case_workbench_cloud_publish(payload: dict[str, Any] = Body(...)):
+    body = dict(payload or {})
+    source_item_id = int(body.get("source_item_id") or 0)
+    if source_item_id <= 0:
+        raise HTTPException(status_code=400, detail="missing source_item_id")
+    item = _social_case_by_source_item_id(source_item_id)
+    result = _social_adb_enqueue_cloud_publish(body, item)
+    return JSONResponse(result)
+
+
+@app.post("/api/social-case-workbench/cloud-publish/{task_id}/retry")
+def api_social_case_workbench_cloud_publish_retry(task_id: str):
+    return JSONResponse(_social_adb_retry_cloud_publish_task(task_id))
+
+
+@app.get("/api/social-case-workbench/cloud-devices")
+def api_social_case_workbench_cloud_devices():
+    return JSONResponse(_social_adb_cloud_devices_snapshot())
+
+
+@app.post("/api/social-case-workbench/cloud-devices/switch")
+def api_social_case_workbench_cloud_devices_switch(payload: dict[str, Any] = Body(...)):
+    body = dict(payload or {})
+    username = str(body.get("username") or _SOCIAL_ADB_DEDICATED_USERNAME).strip()
+    pad_code = str(body.get("pad_code") or "").strip()
+    snapshot = _social_adb_switch_account_device(username, pad_code)
+    return JSONResponse({"ok": True, **snapshot})
+
+
+@app.post("/api/social-case-workbench/cloud-devices/import-vmos")
+def api_social_case_workbench_cloud_devices_import_vmos(payload: dict[str, Any] | None = Body(default=None)):
+    body = dict(payload or {})
+    snapshot = _social_adb_import_vmos_devices_from_web(str(body.get("source") or "adbfacebook"))
+    return JSONResponse({"ok": True, **snapshot})
+
+
+@app.post("/api/social-case-workbench/cloud-devices/vmos2-config")
+def api_social_case_workbench_cloud_devices_vmos2_config(payload: dict[str, Any] = Body(...)):
+    body = dict(payload or {})
+    updates: dict[str, str] = {}
+    label = str(body.get("label") or "").strip()
+    host = str(body.get("host") or "").strip()
+    access_key = str(body.get("access_key") or "").strip()
+    secret_key = str(body.get("secret_key") or "").strip()
+    if label:
+        updates["SCLAW_VMOS2_LABEL"] = label
+    if host:
+        updates["SCLAW_VMOS2_API_HOST"] = re.sub(r"^https?://", "", host, flags=re.I).strip().strip("/")
+    if access_key:
+        updates["SCLAW_VMOS2_ACCESS_KEY"] = access_key
+    if secret_key:
+        updates["SCLAW_VMOS2_SECRET_KEY"] = secret_key
+    if not updates:
+        raise HTTPException(status_code=400, detail="missing VMOS CLOUD 2 config values")
+    _social_update_env_values(updates)
+    return JSONResponse({"ok": True, **_social_adb_cloud_devices_snapshot()})
+
+
+@app.post("/api/social-case-workbench/cloud-devices/test")
+def api_social_case_workbench_cloud_devices_test(payload: dict[str, Any] = Body(...)):
+    body = dict(payload or {})
+    pad_codes_raw = body.get("pad_codes")
+    if isinstance(pad_codes_raw, list):
+        pad_codes = [str(x).strip() for x in pad_codes_raw if str(x or "").strip()]
+    else:
+        pad = str(body.get("pad_code") or "").strip()
+        pad_codes = [pad] if pad else []
+    if not pad_codes:
+        raise HTTPException(status_code=400, detail="missing pad_code")
+    source = str(body.get("source") or "adbfacebook").strip()
+    results = [_social_test_cloud_device(pad, source) for pad in pad_codes[:8]]
+    test_ok = all(row.get("ok") for row in results)
+    snapshot = _social_adb_cloud_devices_snapshot()
+    return JSONResponse({**snapshot, "test_ok": test_ok, "results": results})
+
+
+@app.get("/api/social-case-workbench/seedance-videos")
+def api_social_case_workbench_seedance_videos(limit: int = Query(default=20, ge=1, le=80)):
+    return JSONResponse(
+        {
+            "ok": True,
+            "seedance": _social_seedance_config_snapshot(),
+            "seedance_tasks": _social_seedance_records(limit=limit),
+        }
+    )
+
+
+@app.post("/api/social-case-workbench/seedance-video")
+def api_social_case_workbench_seedance_video(payload: SocialSeedanceVideoPost):
+    source_item_id = int(payload.source_item_id or 0)
+    if source_item_id <= 0:
+        raise HTTPException(status_code=400, detail="missing source_item_id")
+    item = _social_case_by_source_item_id(source_item_id)
+    record = _social_seedance_submit(payload, item)
+    return JSONResponse(
+        {
+            "ok": True,
+            "seedance": _social_seedance_config_snapshot(),
+            "task": record,
+            "seedance_tasks": _social_seedance_records(limit=20),
+        }
+    )
+
+
+@app.get("/api/social-case-workbench/seedance-video/{task_id}")
+def api_social_case_workbench_seedance_video_query(task_id: str):
+    record = _social_seedance_query(task_id)
+    return JSONResponse(
+        {
+            "ok": True,
+            "seedance": _social_seedance_config_snapshot(),
+            "task": record,
+            "seedance_tasks": _social_seedance_records(limit=20),
+        }
+    )
+
+
+@app.post("/api/social-case-workbench/ai-copy")
+def api_social_case_workbench_ai_copy(payload: SocialAiCopyPost):
+    item = _social_case_by_source_item_id(int(payload.source_item_id or 0))
+    provider = str(payload.provider or "gpt").strip().lower()
+    platform = str(payload.platform or "auto").strip()
+    duration_seconds = max(8, min(120, int(payload.duration_seconds or 30)))
+    selected_image_urls = _social_unique_media_urls(list(payload.selected_image_urls or []), limit=8)
+    raw = _social_llm_chat(
+        provider=provider,
+        messages=_social_ai_prompt(
+            item,
+            platform,
+            str(payload.instruction or ""),
+            duration_seconds=duration_seconds,
+            selected_image_urls=selected_image_urls,
+        ),
+        temperature=0.72,
+        max_tokens=2600,
+    )
+    try:
+        data = _social_extract_json_object(raw)
+        pack = _social_ai_pack_from_response(
+            item,
+            data,
+            duration_seconds=duration_seconds,
+            selected_image_urls=selected_image_urls,
+        )
+    except Exception:
+        data = {"raw_text": raw}
+        pack = dict(item.get("content_pack") or {})
+        image_plan = _social_sales_image_plan(item, selected_image_urls=selected_image_urls, max_images=8)
+        pack["sales_image_plan"] = image_plan
+        pack["voiceover_seconds"] = duration_seconds
+        pack["voiceover_30s"] = raw
+        pack["digital_human_video_script"] = raw
+        pack["digital_human_payload"] = {
+            **dict(pack.get("digital_human_payload") or {}),
+            "target_duration_seconds": duration_seconds,
+            "script_text": raw,
+            "image_urls": [x["url"] for x in image_plan],
+            "sales_image_plan": image_plan,
+        }
+    item["content_pack"] = pack
+    if isinstance(data.get("platform_label"), str) and data.get("platform_label"):
+        item["platform"] = {
+            "code": provider,
+            "label": str(data.get("platform_label")).strip(),
+            "reason": str(data.get("platform_reason") or f"{_social_provider_config(provider)['label']} 生成建議").strip(),
+        }
+    return JSONResponse({"ok": True, "provider": provider, "item": item, "ai_raw": raw, "ai_json": data})
+
+
+def _social_voiceover_limits(duration_seconds: int) -> tuple[int, int]:
+    seconds = max(8, min(120, int(duration_seconds or 30)))
+    min_chars = 120 if seconds >= 45 else 80
+    max_chars = max(150, min(430, seconds * 5))
+    return min_chars, max_chars
+
+
+def _social_estimated_voiceover_seconds(script: str) -> int:
+    text = _social_text(script, limit=0)
+    if not text:
+        return 45
+    # The cloned voice engine reads Traditional Chinese more slowly than a manual short-form script.
+    # Keep the video long enough so the digital-human outro and CTA are not cut off.
+    return max(30, min(90, int(len(text) / 4.2) + 6))
+
+
+def _social_complete_voiceover_script(item: dict[str, Any] | None, duration_seconds: int) -> str:
+    source = dict(item or {})
+    title = _social_text(source.get("title") or "日本房產精選案件", limit=70)
+    facts = dict(source.get("facts") or {})
+    fact_order = ("價格", "格局", "面積", "交通", "區域")
+    fact_parts: list[str] = []
+    for key in fact_order:
+        value = _social_text(facts.get(key), limit=54)
+        if value:
+            fact_parts.append(f"{key}：{value}")
+        if len(fact_parts) >= 4:
+            break
+    for key, value in facts.items():
+        value_text = _social_text(value, limit=54)
+        if len(fact_parts) >= 4:
+            break
+        if value_text and not any(value_text in part for part in fact_parts):
+            fact_parts.append(f"{_social_text(key, limit=12)}：{value_text}")
+    points = []
+    seen: set[str] = set()
+    for value in source.get("selling_points") or []:
+        text = _social_text(value, limit=54)
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            points.append(text)
+        if len(points) >= 3:
+            break
+    images = _social_unique_media_urls(
+        list(source.get("selected_image_urls") or source.get("property_images") or source.get("image_urls") or []),
+        limit=8,
+    )
+    image_count = len(images) or int(source.get("image_count") or 0)
+    visual_line = "畫面會先看外觀和周邊，再看室內採光、格局和動線，讓資訊跟著畫面走。"
+    if image_count:
+        visual_line = f"畫面會從 {image_count} 張案件素材裡挑外觀、室內、格局和周邊，讓資訊跟著畫面走。"
+    parts = [
+        f"你好，我先帶你看這個日本房產案件：{title}。",
+        f"重點條件是{'，'.join(fact_parts)}。" if fact_parts else "我會先抓價格、交通、格局和生活感，幫你快速判斷值不值得深入看。",
+        f"我會特別留意{'、'.join(points)}。" if points else "我會特別留意地段、空間、生活機能和後續使用彈性。",
+        visual_line,
+        "我的初步判斷是，這類案件適合重視通勤、生活便利性，或正在比較日本自住與收租標的的客戶。",
+        "想看完整地址、費用明細、更多室內外照片和預約賞屋時間，可以直接私訊，我再幫你整理。",
+    ]
+    if duration_seconds >= 60:
+        parts.insert(
+            -1,
+            "如果要做社群素材，建議先用外觀開場，再切到室內和交通，最後用人物口播收尾，節奏會比較自然。",
+        )
+    return "".join(part for part in parts if part)
+
+
+def _social_naturalize_voiceover_script(
+    script: str,
+    duration_seconds: int,
+    *,
+    item: dict[str, Any] | None = None,
+) -> str:
+    text = _social_text(script, limit=0)
+    text = re.sub(r"大家好，?這支先用\d+個重點片段，?快速帶你看[^。！？!?]*[。！？!?]", "", text)
+    text = re.sub(r"第[一二三四五六七八九十\d]+段", "接著", text)
+    text = re.sub(r"我會用\d+個畫面", "我會用幾個畫面", text)
+    text = text.replace("用畫面說明", "說明")
+    text = text.replace("畫面要讓人很快看懂", "讓客戶快速看懂")
+    text = text.replace("先別滑走，", "")
+    text = re.sub(r"\s+", " ", text).strip()
+    complete = _social_complete_voiceover_script(item, duration_seconds) if item else ""
+    robotic = bool(re.search(r"這支先用|第[一二三四五六七八九十\d]+段|畫面要|用畫面說明|重點片段|快速帶你看", text))
+    min_chars, max_chars = _social_voiceover_limits(duration_seconds)
+    if complete and (robotic or not text or len(text) < min_chars or len(text) > max_chars * 1.35):
+        text = complete
+    return text
+
+
+def _social_sentence_fit(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    parts = [p.strip() for p in re.split(r"(?<=[。！？!?；;])\s*|\n+", text) if p.strip()]
+    out = ""
+    for part in parts:
+        if len(out + part) > max_chars:
+            break
+        out += part
+    if not out:
+        out = text[:max_chars]
+    return re.sub(r"[，,、；;：:。！？!?\s]+$", "。", out).strip()
+
+
+def _social_fit_voiceover_script(
+    script: str,
+    duration_seconds: int,
+    *,
+    item: dict[str, Any] | None = None,
+) -> str:
+    text = _social_naturalize_voiceover_script(script, duration_seconds, item=item)
+    min_chars, max_chars = _social_voiceover_limits(duration_seconds)
+    complete = _social_complete_voiceover_script(item, duration_seconds) if item else ""
+    if complete and (not text or len(text) < min_chars or len(text) > max_chars * 1.35):
+        text = complete
+    if not text:
+        return ""
+    return _social_sentence_fit(text, max_chars)
+
+
+@app.post("/api/social-case-workbench/tg-create-task")
+def api_social_case_workbench_tg_create_task(payload: dict[str, Any] = Body(...)):
+    body = dict(payload or {})
+    script = str(body.get("script_text") or body.get("digital_human_video_script") or "").strip()
+    if not script:
+        raise HTTPException(status_code=400, detail="missing script_text")
+    duration = max(8, min(120, int(body.get("duration_seconds") or body.get("target_duration_seconds") or 30)))
+    asset_pack = body.get("social_asset_pack") if isinstance(body.get("social_asset_pack"), dict) else {}
+    segment_mode = str(body.get("segment_mode") or asset_pack.get("segment_mode") or "").strip().lower()
+    selected_segments = body.get("selected_segments") or asset_pack.get("selected_segments") or []
+    is_segmented_video = bool(selected_segments) or segment_mode in {"core", "focus", "indoor", "exterior", "all", "custom"}
+    item: dict[str, Any] | None = None
+    try:
+        source_item_id = int(body.get("source_item_id") or 0)
+    except (TypeError, ValueError):
+        source_item_id = 0
+    if source_item_id > 0:
+        item = _social_case_by_source_item_id(source_item_id)
+        if body.get("selected_image_urls") or body.get("image_urls"):
+            item["selected_image_urls"] = _social_unique_media_urls(
+                list(body.get("selected_image_urls") or body.get("image_urls") or []),
+                limit=8,
+            )
+    if str(body.get("mode") or "social-case") == "social-case" or str(body.get("voiceover_source") or "") == "digital_human":
+        duration = max(30 if is_segmented_video else 45, duration)
+    if is_segmented_video:
+        script = _social_naturalize_voiceover_script(script, duration, item=item)
+        max_chars = max(150, min(430, duration * 5))
+        script = _social_sentence_fit(_social_text(script, limit=0), max_chars)
+        estimated = _social_estimated_voiceover_seconds(script)
+        duration = max(duration, estimated)
+        script = _social_sentence_fit(script, max(150, min(430, duration * 5)))
+    else:
+        script = _social_fit_voiceover_script(script, duration, item=item)
+        duration = max(duration, _social_estimated_voiceover_seconds(script))
+        script = _social_fit_voiceover_script(script, duration, item=item)
+    body["script_text"] = script
+    body.setdefault("mode", "social-case")
+    body["duration_seconds"] = duration
+    body["target_duration_seconds"] = duration
+    base = _social_tg_web_url().rstrip("/")
+    url = f"{base}/api/social-cases/create-task"
+    try:
+        with httpx.Client(timeout=httpx.Timeout(45.0, connect=8.0)) as client:
+            resp = client.post(url, json=body)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"TG 8091 request failed: {type(exc).__name__}: {exc}") from exc
+    if resp.status_code >= 400:
+        detail = (resp.text or "").strip().replace("\r\n", " ").replace("\n", " ")
+        try:
+            detail_json = resp.json()
+            if isinstance(detail_json, dict) and detail_json.get("detail"):
+                detail = str(detail_json.get("detail") or detail)
+        except Exception:
+            pass
+        if re.search(r"api\s*key|apikey|placeholder|verification failed|不存在|engine API key", detail, re.I):
+            detail = "影片引擎 API Key 尚未設定或無效。素材包已完成並可預覽；請在本頁「影片引擎設定」填入有效的智能體/RunningHub API Key 後，再按一次生成影片。"
+        raise HTTPException(status_code=502, detail=detail[:900] or f"影片任務建立失敗（HTTP {resp.status_code}）")
+    try:
+        data = resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="TG 8091 returned non-JSON response") from exc
+    if not isinstance(data, dict) or not data.get("ok"):
+        raise HTTPException(status_code=502, detail=f"TG 8091 task create failed: {json.dumps(data, ensure_ascii=False)[:900]}")
+    batch_id = str(body.get("batch_id") or asset_pack.get("batch_id") or "").strip()
+    if batch_id:
+        task_id = ""
+        try:
+            task_id = str(((data.get("task") or {}) if isinstance(data.get("task"), dict) else {}).get("id") or "")
+        except Exception:
+            task_id = ""
+        _social_patch_batch_record(
+            batch_id,
+            {
+                "status": "queued",
+                "task_ids": [task_id] if task_id else [],
+                "summary": f"已送出影片任務：{task_id}" if task_id else "已送出影片任務",
+            },
+        )
+    return JSONResponse({"ok": True, "tg": data})
+
+
+@app.get("/api/social-case-workbench/batches")
+def api_social_case_workbench_batches(limit: int = Query(default=20, ge=1, le=80)):
+    return JSONResponse({"ok": True, "batch_records": _social_batch_records(limit=limit)})
+
+
+@app.post("/api/social-case-workbench/batches")
+def api_social_case_workbench_save_batch(payload: dict[str, Any] = Body(...)):
+    body = dict(payload or {})
+    record = _social_save_batch_record(body)
+    return JSONResponse({"ok": True, "batch": record, "batch_records": _social_batch_records(limit=20)})
+
+
+@app.post("/api/social-case-workbench/tg-engine-key")
+def api_social_case_workbench_tg_engine_key(payload: dict[str, Any] = Body(...)):
+    key = str((payload or {}).get("engine_api_key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="請先填入影片引擎 API Key。")
+    if "placeholder" in key.lower() or key.lower() in {"web-only-placeholder", "changeme", "your-api-key"}:
+        raise HTTPException(status_code=400, detail="這看起來仍是 placeholder，請填入有效的智能體/RunningHub API Key。")
+    set_kv("social_case_runninghub_api_key", key)
+    set_kv("social_case_seedance_api_key", key)
+    set_kv("runninghub_api_key", key)
+    set_kv("engine_api_key", key)
+    sync_warnings: list[str] = []
+    try:
+        _social_seedance_write_env_values(
+            _social_tg_root() / ".env",
+            {"ENGINE_API_KEY": key, "RUNNINGHUB_API_KEY": key},
+        )
+    except Exception as exc:
+        sync_warnings.append(f"數字人環境檔同步失敗：{type(exc).__name__}: {exc}")
+    base = _social_tg_web_url().rstrip("/")
+    tg_synced = False
+    try:
+        with httpx.Client(timeout=httpx.Timeout(12.0, connect=4.0), follow_redirects=False) as client:
+            resp = client.post(f"{base}/settings/general", data={"engine_api_key": key})
+    except Exception as exc:
+        sync_warnings.append(f"數字人背景引擎未連線：{type(exc).__name__}: {exc}")
+    else:
+        if resp.status_code in {200, 303, 307}:
+            tg_synced = True
+        else:
+            detail = (resp.text or "").strip().replace("\r\n", " ").replace("\n", " ")
+            sync_warnings.append(detail[:500] or f"數字人背景引擎同步失敗（HTTP {resp.status_code}）")
+    return JSONResponse(
+        {
+            "ok": True,
+            "tg": _social_tg_snapshot(limit=8),
+            "seedance": _social_seedance_config_snapshot(),
+            "engine_key_saved": True,
+            "tg_engine_key_synced": tg_synced,
+            "warning": "；".join(sync_warnings),
+        }
+    )
+
+
+@app.post("/api/social-case-workbench/banana-image")
+def api_social_case_workbench_banana_image(payload: SocialBananaImagePost):
+    item = _social_case_by_source_item_id(int(payload.source_item_id or 0))
+    result = _social_banana_image(
+        item,
+        prompt=str(payload.prompt or ""),
+        size=str(payload.size or "1024x1024"),
+        provider=str(payload.provider or "banana"),
+        purpose=str(payload.purpose or "cover"),
+        reference_image_data_url=str(payload.reference_image_data_url or ""),
+        reference_image_url=str(payload.reference_image_url or ""),
+        scene=str(payload.scene or "cooperation_intro"),
+        identity_lock=bool(payload.identity_lock),
+        case_scene_context=str(payload.case_scene_context or ""),
+        case_scene_image_urls=list(payload.case_scene_image_urls or []),
+    )
+    preset: dict[str, Any] = {}
+    if str(payload.purpose or "").strip().lower() in {"agent_avatar", "avatar", "digital_human"}:
+        label_source = _social_text(item.get("title") or "", limit=38)
+        label = f"Agent avatar - {label_source}" if label_source else "Agent avatar"
+        preset = _social_save_avatar_preset(
+            image_url=str(result.get("image_url") or ""),
+            image_path=str(result.get("image_path") or ""),
+            provider=str(result.get("provider") or payload.provider or ""),
+            model=str(result.get("model") or ""),
+            source_item_id=int(payload.source_item_id or 0),
+            label=label,
+            scene=str(result.get("scene") or payload.scene or ""),
+            identity_lock=bool(result.get("identity_lock", payload.identity_lock)),
+        )
+    return JSONResponse({"ok": True, "item": item, **result, "avatar_preset": preset})
+
+
+@app.get("/api/social-case-workbench/avatar-presets")
+def api_social_case_workbench_avatar_presets():
+    return JSONResponse({"ok": True, "presets": _social_avatar_presets(limit=30)})
+
+
+@app.post("/api/social-case-workbench/avatar-upload")
+def api_social_case_workbench_avatar_upload(payload: SocialAvatarUploadPost):
+    raw = str(payload.image_data_url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Missing image_data_url")
+    try:
+        saved = _social_save_b64_image(raw, prefix="avatar_upload")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Avatar upload failed: {exc}") from exc
+    item = _social_case_by_source_item_id(int(payload.source_item_id or 0)) if payload.source_item_id else {}
+    label = _social_text(
+        payload.label
+        or (f"上傳人物｜{item.get('title')}" if item.get("title") else "上傳人物形象"),
+        limit=80,
+    )
+    preset = _social_save_avatar_preset(
+        image_url=str(saved.get("image_url") or ""),
+        image_path=str(saved.get("image_path") or ""),
+        provider="upload",
+        model="local-upload",
+        source_item_id=int(payload.source_item_id or 0),
+        label=label,
+        scene=str(payload.scene or "uploaded_agent"),
+        identity_lock=bool(payload.identity_lock),
+    )
+    return JSONResponse({"ok": True, **saved, "avatar_preset": preset})
+
+
+@app.post("/api/social-case-workbench/voice-video-upload")
+async def api_social_case_workbench_voice_video_upload(
+    file: UploadFile = File(...),
+    label: str = Form(""),
+    source_item_id: int = Form(0),
+):
+    original_filename = Path(file.filename or "voice_video.mp4").name
+    suffix = Path(original_filename).suffix.lower()
+    if suffix not in {".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv"}:
+        guessed = mimetypes.guess_extension(file.content_type or "") or ".mp4"
+        suffix = guessed if guessed in {".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv"} else ".mp4"
+    out_dir = _social_voice_video_upload_dir()
+    out_path = out_dir / f"voice_video_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}{suffix}"
+    total = 0
+    limit = 600 * 1024 * 1024
+    try:
+        with out_path.open("wb") as fh:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > limit:
+                    raise HTTPException(status_code=413, detail="Uploaded video is too large")
+                fh.write(chunk)
+    except HTTPException:
+        if out_path.exists():
+            out_path.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        if out_path.exists():
+            out_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Voice video upload failed: {exc}") from exc
+    if total <= 0:
+        if out_path.exists():
+            out_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Uploaded video is empty")
+    clean_label = _social_text(label or f"Voice clone - {Path(original_filename).stem}", limit=120)
+    avatar_preset = _social_extract_video_avatar_preset(
+        out_path,
+        label=f"Video avatar - {Path(original_filename).stem}",
+        source_item_id=int(source_item_id or 0),
+    )
+    preset = _social_save_voice_video_preset(
+        source_video_path=str(out_path.resolve()),
+        label=clean_label,
+        original_filename=original_filename,
+        file_size=total,
+        source_item_id=int(source_item_id or 0),
+        avatar_image_path=str((avatar_preset or {}).get("image_path") or ""),
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "voice_preset": preset,
+            "avatar_preset": avatar_preset,
+            "voice_presets": _social_tg_voice_presets(),
+            "source_video_path": str(out_path.resolve()),
+        }
+    )
+
+
+@app.get("/api/social-case-workbench/tg-voice-preview/{preset_id:path}")
+def api_social_case_workbench_tg_voice_preview(preset_id: str):
+    target = unquote(str(preset_id or "")).strip()
+    preset = next((row for row in _social_tg_voice_presets() if str(row.get("id") or "") == target), None)
+    if not preset:
+        raise HTTPException(status_code=404, detail="voice preset not found")
+    path = _social_resolve_voice_source_path(preset.get("source_video_path"))
+    if path is None:
+        raise HTTPException(status_code=404, detail="voice source not found")
+    media_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=path.name)
+
+
+@app.get("/api/social-case-workbench/tg-files/{task_id}/{kind}")
+def api_social_case_workbench_tg_file(task_id: str, kind: str):
+    path = _social_tg_task_file(task_id, kind)
+    media_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=path.name)
+
+
+_CASE_INV_FRESH_TS = (
+    "COALESCE(NULLIF(TRIM(c.updated_at), ''), "
+    "NULLIF(TRIM(s.last_checked_at), ''), "
+    "NULLIF(TRIM(s.crawled_at), ''))"
+)
+
+_CASE_INV_JP_LISTING_SQL = (
+    "COALESCE(NULLIF(TRIM(s.content_kind), ''), '') = 'jp_listing'"
+)
+
+
+def _cases_inventory_remediation(
+    *,
+    jp_fresh: int,
+    jp_total: int,
+    incomplete_signals: int,
+    age_days: int,
+    settings_warn: bool,
+) -> list[str]:
+    """筆數或欄位不足時的回填步驟（短句，給前台／後台並用）。"""
+    out: list[str] = []
+    if jp_fresh < 80:
+        out.append(
+            f"門戶物件在「約 {age_days} 天」內可被查到的筆數偏少（目前 {jp_fresh} 筆）：請至「案件管理」執行「七站分段補全（前四 × N 輪 → 後三）」，"
+            "並將「每來源筆數上限」調高（例如 100～500）後重跑；租屋資料請將智慧查詢切到「租屋」並確認已爬 HOMES／SUUMO 賃貸詳情。"
+        )
+    if jp_total > 0 and incomplete_signals >= max(25, jp_total // 4):
+        out.append(
+            f"約有 {incomplete_signals} 筆門戶物件缺縮圖／標題信號過弱：對該頁「批次重爬本頁」或單筆預覽編輯，必要時手動補「繁中標題／交通／區域」與圖片欄位。"
+        )
+    if settings_warn:
+        out.append(
+            "智慧查詢「預設新鮮度天數」若小於 180，站內可搜尋的半年內案件會變少；請在後台「爬文／智慧查詢設定」將「智慧查詢預設天數」調為至少 180，並將「資料筆數上限」維持在足夠大。"
+        )
+    return out
+
+
+@app.get("/api/cases/inventory-stats")
+def api_cases_inventory_stats(age_days: int = Query(default=0, ge=0, le=366)):
+    """站內案件庫摘要：門戶物件總數、與智慧查詢一致的日期新鮮度、七大站來源拆分、略缺欄位估算。**不需登入**。"""
+    settings = load_crawl_settings()
+    cfg_age = max(1, min(366, int(settings.get("portal_query_max_age_days") or 180)))
+    cfg_records = max(10, min(100000, int(settings.get("portal_query_max_records") or 100000)))
+    use_age = cfg_age if int(age_days or 0) <= 0 else max(1, min(366, int(age_days)))
+    cached = _cases_inventory_stats_cache_get(use_age)
+    if cached is not None:
+        cached["cache"] = "hit"
+        return JSONResponse(cached)
+
+    with get_conn() as conn:
+        total_all = int(conn.execute("SELECT COUNT(1) AS c FROM content_items").fetchone()["c"] or 0)
+        jp_total = int(
+            conn.execute(
+                "SELECT COUNT(1) AS c FROM source_items INDEXED BY idx_source_items_content_kind_last_checked "
+                "WHERE content_kind = 'jp_listing'"
+            ).fetchone()["c"]
+            or 0
+        )
+        jp_fresh = int(
+            conn.execute(
+                f"SELECT COUNT(1) AS c FROM source_items INDEXED BY idx_source_items_content_kind_last_checked "
+                f"WHERE content_kind = 'jp_listing' AND last_checked_at >= datetime('now', '-{int(use_age)} days')"
+            ).fetchone()["c"]
+            or 0
+        )
+        incomplete = int(
+            conn.execute(
+                """
+                SELECT COUNT(1) AS c
+                FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
+                LEFT JOIN content_items c ON c.source_item_id = s.id
+                WHERE s.content_kind = 'jp_listing'
+                  AND (
+                    (length(trim(COALESCE(c.title_zh_hant,''))) < 2 AND length(trim(COALESCE(s.title_original,''))) < 12)
+                    OR (trim(COALESCE(s.image_urls,'')) = '' AND COALESCE(c.listing_media_json,'[]') IN ('', '[]'))
+                  )
+                """
+            ).fetchone()["c"]
+            or 0
+        )
+        host_case_sql = (
+            "CASE "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'suumo.jp')>0 THEN 'suumo.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'homes.co.jp')>0 OR instr(lower(COALESCE(s.item_url,'')),'homes.jp')>0 THEN 'homes.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'athome.co.jp')>0 THEN 'athome.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'realestate.yahoo.co.jp')>0 THEN 'realestate.yahoo.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'realestate.rakuten.co.jp')>0 THEN 'realestate.rakuten.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'yes1.co.jp')>0 OR instr(lower(COALESCE(s.item_url,'')),'yes-station')>0 THEN 'yes1.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'oheya-su.jp')>0 OR instr(lower(COALESCE(s.item_url,'')),'oheyasuu.com')>0 OR instr(lower(COALESCE(s.item_url,'')),'oheyago.jp')>0 THEN 'oheya-su.jp' "
+            "ELSE '' END"
+        )
+        by_host = {hk: 0 for hk in SEVEN_JP_PORTAL_HOST_ORDER}
+        for r in conn.execute(
+            f"""
+            SELECT host_key, COUNT(1) AS c
+            FROM (
+                SELECT {host_case_sql} AS host_key
+                FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
+                WHERE s.content_kind = 'jp_listing'
+                  AND s.last_checked_at >= datetime('now', '-{int(use_age)} days')
+            ) t
+            WHERE host_key <> ''
+            GROUP BY host_key
+            """
+        ).fetchall():
+            hk = str(r["host_key"] or "").strip().lower()
+            if hk in by_host:
+                by_host[hk] = int(r["c"] or 0)
+    remediation = _cases_inventory_remediation(
+        jp_fresh=jp_fresh,
+        jp_total=jp_total,
+        incomplete_signals=incomplete,
+        age_days=use_age,
+        settings_warn=cfg_age < 180,
+    )
+    status = "healthy"
+    if jp_fresh < 80:
+        status = "low_volume"
+    elif incomplete >= max(30, jp_total // 5):
+        status = "incomplete_fields"
+    payload = {
+        "ok": True,
+        "cache": "miss",
+        "age_days_used": use_age,
+        "settings_snapshot": {
+            "portal_query_max_age_days": cfg_age,
+            "portal_query_max_records": cfg_records,
+        },
+        "totals": {
+            "all_source_cases": total_all,
+            "jp_listing_total": jp_total,
+            "jp_listing_fresh": jp_fresh,
+            "jp_listing_incomplete_signals": incomplete,
+        },
+        "by_portal_host": by_host,
+        "health": status,
+        "remediation": remediation,
+    }
+    _cases_inventory_stats_cache_set(use_age, payload)
+    return JSONResponse(payload)
+
+
+@app.get("/api/cases/portal-hub-matrix")
+def api_cases_portal_hub_matrix():
+    """七大站與 hub 對照（後台案件管理資訊表）。"""
+    notes_map: dict[str, str] = {
+        "suumo.jp": "有種子 hub",
+        "homes.co.jp": "同上；賃貸依 room／b- 兩種詳情網址",
+        "athome.co.jp": "有",
+        "realestate.yahoo.co.jp": "有（站點以中古検索為主）",
+        "realestate.rakuten.co.jp": "有（東京リスト等）",
+        "yes1.co.jp": "有（東京マンション）",
+        "oheya-su.jp": "有（東京賃貸）",
+    }
+    portal_name_map: dict[str, str] = {
+        "suumo.jp": "SUUMO",
+        "homes.co.jp": "LIFULL HOME'S",
+        "athome.co.jp": "at home",
+        "realestate.yahoo.co.jp": "Yahoo!",
+        "realestate.rakuten.co.jp": "楽天",
+        "yes1.co.jp": "イエステーション",
+        "oheya-su.jp": "OHEYASU",
+    }
+    rows: list[dict[str, Any]] = []
+    for host in SEVEN_JP_PORTAL_HOST_ORDER:
+        hubs = list(LISTING_HUB_PAGES.get(host, []) or [])
+        rows.append(
+            {
+                "portal": portal_name_map.get(host, host),
+                "host_key": host,
+                "has_hubs": bool(hubs),
+                "hub_count": len(hubs),
+                "hub_urls": hubs[:40],
+                "note": notes_map.get(host, "有"),
+            }
+        )
+    return JSONResponse({"ok": True, "count": len(rows), "rows": rows})
+
+
+def _coverage_portal_name_map() -> dict[str, str]:
+    return {
+        "suumo.jp": "SUUMO",
+        "homes.co.jp": "LIFULL HOME'S",
+        "athome.co.jp": "at home",
+        "realestate.yahoo.co.jp": "Yahoo!",
+        "realestate.rakuten.co.jp": "楽天",
+        "yes1.co.jp": "イエステーション",
+        "oheya-su.jp": "OHEYASU",
+    }
+
+
+def _coverage_heal_region_queries(region_label: str) -> list[str]:
+    """Coverage heal query expansion by region (CN/JP aliases + common slugs)."""
+    r = str(region_label or "").strip()
+    if not r:
+        return [""]
+    out: list[str] = [r]
+    for q in _COVERAGE_HEAL_REGION_QUERY_ALIASES.get(r, ()):
+        sq = str(q or "").strip()
+        if sq and sq not in out:
+            out.append(sq)
+    return out[:6]
+
+
+def _coverage_heal_hub_match_terms(host: str, region_label: str) -> list[str]:
+    """URL path fragments for hub matching — portal URLs often omit CN/JP region spellings (Yahoo 用都道府縣代碼路徑)。"""
+    hk = str(host or "").strip().lower()
+    r = str(region_label or "").strip()
+    extra: list[str] = []
+    if hk == "realestate.yahoo.co.jp":
+        if r in ("首都圏", "關東", "東京", "神奈川", "埼玉", "千葉", "横滨", "川崎"):
+            extra.extend(["/03/13", "/03/14", "/03/11", "/03/12", "search/03/"])
+        if r in ("關西", "大阪", "京都市"):
+            extra.extend(["/06/27", "/06/26", "/06/28", "search/06/"])
+        if r in ("福岡", "九州"):
+            extra.extend(["/09/", "40106", "search/09/"])
+        if r in ("東北",):
+            extra.extend(["/01/04", "search/01/"])
+        if r in ("北海道",):
+            extra.extend(["/02/01", "search/02/"])
+        if r in ("東海", "名古屋"):
+            extra.extend(["/05/23", "search/05/"])
+        if r in ("北陸",):
+            extra.extend(["/04/", "search/04/"])
+    if hk == "athome.co.jp":
+        if r in ("首都圏", "關東"):
+            extra.extend(["/kanto/", "/tokyo/", "/kanagawa/", "/saitama/", "/chiba/"])
+        if r in ("大阪", "京都市", "關西"):
+            extra.extend(["/osaka/", "/kyoto/", "/hyogo/", "/kansai/"])
+        if r in ("福岡", "九州"):
+            extra.extend(["/fukuoka/", "/kyushu/"])
+        if r in ("北海道",):
+            extra.extend(["/hokkaido/"])
+        if r in ("東北",):
+            extra.extend(["/miyagi/", "/tohoku/", "/aomori/", "/fukushima/"])
+        if r in ("東海", "名古屋"):
+            extra.extend(["/aichi/", "/nagoya/", "/tokai/", "/gifu/", "/mie/", "/shizuoka/"])
+        if r in ("沖繩",):
+            extra.extend(["/okinawa/"])
+        if r in ("甲信越",):
+            extra.extend(["/nagano/", "/niigata/", "/yamanashi/"])
+        if r in ("北陸",):
+            extra.extend(["/toyama/", "/ishikawa/", "/fukui/"])
+        if r in ("中國地方",):
+            extra.extend(["/hiroshima/", "/okayama/", "/yamaguchi/", "/shimane/", "/tottori/", "/chugoku/"])
+        if r in ("四國",):
+            extra.extend(["/kagawa/", "/tokushima/", "/ehime/", "/kochi/", "/shikoku/"])
+        if r in ("神奈川", "横滨", "川崎"):
+            extra.extend(["/kanagawa/", "/yokohama/", "/kawasaki/"])
+        if r in ("埼玉",):
+            extra.extend(["/saitama/"])
+        if r in ("千葉",):
+            extra.extend(["/chiba/"])
+    if hk == "homes.co.jp":
+        if r in ("首都圏", "關東"):
+            extra.extend(["/tokyo/", "/kanagawa/", "/saitama/", "/chiba/"])
+        if r in ("大阪", "京都市", "關西"):
+            extra.extend(["/osaka/", "/kyoto/", "/hyogo/", "/kansai/"])
+        if r in ("北海道",):
+            extra.extend(["/hokkaido/", "/sapporo"])
+        if r in ("東北",):
+            extra.extend(["/miyagi/", "/sendai", "/tohoku/", "/aomori/", "/fukushima/"])
+        if r in ("東海", "名古屋"):
+            extra.extend(["/aichi/", "/nagoya/", "/shizuoka/", "/gifu/", "/mie/"])
+        if r in ("九州", "福岡"):
+            extra.extend(["/fukuoka/", "/kumamoto/", "/kyushu/", "/hiroshima/"])
+        if r in ("沖繩",):
+            extra.extend(["/okinawa/"])
+        if r in ("甲信越",):
+            extra.extend(["/nagano/", "/niigata/", "/yamanashi/"])
+        if r in ("北陸",):
+            extra.extend(["/toyama/", "/ishikawa/", "/fukui/"])
+        if r in ("中國地方",):
+            extra.extend(["/hiroshima/", "/okayama/", "/yamaguchi/", "/shimane/", "/tottori/"])
+        if r in ("四國",):
+            extra.extend(["/kagawa/", "/tokushima/", "/ehime/", "/kochi/"])
+        if r in ("神奈川", "横滨", "川崎"):
+            extra.extend(["/kanagawa/", "/yokohama/", "/kawasaki/"])
+        if r in ("埼玉",):
+            extra.extend(["/saitama/"])
+        if r in ("千葉",):
+            extra.extend(["/chiba/"])
+    if hk == "yes1.co.jp":
+        if r in ("北海道",):
+            extra.extend(["hokkaido"])
+        if r in ("東北",):
+            extra.extend(["miyagi"])
+        if r in ("首都圏", "關東", "東京"):
+            extra.extend(["tokyo"])
+        if r in ("神奈川", "横滨", "川崎"):
+            extra.extend(["kanagawa"])
+        if r in ("埼玉",):
+            extra.extend(["saitama"])
+        if r in ("千葉",):
+            extra.extend(["chiba"])
+        if r in ("大阪", "關西"):
+            extra.extend(["osaka"])
+        if r in ("京都市",):
+            extra.extend(["kyoto"])
+        if r in ("名古屋", "東海"):
+            extra.extend(["aichi"])
+        if r in ("福岡", "九州"):
+            extra.extend(["fukuoka"])
+        if r in ("中國地方",):
+            extra.extend(["hiroshima"])
+    if hk == "oheya-su.jp":
+        if r in ("北海道",):
+            extra.extend(["/hokkaido/"])
+        if r in ("東北",):
+            extra.extend(["/miyagi/"])
+        if r in ("大阪", "京都市", "關西"):
+            extra.extend(["/osaka/", "/kyoto/", "/hyogo/"])
+        if r in ("名古屋", "東海"):
+            extra.extend(["/aichi/"])
+        if r in ("福岡", "九州"):
+            extra.extend(["/fukuoka/"])
+        if r in ("中國地方",):
+            extra.extend(["/hiroshima/"])
+        if r in ("沖繩",):
+            extra.extend(["/okinawa/"])
+    terms = [str(x or "").strip().lower() for x in extra if str(x or "").strip()]
+    out: list[str] = []
+    for t in terms:
+        if t not in out:
+            out.append(t)
+    return out
+
+
+def _coverage_heal_candidate_source_urls(host: str, region_label: str, primary_source_url: str) -> list[str]:
+    """Pick host-specific hub URLs for healing, prioritized by region match."""
+    hk = str(host or "").strip().lower()
+    out: list[str] = []
+    if primary_source_url:
+        out.append(str(primary_source_url).strip())
+    hubs = [str(u or "").strip() for u in list(LISTING_HUB_PAGES.get(hk, []) or []) if str(u or "").strip()]
+    if not hubs:
+        return out
+    term_set: set[str] = set()
+    for x in _coverage_heal_region_queries(region_label):
+        t = str(x or "").strip().lower()
+        if t:
+            term_set.add(t)
+    for t in _coverage_heal_hub_match_terms(hk, region_label):
+        if t:
+            term_set.add(t)
+    matched = [u for u in hubs if any(t in u.lower() for t in term_set)]
+    # Region-matched hubs first; then append a few generic hubs as fallback.
+    for u in [*matched, *hubs]:
+        if u and u not in out:
+            out.append(u)
+    if hk in REMAINING_THREE_PORTAL_HOSTS:
+        cap_raw = (os.getenv("SCLAW_COVERAGE_HEAL_REMAINING_HUB_CAP") or "5").strip()
+        cap = 5
+        if cap_raw.isdigit():
+            cap = max(2, min(12, int(cap_raw)))
+    else:
+        cap_raw = (os.getenv("SCLAW_COVERAGE_HEAL_HUB_CAP") or "28").strip()
+        cap = 28
+        if cap_raw.isdigit():
+            cap = max(8, min(48, int(cap_raw)))
+    return out[:cap]
+
+
+@app.get("/api/cases/coverage-matrix")
+def api_cases_coverage_matrix(
+    age_days: int = Query(default=180, ge=1, le=366),
+    threshold_per_cell: int = Query(default=15, ge=1, le=5000),
+):
+    """地區 × 七大站筆數矩陣（紅黃綠看板資料）。"""
+    age = max(1, min(366, int(age_days or 180)))
+    threshold = max(1, min(5000, int(threshold_per_cell or 15)))
+    cache_key = _coverage_matrix_cache_key(age, threshold)
+    cached = _coverage_matrix_cache_get(cache_key)
+    ttl = int(_coverage_matrix_cache_ttl())
+    cache_header = {"Cache-Control": f"public, max-age={ttl}"} if ttl > 0 else {}
+    if cached is not None:
+        return Response(
+            content=cached,
+            media_type="application/json",
+            headers={**cache_header, "X-Coverage-Matrix-Cache": "hit"},
+        )
+    portals = _coverage_portal_name_map()
+    regions = [x for x in JP_AREA_FILTER_LABELS if str(x or "").strip()]
+    rows: list[dict[str, Any]] = []
+    by_portal_total = {h: 0 for h in SEVEN_JP_PORTAL_HOST_ORDER}
+    by_region_total = {r: 0 for r in regions}
+    with get_conn() as conn:
+        # Fast path: use jp_listing_region_index + a single grouped query (avoid 150+ COUNT queries).
+        # If the region index is missing/empty, fall back to the legacy scan (slower but resilient).
+        has_region_index = False
+        try:
+            has_region_index = conn.execute("SELECT 1 FROM jp_listing_region_index LIMIT 1").fetchone() is not None
+        except Exception:
+            has_region_index = False
+
+        host_case_sql = (
+            "CASE "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'suumo.jp')>0 THEN 'suumo.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'homes.co.jp')>0 OR instr(lower(COALESCE(s.item_url,'')),'homes.jp')>0 THEN 'homes.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'athome.co.jp')>0 THEN 'athome.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'realestate.yahoo.co.jp')>0 THEN 'realestate.yahoo.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'realestate.rakuten.co.jp')>0 THEN 'realestate.rakuten.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'yes1.co.jp')>0 OR instr(lower(COALESCE(s.item_url,'')),'yes-station')>0 THEN 'yes1.co.jp' "
+            "WHEN instr(lower(COALESCE(s.item_url,'')),'oheya-su.jp')>0 OR instr(lower(COALESCE(s.item_url,'')),'oheyasuu.com')>0 OR instr(lower(COALESCE(s.item_url,'')),'oheyago.jp')>0 THEN 'oheya-su.jp' "
+            "ELSE '' END"
+        )
+
+        if has_region_index and regions:
+            marks = ",".join("?" for _ in regions)
+            sql = f"""
+                SELECT region_key, host_key, COUNT(1) AS c
+                FROM (
+                    SELECT
+                        rix.region_key AS region_key,
+                        {host_case_sql} AS host_key
+                    FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
+                    JOIN jp_listing_region_index rix ON rix.source_item_id = s.id
+                    WHERE s.content_kind = 'jp_listing'
+                      AND s.last_checked_at >= datetime('now', '-{age} days')
+                      AND rix.region_key IN ({marks})
+                ) t
+                WHERE host_key <> ''
+                GROUP BY region_key, host_key
+            """
+            host_by_region: dict[str, dict[str, int]] = {r: {h: 0 for h in SEVEN_JP_PORTAL_HOST_ORDER} for r in regions}
+            for r in conn.execute(sql, list(regions)).fetchall():
+                reg = str(r["region_key"] or "").strip()
+                hk = str(r["host_key"] or "").strip().lower()
+                c = int(r["c"] or 0)
+                if reg in host_by_region and hk in host_by_region[reg]:
+                    host_by_region[reg][hk] = c
+                    by_portal_total[hk] += c
+                    by_region_total[reg] += c
+            for region in regions:
+                hosts = host_by_region.get(region) or {h: 0 for h in SEVEN_JP_PORTAL_HOST_ORDER}
+                rows.append({"region": region, "hosts": hosts, "row_total": int(by_region_total.get(region) or 0)})
+        else:
+            # Legacy fallback: compute by scanning with host/region heuristics (slow).
+            fresh_sql = f"date({_CASE_INV_FRESH_TS}) >= date('now', '-{age} days')"
+            for region in regions:
+                region_sql, region_params = _coverage_region_where_sql(region)
+                host_counts: dict[str, int] = {}
+                for host in SEVEN_JP_PORTAL_HOST_ORDER:
+                    host_sql, host_params = _coverage_host_where_sql(host)
+                    c = int(
+                        conn.execute(
+                            f"""
+                            SELECT COUNT(1) AS c
+                            FROM content_items c
+                            JOIN source_items s ON s.id = c.source_item_id
+                            WHERE {_CASE_INV_JP_LISTING_SQL}
+                              AND {fresh_sql}
+                              AND {host_sql}
+                              AND {region_sql}
+                            """,
+                            [*host_params, *region_params],
+                        ).fetchone()["c"]
+                    )
+                    host_counts[host] = c
+                    by_portal_total[host] += c
+                    by_region_total[region] += c
+                rows.append({"region": region, "hosts": host_counts, "row_total": int(sum(host_counts.values()))})
+    max_cell = max((int(x["hosts"].get(h, 0)) for x in rows for h in SEVEN_JP_PORTAL_HOST_ORDER), default=0)
+    green_min = threshold
+    yellow_min = max(1, threshold // 2)
+    low_cells = [
+        {"region": r["region"], "host_key": h, "count": int(r["hosts"].get(h, 0))}
+        for r in rows
+        for h in SEVEN_JP_PORTAL_HOST_ORDER
+        if int(r["hosts"].get(h, 0)) < threshold
+    ]
+    matrix_grand_total = int(sum(int(by_portal_total.get(h, 0)) for h in SEVEN_JP_PORTAL_HOST_ORDER))
+    payload = {
+        "ok": True,
+        "age_days": age,
+        "threshold_per_cell": threshold,
+        "green_min": green_min,
+        "yellow_min": yellow_min,
+        "max_cell": int(max_cell),
+        "portals": [{"host_key": h, "portal": portals.get(h, h)} for h in SEVEN_JP_PORTAL_HOST_ORDER],
+        "regions": rows,
+        "by_portal_total": by_portal_total,
+        "by_region_total": by_region_total,
+        "matrix_grand_total": matrix_grand_total,
+        "matrix_footer_note_zh": (
+            "末列「各站直加總」為各區域列同一站點格數之和；同一物件若符合多區條件會在多區重複計入，故與站內唯一案件數不同。"
+            " 七大站採「第一波四站（SUUMO／HOMES／at home／Yahoo!）＋第二波三站（楽天／イエステーション／OHEYASU）」編排；"
+            "後三站若未曾批次爬取、hub 種子未涵蓋該縣市，或庫存僅買賣而該站偏賃貸時，格內易為 0。"
+        ),
+        "low_cell_count": len(low_cells),
+        "low_cells_preview": low_cells[:80],
+    }
+    try:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        _coverage_matrix_cache_set(cache_key, body)
+        return Response(
+            content=body,
+            media_type="application/json",
+            headers={**cache_header, "X-Coverage-Matrix-Cache": "miss"},
+        )
+    except Exception:
+        return JSONResponse(payload, headers={**cache_header, "X-Coverage-Matrix-Cache": "miss"})
+
+
+@app.post("/api/admin/cases/coverage-heal")
+def api_admin_cases_coverage_heal(payload: CasesCoverageHealPost, request: Request):
+    """只補抓低於門檻的地區×站點格子（可 dry-run）。"""
+    _require_admin_password(request)
+    ensure_seven_jp_portal_sources()
+    age = max(1, min(366, int(payload.age_days or 180)))
+    threshold = max(1, min(5000, int(payload.threshold_per_cell or 15)))
+    per_source = max(10, min(2000, int(payload.per_source_limit or 80)))
+    max_cells = max(1, min(120, int(payload.max_cells or 18)))
+    dry = bool(payload.dry_run)
+    # 先做矩陣巡檢
+    matrix_resp = api_cases_coverage_matrix(age_days=age, threshold_per_cell=threshold)
+    matrix = json.loads(matrix_resp.body.decode("utf-8"))
+    low_cells = list(matrix.get("low_cells_preview") or [])
+    # 若預覽被截斷，重新展開完整低格清單
+    if int(matrix.get("low_cell_count") or 0) > len(low_cells):
+        low_cells = []
+        for row in list(matrix.get("regions") or []):
+            region = str(row.get("region") or "").strip()
+            hosts = row.get("hosts") or {}
+            for h in SEVEN_JP_PORTAL_HOST_ORDER:
+                c = int(hosts.get(h) or 0)
+                if c < threshold:
+                    low_cells.append({"region": region, "host_key": h, "count": c})
+
+    portal_scope_heal = str(getattr(payload, "portal_scope", "") or "").strip().lower()
+    region_priority = ["首都圏", "關東", "東京", "神奈川", "横滨", "大阪", "名古屋", "福岡"]
+    rp_map = {name: idx for idx, name in enumerate(region_priority)}
+    portal_order_full = {h: i for i, h in enumerate(SEVEN_JP_PORTAL_HOST_ORDER)}
+    rem_host_order = {h: i for i, h in enumerate(REMAINING_THREE_PORTAL_HOSTS)}
+
+    if portal_scope_heal == "primary_four":
+        ok_h = set(PRIMARY_FOUR_PORTAL_HOSTS)
+        low_cells = [c for c in low_cells if str(c.get("host_key") or "").lower().strip() in ok_h]
+
+        def _cov_cell_key(x: dict[str, Any]) -> tuple[Any, ...]:
+            reg = str(x.get("region") or "")
+            hk = str(x.get("host_key") or "").lower().strip()
+            return (
+                portal_order_full.get(hk, 99),
+                0 if reg in rp_map else 1,
+                rp_map.get(reg, 999),
+                int(x.get("count") or 0),
+            )
+
+        low_cells = sorted(low_cells, key=_cov_cell_key)[:max_cells]
+    elif portal_scope_heal == "remaining_three":
+        ok_h = set(REMAINING_THREE_PORTAL_HOSTS)
+        low_cells = [c for c in low_cells if str(c.get("host_key") or "").lower().strip() in ok_h]
+
+        def _cov_cell_key_rem(x: dict[str, Any]) -> tuple[Any, ...]:
+            reg = str(x.get("region") or "")
+            hk = str(x.get("host_key") or "").lower().strip()
+            return (
+                rem_host_order.get(hk, 99),
+                0 if reg in rp_map else 1,
+                rp_map.get(reg, 999),
+                int(x.get("count") or 0),
+            )
+
+        low_cells = sorted(low_cells, key=_cov_cell_key_rem)[:max_cells]
+    else:
+        low_cells = sorted(
+            low_cells,
+            key=lambda x: (
+                0 if str(x.get("region") or "") in rp_map else 1,
+                rp_map.get(str(x.get("region") or ""), 999),
+                int(x.get("count") or 0),
+            ),
+        )[:max_cells]
+    if dry or not low_cells:
+        return JSONResponse(
+            {
+                "ok": True,
+                "dry_run": dry,
+                "portal_scope": portal_scope_heal,
+                "age_days": age,
+                "threshold_per_cell": threshold,
+                "per_source_limit": per_source,
+                "max_cells": max_cells,
+                "target_cells": low_cells,
+                "healed_cells": [],
+                "processed": 0,
+                "crawled_links": 0,
+                "matrix": matrix,
+            }
+        )
+    # host -> 來源 URL（七站來源）
+    host_to_source_url: dict[str, str] = {}
+    for s in ordered_seven_jp_portal_sources_for_crawl():
+        su = str(s.get("url") or "").strip()
+        hk = (urlparse(su).netloc or "").lower()
+        if hk.startswith("www."):
+            hk = hk[4:]
+        if hk and hk not in host_to_source_url:
+            host_to_source_url[hk] = su
+    healed_cells: list[dict[str, Any]] = []
+    total_processed = 0
+    total_crawled = 0
+    for cell in low_cells:
+        host = str(cell.get("host_key") or "").strip().lower()
+        region = str(cell.get("region") or "").strip()
+        source_url = host_to_source_url.get(host, "")
+        if not source_url:
+            healed_cells.append({**cell, "status": "skipped", "reason": "source_not_found"})
+            continue
+        try:
+            query_terms = _coverage_heal_region_queries(region)
+            if host in REMAINING_THREE_PORTAL_HOSTS:
+                query_terms = query_terms[: max(1, min(3, len(query_terms)))]
+            source_candidates = _coverage_heal_candidate_source_urls(host, region, source_url)
+            per_query_limit = max(
+                10,
+                min(
+                    per_source,
+                    max(
+                        10,
+                        per_source // max(1, min(4, len(query_terms)) * max(1, min(3, len(source_candidates)))),
+                    ),
+                ),
+            )
+            crawled_rows: list[dict[str, Any]] = []
+            seen_urls: set[str] = set()
+            used_queries: list[str] = []
+            used_sources: list[str] = []
+            for src_url in source_candidates:
+                for q in query_terms:
+                    got_part = crawl_one_source(src_url, per_source_limit=per_query_limit, search_query=q)
+                    if got_part and q not in used_queries:
+                        used_queries.append(q)
+                    if got_part and src_url not in used_sources:
+                        used_sources.append(src_url)
+                    for g in list(got_part or []):
+                        u = str(g.get("item_url") or g.get("url") or "").strip()
+                        if u and u in seen_urls:
+                            continue
+                        if u:
+                            seen_urls.add(u)
+                        crawled_rows.append(g)
+                    if len(crawled_rows) >= per_source:
+                        break
+                if len(crawled_rows) >= per_source:
+                    break
+            got = crawled_rows[:per_source]
+            processed = int(process_crawled_items(got)) if got else 0
+            total_crawled += len(got)
+            total_processed += processed
+            healed_cells.append(
+                {
+                    **cell,
+                    "status": "ok",
+                    "source_url": source_url,
+                    "source_candidates_used": used_sources,
+                    "search_query": region,
+                    "search_queries_used": used_queries,
+                    "crawled": int(len(got or [])),
+                    "processed": processed,
+                }
+            )
+        except Exception as exc:
+            healed_cells.append(
+                {
+                    **cell,
+                    "status": "error",
+                    "source_url": source_url,
+                    "search_query": region,
+                    "error": str(exc)[:220],
+                }
+            )
+    matrix_after_resp = api_cases_coverage_matrix(age_days=age, threshold_per_cell=threshold)
+    matrix_after = json.loads(matrix_after_resp.body.decode("utf-8"))
+    return JSONResponse(
+        {
+            "ok": True,
+            "dry_run": False,
+            "portal_scope": portal_scope_heal,
+            "age_days": age,
+            "threshold_per_cell": threshold,
+            "per_source_limit": per_source,
+            "max_cells": max_cells,
+            "target_cells": low_cells,
+            "healed_cells": healed_cells,
+            "processed": total_processed,
+            "crawled_links": total_crawled,
+            "matrix_before": matrix,
+            "matrix_after": matrix_after,
+        }
+    )
+
+
+@app.post("/api/cases/coverage-heal")
+def api_cases_coverage_heal_no_admin(payload: CasesCoverageHealPost, request: Request):
+    """與 /api/admin/cases/coverage-heal 相同（沿用後台密碼保護）。"""
+    return api_admin_cases_coverage_heal(payload, request)
+
+
+@app.post("/api/admin/cases/thumb-backfill")
+def api_admin_thumb_backfill(payload: AdminThumbBackfillPost, request: Request):
+    _require_admin_password(request)
+    from src.thumb_backfill_service import run_empty_image_backfill
+
+    host_filter = _parse_host_filter_csv(str(payload.hosts or ""))
+    out = run_empty_image_backfill(
+        host_filter=host_filter,
+        limit=int(payload.limit),
+        sleep_s=float(payload.sleep),
+        dry_run=bool(payload.dry_run),
+        force=bool(payload.force),
+    )
+    return JSONResponse({"ok": True, **out})
+
+
+@app.post("/api/cases/thumb-backfill")
+def api_cases_thumb_backfill_no_admin_path(payload: AdminThumbBackfillPost, request: Request):
+    """與 POST /api/admin/cases/thumb-backfill 相同（沿用後台密碼保護）。"""
+    return api_admin_thumb_backfill(payload, request)
+
+
+@app.post("/api/cases-dashboard/thumb-backfill")
+def api_cases_dashboard_thumb_backfill_alias(payload: AdminThumbBackfillPost, request: Request):
+    return api_admin_thumb_backfill(payload, request)
+
+
+@app.post("/api/admin/cases/thumb-backfill-remaining-three")
+def api_admin_thumb_backfill_remaining_three(payload: AdminThumbBackfillRemainingPost, request: Request):
+    """② 後三站：image_urls 為空時以 fetch_property_detail 批次補齊。"""
+    _require_admin_password(request)
+    from src.thumb_backfill_service import run_empty_image_backfill
+
+    out = run_empty_image_backfill(
+        host_filter=frozenset(REMAINING_THREE_PORTAL_HOSTS),
+        limit=int(payload.limit),
+        sleep_s=float(payload.sleep),
+        dry_run=bool(payload.dry_run),
+        force=False,
+    )
+    return JSONResponse({"ok": True, **out})
+
+
+@app.post("/api/cases/thumb-backfill-remaining-three")
+def api_cases_thumb_backfill_remaining_three_no_admin_path(
+    payload: AdminThumbBackfillRemainingPost, request: Request
+):
+    """與 POST /api/admin/cases/thumb-backfill-remaining-three 相同（部分部署僅允許 /api/cases POST）。"""
+    return api_admin_thumb_backfill_remaining_three(payload, request)
+
+
+@app.post("/api/cases-dashboard/thumb-backfill-remaining-three")
+def api_cases_dashboard_thumb_backfill_remaining_three_alias(
+    payload: AdminThumbBackfillRemainingPost, request: Request
+):
+    """與 coverage-heal 相同：dashboard 路徑族穩定別名。"""
+    return api_admin_thumb_backfill_remaining_three(payload, request)
+
+
+@app.post("/api/admin/cases/enrich-from-source")
+def api_admin_case_enrich_from_source(payload: AdminCaseEnrichFromSourcePost, request: Request):
+    """依 source_item_id 向原站重抓並合併 image_urls／body／title（七大門戶等 live_enrich 白名單）。"""
+    _require_admin_password(request)
+    from src.thumb_backfill_service import enrich_single_source_item_by_id
+
+    out = enrich_single_source_item_by_id(
+        int(payload.source_item_id),
+        force=bool(payload.force),
+        dry_run=bool(payload.dry_run),
+    )
+    if not out.get("ok"):
+        raise HTTPException(status_code=400, detail=str(out.get("error") or "enrich failed"))
+    media_fix: dict[str, Any] = {}
+    text_fix: dict[str, Any] = {}
+    if not bool(payload.dry_run):
+        try:
+            media_fix = _sync_case_listing_media_from_source_item_id(
+                int(payload.source_item_id),
+                force=True,
+                dry_run=False,
+            )
+        except Exception as exc:
+            media_fix = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        try:
+            text_fix = _repair_case_text_fields_from_source_item_id(int(payload.source_item_id), dry_run=False)
+        except Exception as exc:
+            text_fix = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    bot_eval = _build_data_completion_bot_eval(
+        age_days=180,
+        threshold_per_cell=15,
+        source_item_id=int(payload.source_item_id),
+        media_fix=media_fix,
+        text_fix=text_fix,
+    )
+    try:
+        _save_data_completion_bot_eval(
+            run_label="case_enrich_from_source",
+            source_item_id=int(payload.source_item_id),
+            bot_eval=bot_eval,
+        )
+    except Exception:
+        pass
+    return JSONResponse({**out, "media_fix": media_fix, "text_fix": text_fix, "data_completion_bot": bot_eval})
+
+
+@app.post("/api/cases/enrich-from-source")
+def api_cases_enrich_from_source_no_admin(payload: AdminCaseEnrichFromSourcePost, request: Request):
+    """與 POST /api/admin/cases/enrich-from-source 相同。"""
+    return api_admin_case_enrich_from_source(payload, request)
+
+
+@app.post("/api/cases-dashboard/enrich-from-source")
+def api_cases_dashboard_enrich_from_source_alias(payload: AdminCaseEnrichFromSourcePost, request: Request):
+    return api_admin_case_enrich_from_source(payload, request)
+
+
+def _norm_case_tx_override(val: str | None) -> str | None:
+    if val is None:
+        return None
+    s = str(val).strip().lower()
+    if s in ("", "buy", "sell", "rent"):
+        return s
+    raise HTTPException(
+        status_code=400,
+        detail="case_transaction_override must be one of: buy, sell, rent, or empty string",
+    )
+
+
+@app.get("/api/admin/cases")
+def api_admin_cases(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=5, le=200),
+    q: str = Query(default="", description="關鍵字（標題／內文／原文／網址）"),
+    transaction: str = Query(
+        default="",
+        description="買賣租篩選：buy=買賣購屋、sell=賣出、rent=租賃、留空=全部",
+    ),
+    region_code: str = Query(default="", description="讀者地區代碼，如 tw"),
+    jp_area: str = Query(default="", description="日本區域／地名關鍵字，如 甲信越、関東"),
+    jp_line_id: int = Query(default=0, ge=0, description="jp_trans_line.line_id；與 jp_station_id 擇一或併用"),
+    jp_station_id: int = Query(default=0, ge=0, description="jp_trans_station.station_id"),
+    walk_max: int = Query(default=0, ge=0, le=240, description="徒步分鐘上限；0=不篩"),
+):
+    _require_admin_password(request)
+    page_size = min(200, max(5, int(page_size)))
+    page = max(1, int(page))
+    offset = (page - 1) * page_size
+    where_sql, base_params = _admin_cases_where_params(
+        q=q,
+        transaction=transaction,
+        region_code=region_code,
+        jp_area=jp_area,
+        jp_line_id=jp_line_id,
+        jp_station_id=jp_station_id,
+        walk_max=walk_max,
+    )
+    with get_conn() as conn:
+        total = int(
+            conn.execute(
+                f"""
+                SELECT COUNT(1) AS c
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE {where_sql}
+                """,
+                base_params,
+            ).fetchone()["c"]
+        )
+        rows = conn.execute(
+            f"""
+            SELECT
+              c.id AS content_id,
+              c.seo_slug,
+              c.title_zh_hant,
+              c.title_zh_hans,
+              c.seo_title,
+              c.region_code,
+              c.keyword_type,
+              c.topic_category,
+              substr(COALESCE(c.body_zh_hant,''),1,3200) AS body_zh_hant,
+              substr(COALESCE(c.body_zh_hans,''),1,2000) AS body_zh_hans,
+              c.updated_at,
+              COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+              COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+              COALESCE(c.case_transit_override, '') AS case_transit_override,
+              COALESCE(c.jp_station_id, 0) AS jp_station_id,
+              COALESCE(c.walk_min, 0) AS walk_min,
+              COALESCE(jst.station_name, '') AS jp_bind_station_name,
+              COALESCE(jln.line_name, '') AS jp_bind_line_name,
+              COALESCE(c.featured_weight, 0) AS featured_weight,
+              COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+              s.id AS source_item_id,
+              s.source_name,
+              s.item_url,
+              s.image_urls,
+              s.body_original,
+              s.title_original,
+              COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
+            LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+            WHERE {where_sql}
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            [*base_params, page_size, offset],
+        ).fetchall()
+    items: list[dict] = []
+    for r in rows:
+        d = dict(r)
+        imgs, vids = extract_media_urls_from_row(d)
+        meta = infer_case_metadata(d)
+        lm = _parse_listing_media_field(d.get("listing_media_json"))
+        thumb_candidates: list[str] = []
+
+        def _append_thumb_candidate(u: str) -> None:
+            s = str(u or "").strip()
+            if not s or s in thumb_candidates:
+                return
+            if _row_image_url_is_usable(s):
+                thumb_candidates.append(s)
+
+        for u in imgs:
+            _append_thumb_candidate(str(u))
+        if lm:
+            for m in lm:
+                if not isinstance(m, dict):
+                    continue
+                u = str(m.get("url") or "").strip()
+                if u.startswith("http"):
+                    _append_thumb_candidate(u)
+        thumb = thumb_candidates[0] if thumb_candidates else ""
+        items.append(
+            {
+                "content_id": d.get("content_id"),
+                "source_item_id": d.get("source_item_id"),
+                "seo_slug": d.get("seo_slug") or "",
+                "title_zh_hant": (d.get("title_zh_hant") or "")[:200],
+                "source_name": d.get("source_name") or "",
+                "item_url": d.get("item_url") or "",
+                "updated_at": d.get("updated_at") or "",
+                "image_count": len(imgs),
+                "thumb_url": thumb,
+                "thumb_candidates": thumb_candidates[:8],
+                "thumb_kind": _thumbnail_kind_label(thumb) if thumb else "",
+                "video_count": len(vids),
+                "region_code": d.get("region_code") or "",
+                "keyword_type": d.get("keyword_type") or "",
+                "topic_category": d.get("topic_category") or "",
+                "featured_weight": int(d.get("featured_weight") or 0),
+                "listing_media": lm,
+                "case_transaction_override": str(d.get("case_transaction_override") or ""),
+                "case_jp_region_override": str(d.get("case_jp_region_override") or ""),
+                "case_transit_override": str(d.get("case_transit_override") or ""),
+                "jp_station_id": int(d.get("jp_station_id") or 0),
+                "walk_min": int(d.get("walk_min") or 0),
+                **meta,
+            }
+        )
+    return JSONResponse(
+        {
+            "ok": True,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "filters": {
+                "q": (q or "").strip(),
+                "transaction": (transaction or "").strip().lower(),
+                "region_code": (region_code or "").strip(),
+                "jp_area": (jp_area or "").strip(),
+                "jp_line_id": int(jp_line_id or 0),
+                "jp_station_id": int(jp_station_id or 0),
+                "walk_max": int(walk_max or 0),
+            },
+            "items": items,
+        }
+    )
+
+
+@app.get("/api/admin/cases/{content_id}/preview")
+def api_admin_case_preview(content_id: int, request: Request):
+    _require_admin_password(request)
+    cid = int(content_id)
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+              c.id AS content_id,
+              c.seo_slug,
+              c.seo_title,
+              c.seo_description,
+              c.title_zh_hant,
+              c.title_zh_hans,
+              c.body_zh_hant,
+              c.body_zh_hans,
+              c.region_code,
+              c.keyword_type,
+              c.topic_category,
+              c.updated_at,
+              COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+              COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+              COALESCE(c.case_transit_override, '') AS case_transit_override,
+              COALESCE(c.jp_station_id, 0) AS jp_station_id,
+              COALESCE(c.walk_min, 0) AS walk_min,
+              COALESCE(jst.station_name, '') AS jp_bind_station_name,
+              COALESCE(jln.line_name, '') AS jp_bind_line_name,
+              COALESCE(c.featured_weight, 0) AS featured_weight,
+              COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+              s.source_name,
+              s.item_url,
+              s.image_urls,
+              s.body_original,
+              s.title_original,
+              COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
+            LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+            WHERE c.id = ?
+            LIMIT 1
+            """,
+            (cid,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="case not found")
+    d = dict(row)
+    imgs, vids = extract_media_urls_from_row(d)
+    meta = infer_case_metadata(d)
+    slug = (d.get("seo_slug") or "").strip()
+    article_path = _standard_article_path(slug, d.get("source_item_id")) if slug else ""
+    return JSONResponse(
+        {
+            "ok": True,
+            "content_id": d.get("content_id"),
+            "seo_slug": d.get("seo_slug"),
+            "seo_title": d.get("seo_title"),
+            "seo_description": d.get("seo_description"),
+            "title_zh_hant": d.get("title_zh_hant"),
+            "title_zh_hans": d.get("title_zh_hans"),
+            "body_zh_hant": d.get("body_zh_hant"),
+            "body_zh_hans": d.get("body_zh_hans"),
+            "source_name": d.get("source_name"),
+            "item_url": d.get("item_url"),
+            "updated_at": d.get("updated_at"),
+            "image_urls": imgs,
+            "video_urls": vids,
+            "article_path": article_path,
+            "region_code": d.get("region_code") or "",
+            "keyword_type": d.get("keyword_type") or "",
+            "topic_category": d.get("topic_category") or "",
+            "content_kind": d.get("content_kind") or "",
+            "case_transaction_override": str(d.get("case_transaction_override") or ""),
+            "case_jp_region_override": str(d.get("case_jp_region_override") or ""),
+            "case_transit_override": str(d.get("case_transit_override") or ""),
+            "jp_station_id": int(d.get("jp_station_id") or 0),
+            "walk_min": int(d.get("walk_min") or 0),
+            "featured_weight": int(d.get("featured_weight") or 0),
+            "listing_media": _parse_listing_media_field(d.get("listing_media_json")),
+            **meta,
+        }
+    )
+
+
+@app.patch("/api/admin/cases/{content_id}")
+def api_admin_case_patch(content_id: int, payload: AdminCasePatchRequest, request: Request):
+    _require_admin_password(request)
+    cid = int(content_id)
+    fields: list[str] = []
+    params: list[Any] = []
+    if payload.title_zh_hant is not None:
+        fields.append("title_zh_hant = ?")
+        params.append(str(payload.title_zh_hant))
+    if payload.title_zh_hans is not None:
+        fields.append("title_zh_hans = ?")
+        params.append(str(payload.title_zh_hans))
+    if payload.case_transaction_override is not None:
+        fields.append("case_transaction_override = ?")
+        params.append(_norm_case_tx_override(payload.case_transaction_override))
+    if payload.case_jp_region_override is not None:
+        fields.append("case_jp_region_override = ?")
+        params.append(str(payload.case_jp_region_override).strip()[:500])
+    if payload.case_transit_override is not None:
+        fields.append("case_transit_override = ?")
+        params.append(str(payload.case_transit_override).strip()[:500])
+    if payload.jp_station_id is not None:
+        fields.append("jp_station_id = ?")
+        params.append(int(payload.jp_station_id))
+    if payload.walk_min is not None:
+        fields.append("walk_min = ?")
+        params.append(int(payload.walk_min))
+    if payload.featured_weight is not None:
+        fields.append("featured_weight = ?")
+        params.append(int(payload.featured_weight))
+    if payload.listing_media is not None:
+        fields.append("listing_media_json = ?")
+        params.append(_listing_media_to_json_str(payload.listing_media))
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    fields.append("updated_at = CURRENT_TIMESTAMP")
+    params.append(cid)
+    sql = f"UPDATE content_items SET {', '.join(fields)} WHERE id = ?"
+    with get_conn() as conn:
+        cur = conn.execute(sql, params)
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="case not found")
+    return JSONResponse({"ok": True, "content_id": cid})
+
+
+@app.get("/api/admin/cases/csv-template")
+def api_admin_cases_csv_template(request: Request):
+    _require_admin_password(request)
+    buf = StringIO()
+    w = csv.writer(buf)
+    w.writerow(_CASE_CSV_COLUMNS)
+    w.writerow(
+        [
+            "0",
+            "（範例）請改為實際 content_id 後匯入；0 列匯入時會略過",
+            "",
+            "東京、關東",
+            "JR山手線 新宿駅 徒歩8分",
+            "0",
+            "0",
+            "0",
+            "[]",
+        ]
+    )
+    raw = "\ufeff" + buf.getvalue()
+    return Response(
+        content=raw.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="cases-template.csv"'},
+    )
+
+
+@app.get("/api/admin/cases/csv-export")
+def api_admin_cases_csv_export(
+    request: Request,
+    q: str = Query(default=""),
+    transaction: str = Query(default=""),
+    region_code: str = Query(default=""),
+    jp_area: str = Query(default=""),
+    jp_line_id: int = Query(default=0, ge=0),
+    jp_station_id: int = Query(default=0, ge=0),
+    walk_max: int = Query(default=0, ge=0, le=240),
+    limit: int = Query(default=2000, ge=1, le=10000),
+):
+    _require_admin_password(request)
+    where_sql, base_params = _admin_cases_where_params(
+        q=q,
+        transaction=transaction,
+        region_code=region_code,
+        jp_area=jp_area,
+        jp_line_id=jp_line_id,
+        jp_station_id=jp_station_id,
+        walk_max=walk_max,
+    )
+    lim = max(1, min(10000, int(limit)))
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+              c.id AS content_id,
+              c.title_zh_hant,
+              COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+              COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+              COALESCE(c.case_transit_override, '') AS case_transit_override,
+              COALESCE(c.jp_station_id, 0) AS jp_station_id,
+              COALESCE(c.walk_min, 0) AS walk_min,
+              COALESCE(c.featured_weight, 0) AS featured_weight,
+              COALESCE(c.listing_media_json, '[]') AS listing_media_json
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE {where_sql}
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ?
+            """,
+            [*base_params, lim],
+        ).fetchall()
+    buf = StringIO()
+    w = csv.writer(buf)
+    w.writerow(_CASE_CSV_COLUMNS)
+    for r in rows:
+        d = dict(r)
+        w.writerow(
+            [
+                d.get("content_id"),
+                (d.get("title_zh_hant") or "").replace("\r\n", "\n").replace("\n", " ").strip(),
+                d.get("case_transaction_override") or "",
+                d.get("case_jp_region_override") or "",
+                d.get("case_transit_override") or "",
+                int(d.get("jp_station_id") or 0),
+                int(d.get("walk_min") or 0),
+                int(d.get("featured_weight") or 0),
+                d.get("listing_media_json") or "[]",
+            ]
+        )
+    raw = "\ufeff" + buf.getvalue()
+    return Response(
+        content=raw.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="cases-export.csv"'},
+    )
+
+
+@app.post("/api/admin/cases/import-csv")
+def api_admin_cases_import_csv(payload: AdminCaseImportCsvRequest, request: Request):
+    _require_admin_password(request)
+    raw = (payload.csv_text or "").strip()
+    if not raw.lstrip("\ufeff").strip():
+        raise HTTPException(status_code=400, detail="empty csv_text")
+    sio = StringIO(raw.lstrip("\ufeff"))
+    reader = csv.DictReader(sio)
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="invalid csv: no header")
+    fn_map = {str(h or "").strip().lower(): h for h in reader.fieldnames if h}
+    missing = [c for c in _CASE_CSV_COLUMNS if c.lower() not in fn_map]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"csv header missing columns: {', '.join(missing)}")
+    updated = 0
+    skipped = 0
+    errors: list[str] = []
+    with get_conn() as conn:
+        for i, row in enumerate(reader, start=2):
+            try:
+                cid_raw = str(row.get(fn_map["content_id"]) or "").strip()
+                if not cid_raw or cid_raw == "0":
+                    skipped += 1
+                    continue
+                cid = int(cid_raw)
+            except Exception:
+                skipped += 1
+                errors.append(f"row {i}: bad content_id")
+                continue
+            exists = conn.execute("SELECT 1 FROM content_items WHERE id = ? LIMIT 1", (cid,)).fetchone()
+            if not exists:
+                skipped += 1
+                errors.append(f"row {i}: content_id {cid} not found")
+                continue
+            title = str(row.get(fn_map["title_zh_hant"]) or "").strip()
+            tx_cell = str(row.get(fn_map["case_transaction_override"]) or "").strip().lower()
+            if tx_cell not in ("", "buy", "sell", "rent"):
+                errors.append(f"row {i}: bad case_transaction_override")
+                skipped += 1
+                continue
+            ctx = tx_cell
+            jreg = str(row.get(fn_map["case_jp_region_override"]) or "").strip()[:500]
+            tr = str(row.get(fn_map["case_transit_override"]) or "").strip()[:500]
+            try:
+                fw = int(str(row.get(fn_map["featured_weight"]) or "0").strip() or "0")
+            except Exception:
+                fw = 0
+            fw = max(0, min(100, fw))
+            lm_raw = str(row.get(fn_map["listing_media_json"]) or "").strip() or "[]"
+            try:
+                json.loads(lm_raw)
+            except Exception:
+                errors.append(f"row {i}: invalid listing_media_json")
+                skipped += 1
+                continue
+            try:
+                jp_sid = int(str(row.get(fn_map["jp_station_id"]) or "0").strip() or "0")
+            except Exception:
+                jp_sid = 0
+            jp_sid = max(0, min(9_999_999, jp_sid))
+            try:
+                wk = int(str(row.get(fn_map["walk_min"]) or "0").strip() or "0")
+            except Exception:
+                wk = 0
+            wk = max(0, min(240, wk))
+            conn.execute(
+                """
+                UPDATE content_items SET
+                  title_zh_hant = ?,
+                  case_transaction_override = ?,
+                  case_jp_region_override = ?,
+                  case_transit_override = ?,
+                  jp_station_id = ?,
+                  walk_min = ?,
+                  featured_weight = ?,
+                  listing_media_json = ?,
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (title, ctx, jreg, tr, jp_sid, wk, fw, lm_raw, cid),
+            )
+            updated += 1
+        conn.commit()
+    return JSONResponse({"ok": True, "updated_rows": updated, "skipped_rows": skipped, "errors": errors[:40]})
+
+
+@app.post("/api/admin/cases/upload-media")
+async def api_admin_cases_upload_media(request: Request, file: UploadFile = File(...)):
+    _require_admin_password(request)
+    upload_dir = Path("static/uploads/case-media")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    orig = (file.filename or "").strip()
+    ext = Path(orig).suffix.lower()
+    video_exts = HOME_HERO_VIDEO_EXTS
+    audio_exts = HOME_HERO_AUDIO_EXTS
+    allowed = {".jpg", ".jpeg", ".png", ".webp", ".gif", *video_exts, *audio_exts}
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail=f"unsupported file type: {ext or '(none)'}")
+    body = await file.read()
+    max_bytes = 120 * 1024 * 1024 if ext in video_exts else (80 * 1024 * 1024 if ext in audio_exts else 18 * 1024 * 1024)
+    if len(body) > max_bytes:
+        max_mb = max_bytes // (1024 * 1024)
+        raise HTTPException(status_code=400, detail=f"file too large (max {max_mb}MB)")
+    name = f"{uuid4().hex}{ext}"
+    path = upload_dir / name
+    path.write_bytes(body)
+    kind = "audio" if ext in audio_exts else ("video" if ext in video_exts else "image")
+    playback_path = path
+    if kind == "video":
+        browser_path = _transcode_video_for_browser(path)
+        if browser_path != path:
+            path = browser_path
+            name = path.name
+        playback_path = _home_video_playback_path(path)
+    url = f"/static/uploads/case-media/{name}"
+    playback_url = _home_static_url_from_path(playback_path) if kind == "video" and playback_path.is_file() else url
+    return JSONResponse(
+        {
+            "ok": True,
+            "url": playback_url or url,
+            "source_url": url,
+            "mp4_url": url if kind == "video" else "",
+            "kind": kind,
+        }
+    )
+
+
+@app.get("/api/admin/home-intro-video/spokesperson-preview/{preset_id:path}")
+def api_admin_home_intro_video_spokesperson_preview(preset_id: str):
+    preset = _home_intro_spokesperson_by_id(unquote(str(preset_id or "")))
+    if not preset:
+        raise HTTPException(status_code=404, detail="spokesperson not found")
+    path_text = str(preset.get("source_video_path") or preset.get("avatar_image_path") or "").strip()
+    path = Path(path_text).expanduser() if path_text else None
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="spokesperson media not found")
+    return FileResponse(path, media_type=mimetypes.guess_type(str(path))[0] or "application/octet-stream", filename=path.name)
+
+
+@app.get("/api/admin/home-intro-video/spokespersons")
+def api_admin_home_intro_video_spokespersons(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, "presets": _home_intro_spokesperson_presets()})
+
+
+@app.get("/api/home-intro-video/spokespersons")
+def api_home_intro_video_spokespersons():
+    return JSONResponse({"ok": True, "presets": _home_intro_public_spokesperson_presets()})
+
+
+@app.get("/api/home-intro-video/cases")
+def api_home_intro_video_cases(q: str = Query(default=""), limit: int = Query(default=12, ge=1, le=40)):
+    query = str(q or "").strip()
+    lim = max(1, min(40, int(limit or 12)))
+    params: list[Any] = []
+    search_sql = ""
+    if query:
+        like = f"%{query}%"
+        search_sql = """
+          AND (
+            c.title_zh_hant LIKE ?
+            OR c.seo_title LIKE ?
+            OR c.case_jp_region_override LIKE ?
+            OR c.case_transit_override LIKE ?
+            OR s.title_original LIKE ?
+          )
+        """
+        params.extend([like, like, like, like, like])
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                c.id AS content_id,
+                c.source_item_id,
+                c.seo_slug,
+                c.seo_title,
+                c.seo_description,
+                c.title_zh_hant,
+                c.title_zh_hans,
+                substr(COALESCE(c.body_zh_hant, ''), 1, 900) AS body_zh_hant,
+                c.region_code,
+                c.keyword_type,
+                c.topic_category,
+                c.updated_at,
+                COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+                COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+                COALESCE(c.case_transit_override, '') AS case_transit_override,
+                COALESCE(c.jp_station_id, 0) AS jp_station_id,
+                COALESCE(c.walk_min, 0) AS walk_min,
+                COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+                s.source_name,
+                s.item_url,
+                s.image_urls,
+                substr(COALESCE(s.body_original, ''), 1, 1200) AS body_original,
+                s.title_original,
+                COALESCE(s.thumbnail_url, '') AS thumbnail_url,
+                COALESCE(s.hero_image_url, '') AS hero_image_url,
+                COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+              AND TRIM(COALESCE(c.seo_slug, '')) <> ''
+              {search_sql}
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ?
+            """,
+            [*params, lim],
+        ).fetchall()
+    items = [_home_intro_case_public_row(dict(r), include_script=True) for r in rows]
+    return JSONResponse({"ok": True, "q": query, "items": items})
+
+
+@app.post("/api/admin/home-intro-video/script")
+def api_admin_home_intro_video_script(payload: HomeIntroScriptRequest, request: Request):
+    _require_admin_password(request)
+    return JSONResponse(_home_intro_script_response(payload))
+
+
+@app.post("/api/home-intro-video/script")
+def api_home_intro_video_script(payload: HomeIntroScriptRequest):
+    return JSONResponse(_home_intro_script_response(payload))
+
+
+@app.post("/api/admin/home-intro-video/generate")
+def api_admin_home_intro_video_generate(payload: HomeIntroVideoRequest, request: Request):
+    _require_admin_password(request)
+    settings = load_crawl_settings()
+    hero_url, selected_case = _home_intro_video_hero_url(payload, settings)
+    spokesperson = _home_intro_spokesperson_by_id(payload.spokesperson_id)
+    if not spokesperson:
+        presets = _home_intro_spokesperson_presets()
+        spokesperson = presets[0] if presets else None
+    if not spokesperson:
+        raise HTTPException(status_code=400, detail="No spokesperson preset available")
+    try:
+        result = _generate_home_intro_video_with_fallback(
+            script_text=payload.script_text or _home_intro_script_template(),
+            hero_media_url=hero_url,
+            spokesperson=spokesperson,
+            duration_seconds=max(18, min(55, int(payload.duration_seconds or 36))),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Home intro video generation failed: {exc}") from exc
+    if selected_case:
+        result["case"] = selected_case
+    return JSONResponse({"ok": True, **result})
+
+
+@app.post("/api/home-intro-video/generate")
+def api_home_intro_video_generate(payload: HomeIntroVideoRequest):
+    settings = load_crawl_settings()
+    hero_url, selected_case = _home_intro_video_hero_url(payload, settings)
+    spokesperson = _home_intro_spokesperson_by_id(payload.spokesperson_id)
+    if not spokesperson:
+        presets = _home_intro_spokesperson_presets()
+        spokesperson = presets[0] if presets else {"id": "none", "label": "顧問口播", "kind": "none"}
+    try:
+        result = _generate_home_intro_video_with_fallback(
+            script_text=payload.script_text or _home_intro_script_template(),
+            hero_media_url=hero_url,
+            spokesperson=spokesperson,
+            duration_seconds=max(18, min(55, int(payload.duration_seconds or 36))),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Home intro video generation failed: {exc}") from exc
+    result["spokesperson"] = {
+        "id": str(spokesperson.get("id") or ""),
+        "label": _social_text(spokesperson.get("label") or "顧問口播", limit=48),
+        "kind": str(spokesperson.get("kind") or ""),
+    }
+    if selected_case:
+        result["case"] = selected_case
+    return JSONResponse({"ok": True, **result})
+
+
+@app.delete("/api/admin/cases/{content_id}")
+def api_admin_case_delete(content_id: int, request: Request):
+    _require_admin_password(request)
+    cid = int(content_id)
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM content_items WHERE id = ?", (cid,))
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="case not found")
+    return JSONResponse({"ok": True, "deleted_id": cid})
+
+
+@app.post("/api/admin/cases/purge-all")
+def api_admin_cases_purge_all(payload: AdminCasesPurgeAllRequest, request: Request):
+    """刪除資料庫內全部 content_items（站內文章／案件條目），不可還原。"""
+    _require_admin_password(request)
+    if (payload.confirm or "").strip() != "DELETE_ALL_CONTENT_ITEMS":
+        raise HTTPException(
+            status_code=400,
+            detail='confirmation required: set confirm to exactly "DELETE_ALL_CONTENT_ITEMS"',
+        )
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM content_items")
+        deleted = int(cur.rowcount or 0)
+        conn.commit()
+    return JSONResponse({"ok": True, "deleted_rows": deleted})
+
+
+def _admin_crawl_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _cleanup_admin_crawl_tasks() -> None:
+    now_ts = time.time()
+    with _admin_crawl_tasks_lock:
+        stale_ids = [
+            tid
+            for tid, task in _admin_crawl_tasks.items()
+            if now_ts - float(task.get("updated_ts", now_ts)) > _ADMIN_CRAWL_TASK_TTL_SEC
+        ]
+        for tid in stale_ids:
+            _admin_crawl_tasks.pop(tid, None)
+
+
+def _read_admin_crawl_history(*, source_group: str = "", limit: int = 12) -> list[dict[str, Any]]:
+    sg = str(source_group or "").strip()
+    lim = max(1, min(120, int(limit or 12)))
+    try:
+        if not _ADMIN_CRAWL_HISTORY_FILE.exists():
+            return []
+        raw = _ADMIN_CRAWL_HISTORY_FILE.read_text(encoding="utf-8").strip()
+        if not raw:
+            return []
+        arr = json.loads(raw)
+        if not isinstance(arr, list):
+            return []
+    except Exception:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in arr:
+        if not isinstance(row, dict):
+            continue
+        if sg and str(row.get("source_group") or "").strip() != sg:
+            continue
+        out.append(row)
+        if len(out) >= lim:
+            break
+    return out
+
+
+def _append_admin_crawl_history(result: dict[str, Any]) -> None:
+    runs = list(result.get("runs") or [])
+    ok_sources = len([r for r in runs if int(r.get("count") or 0) > 0])
+    total_sources = int(result.get("total_sources") or len(runs) or 0)
+    success_rate = (ok_sources / total_sources * 100.0) if total_sources > 0 else 0.0
+    row = {
+        "history_id": uuid4().hex[:12],
+        "created_at": _admin_crawl_now_iso(),
+        "source_group": str(result.get("source_group") or ""),
+        "requested_per_source": int(result.get("requested_per_source") or 0),
+        "applied_per_source": int(result.get("applied_per_source") or 0),
+        "total_sources": total_sources,
+        "completed_sources": int(result.get("completed_sources") or 0),
+        "ok_sources": ok_sources,
+        "success_rate": round(success_rate, 1),
+        "crawled_links": int(result.get("crawled_links") or 0),
+        "processed": int(result.get("processed") or 0),
+        "enriched_fields": int(result.get("enriched_fields") or 0),
+        "elapsed_ms": int(result.get("elapsed_ms") or 0),
+        "warning": str(result.get("warning") or ""),
+        "runs": runs[:30],
+    }
+    current = _read_admin_crawl_history(limit=120)
+    current.insert(0, row)
+    current = current[:120]
+    try:
+        _ADMIN_CRAWL_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _ADMIN_CRAWL_HISTORY_FILE.write_text(
+            json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception:
+        return
+
+
+def _update_admin_crawl_task(task_id: str, **fields: Any) -> None:
+    with _admin_crawl_tasks_lock:
+        task = _admin_crawl_tasks.get(task_id)
+        if not task:
+            return
+        task.update(fields)
+        task["updated_at"] = _admin_crawl_now_iso()
+        task["updated_ts"] = time.time()
+
+
+def _run_admin_cases_crawl_job(payload: AdminCasesCrawlPost, task_id: str | None = None) -> dict[str, Any]:
+    requested = max(10, min(10000, int(payload.per_source_limit)))
+    source_group_id = str(getattr(payload, "source_group", "") or "").strip()
+    source_url_filter = {
+        str(u or "").strip().rstrip("/").lower()
+        for u in (getattr(payload, "source_urls", []) or [])
+        if str(u or "").strip()
+    }
+    portal_scope = str(getattr(payload, "portal_scope", "") or "").strip().lower()
+    # 單次補抓防卡住：以「總連結量 + 執行時間」為主；每來源上限依您選的筆數，必要時再依總量攤分
+    applied = requested
+    max_total_links = 10000
+    max_sources = 12
+    time_budget_sec = 1200.0
+    warning_parts: list[str] = []
+    to_process: list = []
+    runs: list[dict] = []
+    enabled_sources = [s for s in get_enabled_sources() if bool(s.get("enabled", True))]
+    if source_group_id:
+        enabled_sources = [
+            s for s in enabled_sources if str(s.get("source_group") or "").strip() == source_group_id
+        ]
+        warning_parts.append(f"僅處理來源群組：{source_group_id}")
+    if source_url_filter:
+        enabled_sources = [
+            s
+            for s in enabled_sources
+            if str(s.get("url") or "").strip().rstrip("/").lower() in source_url_filter
+        ]
+        warning_parts.append(f"僅重試指定來源 {len(enabled_sources)} 個")
+    elif str(source_group_id) == "mainstream_portal":
+        ensure_seven_jp_portal_sources()
+        enabled_sources = ordered_seven_jp_portal_sources_for_crawl()
+        warning_parts.append("七大日本門戶依固定順序補抓（與智慧查詢七站一致）")
+
+    if (
+        portal_scope in ("primary_four", "remaining_three")
+        and str(source_group_id) == "mainstream_portal"
+        and not source_url_filter
+    ):
+        def _norm_src_host_for_scope(raw_url: str) -> str:
+            hk = (urlparse(str(raw_url or "").strip()).netloc or "").lower()
+            return hk[4:] if hk.startswith("www.") else hk
+
+        def _ensure_scope_sources(
+            ordered_sources: list[dict[str, Any]], required_hosts: tuple[str, ...]
+        ) -> tuple[list[dict[str, Any]], list[str]]:
+            by_host: dict[str, dict[str, Any]] = {}
+            for src in list(ordered_sources or []):
+                hk = _norm_src_host_for_scope(str(src.get("url") or ""))
+                if hk and hk not in by_host:
+                    by_host[hk] = src
+            # 若啟用來源不足，回退到 registry 內同 host 來源補齊，避免「前四站不全」靜默發生
+            if len(by_host) < len(required_hosts):
+                for src in load_sources():
+                    if not bool(src.get("enabled", True)):
+                        continue
+                    hk = _norm_src_host_for_scope(str(src.get("url") or ""))
+                    if hk in required_hosts and hk not in by_host:
+                        by_host[hk] = src
+            missing = [h for h in required_hosts if h not in by_host]
+            resolved = [by_host[h] for h in required_hosts if h in by_host]
+            return resolved, missing
+
+        if portal_scope == "primary_four":
+            enabled_sources, missing_hosts = _ensure_scope_sources(
+                ordered_primary_four_portal_sources_for_crawl(),
+                PRIMARY_FOUR_PORTAL_HOSTS,
+            )
+            warning_parts = [w for w in warning_parts if "七大日本門戶依固定順序" not in (w or "")]
+            warning_parts.append(
+                "【前四站】依序補全：SUUMO → LIFULL HOME'S → at home → Yahoo!（後三站請改用「後三站」按鈕）"
+            )
+            if missing_hosts:
+                warning_parts.append(
+                    "前四站來源缺失："
+                    + "、".join(missing_hosts)
+                    + "（請至來源管理啟用/修正 URL）"
+                )
+            max_total_links = max(max_total_links, requested * 4)
+            time_budget_sec = max(time_budget_sec, 1800.0)
+        else:
+            enabled_sources, missing_hosts = _ensure_scope_sources(
+                ordered_remaining_three_portal_sources_for_crawl(),
+                REMAINING_THREE_PORTAL_HOSTS,
+            )
+            warning_parts = [w for w in warning_parts if "七大日本門戶依固定順序" not in (w or "")]
+            warning_parts.append("【後三站】依序：楽天不動産 → イエステーション → OHEYASU")
+            if missing_hosts:
+                warning_parts.append(
+                    "後三站來源缺失："
+                    + "、".join(missing_hosts)
+                    + "（請至來源管理啟用/修正 URL）"
+                )
+            max_total_links = max(max_total_links, requested * 3)
+            time_budget_sec = max(time_budget_sec, 1500.0)
+
+    if not (str(source_group_id) == "mainstream_portal" and not source_url_filter and not portal_scope):
+        enabled_sources.sort(key=lambda x: int(x.get("priority", 0)), reverse=True)
+    if len(enabled_sources) > max_sources:
+        warning_parts.append(f"本次僅處理前 {max_sources} 個啟用來源（依權重排序）")
+        enabled_sources = enabled_sources[:max_sources]
+
+    total_sources = len(enabled_sources)
+    started = time.perf_counter()
+    source_budget = max(10, min(applied, max_total_links // max(1, total_sources)))
+    if source_budget < applied:
+        warning_parts.append(
+            f"因單次總連結上限 {max_total_links} 筆，已將每來源有效上限調整為 {source_budget}（您選 {applied} 筆）"
+        )
+
+    if task_id:
+        _update_admin_crawl_task(
+            task_id,
+            stage="crawling_sources",
+            total_sources=total_sources,
+            completed_sources=0,
+            current_source="",
+            crawled_links=0,
+            requested_per_source=requested,
+            applied_per_source=source_budget,
+            warning="；".join(dict.fromkeys([w for w in warning_parts if w])) or "",
+        )
+
+    for idx, src in enumerate(enabled_sources, start=1):
+        if (time.perf_counter() - started) >= time_budget_sec:
+            warning_parts.append(f"已達單次執行時間上限 {int(time_budget_sec)} 秒，剩餘來源留待下次")
+            break
+        url = str(src.get("url") or "").strip()
+        if not url:
+            continue
+        name = str(src.get("name") or url)
+        if task_id:
+            _update_admin_crawl_task(
+                task_id,
+                current_source=name,
+                completed_sources=max(0, idx - 1),
+                warning="；".join(dict.fromkeys([w for w in warning_parts if w])) or "",
+            )
+        if len(to_process) >= max_total_links:
+            warning_parts.append(f"已達單次補抓總量上限 {max_total_links} 筆，請分批執行")
+            break
+        try:
+            got = crawl_one_source(url, per_source_limit=source_budget)
+        except Exception as exc:
+            runs.append({"name": name, "url": url, "count": 0, "error": str(exc)[:240]})
+            if task_id:
+                _update_admin_crawl_task(
+                    task_id,
+                    completed_sources=idx,
+                    crawled_links=len(to_process),
+                    runs=runs[-20:],
+                    warning="；".join(dict.fromkeys([w for w in warning_parts if w])) or "",
+                )
+            continue
+        if len(to_process) + len(got) > max_total_links:
+            remaining = max(0, max_total_links - len(to_process))
+            got = got[:remaining]
+        runs.append({"name": name, "url": url, "count": len(got)})
+        to_process.extend(got)
+        if task_id:
+            _update_admin_crawl_task(
+                task_id,
+                completed_sources=idx,
+                crawled_links=len(to_process),
+                runs=runs[-20:],
+                warning="；".join(dict.fromkeys([w for w in warning_parts if w])) or "",
+            )
+        if len(to_process) >= max_total_links:
+            warning_parts.append(f"已達單次補抓總量上限 {max_total_links} 筆，請分批執行")
+            break
+
+    # 主流找房模式：對缺圖/短文欄位做二次補齊，提升前端圖文與放大圖穩定度。
+    enriched_fields = 0
+    if (source_group_id in ("", "mainstream_portal")) and to_process:
+        enrich_budget = min(24, len(to_process))
+        enrich_started = time.perf_counter()
+        if task_id:
+            _update_admin_crawl_task(task_id, stage="enriching_media")
+        for i, item in enumerate(to_process):
+            if i >= enrich_budget:
+                break
+            if (time.perf_counter() - enrich_started) >= 25.0:
+                warning_parts.append("主流圖文補齊已達時間上限，剩餘筆數下次補抓。")
+                break
+            item_url = str(getattr(item, "item_url", "") or "").strip()
+            if not item_url:
+                continue
+            img_text = str(getattr(item, "image_urls", "") or "").strip()
+            body_text = str(getattr(item, "body_original", "") or "").strip()
+            need_enrich = (not img_text) or (len(body_text) < 140)
+            if not need_enrich:
+                continue
+            try:
+                detail_items = crawl_item_url(item_url)
+            except Exception:
+                continue
+            if not detail_items:
+                continue
+            detail = detail_items[0]
+            if not img_text and str(getattr(detail, "image_urls", "") or "").strip():
+                item.image_urls = str(getattr(detail, "image_urls", "") or "")
+                enriched_fields += 1
+            if len(body_text) < 140 and str(getattr(detail, "body_original", "") or "").strip():
+                item.body_original = str(getattr(detail, "body_original", "") or "")
+                enriched_fields += 1
+            dt = str(getattr(detail, "title_original", "") or "").strip()
+            if dt and (
+                not str(getattr(item, "title_original", "") or "").strip()
+                or len(str(getattr(item, "title_original", ""))) < 8
+            ):
+                item.title_original = dt[:240]
+                enriched_fields += 1
+            if str(getattr(item, "content_kind", "") or "").strip() != "jp_listing":
+                item.content_kind = str(getattr(detail, "content_kind", "") or "jp_listing")
+
+    if task_id:
+        _update_admin_crawl_task(task_id, stage="writing_db")
+    processed = int(process_crawled_items(to_process)) if to_process else 0
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    warning = "；".join(dict.fromkeys([w for w in warning_parts if w])) or None
+    return {
+        "ok": True,
+        "portal_scope": portal_scope,
+        "requested_per_source": requested,
+        "applied_per_source": source_budget,
+        "source_group": source_group_id,
+        "total_sources": total_sources,
+        "completed_sources": min(total_sources, len(runs)),
+        "warning": warning,
+        "crawled_links": len(to_process),
+        "processed": processed,
+        "enriched_fields": enriched_fields,
+        "elapsed_ms": elapsed_ms,
+        "runs": runs,
+    }
+
+
+@app.post("/api/admin/cases/crawl-sources")
+def api_admin_cases_crawl_sources(payload: AdminCasesCrawlPost, request: Request):
+    _require_admin_password(request)
+    result = _run_admin_cases_crawl_job(payload)
+    _append_admin_crawl_history(result)
+    return JSONResponse(result)
+
+
+@app.post("/api/admin/cases/crawl-sources/start")
+def api_admin_cases_crawl_sources_start(payload: AdminCasesCrawlPost, request: Request):
+    _require_admin_password(request)
+    _cleanup_admin_crawl_tasks()
+    task_id = uuid4().hex
+    now_iso = _admin_crawl_now_iso()
+    with _admin_crawl_tasks_lock:
+        _admin_crawl_tasks[task_id] = {
+            "task_id": task_id,
+            "status": "running",
+            "stage": "queued",
+            "source_group": str(payload.source_group or "").strip(),
+            "requested_per_source": int(payload.per_source_limit),
+            "applied_per_source": int(payload.per_source_limit),
+            "total_sources": 0,
+            "completed_sources": 0,
+            "current_source": "",
+            "crawled_links": 0,
+            "processed": 0,
+            "enriched_fields": 0,
+            "warning": "",
+            "runs": [],
+            "error": "",
+            "started_at": now_iso,
+            "updated_at": now_iso,
+            "finished_at": "",
+            "elapsed_ms": 0,
+            "updated_ts": time.time(),
+        }
+
+    task_payload = AdminCasesCrawlPost(
+        per_source_limit=int(payload.per_source_limit),
+        source_group=str(payload.source_group or "").strip(),
+        source_urls=list(payload.source_urls or []),
+        portal_scope=str(getattr(payload, "portal_scope", "") or "").strip(),
+    )
+
+    def _runner() -> None:
+        t0 = time.perf_counter()
+        try:
+            result = _run_admin_cases_crawl_job(task_payload, task_id=task_id)
+            _append_admin_crawl_history(result)
+            _update_admin_crawl_task(
+                task_id,
+                status="done",
+                stage="done",
+                warning=str(result.get("warning") or ""),
+                processed=int(result.get("processed") or 0),
+                enriched_fields=int(result.get("enriched_fields") or 0),
+                crawled_links=int(result.get("crawled_links") or 0),
+                applied_per_source=int(result.get("applied_per_source") or int(task_payload.per_source_limit)),
+                total_sources=int(result.get("total_sources") or 0),
+                completed_sources=int(result.get("completed_sources") or 0),
+                runs=list(result.get("runs") or []),
+                result=result,
+                elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                finished_at=_admin_crawl_now_iso(),
+            )
+        except Exception as exc:
+            _update_admin_crawl_task(
+                task_id,
+                status="error",
+                stage="error",
+                error=str(exc)[:400],
+                elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                finished_at=_admin_crawl_now_iso(),
+            )
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return JSONResponse(
+        {
+            "ok": True,
+            "task_id": task_id,
+            "status": "running",
+            "status_url": f"/api/admin/cases/crawl-sources/status?task_id={task_id}",
+        }
+    )
+
+
+@app.get("/api/admin/cases/crawl-sources/status")
+def api_admin_cases_crawl_sources_status(task_id: str, request: Request):
+    _require_admin_password(request)
+    _cleanup_admin_crawl_tasks()
+    with _admin_crawl_tasks_lock:
+        row = dict(_admin_crawl_tasks.get(task_id) or {})
+    if not row:
+        raise HTTPException(status_code=404, detail="task not found")
+    row.pop("updated_ts", None)
+    return JSONResponse({"ok": True, **row})
+
+
+@app.get("/api/admin/cases/crawl-history")
+def api_admin_cases_crawl_history(
+    request: Request,
+    source_group: str = Query(default=""),
+    limit: int = Query(default=12, ge=1, le=120),
+):
+    _require_admin_password(request)
+    items = _read_admin_crawl_history(source_group=source_group, limit=limit)
+    return JSONResponse({"ok": True, "count": len(items), "items": items})
+
+
+@app.get("/api/admin/cases/mainstream-recent")
+def api_admin_cases_mainstream_recent(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=120),
+):
+    _require_admin_password(request)
+    mainstream_hosts: list[str] = []
+    for s in load_sources():
+        if str(s.get("source_group") or "").strip() != "mainstream_portal":
+            continue
+        try:
+            host = (urlparse(str(s.get("url") or "")).netloc or "").lower().strip()
+        except Exception:
+            host = ""
+        host = host[4:] if host.startswith("www.") else host
+        if host and host not in mainstream_hosts:
+            mainstream_hosts.append(host)
+    if not mainstream_hosts:
+        return JSONResponse({"ok": True, "count": 0, "items": []})
+    where_parts: list[str] = []
+    params: list[Any] = []
+    for host in mainstream_hosts:
+        where_parts.append(
+            "(instr(lower(COALESCE(s.item_url,'')), ?) > 0 OR instr(lower(COALESCE(s.source_url,'')), ?) > 0)"
+        )
+        params.extend([host, host])
+    where_sql = " OR ".join(where_parts) if where_parts else "1=0"
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+              c.id AS content_id,
+              c.title_zh_hant,
+              c.updated_at,
+              s.source_name,
+              s.item_url,
+              s.image_urls,
+              s.body_original,
+              COALESCE(c.listing_media_json, '[]') AS listing_media_json
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE ({where_sql})
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ?
+            """,
+            [*params, int(limit)],
+        ).fetchall()
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        imgs, _ = extract_media_urls_from_row(d)
+        thumb = str(imgs[0]).strip() if imgs else ""
+        items.append(
+            {
+                "content_id": int(d.get("content_id") or 0),
+                "title_zh_hant": str(d.get("title_zh_hant") or ""),
+                "source_name": str(d.get("source_name") or ""),
+                "item_url": str(d.get("item_url") or ""),
+                "updated_at": str(d.get("updated_at") or ""),
+                "thumb_url": thumb,
+                "thumb_kind": _thumbnail_kind_label(thumb) if thumb else "",
+            }
+        )
+    return JSONResponse({"ok": True, "count": len(items), "items": items})
+
+
+@app.get("/api/handoff-requests")
+def api_handoff_requests_no_admin_path(
+    request: Request,
+    q: str = Query(default=""),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=5, le=100),
+):
+    """與 GET /api/admin/handoff-requests 相同；路徑不含 admin。"""
+    return api_admin_handoff_requests(request, q, page, page_size)
+
+
+@app.get("/api/handoff-requests/{handoff_id}")
+def api_handoff_request_detail_no_admin_path(handoff_id: int, request: Request):
+    """與 GET /api/admin/handoff-requests/{id} 相同。"""
+    return api_admin_handoff_request_detail(handoff_id, request)
+
+
+@app.delete("/api/handoff-requests/{handoff_id}")
+def api_handoff_request_delete_no_admin_path(handoff_id: int, request: Request):
+    """與 DELETE /api/admin/handoff-requests/{id} 相同。"""
+    return api_admin_handoff_request_delete(handoff_id, request)
+
+
+@app.get("/api/cases")
+def api_cases_list_no_admin_path(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=5, le=200),
+    q: str = Query(default=""),
+    transaction: str = Query(default=""),
+    region_code: str = Query(default=""),
+    jp_area: str = Query(default=""),
+    jp_line_id: int = Query(default=0, ge=0),
+    jp_station_id: int = Query(default=0, ge=0),
+    walk_max: int = Query(default=0, ge=0, le=240),
+):
+    """與 GET /api/admin/cases 相同；路徑不含 admin。"""
+    return api_admin_cases(
+        request, page, page_size, q, transaction, region_code, jp_area, jp_line_id, jp_station_id, walk_max
+    )
+
+
+@app.get("/api/cases/{content_id}/preview")
+def api_case_preview_no_admin_path(content_id: int, request: Request):
+    """與 GET /api/admin/cases/{id}/preview 相同。"""
+    return api_admin_case_preview(content_id, request)
+
+
+@app.delete("/api/cases/{content_id}")
+def api_case_delete_no_admin_path(content_id: int, request: Request):
+    """與 DELETE /api/admin/cases/{id} 相同。"""
+    return api_admin_case_delete(content_id, request)
+
+
+@app.post("/api/cases/purge-all")
+def api_cases_purge_all_no_admin_path(payload: AdminCasesPurgeAllRequest, request: Request):
+    """與 POST /api/admin/cases/purge-all 相同；路徑不含 admin。"""
+    return api_admin_cases_purge_all(payload, request)
+
+
+@app.post("/api/cases/crawl-sources")
+def api_cases_crawl_no_admin_path(payload: AdminCasesCrawlPost, request: Request):
+    """與 POST /api/admin/cases/crawl-sources 相同。"""
+    return api_admin_cases_crawl_sources(payload, request)
+
+
+@app.post("/api/cases/crawl-sources/start")
+def api_cases_crawl_start_no_admin_path(payload: AdminCasesCrawlPost, request: Request):
+    """與 POST /api/admin/cases/crawl-sources/start 相同。"""
+    return api_admin_cases_crawl_sources_start(payload, request)
+
+
+@app.get("/api/cases/crawl-sources/status")
+def api_cases_crawl_status_no_admin_path(task_id: str, request: Request):
+    """與 GET /api/admin/cases/crawl-sources/status 相同。"""
+    return api_admin_cases_crawl_sources_status(task_id, request)
+
+
+@app.get("/api/cases/crawl-history")
+def api_cases_crawl_history_no_admin_path(
+    request: Request,
+    source_group: str = Query(default=""),
+    limit: int = Query(default=12, ge=1, le=120),
+):
+    return api_admin_cases_crawl_history(request, source_group, limit)
+
+
+@app.get("/api/cases/mainstream-recent")
+def api_cases_mainstream_recent_no_admin_path(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=120),
+):
+    return api_admin_cases_mainstream_recent(request, limit)
+
+
+@app.patch("/api/cases/{content_id}")
+def api_case_patch_no_admin_path(content_id: int, payload: AdminCasePatchRequest, request: Request):
+    return api_admin_case_patch(content_id, payload, request)
+
+
+@app.get("/api/cases/csv-template")
+def api_cases_csv_template_no_admin_path(request: Request):
+    return api_admin_cases_csv_template(request)
+
+
+@app.get("/api/cases/csv-export")
+def api_cases_csv_export_no_admin_path(
+    request: Request,
+    q: str = Query(default=""),
+    transaction: str = Query(default=""),
+    region_code: str = Query(default=""),
+    jp_area: str = Query(default=""),
+    jp_line_id: int = Query(default=0, ge=0),
+    jp_station_id: int = Query(default=0, ge=0),
+    walk_max: int = Query(default=0, ge=0, le=240),
+    limit: int = Query(default=2000, ge=1, le=10000),
+):
+    return api_admin_cases_csv_export(
+        request, q, transaction, region_code, jp_area, jp_line_id, jp_station_id, walk_max, limit
+    )
+
+
+@app.post("/api/cases/import-csv")
+def api_cases_import_csv_no_admin_path(payload: AdminCaseImportCsvRequest, request: Request):
+    return api_admin_cases_import_csv(payload, request)
+
+
+@app.post("/api/cases/upload-media")
+async def api_cases_upload_media_no_admin_path(request: Request, file: UploadFile = File(...)):
+    return await api_admin_cases_upload_media(request, file)
+
+
+# NOTE:
+# Some deployments may still route "/api/cases/<slug>" through the dynamic
+# "/api/cases/{content_id}" path. Provide non-overlapping aliases so the
+# coverage dashboard always has a stable endpoint family.
+@app.get("/api/cases-dashboard/portal-hub-matrix")
+def api_cases_dashboard_portal_hub_matrix_alias():
+    return api_cases_portal_hub_matrix()
+
+
+@app.get("/api/cases-dashboard/coverage-matrix")
+def api_cases_dashboard_coverage_matrix_alias(
+    age_days: int = Query(default=180, ge=1, le=366),
+    threshold_per_cell: int = Query(default=15, ge=1, le=5000),
+):
+    return api_cases_coverage_matrix(age_days=age_days, threshold_per_cell=threshold_per_cell)
+
+
+@app.post("/api/cases-dashboard/coverage-heal")
+def api_cases_dashboard_coverage_heal_alias(payload: CasesCoverageHealPost, request: Request):
+    return api_admin_cases_coverage_heal(payload, request)
+
+
+_CHAT_GREETING_ONLY = re.compile(
+    r"^[\s，。、,!！?？~～…]+$|"
+    r"^[\s，。、,!！?？~～…]*("
+    r"大家好|各位好|大家好啊|你好|您好|嗨|哈囉|哈喽|hello|hi|hey|hiya|"
+    r"早安|午安|晚安|早|在嗎|在嘛|在不在|有人嗎|謝謝|感謝|感恩|辛苦了|"
+    r"沒問題|好的|好滴|好喔|收到|嗯|嗯嗯|ok|okay|了解|知道了|掰掰|bye|88"
+    r")[\s，。、,!！?？~～…]*$",
+    re.I,
+)
+
+_RE_HINTS_NEED_KB = (
+    "日本",
+    "東京",
+    "大阪",
+    "京都",
+    "名古屋",
+    "福岡",
+    "札幌",
+    "北海道",
+    "沖繩",
+    "不動産",
+    "不動產",
+    "房地產",
+    "房產",
+    "買房",
+    "購屋",
+    "置產",
+    "房屋",
+    "房子",
+    "住宅",
+    "物件",
+    "投資",
+    "報酬",
+    "租金",
+    "投報",
+    "空置",
+    "貸款",
+    "房貸",
+    "按揭",
+    "利率",
+    "頭期",
+    "頭款",
+    "稅",
+    "稅金",
+    "税金",
+    "稅費",
+    "税费",
+    "費用",
+    "费用",
+    "法規",
+    "簽證",
+    "永住",
+    "外國人",
+    "外国人",
+    "產權",
+    "登記",
+    "過戶",
+    "仲介",
+    "銀行",
+    "管理費",
+    "修繕",
+    "屋況",
+    "區域",
+    "地段",
+    "捷運",
+    "車站",
+    "學區",
+    "坪",
+    "平方",
+    "suumo",
+    "homes",
+    "athome",
+    "rakuten",
+    "樂天",
+    "マンション",
+    "一戸建",
+    "中古",
+    "新築",
+    "土地",
+    "關東",
+    "關西",
+    "首都圈",
+    "風險",
+    "報酬率",
+    "預算",
+    "成交",
+    "實價",
+    "行情",
+    "採購",
+    "采购",
+    "購買流程",
+    "购买流程",
+    "如何購買",
+    "如何购买",
+)
+
+
+def _chat_message_suggests_knowledge_lookup(text: str) -> bool:
+    """若訊息可能與日本不動產／站內知識有關才查庫；純問候等略過以加速。"""
+    raw = (text or "").strip()
+    if not raw:
+        return False
+    if len(raw) >= 34:
+        return True
+    if re.search(r"\d", raw):
+        return True
+    low = raw.lower()
+    for h in _RE_HINTS_NEED_KB:
+        if h.lower() in low or h in raw:
+            return True
+    if len(raw) <= 22 and _CHAT_GREETING_ONLY.match(raw):
+        return False
+    if len(raw) <= 14:
+        return False
+    return True
+
+
+_PURCHASE_DISCOVERY_INTENT_TERMS = (
+    "有意願",
+    "有意愿",
+    "想買",
+    "想买",
+    "要買",
+    "要买",
+    "購買",
+    "购买",
+    "買房",
+    "买房",
+    "購屋",
+    "置產",
+    "置产",
+    "找房",
+    "買物件",
+    "买物件",
+    "想入手",
+    "準備買",
+    "准备买",
+    "考慮買",
+    "考虑买",
+)
+
+_PURCHASE_DISCOVERY_REGIONS = (
+    "東京",
+    "东京",
+    "大阪",
+    "名古屋",
+    "福岡",
+    "福冈",
+    "神奈川",
+    "埼玉",
+    "千葉",
+    "千叶",
+    "横浜",
+    "橫濱",
+    "横滨",
+    "川崎",
+    "京都",
+    "首都圈",
+    "首都圏",
+    "關東",
+    "関東",
+    "关东",
+    "關西",
+    "関西",
+    "关西",
+    "北海道",
+    "東北",
+    "东北",
+    "甲信越",
+    "北陸",
+    "北陆",
+    "東海",
+    "东海",
+    "中國地方",
+    "中国地方",
+    "四國",
+    "四国",
+    "九州",
+    "沖繩",
+    "沖縄",
+    "冲绳",
+)
+
+_PURCHASE_DISCOVERY_TYPES = (
+    "公寓",
+    "大樓",
+    "大楼",
+    "華廈",
+    "华厦",
+    "套房",
+    "別墅",
+    "别墅",
+    "透天",
+    "一戶建",
+    "一户建",
+    "一戸建",
+    "マンション",
+    "アパート",
+    "辦公",
+    "办公",
+    "倉庫",
+    "仓库",
+    "店面",
+    "廠房",
+    "厂房",
+    "土地",
+    "車位",
+    "车位",
+)
+
+_PURCHASE_DISCOVERY_PURPOSES = (
+    "自住",
+    "收租",
+    "投資",
+    "投资",
+    "資產配置",
+    "资产配置",
+    "出租",
+    "轉售",
+    "转售",
+    "退休",
+    "留學",
+    "留学",
+    "移居",
+)
+
+
+def _support_purchase_discovery_dimensions(
+    text: str,
+    *,
+    figure_region: str = "",
+    figure_keyword: str = "",
+    figure_price: str = "",
+    figure_layout: str = "",
+    figure_property_types: list[str] | None = None,
+    dialog_keyword: str = "",
+) -> dict[str, bool]:
+    type_tokens = " ".join(str(x or "").strip() for x in (figure_property_types or []) if str(x or "").strip())
+    raw = " ".join(
+        str(x or "").strip()
+        for x in (text, figure_region, figure_keyword, figure_price, figure_layout, type_tokens, dialog_keyword)
+        if str(x or "").strip()
+    )
+    low = raw.lower()
+    compact = re.sub(r"\s+", "", raw)
+    explicit_price = bool((figure_price or "").strip() and (figure_price or "").strip() != "不限")
+    explicit_layout = bool((figure_layout or "").strip() and (figure_layout or "").strip() != "不限")
+    explicit_types = bool(type_tokens.strip())
+    has_budget = bool(
+        explicit_price
+        or
+        re.search(r"\d+(?:\.\d+)?\s*(?:萬|万|億|亿|円|日圓|日元|jpy|yen|nt|台幣|台币)", low, re.I)
+        or re.search(r"\d+\s*[-~～]\s*\d+", low)
+        or any(k in compact for k in ("預算", "预算", "總價", "总价", "上限", "以下", "以上", "最低", "最高"))
+    )
+    has_region = bool(figure_region.strip()) or any(k.lower() in low for k in _PURCHASE_DISCOVERY_REGIONS)
+    has_type = explicit_types or any(k.lower() in low for k in _PURCHASE_DISCOVERY_TYPES)
+    has_purpose = any(k.lower() in low for k in _PURCHASE_DISCOVERY_PURPOSES)
+    has_station = bool(re.search(r"(站|駅|車站|车站|沿線|沿线|通勤|步行|徒步|\d+\s*分)", raw))
+    has_specs = bool(explicit_layout or re.search(r"(ldk|坪|㎡|m2|平米|房|廳|厅|室|新築|新建|中古|屋齡|屋龄|格局)", low, re.I))
+    return {
+        "budget": has_budget,
+        "region": has_region,
+        "type": has_type,
+        "purpose": has_purpose,
+        "station": has_station,
+        "specs": has_specs,
+    }
+
+
+def _support_message_has_purchase_intent(text: str) -> bool:
+    raw = str(text or "").strip()
+    if not raw:
+        return False
+    low = raw.lower()
+    compact = re.sub(r"\s+", "", raw)
+    if any(k.lower() in low or k in compact for k in _PURCHASE_DISCOVERY_INTENT_TERMS):
+        return True
+    return bool(re.search(r"(買|买).{0,10}(房|屋|物件|不動產|不动产|公寓|マンション)", compact))
+
+
+def _support_purchase_discovery_missing_fields(dimensions: dict[str, bool]) -> list[str]:
+    checks = [
+        ("purpose", "用途（自住／收租／資產配置）"),
+        ("budget", "總預算帶"),
+        ("region", "偏好地區或車站"),
+        ("type", "物件類型"),
+        ("specs", "格局／房數"),
+    ]
+    return [label for key, label in checks if not bool(dimensions.get(key))]
+
+
+def _support_should_enter_purchase_discovery(
+    message: str,
+    selected_cases: list[dict] | None = None,
+    *,
+    raw_user_message: str = "",
+    figure_region: str = "",
+    figure_keyword: str = "",
+    figure_price: str = "",
+    figure_layout: str = "",
+    figure_property_types: list[str] | None = None,
+    dialog_keyword: str = "",
+) -> bool:
+    _ = selected_cases
+    user_text = (raw_user_message or message or "").strip()
+    if match_jp_real_estate_guidance(user_text):
+        return False
+    if not _support_message_has_purchase_intent(user_text):
+        return False
+    dimensions = _support_purchase_discovery_dimensions(
+        user_text,
+        figure_region=figure_region,
+        figure_keyword=figure_keyword,
+        figure_price=figure_price,
+        figure_layout=figure_layout,
+        figure_property_types=figure_property_types,
+        dialog_keyword=dialog_keyword,
+    )
+    filled = sum(1 for ok in dimensions.values() if ok)
+    # 有明確購買意願，但條件少於兩個時，先盤點需求；已選案件只當參考，不再追加大量案件。
+    return filled < 2
+
+
+def _support_purchase_discovery_prompt_block(
+    *,
+    selected_cases: list[dict] | None = None,
+    missing_fields: list[str] | None = None,
+) -> str:
+    selected_count = len(selected_cases or [])
+    selected_note = f"客戶目前已選 {selected_count} 筆站內案件，僅當背景整理給顧問；本輪不要介紹或推薦案件。" if selected_count else ""
+    missing_note = "、".join(missing_fields or []) or "用途、預算、地區、類型、格局"
+    return (
+        "【購買意向但條件不足：需求盤點 BOT 模式】\n"
+        "客戶表示有購買意願，但尚未提供足夠條件。請先協助縮小需求，不要推薦案件。\n"
+        f"{selected_note}\n"
+        "本輪禁止輸出案件列表、來源 URL、知識庫清單；請明確說明「先不急著丟案件」。\n"
+        f"優先補問缺少欄位：{missing_note}。\n"
+        "回覆方式：繁體中文、真人顧問私訊口吻；先承接意願，再只問 1 個最重要問題，等客戶回答後下一輪再問下一題。\n"
+        "若客戶想找真人顧問，可引導輸入「人工」或留下 LINE／電話／WeChat，並說明會把需求整理成留單。"
+    ).strip()
+
+
+def _build_purchase_discovery_reply(
+    message: str,
+    *,
+    selected_cases: list[dict] | None = None,
+    missing_fields: list[str] | None = None,
+) -> str:
+    next_q = _support_single_followup_question(message, missing_fields=missing_fields, intent_ref=60)
+    selected_count = len(selected_cases or [])
+    lines = [
+        "收到，您有購買意願這點很明確。我先不一次丟大量案件，避免資訊太多反而不好判斷。",
+    ]
+    if selected_count:
+        lines.append(f"我也有看到您已選的 {selected_count} 筆案件，先只當背景整理，不再另外推薦新案件。")
+    if missing_fields:
+        lines.append("目前先補一個關鍵條件就好。")
+    lines.extend(
+        [
+            "",
+            next_q,
+            "若想讓真人顧問接手，也可以直接回「人工」。",
+        ]
+    )
+    return sanitize_support_chat_visible_reply("\n".join(lines).strip())
+
+
+def _support_reply_violates_purchase_discovery(reply: str) -> bool:
+    text = str(reply or "")
+    if re.search(r"https?://", text, re.I):
+        return True
+    if re.search(r"(SUUMO|HOME'S|LIFULL|at home|Yahoo!不動産|楽天|イエステーション|OHEYASU)", text, re.I):
+        return True
+    list_like = len(re.findall(r"(?m)^\s*(?:\d+[\.\)、)]|[-*•])\s+", text))
+    return len(text) > 900 or list_like >= 4
+
+
+def _serialize_handoff_conversation(conv: object) -> str:
+    """將前端傳來的對話紀錄壓成 JSON 字串（長度與筆數雙重上限）。"""
+    rows: list[dict] = []
+    if not isinstance(conv, list):
+        return "[]"
+    for turn in conv[:100]:
+        if not isinstance(turn, dict):
+            continue
+        role = str(turn.get("role") or "")[:16]
+        body = str(turn.get("content") or "").strip()
+        if not body and (turn.get("contentHtml") or turn.get("content_html")):
+            body = "[表單或圖文訊息]"
+        body = body[:8000]
+        if not role and not body:
+            continue
+        rows.append({"role": role, "content": body})
+        if len(json.dumps(rows, ensure_ascii=False)) > 300000:
+            rows.pop()
+            break
+    return json.dumps(rows, ensure_ascii=False)
+
+
+def _append_turn_to_latest_handoff_conversation(session_id: str, *, role: str, content: str) -> bool:
+    """將單一回合附加至該 session 最新一筆 human_handoff_requests（供 Telegram 顧問補寫入）。"""
+    sid = _normalize_support_session_id(session_id or "")
+    if not sid:
+        return False
+    role_s = str(role or "")[:16]
+    body_s = str(content or "").strip()[:8000]
+    if not body_s:
+        return False
+    init_db()
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                """
+                SELECT id, conversation_json
+                FROM human_handoff_requests
+                WHERE session_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (sid,),
+            ).fetchone()
+            if not row:
+                return False
+            hid = int(row["id"])
+            raw = str(row["conversation_json"] or "").strip()
+            try:
+                cur = json.loads(raw) if raw else []
+            except Exception:
+                cur = []
+            if not isinstance(cur, list):
+                cur = []
+            cur.append({"role": role_s, "content": body_s})
+            new_json = _serialize_handoff_conversation(cur)
+            conn.execute(
+                "UPDATE human_handoff_requests SET conversation_json = ? WHERE id = ?",
+                (new_json, hid),
+            )
+            conn.commit()
+    except Exception:
+        return False
+    return True
+
+
+def _handoff_conversation_search_blob(conversation: list) -> str:
+    """整段對話小寫文字，供後台場景關鍵字加權命中。"""
+    parts: list[str] = []
+    if not isinstance(conversation, list):
+        return ""
+    for turn in conversation[:100]:
+        if not isinstance(turn, dict):
+            continue
+        role = str(turn.get("role") or "").strip().lower()
+        body = str(turn.get("content") or "").strip()
+        if body:
+            parts.append(f"{role}:{body}")
+    return "\n".join(parts)[:50000].lower()
+
+
+def _handoff_conversation_user_blob(conversation: list) -> str:
+    parts: list[str] = []
+    if not isinstance(conversation, list):
+        return ""
+    for turn in conversation[:100]:
+        if not isinstance(turn, dict):
+            continue
+        if str(turn.get("role") or "").strip().lower() != "user":
+            continue
+        body = str(turn.get("content") or "").strip()
+        if body:
+            parts.append(body)
+    return "\n".join(parts)[:50000].lower()
+
+
+def _handoff_conversation_for_prompt(conversation: list, max_chars: int = 12000) -> str:
+    parts: list[str] = []
+    if not isinstance(conversation, list):
+        return ""
+    for turn in conversation[:100]:
+        if not isinstance(turn, dict):
+            continue
+        role = str(turn.get("role") or "").strip()
+        body = str(turn.get("content") or "").strip()
+        if not body:
+            continue
+        parts.append(f"{role}: {body}")
+    return "\n".join(parts)[:max_chars]
+
+
+def _compute_scenario_weights_for_handoff(
+    conversation: list,
+    *,
+    highlight_scene_id: str = "",
+) -> list[dict]:
+    """依後台 offline 場景的 priority 與關鍵字在整段對話上計分並排序。"""
+    blob = _handoff_conversation_search_blob(conversation)
+    user_blob = _handoff_conversation_user_blob(conversation)
+    rows = _load_offline_support_scenarios(enabled_only=True)
+    if not rows:
+        for s in OFFLINE_SUPPORT_SCENARIOS:
+            d = dict(s)
+            d.setdefault("priority", 100)
+            d.setdefault("enabled", True)
+            rows.append(d)
+    hl = (highlight_scene_id or "").strip().lower()
+    by_id: dict[str, dict] = {}
+    for sc in rows:
+        if not sc.get("enabled", True):
+            continue
+        sid = str(sc.get("id") or "").strip()
+        if not sid:
+            continue
+        label = str(sc.get("label") or "").strip()
+        pr = int(sc.get("priority") or 100)
+        kws = [str(k).lower() for k in (sc.get("keywords") or []) if str(k).strip()]
+        hits = 0
+        hit_kw: list[str] = []
+        for k in kws:
+            c = blob.count(k)
+            if c:
+                hits += min(4, c)
+                if k not in hit_kw:
+                    hit_kw.append(k)
+        weight = pr * 2 + hits * 35
+        if hl and sid.lower() == hl:
+            weight += 85
+        if hits > 0 or (hl and sid.lower() == hl):
+            by_id[sid] = {
+                "scene_id": sid,
+                "label": label,
+                "priority": pr,
+                "keyword_hits": hits,
+                "weight": weight,
+                "keywords_matched": hit_kw[:16],
+            }
+    match_text = (user_blob or blob)[:12000]
+    guessed = _match_support_scenario(match_text) if match_text.strip() else None
+    if guessed:
+        gid = str(guessed.get("id") or "").strip()
+        if gid:
+            if gid in by_id:
+                by_id[gid]["weight"] = int(by_id[gid]["weight"]) + 40
+            else:
+                pr2 = int(guessed.get("priority") or 100)
+                by_id[gid] = {
+                    "scene_id": gid,
+                    "label": str(guessed.get("label") or ""),
+                    "priority": pr2,
+                    "keyword_hits": 0,
+                    "weight": pr2 * 2 + 45,
+                    "keywords_matched": [],
+                    "note": "整段主匹配",
+                }
+    out = list(by_id.values())
+    out.sort(
+        key=lambda x: (
+            -int(x.get("weight") or 0),
+            -int(x.get("keyword_hits") or 0),
+            str(x.get("label") or ""),
+        )
+    )
+    return out[:15]
+
+
+def _format_scenario_weights_for_tg(weights: list[dict]) -> str:
+    lines: list[str] = []
+    for w in weights[:10]:
+        sid = str(w.get("scene_id") or "")
+        lab = str(w.get("label") or "")
+        wt = int(w.get("weight") or 0)
+        h = int(w.get("keyword_hits") or 0)
+        pr = int(w.get("priority") or 0)
+        kws = ",".join(str(x) for x in (w.get("keywords_matched") or [])[:8])
+        note = str(w.get("note") or "").strip()
+        extra = f" {note}" if note else ""
+        lines.append(f"· {lab} ({sid}) 優先{pr} 權重{wt} 命中{h}{extra} [{kws}]")
+    return "\n".join(lines) if lines else "（無場景關鍵字命中；仍以主匹配補強）"
+
+
+def _build_handoff_telegram_body(
+    *,
+    name: str,
+    phone: str,
+    email: str,
+    note: str,
+    action_id: str,
+    session_id: str,
+    matched_scene_id: str,
+    matched_scene_label: str,
+    context_message: str,
+    opinion: str,
+    weights: list[dict],
+    interest_cases: list[dict[str, Any]],
+    ai_summary: str,
+    questionnaire_text: str = "",
+    max_len: int = 3900,
+) -> str:
+    """將聯絡資訊置前，避免 Telegram 截斷時遺失可回撥資料。"""
+    wblock = _format_scenario_weights_for_tg(weights)
+    ai = (ai_summary or "").strip()
+    head = [
+        "【人工客服／顧問留單】",
+        "↩️ 回覆本則訊息可同步給網頁客戶（Session 已綁定）。",
+        f"動作：{action_id or '（關鍵字轉人工）'}｜Session：{session_id or '-'}",
+        f"命中場景：{matched_scene_label or '-'}（{matched_scene_id or '-'}）",
+        f"姓名：{name or '-'}｜電話：{phone or '-'}｜信箱：{email or '-'}",
+        f"脈絡：{(context_message or '-')[:420]}",
+        f"意見：{opinion or '-'}",
+        f"備註：{(note or '-')[:520]}",
+        "",
+    ]
+    parts = list(head)
+    qt = (questionnaire_text or "").strip()
+    if qt:
+        parts.append("【購買諮詢申請表】")
+        parts.append(qt[:1800])
+        parts.append("")
+    if interest_cases:
+        parts.append("【客戶有興趣案件】")
+        parts.append(_format_interest_cases_for_tg(interest_cases, max_items=6))
+        parts.append("")
+    if ai:
+        parts.append("【AI 整理給人工】")
+        parts.append(ai)
+        parts.append("")
+    parts.append("【場景權重（後台優先序＋關鍵字命中）】")
+    parts.append(wblock)
+    full = "\n".join(parts)
+    if len(full) <= max_len:
+        return full
+    over = len(full) - max_len + 1
+    if ai and len(ai) > over + 120:
+        ai = ai[: max(0, len(ai) - over - 3)] + "…"
+        parts = list(head)
+        if qt:
+            parts.append("【購買諮詢申請表】")
+            parts.append(qt[:1800])
+            parts.append("")
+        if interest_cases:
+            parts.append("【客戶有興趣案件】")
+            parts.append(_format_interest_cases_for_tg(interest_cases, max_items=6))
+            parts.append("")
+        parts.append("【AI 整理給人工】")
+        parts.append(ai)
+        parts.append("")
+        parts.append("【場景權重（後台優先序＋關鍵字命中）】")
+        parts.append(wblock)
+        full = "\n".join(parts)
+    if len(full) > max_len:
+        full = full[: max_len - 1] + "…"
+    return full
+
+
+def _ai_summarize_handoff_ticket(
+    *,
+    name: str,
+    phone: str,
+    email: str,
+    note: str,
+    opinion: str,
+    action_id: str,
+    context_message: str,
+    scenario_weights: list[dict],
+    interest_cases: list[dict[str, Any]],
+    conversation_text: str,
+) -> str:
+    rp = resolve_llm_provider(None)
+    if not is_llm_configured(rp):
+        return ""
+    sw = json.dumps(scenario_weights, ensure_ascii=False)[:4000]
+    ic = _format_interest_cases_for_tg(interest_cases, max_items=6)[:2500]
+    conv = (conversation_text or "")[:12000]
+    system = (
+        "你是日本不動產顧問團隊的內部助理，要把「即將由真人跟進」的客戶留單濃縮給銷售看。"
+        "請用繁體中文，條列清晰，禁止虛構客戶沒說過的需求。"
+        "輸出約 4 到 10 行：①客戶意圖摘要 ②疑似痛點或階段 ③建議真人跟進重點 ④風險或備註（若有）。"
+    )
+    user_block = (
+        f"留單動作：{action_id or '人工'}\n"
+        f"聯絡：姓名={name} 電話={phone} 信箱={email}\n"
+        f"備註：{note[:800]}\n"
+        f"意見：{opinion[:800]}\n"
+        f"脈絡：{context_message[:800]}\n\n"
+        f"【後台場景權重 JSON（priority 為後台優先序；keyword_hits 為對話關鍵字累計命中）】\n{sw}\n\n"
+        f"【客戶有興趣案件】\n{ic}\n\n"
+        f"【對話摘錄】\n{conv}\n"
+    )
+    msgs = [{"role": "system", "content": system}, {"role": "user", "content": user_block}]
+    try:
+        return chat_completion(
+            msgs,
+            model=None,
+            temperature=0.35,
+            timeout_sec=42.0,
+            provider=rp,
+            max_tokens=900,
+        )[:3500]
+    except Exception:
+        return ""
+
+
+def _format_support_human_questionnaire_text(questionnaire: dict[str, Any]) -> str:
+    if not isinstance(questionnaire, dict) or not questionnaire:
+        return ""
+
+    def s(key: str, max_len: int = 220) -> str:
+        v = questionnaire.get(key)
+        if v is None:
+            return ""
+        if isinstance(v, bool):
+            return "是" if v else "否"
+        return str(v).strip()[:max_len]
+
+    def maybe_other(main_key: str, other_key: str) -> str:
+        main = s(main_key)
+        if not main:
+            return ""
+        if main == "其他":
+            other = s(other_key)
+            return f"{main}（{other}）" if other else main
+        return main
+
+    lines: list[str] = []
+    linewx = s("contact_line_wechat")
+    if linewx:
+        lines.append(f"LINE/微信：{linewx}")
+    loc = maybe_other("current_location", "current_location_other")
+    if loc:
+        lines.append(f"所在地：{loc}")
+    purpose = maybe_other("purchase_purpose", "purchase_purpose_other")
+    if purpose:
+        lines.append(f"購買目的：{purpose}")
+    budget_total = s("budget_total_yen")
+    if budget_total:
+        lines.append(f"總預算（日幣）：{budget_total}")
+    dp = s("down_payment_yen")
+    if dp:
+        lines.append(f"自備款（日幣）：{dp}")
+    loan_need = s("loan_need")
+    if loan_need:
+        lines.append(f"貸款需求：{loan_need}")
+    income_src = maybe_other("income_source", "income_source_other")
+    if income_src:
+        lines.append(f"收入來源：{income_src}")
+    inc = s("annual_income_twd")
+    if inc:
+        lines.append(f"年收入：{inc}")
+    region = maybe_other("target_region", "target_region_other")
+    if region:
+        lines.append(f"投資地區：{region}")
+    ptype = s("property_type")
+    if ptype:
+        lines.append(f"物件類型：{ptype}")
+    ptime = s("purchase_time")
+    if ptime:
+        lines.append(f"購買時間：{ptime}")
+    view = s("viewing_intent")
+    if view:
+        lines.append(f"看房意願：{view}")
+    loan_eval = s("loan_eval_interest")
+    if loan_eval:
+        lines.append(f"貸款評估：{loan_eval}")
+    consent = questionnaire.get("consent_agreed")
+    if consent is not None:
+        lines.append(f"同意聲明：{'是' if bool(consent) else '否'}")
+    other = s("other_questions", max_len=900)
+    if other:
+        lines.append("其他需求：")
+        lines.append(other)
+    picks = s("interest_pick_summary", max_len=900)
+    if picks:
+        lines.append("有興趣案件：")
+        lines.append(picks)
+    return "\n".join(lines).strip()[:2200]
+
+
+def _validate_support_human_intake_questionnaire(
+    *,
+    name: str,
+    phone: str,
+    email: str,
+    questionnaire: dict[str, Any],
+) -> None:
+    """網站智能客服轉人工前，必須先取得完整問卷與可聯絡資訊。"""
+    q = questionnaire if isinstance(questionnaire, dict) else {}
+
+    def s(key: str) -> str:
+        value = q.get(key)
+        if value is None:
+            return ""
+        return str(value).strip()
+
+    if not name.strip():
+        raise HTTPException(status_code=400, detail="請先填寫姓名，人工顧問才會回覆。")
+    if not phone.strip() and not email.strip() and not s("contact_line_wechat"):
+        raise HTTPException(status_code=400, detail="請至少填寫電話、LINE/微信或 Email 其中一項，人工顧問才會回覆。")
+
+    required = [
+        ("current_location", "目前所在地"),
+        ("purchase_purpose", "購買目的"),
+        ("budget_total_yen", "預計總預算（日幣）"),
+        ("down_payment_yen", "可準備自備款（日幣）"),
+        ("loan_need", "是否需要貸款"),
+        ("income_source", "收入來源"),
+        ("target_region", "想投資地區"),
+        ("property_type", "物件類型"),
+        ("purchase_time", "購買時間"),
+        ("viewing_intent", "看房意願"),
+    ]
+    for key, label in required:
+        if not s(key):
+            raise HTTPException(status_code=400, detail=f"請先完成問卷欄位：{label}。")
+    other_pairs = [
+        ("current_location", "current_location_other", "其他所在地"),
+        ("purchase_purpose", "purchase_purpose_other", "其他購買目的"),
+        ("income_source", "income_source_other", "其他收入來源"),
+        ("target_region", "target_region_other", "其他投資地區"),
+    ]
+    for main_key, other_key, label in other_pairs:
+        if s(main_key) == "其他" and not s(other_key):
+            raise HTTPException(status_code=400, detail=f"請先完成問卷欄位：{label}。")
+    if not bool(q.get("consent_agreed")):
+        raise HTTPException(status_code=400, detail="請先勾選聲明同意，人工顧問才會回覆。")
+
+
+def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONResponse:
+    name = (payload.name or "").strip()[:120]
+    phone = (payload.phone or "").strip()[:80]
+    email = (payload.email or "").strip()[:160]
+    note = (payload.note or "").strip()[:2000]
+    budget_text = (payload.budget_text or "").strip()[:500]
+    interest_pick_summary = (payload.interest_pick_summary or "").strip()[:4000]
+    opinion = (payload.opinion or "").strip()[:2000]
+    questionnaire = payload.questionnaire if isinstance(payload.questionnaire, dict) else {}
+    questionnaire_text = _format_support_human_questionnaire_text(questionnaire) if questionnaire else ""
+    questionnaire_json = ""
+    if questionnaire:
+        try:
+            questionnaire_json = json.dumps(questionnaire, ensure_ascii=False)[:120000]
+        except Exception:
+            questionnaire_json = ""
+    action_id = (payload.action_id or "").strip()[:80]
+    strict_questionnaire = (not action_id) or str(questionnaire.get("form_version") or "") == "jp_property_buy_intake_v1"
+    if strict_questionnaire:
+        _validate_support_human_intake_questionnaire(
+            name=name,
+            phone=phone,
+            email=email,
+            questionnaire=questionnaire,
+        )
+    if not name and not phone and not email:
+        # 允許僅填預算／備註／勾選案件／顧問意見（勿僅依 hidden context 放行，避免空白送出）
+        if budget_text or note or interest_pick_summary or opinion:
+            name = "（未填姓名／電話／信箱｜請見備註／預算／案件）"[:120]
+        else:
+            raise HTTPException(status_code=400, detail="請至少填寫姓名、電話或信箱其中一項；或填寫預算／備註／勾選案件／顧問意見。")
+    note_extra: list[str] = []
+    if budget_text:
+        note_extra.append(f"【預算（客戶填寫）】{budget_text}")
+    if interest_pick_summary:
+        note_extra.append(f"【留單勾選諮詢案件】\n{interest_pick_summary}")
+    if questionnaire_text:
+        note_extra.append(f"【購買諮詢申請表】\n{questionnaire_text}")
+    if note_extra:
+        note = (note + "\n\n" + "\n".join(note_extra)).strip()[:2000]
+    session_id = _normalize_support_session_id(payload.session_id or "")
+    if not session_id:
+        session_id = f"sess-{uuid4().hex[:16]}"
+    matched_scene_id = (payload.matched_scene_id or "").strip()[:80]
+    matched_scene_label = (payload.matched_scene_label or "").strip()[:160]
+    context_message = (payload.context_message or "").strip()[:2000]
+    conv_list: list = list(payload.conversation) if isinstance(payload.conversation, list) else []
+    weights = _compute_scenario_weights_for_handoff(conv_list, highlight_scene_id=matched_scene_id)
+    weights_json = json.dumps(weights, ensure_ascii=False)[:120000]
+    conv_json = _serialize_handoff_conversation(payload.conversation)
+    ua = str(request.headers.get("user-agent") or "")[:400]
+    last_err: Exception | None = None
+    hid = 0
+    max_attempts = 8
+    for attempt in range(max_attempts):
+        try:
+            with get_conn() as conn:
+                cur = conn.execute(
+                    """
+                    INSERT INTO human_handoff_requests (
+                        name, phone, email, note, user_agent,
+                        action_id, session_id, matched_scene_id, matched_scene_label, context_message, opinion,
+                        questionnaire_json, conversation_json, scenario_weights_json, ai_handoff_summary
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+                    """,
+                    (
+                        name,
+                        phone,
+                        email,
+                        note,
+                        ua,
+                        action_id,
+                        session_id,
+                        matched_scene_id,
+                        matched_scene_label,
+                        context_message,
+                        opinion,
+                        questionnaire_json,
+                        conv_json,
+                        weights_json,
+                    ),
+                )
+                hid = int(cur.lastrowid or 0)
+                conn.commit()
+            last_err = None
+            break
+        except sqlite3.OperationalError as exc:
+            last_err = exc
+            el = str(exc).lower()
+            if attempt == 0 and "no such column" in el:
+                init_db()
+                continue
+            if attempt < max_attempts - 1 and ("database is locked" in el or "locked" in el or "busy" in el):
+                time.sleep(0.06 * (attempt + 1))
+                continue
+            raise HTTPException(status_code=503, detail=f"資料庫寫入失敗：{exc}") from exc
+    if last_err is not None:
+        raise HTTPException(status_code=503, detail=f"資料庫寫入失敗：{last_err}") from last_err
+    conv_prompt = _handoff_conversation_for_prompt(conv_list)
+    interest_cases = _load_support_session_interest_cases(session_id, limit=20)
+    last_user_msg = ""
+    for turn in reversed(conv_list):
+        if not isinstance(turn, dict):
+            continue
+        if str(turn.get("role") or "").strip().lower() == "user":
+            last_user_msg = str(turn.get("content") or "").strip()
+            if last_user_msg:
+                break
+    ai_summary = _ai_summarize_handoff_ticket(
+        name=name,
+        phone=phone,
+        email=email,
+        note=note,
+        opinion=opinion,
+        action_id=action_id,
+        context_message=context_message,
+        scenario_weights=weights,
+        interest_cases=interest_cases,
+        conversation_text=conv_prompt,
+    )
+    if hid > 0 and ai_summary:
+        try:
+            with get_conn() as conn:
+                conn.execute(
+                    "UPDATE human_handoff_requests SET ai_handoff_summary = ? WHERE id = ?",
+                    (ai_summary[:8000], hid),
+                )
+                conn.commit()
+        except Exception:
+            pass
+    try:
+        eval_msg = context_message or last_user_msg or "人工／顧問留單"
+        eval_knowledge = {
+            "row_count": 0,
+            "distinct_sources": 0,
+            "skipped_lookup": True,
+            "selected_case_count": len(interest_cases),
+            "managed_case_count": 0,
+            "featured_count": 0,
+            "property_listing_intent": bool(interest_cases),
+            "selected_cases": interest_cases,
+        }
+        eval_sales = {
+            "session_id": session_id,
+            "human_handoff_intent": True,
+            "should_notify_human": True,
+            "lead_capture": _support_lead_capture_blueprint(eval_msg, eval_knowledge, human_intent=True),
+        }
+        eval_scene = None
+        if weights:
+            top_w = dict(weights[0])
+            eval_scene = {
+                "id": top_w.get("scene_id") or "",
+                "label": top_w.get("label") or "",
+                "keywords": top_w.get("keywords_matched") or [],
+            }
+        bot_eval = _build_support_bot_self_eval(
+            message=eval_msg,
+            reply=ai_summary or "已建立人工顧問留單。",
+            knowledge_meta=eval_knowledge,
+            sales_mcp=eval_sales,
+            llm_meta={
+                "enabled": bool(is_llm_configured(resolve_llm_provider(None))),
+                "crm_prompt_injected": bool(_support_crm_enabled_runtime()),
+            },
+            matched_scene=eval_scene,
+            matched_qa=None,
+        )
+        _save_support_bot_self_eval(session_id=session_id, message=eval_msg, bot_eval=bot_eval)
+    except Exception:
+        pass
+    tg_body = _build_handoff_telegram_body(
+        name=name,
+        phone=phone,
+        email=email,
+        note=note,
+        action_id=action_id,
+        session_id=session_id,
+        matched_scene_id=matched_scene_id,
+        matched_scene_label=matched_scene_label,
+        context_message=context_message,
+        opinion=opinion,
+        weights=weights,
+        interest_cases=interest_cases,
+        ai_summary=ai_summary,
+        questionnaire_text=questionnaire_text,
+    )
+    tg_sent = False
+    tg_err = ""
+    line_sent = False
+    line_err = ""
+    if _support_notify_channel_enabled("telegram"):
+        try:
+            _telegram_send_and_bridge(tg_body, session_id, "human_handoff")
+            tg_sent = True
+        except Exception as exc:
+            tg_err = _sanitize_telegram_error_detail(exc)[:300]
+    if _support_notify_channel_enabled("line"):
+        try:
+            _line_send_and_bridge(tg_body[:4900], session_id, "human_handoff")
+            line_sent = True
+        except Exception as exc:
+            line_err = _sanitize_line_error_detail(exc)[:300]
+    return JSONResponse(
+        {
+            "ok": True,
+            "handoff_id": hid,
+            "session_id": session_id,
+            "scenario_weights": weights,
+            "interested_cases": interest_cases,
+            "ai_handoff_summary": ai_summary,
+            "telegram_sent": tg_sent,
+            "telegram_error": tg_err,
+            "line_sent": line_sent,
+            "line_error": line_err,
+            "notify_channels": _support_notify_channels(),
+            "line_qr_url": "/static/human-handoff/line.png",
+            "wechat_qr_url": "/static/human-handoff/wechat.png",
+        }
+    )
+
+
+@app.post("/api/support/human-intake")
+def api_support_human_intake(payload: HumanIntakeRequest, request: Request):
+    return _human_intake_core(payload, request)
+
+
+@app.post("/api/support/handoff-conversation-sync")
+def api_support_handoff_conversation_sync(payload: HandoffConversationSyncRequest):
+    """留單後由前端輪詢／送出時覆寫對話 JSON，讓後台客戶留單詳情與實際聊天同步。"""
+    sid = _normalize_support_session_id(payload.session_id or "")
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    conv_json = _serialize_handoff_conversation(payload.conversation)
+    hid = int(payload.handoff_id or 0)
+    init_db()
+    with get_conn() as conn:
+        if hid > 0:
+            row = conn.execute(
+                "SELECT id, session_id FROM human_handoff_requests WHERE id = ? LIMIT 1",
+                (hid,),
+            ).fetchone()
+            if not row:
+                return JSONResponse({"ok": True, "updated": False, "reason": "not_found"})
+            row_sid = _normalize_support_session_id(str(row["session_id"] or ""))
+            if row_sid != sid:
+                raise HTTPException(status_code=403, detail="session mismatch")
+            conn.execute(
+                "UPDATE human_handoff_requests SET conversation_json = ? WHERE id = ?",
+                (conv_json, hid),
+            )
+            conn.commit()
+            return JSONResponse({"ok": True, "updated": True, "handoff_id": hid})
+        row = conn.execute(
+            """
+            SELECT id FROM human_handoff_requests
+            WHERE session_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (sid,),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"ok": True, "updated": False, "reason": "no_handoff"})
+        hid = int(row["id"])
+        conn.execute(
+            "UPDATE human_handoff_requests SET conversation_json = ? WHERE id = ?",
+            (conv_json, hid),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True, "updated": True, "handoff_id": hid})
+
+
+@app.post("/api/human-handoff-intake")
+def api_human_handoff_intake_alias(payload: HumanIntakeRequest, request: Request):
+    """與 POST /api/support/human-intake 相同；舊版或代理路徑未轉發時可作備援。"""
+    return _human_intake_core(payload, request)
+
+
+@app.get("/api/support/session-interest-cases")
+def api_get_support_session_interest_cases(
+    session_id: str = Query(default="", description="智能客服 session_id"),
+    limit: int = Query(default=16, ge=1, le=60),
+):
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    items = _load_support_session_interest_cases(sid, limit=limit)
+    return JSONResponse({"ok": True, "session_id": sid, "count": len(items), "items": items})
+
+
+@app.post("/api/support/session-interest-cases")
+def api_put_support_session_interest_cases(payload: SupportSessionCaseInterestUpsertRequest):
+    sid, items = _replace_support_session_interest_cases(payload.session_id, payload.cases)
+    return JSONResponse({"ok": True, "session_id": sid, "count": len(items), "items": items})
+
+
+def _build_selected_case_notify_body(
+    *,
+    session_id: str,
+    trigger: str,
+    selected_cases: list[dict[str, Any]],
+    latest_case: dict[str, Any] | None,
+) -> str:
+    latest = latest_case or (selected_cases[0] if selected_cases else {})
+    title = str((latest or {}).get("title") or "（未命名案件）").strip()[:120]
+    tx = str((latest or {}).get("transaction_label_zh") or "—").strip()[:32]
+    address = str(
+        (latest or {}).get("address_hint_zh")
+        or (latest or {}).get("jp_region_display_zh")
+        or "—"
+    ).strip()[:160]
+    price = str((latest or {}).get("price_text_hant") or "—").strip()[:48]
+    layout = str((latest or {}).get("layout_text_hant") or "—").strip()[:48]
+    area = str((latest or {}).get("area_text_hant") or "—").strip()[:48]
+    detail = str((latest or {}).get("article_url") or "—").strip()[:280]
+    source = str((latest or {}).get("item_url") or "—").strip()[:280]
+    thumb = str((latest or {}).get("thumb_url") or "").strip()[:280]
+    trigger_label = "客戶勾選案件" if trigger == "case_selected" else "客戶更新已選案件"
+    lines = [
+        "【智能客服｜客戶意向案件】",
+        f"動作：{trigger_label}",
+        f"Session：{session_id}",
+        f"已選案件數：{len(selected_cases)}",
+        "",
+        f"主案件：{title}",
+        f"類型：{tx}",
+        f"地址：{address}",
+        f"價格／格局／坪數：{price}｜{layout}｜{area}",
+    ]
+    if thumb:
+        lines.append(f"縮圖：{thumb}")
+    lines.extend(
+        [
+            f"站內連結：{detail}",
+            f"來源連結：{source}",
+            "",
+            "請顧問可直接回覆此則訊息，或使用 /reply <Session> 訊息 進行人工接手。",
+        ]
+    )
+    return "\n".join(lines)[:3900]
+
+
+@app.post("/api/support/selected-cases-notify")
+def api_support_selected_cases_notify(payload: SupportSelectedCaseNotifyRequest):
+    sid = _normalize_support_session_id(payload.session_id or "")
+    if not sid:
+        sid = f"sess-{uuid4().hex[:16]}"
+    sanitized = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
+    sid, rows = _replace_support_session_interest_cases(sid, sanitized)
+    latest = None
+    if isinstance(payload.latest_case, dict):
+        latest_rows = _sanitize_support_selected_cases([payload.latest_case], max_items=1)
+        if latest_rows:
+            latest = latest_rows[0]
+    if latest is None and rows:
+        latest = rows[0]
+    body = _build_selected_case_notify_body(
+        session_id=sid,
+        trigger=str(payload.trigger or "case_selected").strip().lower(),
+        selected_cases=rows,
+        latest_case=latest,
+    )
+    tg_sent = False
+    tg_err = ""
+    tg_mode = ""
+    line_sent = False
+    line_err = ""
+    if _support_notify_channel_enabled("telegram"):
+        try:
+            sent = _telegram_send_and_bridge(body, sid, "selected_case_notify")
+            tg_sent = True
+            tg_mode = str(sent.get("_delivery_mode") or "")
+        except Exception as exc:
+            tg_err = _sanitize_telegram_error_detail(exc)
+    if _support_notify_channel_enabled("line"):
+        try:
+            _line_send_and_bridge(body[:4900], sid, "selected_case_notify")
+            line_sent = True
+        except Exception as exc:
+            line_err = _sanitize_line_error_detail(exc)
+    return JSONResponse(
+        {
+            "ok": True,
+            "session_id": sid,
+            "count": len(rows),
+            "latest_case": latest or {},
+            "telegram_sent": tg_sent,
+            "telegram_delivery_mode": tg_mode,
+            "telegram_error": tg_err,
+            "line_sent": line_sent,
+            "line_error": line_err,
+            "notify_channels": _support_notify_channels(),
+        }
+    )
+
+
+@app.post("/api/ai/support-keyword-hint")
+def api_ai_support_keyword_hint(payload: SupportKeywordHintRequest):
+    kw = (payload.keyword or "").strip()
+    if not kw or len(kw) > 500:
+        raise HTTPException(status_code=400, detail="invalid keyword")
+    rp = resolve_llm_provider((payload.llm_provider or "").strip() or None)
+    _, _, default_m = get_chat_credentials(rp)
+    use_model = (payload.gemini_model or "").strip() or default_m
+    if not is_llm_configured(rp):
+        return JSONResponse(
+            {"ok": False, "error": "尚未設定可用的 LLM（請於後台「AI 供應商」填寫 API）。"},
+            status_code=503,
+        )
+    try:
+        hint = support_knowledge_keyword_hint(
+            keyword=kw,
+            persona_region=str(payload.persona_region or "tw"),
+            model=use_model,
+            provider=rp,
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:800]},
+            status_code=502,
+        )
+    return JSONResponse(
+        {
+            "ok": True,
+            "hint": hint,
+            "llm": {"provider": rp, "model": use_model},
+        }
+    )
+
+
+@app.post("/api/ai/chat-support")
+def api_ai_chat_support(payload: ChatSupportRequest):
+    msg = (payload.message or "").strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="missing message")
+    session_id = _normalize_support_session_id(payload.sales_session_id or "")
+    if not session_id:
+        session_id = f"sess-{uuid4().hex[:16]}"
+    selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
+    if selected_cases_input:
+        session_id, _ = _replace_support_session_interest_cases(session_id, selected_cases_input)
+    selected_cases = _load_support_session_interest_cases(session_id, limit=20)
+    selected_cases_text = _format_interest_cases_for_prompt(selected_cases, max_chars=3200, max_items=6)
+    kq = (payload.knowledge_query or msg).strip()
+    kb_text = ""
+    kb_rows: list[dict] = []
+    zh_v = (payload.knowledge_zh_variant or "hans").strip().lower()
+    if zh_v not in ("hans", "hant", "both"):
+        zh_v = "hans"
+    fk = (payload.figure_keyword or "").strip()
+    fr = (payload.figure_region or "").strip()
+    dlgk = (payload.dialog_keyword or "").strip()
+    kq_blend = " ".join(dict.fromkeys([p for p in (fr, fk, dlgk, kq) if p]))[:600].strip() or kq
+    purchase_dimensions = _support_purchase_discovery_dimensions(
+        kq or msg,
+        figure_region=fr,
+        figure_keyword=fk,
+        dialog_keyword=dlgk,
+    )
+    purchase_missing_fields = _support_purchase_discovery_missing_fields(purchase_dimensions)
+    purchase_discovery_mode = _support_should_enter_purchase_discovery(
+        msg,
+        selected_cases,
+        raw_user_message=kq,
+        figure_region=fr,
+        figure_keyword=fk,
+        dialog_keyword=dlgk,
+    )
+    case_request_sig = _support_message_explicit_case_request(msg)
+    prop_sig = case_request_sig or purchase_discovery_mode
+    tx_hint = transaction_hint_from_message(msg) if prop_sig else ""
+    if not tx_hint and selected_cases:
+        labels_blob = " ".join(str(x.get("transaction_label_zh") or "") for x in selected_cases)
+        if "租" in labels_blob:
+            tx_hint = "rent"
+        elif "賣" in labels_blob:
+            tx_hint = "sell"
+        elif "買" in labels_blob:
+            tx_hint = "buy"
+    managed_text = ""
+    managed_api: list[dict] = []
+    featured_text = ""
+    featured_recommendations: list[dict] = []
+    wants_kb = bool(payload.use_knowledge)
+    suggests_kb = _chat_message_suggests_knowledge_lookup(msg)
+    run_kb = wants_kb and suggests_kb and not purchase_discovery_mode
+    days_cap = max(1, min(186, int(payload.knowledge_days)))
+    merged_cap = max(8, min(100, int(payload.knowledge_merged_max)))
+    eff_days = days_cap
+    eff_merged = merged_cap
+    if run_kb:
+        eff_days = min(days_cap, 72)
+        eff_merged = min(merged_cap, 28)
+        half = max(6, min(24, eff_merged // 2 + 2))
+        kb_rows = fetch_knowledge_for_chat(
+            knowledge_query=kq,
+            days=eff_days,
+            keyword_limit=min(half + 6, 22),
+            recent_limit=min(half + 6, 22),
+            merged_max=eff_merged,
+        )
+        kb_text = format_knowledge_for_prompt(kb_rows, max_chars=5200, zh_variant=zh_v)
+    interest_head: list[str] = []
+    if purchase_discovery_mode:
+        interest_head.append(
+            _support_purchase_discovery_prompt_block(
+                selected_cases=selected_cases,
+                missing_fields=purchase_missing_fields,
+            )
+        )
+    elif selected_cases and case_request_sig:
+        interest_head.append(_support_interest_coaching_block(selected_cases))
+    sc_ctx = _format_support_client_search_context(fk, fr, dlgk)
+    if sc_ctx and not purchase_discovery_mode:
+        interest_head.append(sc_ctx)
+    if (selected_cases_text or "").strip() and not purchase_discovery_mode and case_request_sig:
+        interest_head.append(selected_cases_text)
+    interest_bundle = "\n\n".join([x for x in interest_head if (x or "").strip()])
+    rag_parts = [p for p in (interest_bundle, managed_text, featured_text, kb_text) if (p or "").strip()]
+    combined_kb_text = "\n\n".join(rag_parts)
+    kw_hits = sum(1 for r in kb_rows if str(r.get("kb_hit") or "") == "keyword")
+    rec_hits = sum(1 for r in kb_rows if str(r.get("kb_hit") or "") == "recent")
+    kb_rows_ui = list(kb_rows)
+    # UI/對客：若關鍵字完全未命中，recent fill 多半是無關新文章，避免「一口氣貼一堆」造成困擾。
+    if run_kb and kw_hits <= 0:
+        kb_rows_ui = []
+        kb_text = ""  # prompt 也不灌入無關 recent fill
+        combined_kb_text = "\n\n".join([p for p in (interest_bundle, managed_text, featured_text) if (p or "").strip()])
+    # 對客 UI 統計：使用 kb_rows_ui（避免 recent fill 讓畫面看起來像命中很多）
+    ui_kw_hits = sum(1 for r in kb_rows_ui if str(r.get("kb_hit") or "") == "keyword")
+    ui_rec_hits = sum(1 for r in kb_rows_ui if str(r.get("kb_hit") or "") == "recent")
+    ui_src_names = {
+        str(r.get("source_name") or "").strip()
+        for r in kb_rows_ui
+        if str(r.get("source_name") or "").strip()
+    }
+    src_names = {str(r.get("source_name") or "").strip() for r in kb_rows if str(r.get("source_name") or "").strip()}
+    knowledge_meta = {
+        "query": kq,
+        "days": eff_days,
+        "merged_max": eff_merged,
+        "row_count": len(kb_rows_ui),
+        "keyword_hit_count": ui_kw_hits,
+        "recent_fill_count": ui_rec_hits,
+        "distinct_sources": len(ui_src_names),
+        "items": knowledge_items_for_api(kb_rows_ui, zh_variant=zh_v),
+        "skipped_lookup": not run_kb,
+        "featured_count": len(featured_recommendations),
+        "featured_recommendations": featured_recommendations,
+        "managed_cases": managed_api,
+        "managed_case_count": len(managed_api),
+        "selected_cases": selected_cases,
+        "selected_case_count": len(selected_cases),
+        "property_listing_intent": prop_sig,
+        "purchase_discovery_mode": purchase_discovery_mode,
+        "purchase_discovery": {
+            "active": purchase_discovery_mode,
+            "dimensions": purchase_dimensions,
+            "missing_fields": purchase_missing_fields,
+            "skip_reason": "purchase_discovery_needs_requirements" if purchase_discovery_mode else "",
+        },
+        "client_search": {
+            "figure_keyword": fk,
+            "figure_region": fr,
+            "dialog_keyword": dlgk,
+            "query_blend": kq_blend,
+        },
+    }
+    crm_addon = support_crm_system_addon_for_llm()
+    rp = resolve_llm_provider((payload.llm_provider or "").strip() or None)
+    _, _, default_m = get_chat_credentials(rp)
+    use_model = (payload.gemini_model or "").strip() or default_m
+    llm_fast = not run_kb
+    llm_meta = {
+        "provider": rp,
+        "enabled": bool(is_llm_configured(rp)),
+        "model": use_model,
+        "fast_mode": llm_fast,
+        "knowledge_skipped": not run_kb,
+        "crm_prompt_injected": bool((crm_addon or "").strip()),
+    }
+    matched = _match_support_scenario(msg)
+    matched_qa = _match_support_qa_training(msg)
+    scenario_coaching = _support_coaching_with_tone(
+        _compose_scenario_coaching_text(matched) if matched else "",
+        matched,
+    )
+    faq_guidance = guidance_block_for_prompt(msg)
+    if faq_guidance:
+        scenario_coaching = "\n\n".join([scenario_coaching, faq_guidance]).strip()[:7200]
+    if purchase_discovery_mode:
+        scenario_coaching = "\n\n".join(
+            [
+                scenario_coaching,
+                _support_purchase_discovery_prompt_block(
+                    selected_cases=selected_cases,
+                    missing_fields=purchase_missing_fields,
+                ),
+            ]
+        ).strip()[:5200]
+    qa_addon = ""
+    if matched_qa:
+        qlab = str(matched_qa.get("label") or "").strip()
+        qbody = str(matched_qa.get("answer_body") or "").strip()
+        qa_addon = (
+            f"訓練條目：{qlab or matched_qa.get('id') or ''}\n"
+            "使用時機：先直接回答本題，不做案件推薦；必要時最後只問 1 個下一步問題。\n"
+            "寫作風格：自然口語、像顧問親自打字；消化要點後用短版引導式回答，避免條列式報表、避免重複介面統計句。\n"
+            "占位說明：{excerpt}＝使用者原句；{links}＝站內摘錄連結清單（一般問答不要輸出案件 URL 或照抄占位符）。\n"
+            f"{qbody[:5200]}"
+        )
+    stage_key, _ = _detect_sales_stage(msg)
+    if llm_meta["enabled"]:
+        try:
+            reply = chat_support_reply_gemini(
+                user_message=msg,
+                history=list(payload.history or []),
+                knowledge_text=combined_kb_text,
+                persona_region=str(payload.persona_region or "tw"),
+                model=use_model,
+                provider=rp,
+                scenario_coaching=scenario_coaching,
+                fast_mode=llm_fast,
+                knowledge_zh_variant=zh_v,
+                kb_row_count=int(knowledge_meta.get("row_count") or 0),
+                kb_source_count=int(knowledge_meta.get("distinct_sources") or 0),
+                kb_attached=bool((combined_kb_text or "").strip()),
+                sales_stage_key=str(stage_key or "discover"),
+                scenario_label=str((matched or {}).get("label") or "").strip(),
+                crm_system_addon=crm_addon,
+                consultant_qa_addon=qa_addon,
+                property_listing_intent=bool(prop_sig),
+                managed_case_count=len(managed_api),
+                featured_case_count=len(featured_recommendations),
+                qa_match_label=str((matched_qa or {}).get("label") or "").strip(),
+            )
+            reply, refine_meta = refine_long_support_reply_dual_stage(
+                reply,
+                persona_region=str(payload.persona_region or "tw"),
+            )
+            if refine_meta.get("applied"):
+                llm_meta["long_reply_refinement"] = {
+                    "applied": True,
+                    "steps": refine_meta.get("steps") or [],
+                }
+        except Exception as exc:
+            llm_meta["enabled"] = False
+            llm_meta["error"] = f"{type(exc).__name__}: {exc}"
+            _push_backend_error_log(
+                method="POST",
+                path="/api/ai/chat-support",
+                status_code=502,
+                message=f"llm_chat_error: {type(exc).__name__}: {exc}",
+                elapsed_ms=0,
+            )
+            reply = _build_offline_support_reply(
+                message=msg,
+                knowledge_meta=knowledge_meta,
+                persona_region=str(payload.persona_region or "tw"),
+            )
+    else:
+        reply = _build_offline_support_reply(
+            message=msg,
+            knowledge_meta=knowledge_meta,
+            persona_region=str(payload.persona_region or "tw"),
+        )
+    if purchase_discovery_mode and _support_reply_violates_purchase_discovery(reply):
+        reply = _build_purchase_discovery_reply(
+            msg,
+            selected_cases=selected_cases,
+            missing_fields=purchase_missing_fields,
+        )
+    sales_mcp = _build_sales_mcp_payload(
+        msg,
+        knowledge_meta,
+        session_id=session_id,
+        matched_scenario=matched,
+    )
+    sales_mcp["case_intro"] = []
+    if purchase_discovery_mode:
+        sales_mcp["purchase_discovery_mode"] = True
+        sales_mcp["next_actions"] = [
+            {"id": "confirm_one_requirement", "label": "本輪只確認一個關鍵條件"},
+            {"id": "narrow_region", "label": "下一輪再縮小區域／車站"},
+            {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
+        ]
+        sales_mcp["sales_pitch"] = [
+            "本輪為購買意向但條件不足：不要推薦案件，先做一問一答需求盤點。",
+            "先問用途或總預算其中一項，等客戶回答後再問下一項。",
+            "若客戶願意找顧問，將上述條件與聯絡方式整理成留單。",
+        ]
+    tg_high_intent_sent = False
+    tg_high_intent_err = ""
+    tg_customer_followup_attempted = False
+    tg_customer_followup_sent = False
+    tg_customer_followup_err = ""
+    line_high_intent_sent = False
+    line_high_intent_err = ""
+    line_customer_followup_attempted = False
+    line_customer_followup_sent = False
+    line_customer_followup_err = ""
+    support_has_handoff_thread = _support_session_has_telegram_thread(session_id) or _support_session_has_line_thread(session_id)
+    intake_required_before_human = bool(sales_mcp.get("should_notify_human")) and not support_has_handoff_thread
+    sales_mcp["intake_required_before_human_reply"] = intake_required_before_human
+    if bool(sales_mcp.get("should_notify_human")):
+        sid = str((matched or {}).get("id") or "")
+        slabel = str((matched or {}).get("label") or "")
+        lines = [
+            "【智能客服·高意願／需真人跟進】",
+            "回覆提示：Telegram 可直接回覆本則；LINE 請用 /reply <Session> 訊息。",
+            f"Session：{session_id}",
+            f"意願分：{sales_mcp.get('intent_score')}",
+            str(sales_mcp.get("notify_reason") or "建議真人跟進"),
+            "（本輪對話已寫入 sales_mcp_events，含近輪 conversation_json）",
+        ]
+        if slabel:
+            lines.append(f"場景：{slabel}（{sid}）")
+        lines.append(f"使用者：{msg[:520]}")
+        lines.append(
+            f"站內案件命中：{knowledge_meta.get('managed_case_count')}｜客戶已選：{knowledge_meta.get('selected_case_count')}｜摘錄：{knowledge_meta.get('row_count')}"
+        )
+        selected_rows = list(knowledge_meta.get("selected_cases") or [])
+        if selected_rows:
+            lines.append("客戶已選案件：")
+            lines.append(_format_interest_cases_for_tg(selected_rows, max_items=4))
+        notify_body = "\n".join(lines)
+    else:
+        notify_body = ""
+    if (
+        not tg_high_intent_sent
+        and _support_notify_channel_enabled("telegram")
+        and _support_session_has_telegram_thread(session_id)
+    ):
+        tg_customer_followup_attempted = True
+        try:
+            reason = "此 Session 已進入人工/Telegram 接續，客戶在網頁繼續回覆"
+            _telegram_send_support_customer_followup(
+                session_id=session_id,
+                message=msg,
+                reason=reason,
+                selected_cases=list(knowledge_meta.get("selected_cases") or []),
+            )
+            tg_customer_followup_sent = True
+        except Exception as exc:
+            tg_customer_followup_err = _sanitize_telegram_error_detail(exc)
+            _push_backend_error_log(
+                method="POST",
+                path="/api/ai/chat-support",
+                status_code=502,
+                message=f"telegram_customer_followup: {tg_customer_followup_err}"[:900],
+                elapsed_ms=0,
+            )
+    if (
+        not line_high_intent_sent
+        and _support_notify_channel_enabled("line")
+        and _support_session_has_line_thread(session_id)
+    ):
+        line_customer_followup_attempted = True
+        try:
+            reason = "此 Session 已進入人工/LINE 接續，客戶在網頁繼續回覆"
+            _line_send_support_customer_followup(
+                session_id=session_id,
+                message=msg,
+                reason=reason,
+                selected_cases=list(knowledge_meta.get("selected_cases") or []),
+            )
+            line_customer_followup_sent = True
+        except Exception as exc:
+            line_customer_followup_err = _sanitize_line_error_detail(exc)
+            _push_backend_error_log(
+                method="POST",
+                path="/api/ai/chat-support",
+                status_code=502,
+                message=f"line_customer_followup: {line_customer_followup_err}"[:900],
+                elapsed_ms=0,
+            )
+    if bool(sales_mcp.get("should_notify_human")):
+        if tg_high_intent_sent or tg_customer_followup_sent or line_high_intent_sent or line_customer_followup_sent:
+            reply = (
+                str(reply or "").rstrip()
+                + "\n\n（已同步給顧問）若想留資料對接，輸入「人工」即可。"
+            )
+        elif intake_required_before_human:
+            reply = (
+                str(reply or "").rstrip()
+                + "\n\n若需要人工顧問，請輸入「人工」並完整填寫問卷與聯絡方式；確認送出後人工才會回覆。"
+            )
+        else:
+            err_show = (tg_high_intent_err or line_high_intent_err or "顧問即時通知未送出").strip()
+            reply = (
+                str(reply or "").rstrip()
+                + "\n\n（顧問通知未送出）請輸入「人工」留單，或稍後再試。"
+            )
+    bot_eval = _build_support_bot_self_eval(
+        message=msg,
+        reply=str(reply or ""),
+        knowledge_meta=knowledge_meta,
+        sales_mcp=sales_mcp,
+        llm_meta=llm_meta,
+        matched_scene=matched,
+        matched_qa=matched_qa,
+    )
+    sales_mcp["bot_self_eval"] = bot_eval
+    hist_for_db = list(payload.history or [])
+    hist_for_db.append({"role": "user", "content": msg[:8000]})
+    hist_for_db.append({"role": "assistant", "content": str(reply or "")[:12000]})
+    try:
+        _save_sales_mcp_event(
+            session_id=session_id,
+            user_message=msg,
+            assistant_reply=reply,
+            sales_mcp=sales_mcp,
+            knowledge_meta=knowledge_meta,
+            conversation_history=hist_for_db[-26:],
+        )
+    except Exception as exc:
+        _push_backend_error_log(
+            method="POST",
+            path="/api/ai/chat-support",
+            status_code=500,
+            message=f"sales_mcp_save_error: {type(exc).__name__}: {exc}",
+            elapsed_ms=0,
+        )
+    try:
+        _save_support_bot_self_eval(
+            session_id=session_id,
+            message=msg,
+            bot_eval=bot_eval,
+        )
+    except Exception as exc:
+        _push_backend_error_log(
+            method="POST",
+            path="/api/ai/chat-support",
+            status_code=500,
+            message=f"support_bot_eval_save_error: {type(exc).__name__}: {exc}",
+            elapsed_ms=0,
+        )
+    return JSONResponse(
+        {
+            "ok": True,
+            "session_id": session_id,
+            "reply": reply,
+            "knowledge": knowledge_meta,
+            "llm": llm_meta,
+            "sales_mcp": sales_mcp,
+            "matched_scene": (
+                {
+                    "id": matched.get("id"),
+                    "label": matched.get("label"),
+                    "hit_keywords": _matched_keywords_from_text(msg, list(matched.get("keywords") or [])),
+                }
+                if matched
+                else None
+            ),
+            "matched_qa": (
+                {
+                    "id": matched_qa.get("id"),
+                    "label": matched_qa.get("label"),
+                    "hit_keywords": _matched_keywords_from_text(msg, list(matched_qa.get("keywords") or [])),
+                }
+                if matched_qa
+                else None
+            ),
+            "featured_recommendations": featured_recommendations,
+            "bot_self_eval": bot_eval,
+            "telegram_notify": {
+                "attempted": tg_customer_followup_attempted,
+                "sent": tg_customer_followup_sent,
+                "error": tg_customer_followup_err,
+                "customer_followup_attempted": tg_customer_followup_attempted,
+                "customer_followup_sent": tg_customer_followup_sent,
+                "customer_followup_error": tg_customer_followup_err,
+                "intake_required_before_human_reply": intake_required_before_human,
+            },
+            "line_notify": {
+                "attempted": line_customer_followup_attempted,
+                "sent": line_customer_followup_sent,
+                "error": line_customer_followup_err,
+                "customer_followup_attempted": line_customer_followup_attempted,
+                "customer_followup_sent": line_customer_followup_sent,
+                "customer_followup_error": line_customer_followup_err,
+                "intake_required_before_human_reply": intake_required_before_human,
+            },
+            "advisor_notify": {
+                "attempted": bool(tg_customer_followup_attempted or line_customer_followup_attempted),
+                "sent": bool(
+                    tg_customer_followup_sent
+                    or line_customer_followup_sent
+                ),
+                "intake_required_before_human_reply": intake_required_before_human,
+                "channels": {
+                    "telegram": {
+                        "enabled": _support_notify_channel_enabled("telegram"),
+                        "sent": tg_customer_followup_sent,
+                        "error": tg_customer_followup_err,
+                    },
+                    "line": {
+                        "enabled": _support_notify_channel_enabled("line"),
+                        "sent": line_customer_followup_sent,
+                        "error": line_customer_followup_err,
+                    },
+                },
+            },
+        }
+    )
+
+
+@app.post("/api/sales/mcp/notify")
+def api_sales_mcp_notify(payload: SalesMcpNotifyRequest):
+    session_id = (payload.session_id or "").strip()
+    if not session_id:
+        raise HTTPException(status_code=400, detail="missing session_id")
+    selected_cases = _load_support_session_interest_cases(session_id, limit=20)
+    reason = (payload.notify_reason or "").strip() or "手動通知：客服判斷高意願"
+    with get_conn() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sales_mcp_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                intent_score INTEGER NOT NULL DEFAULT 0,
+                notify_reason TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO sales_mcp_notifications (session_id, intent_score, notify_reason, status)
+            VALUES (?, ?, ?, ?)
+            """,
+            (session_id, int(payload.intent_score or 0), reason, "manual_queued"),
+        )
+        conn.commit()
+    tg_note = ""
+    line_note = ""
+    body = ""
+    try:
+        lines = [
+            "【智能客服·手動通知真人】",
+            "回覆提示：Telegram 可直接回覆本則；LINE 請用 /reply <Session> 訊息。",
+            f"Session：{session_id}",
+            f"意願分：{int(payload.intent_score or 0)}",
+            f"原因：{reason[:500]}",
+            f"客戶已選案件：{len(selected_cases)}",
+        ]
+        if selected_cases:
+            lines.append("客戶已選案件：")
+            lines.append(_format_interest_cases_for_tg(selected_cases, max_items=5))
+        body = "\n".join(lines)
+        if _support_notify_channel_enabled("telegram"):
+            _telegram_send_and_bridge(body[:3900], session_id, "manual_notify")
+            tg_note = "telegram_sent"
+        else:
+            tg_note = "telegram_disabled"
+    except Exception as exc:
+        tg_note = f"telegram_error:{str(exc)[:120]}"
+    try:
+        if _support_notify_channel_enabled("line"):
+            _line_send_and_bridge(body[:4900], session_id, "manual_notify")
+            line_note = "line_sent"
+        else:
+            line_note = "line_disabled"
+    except Exception as exc:
+        line_note = f"line_error:{_sanitize_line_error_detail(exc)[:120]}"
+    return JSONResponse(
+        {
+            "ok": True,
+            "message": "已通知後台，請安排真人顧問對接。",
+            "session_id": session_id,
+            "telegram": tg_note,
+            "line": line_note,
+        }
+    )
+
+
+@app.post("/api/admin/social-radar/analyze")
+def api_admin_social_radar_analyze(payload: SocialRadarAnalyzeRequest, request: Request):
+    _require_admin_password(request)
+    default_platform = str(payload.default_platform or "").strip()
+    campaign = str(payload.campaign or "").strip()
+    accounts = _parse_social_account_matrix(payload.source_accounts_text, default_platform=default_platform)
+    leads = _parse_social_interactions(
+        payload.interactions_text,
+        default_platform=default_platform,
+        account_rows=accounts,
+        campaign=campaign,
+        limit=int(payload.limit or 120),
+    )
+    saved = _save_social_radar_payload(accounts=accounts, leads=leads) if payload.save else []
+    items = saved if payload.save else leads
+    stage_counts: dict[str, int] = {}
+    for it in items:
+        st = str(it.get("stage") or "observe")
+        stage_counts[st] = stage_counts.get(st, 0) + 1
+    return JSONResponse(
+        {
+            "ok": True,
+            "saved": bool(payload.save),
+            "campaign": campaign,
+            "account_count": len(accounts),
+            "lead_count": len(items),
+            "stage_counts": stage_counts,
+            "accounts": accounts,
+            "items": items,
+            "policy_note": "僅處理顧問貼上或平台合法匯出的公開互動資料；避免未授權爬取、批量騷擾或匯入敏感個資。",
+        }
+    )
+
+
+@app.get("/api/admin/social-radar/leads")
+def api_admin_social_radar_leads(
+    request: Request,
+    limit: int = Query(default=80, ge=1, le=300),
+    q: str = Query(default=""),
+    stage: str = Query(default=""),
+):
+    _require_admin_password(request)
+    q_clean = str(q or "").strip()
+    stage_clean = str(stage or "").strip().lower()
+    where = ["1=1"]
+    params: list[Any] = []
+    if stage_clean:
+        where.append("stage = ?")
+        params.append(stage_clean)
+    if q_clean:
+        like = f"%{q_clean}%"
+        where.append(
+            "(platform LIKE ? OR source_account LIKE ? OR prospect_handle LIKE ? OR display_name LIKE ? OR interaction_text LIKE ? OR campaign LIKE ?)"
+        )
+        params.extend([like, like, like, like, like, like])
+    sql_where = " AND ".join(where)
+    with get_conn() as conn:
+        _ensure_social_radar_tables(conn)
+        rows = conn.execute(
+            f"""
+            SELECT id, campaign, platform, source_account, source_account_url,
+                   prospect_handle, display_name, profile_url, post_url, interaction_type,
+                   interaction_text, score, stage, intent_label, reason, suggested_reply,
+                   route_message, support_url, channel_region, preferred_area, budget_hint,
+                   investment_intent, persona_tags_json, status, created_at, updated_at
+            FROM social_radar_leads
+            WHERE {sql_where}
+            ORDER BY score DESC, id DESC
+            LIMIT ?
+            """,
+            (*params, int(limit)),
+        ).fetchall()
+        account_rows = conn.execute(
+            """
+            SELECT platform, account_handle, account_url, audience_note, topic_note, region_note,
+                   channel_region, follower_count, like_count, comment_count, account_score,
+                   priority, updated_at
+            FROM social_radar_accounts
+            ORDER BY priority DESC, datetime(updated_at) DESC, id DESC
+            LIMIT 80
+            """
+        ).fetchall()
+        summary_rows = conn.execute(
+            """
+            SELECT stage, COUNT(1) AS c, AVG(score) AS avg_score
+            FROM social_radar_leads
+            GROUP BY stage
+            """
+        ).fetchall()
+    items = [dict(r) for r in rows]
+    summary = {
+        str(r["stage"] or "observe"): {
+            "count": int(r["c"] or 0),
+            "avg_score": round(float(r["avg_score"] or 0), 1),
+        }
+        for r in summary_rows
+    }
+    return JSONResponse(
+        {
+            "ok": True,
+            "count": len(items),
+            "items": items,
+            "accounts": [dict(r) for r in account_rows],
+            "summary": summary,
+        }
+    )
+
+
+@app.post("/api/admin/social-radar/convert-handoff")
+def api_admin_social_radar_convert_handoff(payload: SocialRadarConvertRequest, request: Request):
+    _require_admin_password(request)
+    lead = _load_social_radar_lead_from_db(int(payload.lead_id or 0)) or dict(payload.lead or {})
+    if not lead:
+        raise HTTPException(status_code=404, detail="social lead not found")
+    lead_id = int(lead.get("id") or payload.lead_id or 0)
+    handle = str(lead.get("prospect_handle") or lead.get("display_name") or "").strip()
+    platform = str(lead.get("platform") or "social").strip()
+    session_id = f"social-{lead_id or uuid4().hex[:8]}-{uuid4().hex[:8]}"
+    note_lines = [
+        "社群獲客雷達導入",
+        f"平台：{platform}",
+        f"參考帳號：{lead.get('source_account') or ''}",
+        f"潛在客戶：{handle or '未標示'}",
+        f"互動型態：{lead.get('interaction_type') or ''}",
+        f"意願分：{lead.get('score') or 0}｜{lead.get('intent_label') or ''}",
+        f"渠道區域：{lead.get('channel_region') or ''}",
+        f"偏好城市：{lead.get('preferred_area') or ''}",
+        f"預算訊號：{lead.get('budget_hint') or ''}",
+        f"投資/用途意圖：{lead.get('investment_intent') or ''}",
+    ]
+    if lead.get("interaction_text"):
+        note_lines.append(f"留言/訊息：{str(lead.get('interaction_text'))[:800]}")
+    if lead.get("post_url"):
+        note_lines.append(f"貼文：{lead.get('post_url')}")
+    if lead.get("profile_url"):
+        note_lines.append(f"個人頁：{lead.get('profile_url')}")
+    intake = HumanIntakeRequest(
+        name=str(payload.name or handle or "").strip()[:120],
+        phone=str(payload.phone or "").strip()[:80],
+        email=str(payload.email or "").strip()[:160],
+        note="\n".join(note_lines)[:2000],
+        action_id="social_radar",
+        session_id=session_id,
+        matched_scene_id="social_radar",
+        matched_scene_label="社群獲客雷達",
+        context_message=str(lead.get("route_message") or "")[:2000],
+        opinion=str(lead.get("suggested_reply") or "")[:2000],
+        conversation=[
+            {
+                "role": "user",
+                "content": str(lead.get("route_message") or lead.get("interaction_text") or "社群線索導入")[:2000],
+            }
+        ],
+    )
+    res = _human_intake_core(intake, request)
+    if lead_id > 0:
+        try:
+            with get_conn() as conn:
+                _ensure_social_radar_tables(conn)
+                conn.execute(
+                    "UPDATE social_radar_leads SET status = 'handoff_created', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (lead_id,),
+                )
+                conn.commit()
+        except Exception:
+            pass
+    return res
+
+
+@app.get("/api/sales/mcp/lead-board")
+def api_sales_mcp_lead_board(limit: int = Query(default=40, ge=1, le=200)):
+    with get_conn() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sales_mcp_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                user_message TEXT NOT NULL,
+                assistant_reply TEXT NOT NULL,
+                stage TEXT NOT NULL DEFAULT 'discover',
+                intent_score INTEGER NOT NULL DEFAULT 0,
+                outcome TEXT NOT NULL DEFAULT 'active',
+                recommendation_json TEXT NOT NULL DEFAULT '{}',
+                knowledge_meta_json TEXT NOT NULL DEFAULT '{}',
+                conversation_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS sales_mcp_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                intent_score INTEGER NOT NULL DEFAULT 0,
+                notify_reason TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        _ensure_sales_mcp_events_conversation_column(conn)
+        _ensure_support_bot_eval_table(conn)
+        rows = conn.execute(
+            """
+            SELECT
+                e.id,
+                e.session_id,
+                e.stage,
+                e.intent_score,
+                e.outcome,
+                e.user_message,
+                substr(COALESCE(e.assistant_reply, ''), 1, 400) AS assistant_reply_preview,
+                substr(COALESCE(e.conversation_json, ''), 1, 500) AS conversation_preview,
+                e.created_at,
+                (
+                    SELECT COUNT(1) FROM sales_mcp_notifications n
+                    WHERE n.session_id = e.session_id
+                ) AS notify_count,
+                (
+                    SELECT b.overall_score FROM support_bot_eval_events b
+                    WHERE b.session_id = e.session_id
+                    ORDER BY b.id DESC
+                    LIMIT 1
+                ) AS bot_eval_score,
+                (
+                    SELECT b.optimization_level FROM support_bot_eval_events b
+                    WHERE b.session_id = e.session_id
+                    ORDER BY b.id DESC
+                    LIMIT 1
+                ) AS bot_optimization_level,
+                (
+                    SELECT b.bot_status FROM support_bot_eval_events b
+                    WHERE b.session_id = e.session_id
+                    ORDER BY b.id DESC
+                    LIMIT 1
+                ) AS bot_status
+            FROM sales_mcp_events e
+            ORDER BY e.id DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    items = [dict(r) for r in rows]
+    return JSONResponse(
+        {"ok": True, "count": len(items), "items": items, "bot_report": _support_bot_eval_report(limit=40)}
+    )
+
+
+@app.get("/api/admin/support-bot/status")
+def api_admin_support_bot_status(
+    request: Request,
+    limit: int = Query(default=40, ge=1, le=200),
+):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, "report": _support_bot_eval_report(limit=limit)})
+
+
+@app.get("/api/admin/data-completion-bot/status")
+def api_admin_data_completion_bot_status(
+    request: Request,
+    limit: int = Query(default=40, ge=1, le=200),
+    age_days: int = Query(default=180, ge=1, le=366),
+    threshold_per_cell: int = Query(default=15, ge=1, le=5000),
+    source_item_id: int = Query(default=0, ge=0),
+):
+    _require_admin_password(request)
+    live_eval = _build_data_completion_bot_eval(
+        age_days=age_days,
+        threshold_per_cell=threshold_per_cell,
+        source_item_id=source_item_id,
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "live_eval": live_eval,
+            "report": _data_completion_bot_report(limit=limit),
+        }
+    )
+
+
+@app.post("/api/admin/data-completion-bot/run")
+def api_admin_data_completion_bot_run(payload: DataCompletionBotRunPost, request: Request):
+    _require_admin_password(request)
+    sid = int(payload.source_item_id or 0)
+    media_fix: dict[str, Any] = {}
+    text_fix: dict[str, Any] = {}
+    heal_result: dict[str, Any] = {}
+    if sid > 0:
+        media_fix = _sync_case_listing_media_from_source_item_id(
+            sid,
+            force=bool(payload.force_media_sync),
+            dry_run=bool(payload.dry_run),
+        )
+        text_fix = _repair_case_text_fields_from_source_item_id(sid, dry_run=bool(payload.dry_run))
+    if bool(payload.run_remaining_three_heal):
+        heal_payload = CasesCoverageHealPost(
+            age_days=int(payload.age_days),
+            threshold_per_cell=int(payload.threshold_per_cell),
+            per_source_limit=int(payload.per_source_limit),
+            max_cells=int(payload.max_cells),
+            dry_run=bool(payload.dry_run),
+            portal_scope="remaining_three",
+        )
+        heal_resp = api_admin_cases_coverage_heal(heal_payload, request)
+        try:
+            heal_result = json.loads(heal_resp.body.decode("utf-8"))
+        except Exception:
+            heal_result = {"ok": False, "error": "coverage_heal_response_parse_failed"}
+    bot_eval = _build_data_completion_bot_eval(
+        age_days=int(payload.age_days),
+        threshold_per_cell=int(payload.threshold_per_cell),
+        source_item_id=sid,
+        media_fix=media_fix,
+        text_fix=text_fix,
+        heal_result=heal_result,
+    )
+    _save_data_completion_bot_eval(
+        run_label=str(payload.run_label or "manual"),
+        source_item_id=sid,
+        bot_eval=bot_eval,
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "dry_run": bool(payload.dry_run),
+            "bot_eval": bot_eval,
+            "report": _data_completion_bot_report(limit=40),
+        }
+    )
+
+
+@app.get("/api/admin/cases/quality-batch/status")
+def api_admin_cases_quality_batch_status(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True, "quality_batch": case_quality_batch_status()})
+
+
+@app.post("/api/admin/cases/quality-batch/run")
+def api_admin_cases_quality_batch_run(payload: CaseQualityBatchRunPost, request: Request):
+    _require_admin_password(request)
+    before = case_quality_batch_status()
+    if before.get("running"):
+        return JSONResponse({"ok": True, "queued": False, "quality_batch": before})
+    kwargs = {
+        "reason": "manual_admin",
+        "dry_run": bool(payload.dry_run),
+        "backfill_limit": int(payload.backfill_limit),
+        "remaining_three_limit": int(payload.remaining_three_limit),
+        "force_refresh_limit": int(payload.force_refresh_limit),
+        "recrawl_limit": int(payload.recrawl_limit),
+        "scan_limit": int(payload.scan_limit),
+        "sleep_s": float(payload.sleep),
+        "invalidate_caches": _invalidate_case_data_caches,
+    }
+    if bool(payload.async_run):
+        threading.Thread(
+            target=run_case_quality_batch_once,
+            kwargs=kwargs,
+            daemon=True,
+            name="case-quality-batch-manual",
+        ).start()
+        return JSONResponse({"ok": True, "queued": True, "quality_batch": case_quality_batch_status()})
+    report = run_case_quality_batch_once(**kwargs)
+    return JSONResponse({"ok": bool(report.get("ok")), "queued": False, "report": report, "quality_batch": case_quality_batch_status()})
+
+
+@app.get("/api/cases-dashboard/quality-batch/status")
+def api_cases_dashboard_quality_batch_status_alias(request: Request):
+    return api_admin_cases_quality_batch_status(request)
+
+
+@app.post("/api/cases-dashboard/quality-batch/run")
+def api_cases_dashboard_quality_batch_run_alias(payload: CaseQualityBatchRunPost, request: Request):
+    return api_admin_cases_quality_batch_run(payload, request)
+
+
+@app.get("/api/knowledge/recent")
+def api_knowledge_recent(
+    q: str = Query(default=""),
+    days: int = Query(default=30, ge=1, le=186),
+    limit: int = Query(default=40, ge=1, le=200),
+    sort_by: str = Query(default="crawled_desc"),
+    zh_variant: str = Query(default="hans", description="UI hint: hans|hant|both（回傳欄位不變，供前端顯示偏好）"),
+):
+    rows = fetch_knowledge_snippets(
+        days=days, q=q.strip(), limit=limit, sort_by=sort_by, prefer_real_estate=True
+    )
+    zv = (zh_variant or "hans").strip().lower()
+    if zv not in ("hans", "hant", "both"):
+        zv = "hans"
+    return JSONResponse(
+        {"count": len(rows), "items": rows, "days": days, "sort_by": sort_by, "zh_variant": zv}
+    )
+
+
+_SOCIAL_DIGEST_AUTO_QUERIES = (
+    "日本買房 流程 社媒",
+    "外國人 日本 房貸 TikTok 小紅書",
+    "日本不動產 稅金 持有成本",
+    "日本中古屋 注意事項",
+    "東京 不動產 投資 七大來源",
+    "日本房產 仲介 房展",
+)
+
+
+def _merge_knowledge_rows_by_identity(rows: list[dict[str, Any]], cap: int) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        cid = str(row.get("content_id") or "").strip()
+        url = str(row.get("item_url") or "").strip()
+        key = ("cid", cid) if cid else ("url", url)
+        if not key[1] or key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+        if len(out) >= cap:
+            break
+    return out
+
+
+@app.get("/api/knowledge/social-digest")
+def api_knowledge_social_digest(
+    q: str = Query(default=""),
+    days: int = Query(default=15, ge=1, le=30),
+    limit: int = Query(default=16, ge=4, le=50),
+    sort_by: str = Query(default="crawled_desc"),
+    zh_variant: str = Query(default="hans", description="hans|hant|both"),
+):
+    """AI 摘要資料包：最近半個月社媒／七大來源／物件知識卡。"""
+    qq = (q or "").strip()
+    zv = (zh_variant or "hans").strip().lower()
+    if zv not in ("hans", "hant", "both"):
+        zv = "hans"
+    cap = max(4, min(50, int(limit)))
+    d = max(1, min(30, int(days)))
+
+    rows = fetch_knowledge_snippets(
+        days=d,
+        q=qq,
+        limit=cap,
+        sort_by=sort_by,
+        prefer_real_estate=True,
+    )
+    merged = _merge_knowledge_rows_by_identity(rows, cap)
+    if len(merged) < min(8, cap):
+        for query in _SOCIAL_DIGEST_AUTO_QUERIES:
+            if query == qq:
+                continue
+            more = fetch_knowledge_snippets(
+                days=d,
+                q=query,
+                limit=max(4, cap - len(merged)),
+                sort_by=sort_by,
+                prefer_real_estate=True,
+            )
+            merged = _merge_knowledge_rows_by_identity([*merged, *more], cap)
+            if len(merged) >= min(8, cap):
+                break
+
+    digest = build_social_knowledge_digest(
+        merged,
+        zh_variant=zv,
+        window_days=d,
+        max_items=cap,
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "query": qq,
+            "days": d,
+            "count": len(merged),
+            "zh_variant": zv,
+            "digest": digest,
+        }
+    )
+
+
+def _smart_nav_graph_payload_dict(
+    q: str,
+    dimension: str,
+    knowledge_zh_variant: str,
+    gemini_model: str = "",
+    llm_provider: str = "",
+) -> dict[str, Any]:
+    """共用：POST / GET 智慧關鍵字導航皆回傳同一結構。"""
+    qq = (q or "").strip()
+    if not qq:
+        raise HTTPException(status_code=400, detail="missing q")
+    zh_v = (knowledge_zh_variant or "hans").strip().lower()
+    if zh_v not in ("hans", "hant", "both"):
+        zh_v = "hans"
+    dim = (dimension or "").strip()[:40]
+    rows = fetch_results_v2(
+        q=qq,
+        region="",
+        keyword_type="",
+        intent_target="",
+        topic_category="",
+        access_status="",
+        offset=0,
+        limit=16,
+    )
+    kb = fetch_knowledge_snippets(days=45, q=qq, limit=18, prefer_real_estate=True)
+    graph = run_smart_nav_graph_ai(
+        query=qq,
+        dimension_key=dim,
+        search_rows=rows,
+        kb_rows=kb,
+        gemini_model=str(gemini_model or ""),
+        llm_provider=str(llm_provider or ""),
+        knowledge_zh_variant=zh_v,
+    )
+    return {
+        "ok": True,
+        "search_count": len(rows),
+        "kb_count": len(kb),
+        "graph": graph,
+    }
+
+
+@app.post("/api/knowledge/smart-nav-graph")
+def api_knowledge_smart_nav_graph(payload: SmartNavGraphRequest):
+    """智慧關鍵字導航：購屋需求推論、連貫結論鏈、關係圖譜、決策路徑排行。"""
+    return JSONResponse(
+        _smart_nav_graph_payload_dict(
+            q=str(payload.q or ""),
+            dimension=str(payload.dimension or ""),
+            knowledge_zh_variant=str(payload.knowledge_zh_variant or "hans"),
+            gemini_model=str(payload.gemini_model or ""),
+            llm_provider=str(payload.llm_provider or ""),
+        )
+    )
+
+
+@app.get("/api/knowledge/smart-nav-graph")
+def api_knowledge_smart_nav_graph_get(
+    q: str = Query(default=""),
+    dimension: str = Query(default=""),
+    knowledge_zh_variant: str = Query(default="hans"),
+    gemini_model: str = Query(default=""),
+    llm_provider: str = Query(default=""),
+):
+    """與 POST 相同；供少數只允許 GET 的代理／離線工具使用。"""
+    return JSONResponse(
+        _smart_nav_graph_payload_dict(
+            q=q,
+            dimension=dimension,
+            knowledge_zh_variant=knowledge_zh_variant,
+            gemini_model=gemini_model,
+            llm_provider=llm_provider,
+        )
+    )
+
+
+@app.post("/api/knowledge/bootstrap-by-query")
+def api_knowledge_bootstrap_by_query(payload: KnowledgeBootstrapRequest):
+    q = (payload.q or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="missing q")
+    zh_v = (payload.knowledge_zh_variant or "hans").strip().lower()
+    if zh_v not in ("hans", "hant", "both"):
+        zh_v = "hans"
+
+    target_count = int(payload.target_count)
+    existing = fetch_results_v2(
+        q=q,
+        region="",
+        keyword_type="",
+        intent_target="",
+        topic_category="",
+        access_status="",
+        offset=0,
+        limit=target_count,
+    )
+    source_runs: list[dict[str, int | str]] = []
+    crawl_triggered = False
+    processed = 0
+    crawled_items = 0
+    live_search_ingested = 0
+
+    if len(existing) < int(payload.min_existing):
+        enabled_sources = get_enabled_sources()[: int(payload.max_sources)]
+        to_process = []
+        for src in enabled_sources:
+            src_url = str(src.get("url") or "")
+            src_name = str(src.get("name") or src_url)
+            try:
+                got = crawl_one_source(
+                    src_url,
+                    per_source_limit=int(payload.per_source_limit),
+                    search_query=q,
+                )
+            except Exception:
+                got = []
+            source_runs.append({"name": src_name, "count": len(got)})
+            if got:
+                to_process.extend(got)
+        if bool(payload.ingest_live_portal_links) and int(payload.live_link_max) > 0:
+            try:
+                live_rows = collect_live_portal_search_links(
+                    q, per_source_limit=min(8, int(payload.per_source_limit))
+                )
+            except Exception:
+                live_rows = []
+            live_rows = sorted(live_rows, key=lambda r: int(r.get("score") or 0), reverse=True)
+            seen_item: set[str] = {str(getattr(ci, "item_url", "") or "") for ci in to_process}
+            cap = max(0, min(30, int(payload.live_link_max)))
+            for row in live_rows:
+                if live_search_ingested >= cap:
+                    break
+                u = str(row.get("url") or "").strip()
+                if not u or u in seen_item:
+                    continue
+                try:
+                    extra = crawl_item_url(u)
+                except Exception:
+                    extra = []
+                if not extra:
+                    continue
+                to_process.extend(extra)
+                seen_item.add(u)
+                live_search_ingested += 1
+        if to_process:
+            crawl_triggered = True
+            crawled_items = len(to_process)
+            processed = process_crawled_items(to_process)
+            existing = fetch_results_v2(
+                q=q,
+                region="",
+                keyword_type="",
+                intent_target="",
+                topic_category="",
+                access_status="",
+                offset=0,
+                limit=target_count,
+            )
+
+    kb_rows = fetch_knowledge_snippets(
+        days=int(payload.days), q=q, limit=20, sort_by="crawled_desc", prefer_real_estate=True
+    )
+    items = []
+    for row in existing:
+        slug = str(row.get("seo_slug") or "").strip()
+        img_urls, video_urls = extract_media_urls_from_row(row)
+        items.append(
+            {
+                "content_id": row.get("id"),
+                "source_item_id": row.get("source_item_id"),
+                "title": pick_article_title_for_ui(dict(row), zh_v)
+                or row.get("source_name")
+                or "",
+                "article_url": _standard_article_path(slug, row.get("source_item_id"))
+                if slug
+                else f"/case/{int(row.get('source_item_id') or 0)}",
+                "source_url": row.get("item_url") or "",
+                "source_name": row.get("source_name") or "",
+                "topic_category": row.get("topic_category") or "",
+                "intent_target": row.get("intent_target") or "",
+                "updated_at": row.get("updated_at") or "",
+                "image_urls": img_urls,
+                "video_urls": video_urls,
+            }
+        )
+    return JSONResponse(
+        {
+            "ok": True,
+            "query": q,
+            "count": len(items),
+            "items": items,
+            "crawl_triggered": crawl_triggered,
+            "crawled_items": crawled_items,
+            "processed": processed,
+            "source_runs": source_runs,
+            "knowledge_count": len(kb_rows),
+            "knowledge_preview": kb_rows[:8],
+            "live_portal_links_ingested": live_search_ingested,
+        }
+    )
+
+
+@app.post("/api/knowledge/suumo-faq-refresh")
+def api_knowledge_suumo_faq_refresh(payload: KnowledgeFaqRefreshRequest):
+    out = seed_suumo_faq_knowledge(limit=int(payload.limit))
+    return JSONResponse(out)
+
+
+@app.get("/api/knowledge/suumo-faq-top50")
+def api_knowledge_suumo_faq_top50(limit: int = Query(default=100, ge=1, le=100)):
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+              s.id, s.source_name, s.item_url, s.title_original, s.last_checked_at,
+              c.title_zh_hant, c.intent_target, c.topic_category, c.seo_slug, c.updated_at
+            FROM source_items s
+            LEFT JOIN content_items c ON c.source_item_id = s.id
+            WHERE s.content_kind = 'suumo_faq'
+            ORDER BY s.last_checked_at DESC, s.id DESC
+            LIMIT ?
+            """
+            ,
+            (limit,),
+        ).fetchall()
+    return JSONResponse(
+        {
+            "ok": True,
+            "count": len(rows),
+            "source_url": SUUMO_FAQ_URL,
+            "update_interval_hours": 2,
+            "items": [dict(r) for r in rows],
+        }
+    )
+
+
+@app.get("/api/knowledge/portal-faq")
+def api_knowledge_portal_faq(
+    source: str = Query(default="athome"),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    return JSONResponse(_extract_portal_faq_entries(source_key=source, limit=limit))
+
+
+@app.get("/seo-draft/{slug}")
+def seo_draft_page(request: Request, slug: str):
+    item = get_seo_draft(slug)
+    if not item:
+        raise HTTPException(status_code=404, detail="SEO draft not found")
+    return templates.TemplateResponse(
+        request=request,
+        name="seo_draft.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "site_url": get_effective_site_url(),
+            "brand_name": BRAND_NAME,
+            "item": item,
+        },
+    )
+
+
+@app.get("/api/source-map")
+def api_source_map():
+    return JSONResponse(
+        {
+            "company_profile": COMPANY_PROFILE,
+            "knowledge_sources": KNOWLEDGE_SOURCES,
+            "light_knowledge_keywords": LIGHT_KNOWLEDGE_KEYWORDS,
+            "seo_article_tw": SEO_ARTICLE_TW,
+        }
+    )
+
+
+@app.get("/api/lvr/cities")
+def api_lvr_cities():
+    with httpx.Client(timeout=20.0, follow_redirects=True, headers=_lvr_proxy_headers()) as client:
+        resp = client.get(f"{_LVR_PROXY_BASE_URL}/SERVICE/CITY")
+        resp.raise_for_status()
+        return JSONResponse({"ok": True, "items": resp.json()})
+
+
+@app.get("/api/lvr/towns")
+def api_lvr_towns(city: str = Query(default="")):
+    city_code = city.strip().upper()
+    if not city_code:
+        raise HTTPException(status_code=400, detail="city is required")
+    with httpx.Client(timeout=20.0, follow_redirects=True, headers=_lvr_proxy_headers()) as client:
+        resp = client.get(f"{_LVR_PROXY_BASE_URL}/SERVICE/CITY/{city_code}/")
+        resp.raise_for_status()
+        return JSONResponse({"ok": True, "items": resp.json()})
+
+
+@app.post("/api/lvr/session")
+def api_lvr_session():
+    return JSONResponse(_lvr_bootstrap_session())
+
+
+@app.post("/api/lvr/query")
+def api_lvr_query(payload: LvrProxyQueryRequest):
+    session_payload = _lvr_get_session(payload.session_id)
+    relative_url = _normalize_lvr_relative_url(payload.relative_url)
+    upstream_url = f"{_LVR_PROXY_BASE_URL}{relative_url}"
+    with httpx.Client(
+        timeout=25.0,
+        follow_redirects=True,
+        headers=_lvr_proxy_headers(),
+        cookies=session_payload.get("cookies") or {},
+    ) as client:
+        resp = client.get(upstream_url)
+        _lvr_update_session_cookies(session_payload["session_id"], client.cookies)
+    if resp.status_code == 401:
+        raise HTTPException(status_code=401, detail="Upstream session expired, please search again")
+    try:
+        resp.raise_for_status()
+        items = resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Failed to fetch upstream query result") from exc
+    return JSONResponse({"ok": True, "count": len(items) if isinstance(items, list) else 0, "items": items})
+
+
+@app.post("/api/manual-summary")
+def api_manual_summary(payload: ManualSummaryRequest):
+    return JSONResponse(build_manual_summary(payload.url.strip()))
+
+
+@app.post("/api/nta-taxanswer-search")
+def api_nta_taxanswer_search(payload: NTASearchRequest):
+    keyword = payload.keyword.strip() or "綜合所得稅"
+    data = search_nta_taxanswer(keyword)
+    threading.Thread(
+        target=lambda: track_keyword_search(keyword=keyword, channel="nta_taxanswer", filters={}),
+        daemon=True,
+    ).start()
+    return JSONResponse(data)
+
+
+@app.post("/api/market-portal-search")
+def api_market_portal_search(payload: MarketSearchRequest):
+    keyword = payload.keyword.strip() or "関東 不動産"
+    data = search_market_portal(keyword)
+    threading.Thread(
+        target=lambda: track_keyword_search(keyword=keyword, channel="market_portal", filters={}),
+        daemon=True,
+    ).start()
+    return JSONResponse(data)
+
+
+@app.post("/api/figure-tab-search")
+def api_figure_tab_search(payload: FigureQueryRequest):
+    settings = load_crawl_settings()
+    tab_key = payload.tab_key.strip() or "fig1"
+    keyword = payload.keyword.strip()
+    data = query_figure_tab(
+        tab_key=tab_key,
+        keyword=keyword,
+        settings=settings,
+    )
+    threading.Thread(
+        target=lambda: track_keyword_search(keyword=keyword, channel=f"figure_tab:{tab_key}", filters={"tab_key": tab_key}),
+        daemon=True,
+    ).start()
+    return JSONResponse(data)
+
+
+def _allowed_portal_transactions(settings: dict[str, Any]) -> list[str]:
+    out = ["buy"]
+    if bool(settings.get("smart_query_show_sell")):
+        out.append("sell")
+    if bool(settings.get("smart_query_show_rent")):
+        out.append("rent")
+    return out
+
+
+SMART_QUERY_PORTAL_KEYS = ("suumo", "homes", "athome", "yahoo", "rakuten", "yes1", "oheya_su")
+SMART_QUERY_PORTAL_ALIASES = {
+    "lifull": "homes",
+    "yahoo_realestate": "yahoo",
+    "rakuten_realestate": "rakuten",
+    "yesstation": "yes1",
+    "oheyasu": "oheya_su",
+    "oheya-su": "oheya_su",
+}
+
+
+def _normalize_smart_query_portals(*raw_values: Any) -> list[str]:
+    out: list[str] = []
+    for raw in raw_values:
+        if raw is None:
+            continue
+        if isinstance(raw, (list, tuple, set)):
+            for x in raw:
+                sx = str(x or "").strip().lower()
+                if sx:
+                    key = SMART_QUERY_PORTAL_ALIASES.get(sx, sx)
+                    if key in SMART_QUERY_PORTAL_KEYS and key not in out:
+                        out.append(key)
+            continue
+        s = str(raw or "").strip().lower()
+        if not s:
+            continue
+        for tok in re.split(r"[,\s|]+", s):
+            if not tok:
+                continue
+            key = SMART_QUERY_PORTAL_ALIASES.get(tok, tok)
+            if key in SMART_QUERY_PORTAL_KEYS and key not in out:
+                out.append(key)
+    return out
+
+
+@app.post("/api/portal-case-search")
+def api_portal_case_search(payload: PortalCaseSearchRequest):
+    settings = load_crawl_settings()
+    cap = max(1000, min(100000, int(settings.get("portal_query_max_records", 100000))))
+    interactive_cap = max(50, min(2000, int(settings.get("portal_query_interactive_max_records", 60) or 60)))
+    if bool(payload.coverage_matrix_aligned):
+        interactive_cap = max(interactive_cap, 500)
+    req_lim = int(payload.limit) if payload.limit is not None else cap
+    if req_lim <= 0:
+        req_lim = interactive_cap
+    lim = max(10, min(req_lim, cap, interactive_cap, 2000))
+    allowed_tx = _allowed_portal_transactions(settings)
+
+    tx = (payload.transaction or "").strip().lower()
+    if not tx and (payload.deal_side or "").strip():
+        tx = (payload.deal_side or "").strip().lower()
+    if tx not in allowed_tx:
+        tx = "buy"
+
+    portal_keys = _normalize_smart_query_portals(payload.portal, payload.portals)
+    portal = ",".join(portal_keys) if portal_keys else "all"
+    kw = (payload.keyword or "").strip()
+    max_age = int(payload.max_age_days)
+    if max_age < 0:
+        max_age = 0
+    if max_age > 366:
+        max_age = 366
+    property_types = [str(x or "").strip() for x in (payload.property_types or []) if str(x or "").strip()]
+    price_min_man = max(0, min(999_999, int(payload.price_min_man or 0)))
+    price_max_man = max(0, min(999_999, int(payload.price_max_man or 0)))
+    if price_min_man > 0 and price_max_man > 0 and price_max_man < price_min_man:
+        price_min_man, price_max_man = price_max_man, price_min_man
+    layout_min_rooms = max(0, min(99, int(payload.layout_min_rooms or 0)))
+    layout_max_rooms = max(0, min(99, int(payload.layout_max_rooms or 0)))
+    layout_exact_zero = bool(payload.layout_exact_zero)
+    if layout_exact_zero:
+        layout_min_rooms = 0
+        layout_max_rooms = 0
+    if layout_min_rooms > 0 and layout_max_rooms > 0 and layout_max_rooms < layout_min_rooms:
+        layout_min_rooms, layout_max_rooms = layout_max_rooms, layout_min_rooms
+
+    cache_key = _portal_case_search_cache_key(
+        {
+            "tx": tx,
+            "portal": portal,
+            "region": (payload.region_hint or "").strip(),
+            "keyword": kw,
+            "property_types": property_types,
+            "price_min_man": price_min_man,
+            "price_max_man": price_max_man,
+            "layout_min_rooms": layout_min_rooms,
+            "layout_max_rooms": layout_max_rooms,
+            "layout_exact_zero": layout_exact_zero,
+            "max_age_days": max_age,
+            "limit": lim,
+            "jp_line_id": int(payload.jp_line_id or 0),
+            "jp_station_id": int(payload.jp_station_id or 0),
+            "walk_max": int(payload.walk_max or 0),
+            "coverage_matrix_aligned": bool(payload.coverage_matrix_aligned),
+        }
+    )
+    cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
+    if cached_body is not None:
+        if cache_status == "stale":
+            threading.Thread(target=_prewarm_portal_case_search_cache, kwargs={"force": True}, daemon=True).start()
+        return Response(
+            content=cached_body,
+            media_type="application/json",
+            headers={"X-Portal-Case-Search-Cache": cache_status},
+        )
+
+    data = search_portal_cases(
+        transaction=tx,
+        portal=portal,
+        region_hint=(payload.region_hint or "").strip(),
+        keyword=kw,
+        property_types=property_types,
+        price_min_man=price_min_man,
+        price_max_man=price_max_man,
+        layout_min_rooms=layout_min_rooms,
+        layout_max_rooms=layout_max_rooms,
+        layout_exact_zero=layout_exact_zero,
+        max_age_days=max_age,
+        limit=lim,
+        jp_line_id=int(payload.jp_line_id or 0),
+        jp_station_id=int(payload.jp_station_id or 0),
+        walk_max=int(payload.walk_max or 0),
+        coverage_matrix_aligned=bool(payload.coverage_matrix_aligned),
+    )
+    has_transit_filter = bool(
+        int(payload.jp_line_id or 0) > 0
+        or int(payload.jp_station_id or 0) > 0
+        or int(payload.walk_max or 0) > 0
+    )
+    allow_search_live_backfill = (
+        not has_transit_filter
+        and str(os.getenv("SCLAW_PORTAL_SEARCH_LIVE_BACKFILL", "")).strip().lower() in ("1", "true", "yes")
+    )
+    items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
+        list(data.get("items") or []),
+        allow_live_fetch=allow_search_live_backfill,
+    )
+    if not allow_search_live_backfill:
+        bf_meta["skipped_reason"] = "search_fast_mode"
+    response_region_hint = (payload.region_hint or "").strip()
+    if response_region_hint:
+        for item in items_bf:
+            if isinstance(item, dict) and not str(item.get("jp_region_display_zh") or "").strip():
+                item["jp_region_display_zh"] = response_region_hint
+    data["items"] = items_bf
+    data["portal_thumb_backfill"] = bf_meta
+    track_filters = {
+        "transaction": tx,
+        "portal": portal,
+        "portal_keys": portal_keys,
+        "region": response_region_hint,
+        "property_types": property_types,
+        "price_min_man": price_min_man,
+        "price_max_man": price_max_man,
+        "layout_min_rooms": layout_min_rooms,
+        "layout_max_rooms": layout_max_rooms,
+        "layout_exact_zero": layout_exact_zero,
+        "max_age_days": max_age,
+        "limit": lim,
+        "jp_line_id": int(payload.jp_line_id or 0),
+        "jp_station_id": int(payload.jp_station_id or 0),
+        "walk_max": int(payload.walk_max or 0),
+        "coverage_matrix_aligned": bool(payload.coverage_matrix_aligned),
+    }
+    threading.Thread(
+        target=lambda: track_keyword_search(
+            keyword=kw or f"portal_case:{tx}:{portal or 'all'}",
+            channel="portal_case_search",
+            filters=track_filters,
+        ),
+        daemon=True,
+    ).start()
+    data["portal_keys"] = portal_keys or list(SMART_QUERY_PORTAL_KEYS)
+    data["allowed_transactions"] = allowed_tx
+    data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
+    data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
+    response_body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    _portal_case_search_cache_set(cache_key, response_body)
+    return Response(
+        content=response_body,
+        media_type="application/json",
+        headers={"X-Portal-Case-Search-Cache": "miss"},
+    )
+
+
+@app.get("/api/config/sources")
+def api_config_sources():
+    items = sorted(load_sources(), key=lambda x: int(x.get("priority", 0)), reverse=True)
+    enabled_count = len([x for x in items if x.get("enabled", True)])
+    return JSONResponse({"count": len(items), "enabled_count": enabled_count, "items": items})
+
+
+@app.get("/api/homes/kodate-chuko/catalog")
+def api_homes_kodate_chuko_catalog():
+    """HOMES-style geo dropdown: region→pref catalog for 中古一戸建て (/kodate/chuko/)."""
+    data = homes_kodate_chuko_pref_catalog()
+    return JSONResponse({"ok": True, **data})
+
+
+@app.get("/api/homes/kodate-chuko/city-groups")
+def api_homes_kodate_chuko_city_groups(
+    pref: str = Query(..., min_length=2),
+    refresh: bool = Query(False),
+):
+    """HOMES-style geo dropdown: pref→city/ward list (with counts) for 中古一戸建て (/kodate/chuko/{pref}/city/)."""
+    try:
+        data = homes_kodate_chuko_city_groups(pref.strip(), force_refresh=bool(refresh))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"homes geo fetch failed: {exc}") from exc
+    return JSONResponse(data)
+
+
+@app.get("/api/homes/kodate-chuko/transit-lines")
+def api_homes_kodate_chuko_transit_lines(
+    pref: str = Query(..., min_length=2),
+    only_with_cases: bool = Query(False),
+):
+    """HOMES-style geo dropdown addon: pref→commute lines (from jp_trans_line/jp_trans_station).
+
+    This does not scrape HOMES (which can be WAF-blocked). It exposes our internal jp_trans_* catalog,
+    filtered to the same prefecture label used by HOMES (e.g., 東京都).
+    """
+    key = pref.strip().lower()
+    pref_meta = next((p for p in HOMES_KODATE_CHUKO_PREFS if p.key == key), None)
+    if not pref_meta:
+        raise HTTPException(status_code=404, detail="unknown pref")
+    city_area = str(pref_meta.label or "").strip()
+    if not city_area:
+        raise HTTPException(status_code=404, detail="pref label missing")
+
+    with get_conn() as conn:
+        station_counts = {
+            int(r["line_id"]): int(r["c"])
+            for r in conn.execute(
+                """
+                SELECT s.line_id AS line_id, COUNT(*) AS c
+                FROM jp_trans_station s
+                JOIN jp_trans_line l ON l.line_id = s.line_id
+                WHERE l.city_area = ?
+                GROUP BY s.line_id
+                """,
+                (city_area,),
+            ).fetchall()
+        }
+        case_counts = {
+            int(r["line_id"]): int(r["c"])
+            for r in conn.execute(
+                """
+                SELECT s.line_id AS line_id, COUNT(*) AS c
+                FROM content_items c
+                JOIN jp_trans_station s ON s.station_id = c.jp_station_id
+                JOIN jp_trans_line l ON l.line_id = s.line_id
+                WHERE c.jp_station_id > 0 AND l.city_area = ?
+                GROUP BY s.line_id
+                """,
+                (city_area,),
+            ).fetchall()
+        }
+        rows = conn.execute(
+            """
+            SELECT line_id, city_area, trans_type, line_name, line_color, main_ward
+            FROM jp_trans_line
+            WHERE city_area = ?
+            ORDER BY trans_type COLLATE NOCASE, line_id ASC
+            """,
+            (city_area,),
+        ).fetchall()
+
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        line_id = int(d.get("line_id") or 0)
+        if line_id <= 0:
+            continue
+        case_count = int(case_counts.get(line_id, 0))
+        if only_with_cases and case_count <= 0:
+            continue
+        d["line_id"] = line_id
+        d["station_count"] = int(station_counts.get(line_id, 0))
+        d["case_count"] = case_count
+        items.append(d)
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "pref": {"id": pref_meta.key, "label": pref_meta.label, "region": pref_meta.region},
+            "city_area": city_area,
+            "only_with_cases": bool(only_with_cases),
+            "count": len(items),
+            "items": items,
+        }
+    )
+
+
+@app.get("/api/jp-transit/city-areas")
+def api_jp_transit_city_areas():
+    """日本不動產交通分層：都市圈（種子表）。"""
+    cache_key = "jp_transit:city_areas"
+    hit = _jp_transit_api_cache_get(cache_key)
+    ttl = int(_jp_transit_api_cache_ttl())
+    cache_header = {"Cache-Control": f"public, max-age={ttl}"} if ttl > 0 else {}
+    if hit is not None:
+        return Response(
+            content=hit,
+            media_type="application/json",
+            headers={**cache_header, "X-JP-Transit-Cache": "hit"},
+        )
+
+    with get_conn() as conn:
+        areas = list_city_areas(conn)
+    body = json.dumps(
+        {"ok": True, "items": [{"id": a, "label": a} for a in areas]},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    _jp_transit_api_cache_set(cache_key, body)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={**cache_header, "X-JP-Transit-Cache": "miss"},
+    )
+
+
+@app.get("/api/jp-transit/trans-types")
+def api_jp_transit_trans_types(city_area: str = Query(..., min_length=1)):
+    area = city_area.strip()
+    cache_key = f"jp_transit:types:{area}"
+    hit = _jp_transit_api_cache_get(cache_key)
+    ttl = int(_jp_transit_api_cache_ttl())
+    cache_header = {"Cache-Control": f"public, max-age={ttl}"} if ttl > 0 else {}
+    if hit is not None:
+        return Response(
+            content=hit,
+            media_type="application/json",
+            headers={**cache_header, "X-JP-Transit-Cache": "hit"},
+        )
+
+    with get_conn() as conn:
+        types_ = list_trans_types(conn, area)
+    body = json.dumps(
+        {"ok": True, "city_area": area, "items": [{"id": t, "label": t} for t in types_]},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    _jp_transit_api_cache_set(cache_key, body)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={**cache_header, "X-JP-Transit-Cache": "miss"},
+    )
+
+
+@app.get("/api/jp-transit/lines")
+def api_jp_transit_lines(
+    city_area: str = Query(..., min_length=1),
+    trans_type: str = Query(..., min_length=1),
+):
+    area = city_area.strip()
+    typ = trans_type.strip()
+    cache_key = f"jp_transit:lines:{area}:{typ}"
+    hit = _jp_transit_api_cache_get(cache_key)
+    ttl = int(_jp_transit_api_cache_ttl())
+    cache_header = {"Cache-Control": f"public, max-age={ttl}"} if ttl > 0 else {}
+    if hit is not None:
+        return Response(
+            content=hit,
+            media_type="application/json",
+            headers={**cache_header, "X-JP-Transit-Cache": "hit"},
+        )
+
+    with get_conn() as conn:
+        lines = list_lines(conn, area, typ)
+    body = json.dumps({"ok": True, "items": lines}, ensure_ascii=False, separators=(",", ":"))
+    _jp_transit_api_cache_set(cache_key, body)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={**cache_header, "X-JP-Transit-Cache": "miss"},
+    )
+
+
+@app.get("/api/jp-transit/stations")
+def api_jp_transit_stations(line_id: int = Query(..., ge=1)):
+    lid = int(line_id)
+    cache_key = f"jp_transit:stations:{lid}"
+    hit = _jp_transit_api_cache_get(cache_key)
+    ttl = int(_jp_transit_api_cache_ttl())
+    cache_header = {"Cache-Control": f"public, max-age={ttl}"} if ttl > 0 else {}
+    if hit is not None:
+        return Response(
+            content=hit,
+            media_type="application/json",
+            headers={**cache_header, "X-JP-Transit-Cache": "hit"},
+        )
+
+    with get_conn() as conn:
+        stations = list_stations(conn, lid)
+    body = json.dumps(
+        {"ok": True, "line_id": lid, "items": stations},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    _jp_transit_api_cache_set(cache_key, body)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={**cache_header, "X-JP-Transit-Cache": "miss"},
+    )
+
+
+@app.get("/api/config/source-groups")
+def api_config_source_groups():
+    enabled_map = load_source_group_enabled()
+    groups = []
+    for g in SOURCE_GROUP_DEFS:
+        gid = str(g.get("id") or "")
+        if not gid:
+            continue
+        groups.append(
+            {
+                "id": gid,
+                "label": str(g.get("label") or gid),
+                "description": str(g.get("description") or ""),
+                "enabled": bool(enabled_map.get(gid, False)),
+            }
+        )
+    return JSONResponse({"ok": True, "count": len(groups), "items": groups})
+
+
+@app.post("/api/config/source-groups/toggle")
+def api_config_toggle_source_group(payload: SourceGroupToggleRequest):
+    try:
+        enabled_map = set_source_group_enabled(payload.group_id, payload.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "source_group_enabled": enabled_map})
+
+
+@app.get("/api/assets/support-avatar")
+def api_support_avatar():
+    path = _resolve_support_avatar_file()
+    if not path:
+        raise HTTPException(status_code=404, detail="support avatar image not found")
+    return FileResponse(path, media_type=_support_avatar_media_type(path))
+
+
+@app.post("/api/admin/support-avatar")
+async def api_admin_upload_support_avatar(request: Request, file: UploadFile = File(...)):
+    """後台上傳智能客服／顧問頭像（寫入 static/support-avatar.{png|jpg|jpeg|webp}）。"""
+    _require_admin_password(request)
+    raw_name = (file.filename or "").strip()
+    suf = Path(raw_name).suffix.lower()
+    if suf not in (".png", ".jpg", ".jpeg", ".webp"):
+        raise HTTPException(
+            status_code=400,
+            detail="僅支援 PNG、JPG／JPEG、WEBP",
+        )
+    body = await file.read()
+    if len(body) < 32:
+        raise HTTPException(status_code=400, detail="檔案過小或空白")
+    if len(body) > 6 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="檔案請小於 6MB")
+    static_dir = Path("static")
+    static_dir.mkdir(parents=True, exist_ok=True)
+    for name in _SUPPORT_AVATAR_FILENAMES:
+        try:
+            (static_dir / name).unlink(missing_ok=True)
+        except OSError:
+            pass
+    dest = static_dir / f"support-avatar{suf}"
+    try:
+        dest.write_bytes(body)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"無法寫入檔案：{exc}") from exc
+    ver = str(int(time.time()))
+    set_kv("support_avatar_ver", ver)
+    return JSONResponse(
+        {
+            "ok": True,
+            "path": f"/static/{dest.name}",
+            "support_avatar_url": f"/api/assets/support-avatar?v={ver}",
+            "version": ver,
+        }
+    )
+
+
+@app.post("/api/config/sources")
+def api_add_source(payload: SourceCreateRequest):
+    try:
+        item = add_source(payload.name, payload.category, payload.url, payload.note)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "item": item})
+
+
+@app.post("/api/config/sources/toggle")
+def api_toggle_source(payload: SourceToggleRequest):
+    try:
+        item = set_source_enabled(payload.url, payload.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "item": item})
+
+
+@app.post("/api/config/sources/priority")
+def api_source_priority(payload: SourcePriorityRequest):
+    try:
+        item = set_source_priority(payload.url, payload.priority)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "item": item})
+
+
+@app.get("/api/config/crawl-settings")
+def api_get_crawl_settings():
+    return JSONResponse(load_crawl_settings())
+
+
+@app.post("/api/config/crawl-settings")
+def api_set_crawl_settings(payload: CrawlSettingsUpdateRequest):
+    data = save_crawl_settings(
+        {
+            "per_source_limit": payload.per_source_limit,
+            "interval_hours": payload.interval_hours,
+            "market_interval_hours": payload.market_interval_hours,
+            "market_max_records": payload.market_max_records,
+            "market_retention_days": payload.market_retention_days,
+            "portal_query_max_records": payload.portal_query_max_records,
+            "portal_query_max_age_days": payload.portal_query_max_age_days,
+            "home_hero_key": payload.home_hero_key,
+            "home_hero_custom_url": payload.home_hero_custom_url,
+            "home_carousel_items": payload.home_carousel_items,
+            "smart_query_show_sell": bool(payload.smart_query_show_sell),
+            "smart_query_show_rent": bool(payload.smart_query_show_rent),
+            "portal_backfill_empty_thumbs": bool(payload.portal_backfill_empty_thumbs),
+            "portal_backfill_max": int(payload.portal_backfill_max),
+            "portal_backfill_persist": bool(payload.portal_backfill_persist),
+        }
+    )
+    return JSONResponse({"ok": True, "settings": data})
+
+
+@app.get("/api/admin/home-carousel")
+def api_admin_home_carousel(request: Request, limit: int = Query(default=120, ge=1, le=300)):
+    _require_admin_password(request)
+    settings = load_crawl_settings()
+    published = _normalize_home_carousel_for_app(settings.get("home_carousel_items"))
+    published_urls = {str(x.get("url") or "") for x in published}
+    candidates = []
+    for row in _home_carousel_candidate_rows(limit=limit):
+        copied = dict(row)
+        copied["published"] = str(copied.get("url") or "") in published_urls
+        candidates.append(copied)
+    return JSONResponse({"ok": True, "items": published, "candidates": candidates})
+
+
+@app.post("/api/admin/home-carousel")
+def api_admin_home_carousel_save(payload: HomeCarouselSaveRequest, request: Request):
+    _require_admin_password(request)
+    settings = load_crawl_settings()
+    items = _normalize_home_carousel_for_app(payload.items)
+    settings["home_carousel_items"] = items
+    if items:
+        first = next((x for x in items if x.get("enabled", True)), items[0])
+        settings["home_hero_key"] = "custom-upload"
+        settings["home_hero_custom_url"] = str(first.get("url") or settings.get("home_hero_custom_url") or "")
+    saved = save_crawl_settings(settings)
+    return JSONResponse({"ok": True, "items": saved.get("home_carousel_items") or [], "settings": saved})
+
+
+@app.post("/api/admin/home-carousel/cleanup-images")
+def api_admin_home_carousel_cleanup_images(request: Request):
+    _require_admin_password(request)
+    settings = load_crawl_settings()
+    keep_urls = {str(settings.get("home_hero_custom_url") or "").strip()}
+    for item in _normalize_home_carousel_for_app(settings.get("home_carousel_items")):
+        keep_urls.add(str(item.get("url") or "").strip())
+        keep_urls.add(str(item.get("source_url") or "").strip())
+    keep_paths = {_url_to_local_static_path(u) for u in keep_urls if u}
+    keep_resolved = {p.resolve() for p in keep_paths if p is not None and p.is_file()}
+    deleted: list[str] = []
+    roots = [Path("static/uploads/case-media"), Path("static/uploads/home-carousel-defaults")]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.glob("*"):
+            try:
+                if not path.is_file() or _home_carousel_media_type(str(path)) != "image":
+                    continue
+                resolved = path.resolve()
+                if resolved in keep_resolved:
+                    continue
+                path.unlink()
+                deleted.append(_home_static_url_from_path(path) or str(path))
+            except Exception:
+                continue
+    return JSONResponse({"ok": True, "deleted_count": len(deleted), "deleted": deleted[:200]})
+
+
+@app.post("/api/config/crawl-now")
+def api_crawl_now(payload: CrawlNowRequest):
+    settings = load_crawl_settings()
+    limit = max(1, int(payload.per_source_limit or settings["per_source_limit"]))
+    q_extra = (payload.search_query or "").strip()
+    crawl_mode = "manual_links"
+    if payload.url.strip():
+        items = crawl_one_source(
+            payload.url, per_source_limit=limit, search_query=q_extra
+        )
+        if items and str(getattr(items[0], "content_kind", "") or "") == "jp_listing":
+            crawl_mode = "portal_listing"
+        elif items:
+            crawl_mode = "hub_links"
+        else:
+            crawl_mode = "none"
+    else:
+        items = crawl_manual_links()
+        crawl_mode = "manual_links" if items else "none"
+    if not items:
+        return JSONResponse(
+            {
+                "ok": True,
+                "processed": 0,
+                "crawl_mode": crawl_mode,
+                "message": (
+                    "未取得任何筆數：請確認網路、每來源筆數；來源網址須與註冊站點一致。"
+                    "SUUMO／HOMES／AtHome 已改為「列表頁→物件詳情」並帶入圖片網址與日本房產案源標籤。"
+                ),
+            }
+        )
+    processed = process_crawled_items(items)
+    return JSONResponse(
+        {
+            "ok": True,
+            "processed": processed,
+            "crawl_mode": crawl_mode,
+            "message": f"爬取完成（{crawl_mode}，共 {processed} 筆寫入）",
+        }
+    )
+
+
+@app.post("/api/config/crawl-item-url")
+def api_crawl_item_url(payload: CrawlItemUrlRequest):
+    target = (payload.url or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="missing url")
+    items = crawl_item_url(target)
+    if not items:
+        return JSONResponse({"ok": False, "processed": 0, "message": "無法抓取此網址"})
+    processed = process_crawled_items(items)
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM source_items WHERE item_url = ?", (target,)).fetchone()
+    case_id = int(row["id"]) if row else 0
+    return JSONResponse(
+        {
+            "ok": True,
+            "processed": processed,
+            "case_id": case_id,
+            "case_url": f"/case/{case_id}" if case_id else "",
+            "source_url": target,
+            "message": "指定網址已寫入知識庫",
+        }
+    )
+
+
+@app.get("/api/source-cases")
+def api_source_cases(limit: int = Query(default=20, ge=1, le=100)):
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            WITH recent AS (
+                SELECT
+                    id,
+                    source_name,
+                    source_category,
+                    item_url,
+                    title_original,
+                    substr(COALESCE(body_original,''), 1, 1600) AS body_original,
+                    access_status,
+                    last_checked_at
+                FROM source_items
+                ORDER BY last_checked_at DESC, id DESC
+                LIMIT ?
+            )
+            SELECT s.id, s.source_name, s.source_category, s.item_url, s.title_original,
+                   s.body_original, s.access_status, s.last_checked_at,
+                   c.seo_slug, c.updated_at, c.intent_target, c.topic_category
+            FROM recent s
+            LEFT JOIN content_items c ON c.source_item_id = s.id
+            ORDER BY s.last_checked_at DESC, s.id DESC
+            """,
+            (limit,),
+        ).fetchall()
+    return JSONResponse({"count": len(rows), "items": [dict(r) for r in rows]})
+
+
+@app.get("/api/source-health")
+def api_source_health():
+    sources = sorted(load_sources(), key=lambda x: int(x.get("priority", 0)), reverse=True)
+    rows_out = []
+    with get_conn() as conn:
+        for s in sources:
+            pattern = s.get("url", "").rstrip("/") + "%"
+            stats = conn.execute(
+                """
+                SELECT
+                  COUNT(*) AS total_cases,
+                  SUM(CASE WHEN access_status = 'public' THEN 1 ELSE 0 END) AS public_cases,
+                  SUM(CASE WHEN access_status = 'restricted' THEN 1 ELSE 0 END) AS restricted_cases,
+                  MAX(last_checked_at) AS last_checked_at
+                FROM source_items
+                WHERE source_url = ? OR item_url LIKE ?
+                """,
+                (s.get("url", ""), pattern),
+            ).fetchone()
+            rows_out.append(
+                {
+                    "name": s.get("name", ""),
+                    "url": s.get("url", ""),
+                    "category": s.get("category", ""),
+                    "enabled": bool(s.get("enabled", True)),
+                    "priority": int(s.get("priority", 0)),
+                    "total_cases": int(stats["total_cases"] or 0),
+                    "public_cases": int(stats["public_cases"] or 0),
+                    "restricted_cases": int(stats["restricted_cases"] or 0),
+                    "last_checked_at": stats["last_checked_at"],
+                }
+            )
+    return JSONResponse({"count": len(rows_out), "items": rows_out})
+
+
+@app.get("/api/system/log-summary")
+def api_system_log_summary(limit: int = Query(default=30, ge=1, le=120)):
+    with _backend_log_lock:
+        rows = list(_backend_error_logs)[:limit]
+    return JSONResponse(
+        {
+            "ok": True,
+            "count": len(rows),
+            "items": rows,
+            "generated_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        }
+    )
+
+
+@app.get("/company")
+def company_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="company.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "company_profile": COMPANY_PROFILE,
+            "company_tabs": COMPANY_TABS,
+            "knowledge_sources": KNOWLEDGE_SOURCES,
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+@app.get("/guide/tw-buy-japan-property")
+def tw_seo_guide(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="seo_guide.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "article": SEO_ARTICLE_TW,
+            "knowledge_sources": KNOWLEDGE_SOURCES,
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+@app.get("/manual-summary")
+def manual_summary_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="manual_summary.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+@app.get("/market-detail")
+def market_detail_page(
+    request: Request,
+    url: str = Query(default=""),
+    title_jp: str = Query(default=""),
+    snippet_jp: str = Query(default=""),
+    source_name: str = Query(default=""),
+):
+    if not url.strip():
+        return Response(status_code=400, content="Missing URL")
+    try:
+        detail = build_market_detail(url.strip())
+    except Exception:
+        detail = build_market_detail_fallback(
+            url=url.strip(),
+            title_jp=title_jp.strip(),
+            snippet_jp=snippet_jp.strip(),
+            source_name=source_name.strip(),
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="market_detail.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "item": detail,
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+@app.get("/case/{source_item_id}")
+def source_case_page(request: Request, source_item_id: int):
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                s.id, s.source_name, s.source_category, s.source_url, s.item_url,
+                s.title_original, s.body_original, s.access_status, s.access_note, s.last_checked_at,
+                s.published_at, s.crawled_at, s.image_urls, s.content_kind,
+                c.seo_slug, c.seo_title, c.body_zh_hant, c.body_zh_hans, c.updated_at,
+                c.intent_target, c.topic_category, c.keyword_tags,
+                COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+                COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+                COALESCE(c.jp_station_id, 0) AS jp_station_id,
+                COALESCE(c.walk_min, 0) AS walk_min,
+                COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+                COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+                COALESCE(c.case_transit_override, '') AS case_transit_override,
+                COALESCE(c.listing_media_json, '[]') AS listing_media_json
+            FROM source_items s
+            LEFT JOIN content_items c ON c.source_item_id = s.id
+            WHERE s.id = ?
+            """,
+            (source_item_id,),
+        ).fetchone()
+    if not row:
+        return Response(status_code=404, content="Not Found")
+    item = dict(row)
+    item["source_item_id"] = int(source_item_id)
+    # 頁面模板多處使用 item.source_item_id；查詢欄位為 s.id，需顯式帶入以免按鈕／連結不渲染
+    item["source_item_id"] = int(source_item_id)
+    case_page_fp = _case_page_fingerprint(item)
+    access_status_clean = str(item.get("access_status") or "public").strip().lower()
+    restricted_reason = ""
+    if access_status_clean and access_status_clean != "public":
+        restricted_reason = str(item.get("access_note") or "").strip() or "這筆案件已下架或需重新整理；暫不提供公開案件頁與社媒生成。"
+    unavailable_reason = restricted_reason or _case_detail_unavailable_reason(item)
+    if unavailable_reason:
+        item["body_original_display"] = _clean_case_body_for_display(str(item.get("body_original") or ""))
+        item["body_zh_hant_display"] = _clean_case_body_for_display(str(item.get("body_zh_hant") or ""))
+        item["body_zh_hans_display"] = _clean_case_body_for_display(str(item.get("body_zh_hans") or ""))
+        q = (
+            str(item.get("title_zh_hant") or "").strip()
+            or str(item.get("title_original") or "").strip()
+            or str(item.get("source_name") or "").strip()
+            or str(source_item_id)
+        )[:120]
+        return templates.TemplateResponse(
+            request=request,
+            name="case_unavailable.html",
+            context={
+                "request": request,
+                "site_name": SITE_NAME,
+                "brand_name": BRAND_NAME,
+                "item": item,
+                "source_item_id": int(source_item_id),
+                "source_url": str(item.get("item_url") or ""),
+                "search_url": "/?" + urlencode({"dialog_keyword": q}) if q else "/",
+                "unavailable_reason": unavailable_reason,
+                "support_avatar_url": get_support_avatar_url(),
+            },
+        )
+    item = _ensure_case_listing_media_json_for_display(item)
+    cached_case_html = _case_page_html_cache_get(int(source_item_id), case_page_fp)
+    if cached_case_html is not None:
+        return Response(content=cached_case_html, media_type="text/html")
+    case_listing_panel = _build_portal_listing_panel(item)
+    _le_snap = case_listing_panel.pop("_live_enrich_snapshot", None)
+    if _le_snap:
+        item["title_original"] = str(_le_snap.get("title_original") or item.get("title_original") or "")
+        item["body_original"] = str(_le_snap.get("body_original") or item.get("body_original") or "")
+        if "image_urls" in _le_snap:
+            item["image_urls"] = str(_le_snap.get("image_urls") or "")
+        else:
+            item["image_urls"] = str(item.get("image_urls") or "")
+        item = _ensure_case_listing_media_json_for_display(item)
+    _persist_live_enrich_snapshot_if_enabled(int(source_item_id), _le_snap)
+    missing_gallery_reason = _case_missing_verified_gallery_unavailable_reason(item, case_listing_panel)
+    if missing_gallery_reason:
+        item["body_original_display"] = _clean_case_body_for_display(str(item.get("body_original") or ""))
+        item["body_zh_hant_display"] = _clean_case_body_for_display(str(item.get("body_zh_hant") or ""))
+        item["body_zh_hans_display"] = _clean_case_body_for_display(str(item.get("body_zh_hans") or ""))
+        q = (
+            str(item.get("title_zh_hant") or "").strip()
+            or str(item.get("title_original") or "").strip()
+            or str(item.get("source_name") or "").strip()
+            or str(source_item_id)
+        )[:120]
+        return templates.TemplateResponse(
+            request=request,
+            name="case_unavailable.html",
+            context={
+                "request": request,
+                "site_name": SITE_NAME,
+                "brand_name": BRAND_NAME,
+                "item": item,
+                "source_item_id": int(source_item_id),
+                "source_url": str(item.get("item_url") or ""),
+                "search_url": "/?" + urlencode({"dialog_keyword": q}) if q else "/",
+                "unavailable_reason": missing_gallery_reason,
+                "support_avatar_url": get_support_avatar_url(),
+            },
+        )
+    primary_imgs, video_urls = extract_media_urls_from_row(item)
+    raw_imgs = _collect_raw_image_urls_for_case_display(item, limit=48)
+
+    prop_panel = [
+        str(u).strip()
+        for u in (case_listing_panel.get("gallery_property_urls") or [])
+        if str(u).strip() and _is_case_property_gallery_image_url(str(u).strip())
+    ]
+    agent_panel = [str(u).strip() for u in (case_listing_panel.get("gallery_agent_urls") or []) if str(u).strip()]
+
+    disp_prop: list[str]
+    disp_agent: list[str]
+    if prop_panel:
+        # 與頁面上方 SUUMO 版型主圖／縮圖同源（listing_media_json），避免 image_urls 僅存過期短路徑導致掲載写真整排破圖。
+        disp_prop = _dedupe_case_gallery_urls(
+            [
+                _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+                for u in prop_panel[:24]
+            ],
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+        disp_agent = _dedupe_case_gallery_urls(
+            [
+                _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+                for u in agent_panel[:16]
+            ],
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+    else:
+        display_imgs = [u for u in (primary_imgs if primary_imgs else raw_imgs[:12]) if _is_case_property_gallery_image_url(u)]
+        disp_prop_raw: list[str] = []
+        disp_agent_raw: list[str] = []
+        for u in display_imgs:
+            if is_likely_agent_portrait_image_url(u):
+                disp_agent_raw.append(u)
+            else:
+                disp_prop_raw.append(u)
+        if not disp_prop_raw:
+            disp_prop_raw = [u for u in raw_imgs if _is_case_property_gallery_image_url(u)][:16]
+        if not disp_prop_raw:
+            disp_prop_raw = list(display_imgs)[:12]
+        disp_prop = _dedupe_case_gallery_urls(
+            [
+                _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+                for u in disp_prop_raw
+            ],
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+        disp_agent = _dedupe_case_gallery_urls(
+            [
+                _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+                for u in disp_agent_raw
+            ],
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+        disp_prop = _sort_relevant_real_estate_images(disp_prop, limit=24)
+
+    # 主相簿主圖必須是物件內容：誤入之人像改列仲介組，再依外觀／內裝／格局排序
+    spill_hero = [u for u in disp_prop if is_likely_agent_portrait_image_url(u)]
+    if spill_hero:
+        sh = set(spill_hero)
+        disp_prop = [u for u in disp_prop if u not in sh]
+        merged_agent = list(disp_agent)
+        for u in spill_hero:
+            merged_agent.append(_normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H))
+        disp_agent = _dedupe_case_gallery_urls(merged_agent, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+    disp_prop = sort_property_image_urls_for_hero(disp_prop)
+    if not disp_prop:
+        fb = [
+            _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+            for u in raw_imgs
+            if _is_case_property_gallery_image_url(u)
+        ][:24]
+        disp_prop = _dedupe_case_gallery_urls(fb, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+        disp_prop = sort_property_image_urls_for_hero(disp_prop)
+
+    def _case_img_norm_key(u: str) -> str:
+        return _normalize_listing_image_url_for_display(str(u).strip(), suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+
+    seen_main = {_case_img_norm_key(u) for u in disp_prop} | {_case_img_norm_key(u) for u in disp_agent}
+    aux_pool = [u for u in raw_imgs if _case_img_norm_key(u) not in seen_main]
+    aux_imgs = [u for u in aux_pool if _is_case_property_gallery_image_url(u)][:20]
+    _case_image_prefetch(list(disp_prop[:8]) + list(disp_agent[:4]) + list(aux_imgs[:4]), limit=12)
+    item["case_media_images"] = disp_prop
+    item["case_agent_images"] = disp_agent
+    item["case_media_aux_images"] = [
+        _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H) for u in aux_imgs
+    ]
+    item["case_media_videos"] = video_urls
+    # 頂部 SUUMO 版型與下方掲載写真同源；避免模板用 gallery_urls 後備時誤選仲介人像為主圖
+    case_listing_panel["gallery_property_urls"] = list(disp_prop)
+    case_listing_panel["gallery_agent_urls"] = list(disp_agent)
+    case_listing_panel["gallery_urls"] = list(disp_prop) + list(disp_agent)
+    agent_keys = {_case_img_norm_key(u) for u in disp_agent}
+    _gal_src: list[str] = list(disp_prop) if disp_prop else []
+    if not _gal_src:
+        _gal_src = _dedupe_case_gallery_urls(
+            [
+                _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+                for u in raw_imgs
+                if str(u or "").strip()
+            ],
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+    case_gallery_cells: list[dict[str, Any]] = []
+    seen_gal: set[str] = set()
+    for u in _gal_src:
+        raw_u = str(u).strip()
+        u_disp = _normalize_listing_image_url_for_display(raw_u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
+        if not _is_case_property_gallery_image_url(u_disp or raw_u):
+            continue
+        ku = _case_img_norm_key(u_disp)
+        if ku in seen_gal:
+            continue
+        seen_gal.add(ku)
+        is_agent = ku in agent_keys or is_likely_agent_portrait_image_url(raw_u)
+        case_gallery_cells.append({"url": u_disp or raw_u, "is_agent": bool(is_agent)})
+    item["case_gallery_cells"] = case_gallery_cells
+    if not case_listing_panel.get("gallery_property_urls") and case_gallery_cells:
+        gallery_fallback_prop = [
+            str(cell.get("url") or "").strip()
+            for cell in case_gallery_cells
+            if not bool(cell.get("is_agent")) and str(cell.get("url") or "").strip()
+        ][:24]
+        if gallery_fallback_prop:
+            item["case_media_images"] = gallery_fallback_prop
+            case_listing_panel["gallery_property_urls"] = list(gallery_fallback_prop)
+            case_listing_panel["gallery_urls"] = list(gallery_fallback_prop) + list(
+                case_listing_panel.get("gallery_agent_urls") or []
+            )
+    item["body_original_display"] = _build_case_original_listing_display(item, case_listing_panel) or _clean_case_body_for_display(
+        str(item.get("body_original") or "")
+    )
+    item["body_zh_hant_display"] = _clean_case_body_for_display(str(item.get("body_zh_hant") or ""))
+    item["body_zh_hans_display"] = _clean_case_body_for_display(str(item.get("body_zh_hans") or ""))
+    case_article_path = _standard_article_path(item.get("seo_slug"), source_item_id)
+    case_related_news: list[dict[str, Any]] = []
+    if case_article_path:
+        with get_conn() as conn:
+            case_related_item = _case_related_item_for_source(conn, int(source_item_id))
+            if case_related_item:
+                case_related_news = _related_articles_lite_for_item(conn, case_related_item, limit=6)
+    context = {
+        "request": request,
+        "site_name": SITE_NAME,
+        "brand_name": BRAND_NAME,
+        "item": item,
+        "case_article_path": case_article_path,
+        "case_related_news": case_related_news,
+        "case_listing_panel": case_listing_panel,
+        "support_avatar_url": get_support_avatar_url(),
+    }
+    html = templates.env.get_template("case.html").render(context)
+    _case_page_html_cache_set(int(source_item_id), case_page_fp, html)
+    return Response(content=html, media_type="text/html")
+
+
+@app.get("/zh-hant/{region_slug}")
+def region_page_hant(request: Request, region_slug: str):
+    region_hant, region_hans, codes = parse_region_slug(region_slug.strip())
+    items = fetch_region_results(region_codes=codes, limit=50)
+    schema = build_region_schema("hant", region_hant, region_slug, items)
+    return templates.TemplateResponse(
+        request=request,
+        name="region.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "site_url": get_effective_site_url(),
+            "items": items,
+            "region_slug": region_slug,
+            "region_name": region_hant,
+            "lang": "zh-Hant",
+            "alt_lang_path": f"/zh-hans/{region_slug}",
+            "schema_json": schema,
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+@app.get("/zh-hans/{region_slug}")
+def region_page_hans(request: Request, region_slug: str):
+    region_hant, region_hans, codes = parse_region_slug(region_slug.strip())
+    items = fetch_region_results(region_codes=codes, limit=50)
+    schema = build_region_schema("hans", region_hans, region_slug, items)
+    return templates.TemplateResponse(
+        request=request,
+        name="region.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "site_url": get_effective_site_url(),
+            "items": items,
+            "region_slug": region_slug,
+            "region_name": region_hans,
+            "lang": "zh-Hans",
+            "alt_lang_path": f"/zh-hant/{region_slug}",
+            "schema_json": schema,
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+def _coerce_str_fields(row: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
+    """SQLite 欄位偶為非 str（或舊資料）；模板若呼叫 .splitlines() 等會拋錯導致 500。"""
+    out = dict(row)
+    for k in keys:
+        v = out.get(k)
+        if v is None:
+            continue
+        if not isinstance(v, str):
+            out[k] = str(v)
+    return out
+
+
+def _normalize_article_item(item: dict[str, Any]) -> dict[str, Any]:
+    item = _coerce_str_fields(
+        item,
+        (
+            "image_urls",
+            "body_original",
+            "title_original",
+            "body_zh_hant",
+            "body_zh_hans",
+            "seo_title",
+            "seo_description",
+            "schema_json",
+            "item_url",
+            "source_url",
+            "source_name",
+            "access_note",
+            "seo_slug",
+            "keyword_tags",
+            "access_status",
+            "last_checked_at",
+            "region_code",
+            "keyword_type",
+            "intent_target",
+            "topic_category",
+            "updated_at",
+        ),
+    )
+    sj = (item.get("schema_json") or "").strip()
+    if not sj:
+        item["schema_json"] = "{}"
+    else:
+        try:
+            json.loads(sj)
+        except Exception:
+            item["schema_json"] = json.dumps(
+                {
+                    "@context": "https://schema.org",
+                    "@type": "Article",
+                    "headline": (item.get("seo_title") or "")[:240],
+                },
+                ensure_ascii=False,
+            )
+    if item.get("image_urls") is None:
+        item["image_urls"] = ""
+    return item
+
+
+def _article_blob_for_geo_match(item: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for k in ("item_url", "title_original", "seo_title", "body_zh_hant", "body_original"):
+        parts.append(str(item.get(k) or ""))
+    return "\n".join(parts)
+
+
+def _infer_kyushu_okinawa_geo_focus(item: dict[str, Any]) -> bool:
+    """本篇是否為九州／沖繩區域主題（用於相關條目後過濾）。"""
+    blob = _article_blob_for_geo_match(item)
+    low = blob.lower()
+    if "九州" not in blob and "kyushu" not in low:
+        return False
+    if "沖" in blob or "冲" in blob or "okinawa" in low:
+        return True
+    if any(x in blob for x in ("福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿兒島", "鹿儿岛")):
+        return True
+    if any(x in low for x in ("fukuoka", "saga", "nagasaki", "kumamoto", "oita", "miyazaki", "kagoshima")):
+        return True
+    if "suumo.jp/kyushu" in low or "/kyushu/" in low:
+        return True
+    return False
+
+
+def _related_row_matches_kyushu_okinawa(row: dict[str, Any]) -> bool:
+    title = str(row.get("seo_title") or "")
+    url = (str(row.get("item_url") or "") or "").lower()
+    blob = f"{title} {url}"
+    low = blob.lower()
+    needles_zh = (
+        "九州",
+        "沖繩",
+        "沖縄",
+        "冲繩",
+        "福岡",
+        "佐賀",
+        "長崎",
+        "熊本",
+        "大分",
+        "宮崎",
+        "鹿兒島",
+        "鹿儿岛",
+        "琉球",
+    )
+    if any(n in blob for n in needles_zh):
+        return True
+    if any(n in low for n in ("kyushu", "okinawa", "fukuoka", "saga", "nagasaki", "kumamoto", "oita", "miyazaki", "kagoshima")):
+        return True
+    if "suumo.jp/kyushu" in url or "suumo.jp/okinawa" in url or "/kyushu/" in url or "/okinawa/" in url:
+        return True
+    return False
+
+
+def _related_row_geo_mismatch_tokyo_ring(row: dict[str, Any]) -> bool:
+    """明顯為東京圈站別物件頁等，與九州／沖繩主題無關。"""
+    if _related_row_matches_kyushu_okinawa(row):
+        return False
+    title = str(row.get("seo_title") or "")
+    url = (str(row.get("item_url") or "") or "").lower()
+    blob = (title + url).lower()
+    tokyo_hints = (
+        "佑天寺",
+        "yutenji",
+        "瑜伽",
+        "yoga",
+        "櫻新町",
+        "sakura-shincho",
+        "武藏小山",
+        "musashikoyama",
+        "中野",
+        "nakano",
+        "品川",
+        "shinagawa",
+    )
+    if any(s in blob for s in tokyo_hints):
+        return True
+    if "/tokyo/" in url and "kyushu" not in url:
+        return True
+    if ("tokyo" in blob or "東京" in title) and "九州" not in title:
+        if "suumo" in url and ("/mansion/" in url or "/chintai/" in url or "/ms/" in url):
+            return True
+    return False
+
+
+def _related_row_placeholder_listing(row: dict[str, Any]) -> bool:
+    t = str(row.get("seo_title") or "")
+    return "需授權" in t or "需授权" in t or "無法抽" in t or "无法抽" in t or "無法抓取" in t or "无法抓取" in t
+
+
+def _article_related_value_is_broad(kind: str, value: Any) -> bool:
+    v = str(value or "").strip()
+    if not v:
+        return True
+    if kind == "region_code" and v.lower() in {"tw", "cn", "zh", "zh-hant", "zh-hans"}:
+        return True
+    if kind == "topic_category" and v in {"日本房產案源", "市場資訊", "房地產", "不動產"}:
+        return True
+    if kind == "intent_target" and v in {"房地產", "不動產", "日本房產", "日本不動產"}:
+        return True
+    return False
+
+
+def _article_related_stats_fast(conn: sqlite3.Connection, item: dict[str, Any]) -> dict[str, Any]:
+    stats: dict[str, Any] = {
+        "total_articles": 0,
+        "same_region_count": 0,
+        "same_topic_count": 0,
+        "same_intent_count": 0,
+        "latest_update": "",
+    }
+    try:
+        r = conn.execute("SELECT COUNT(1) AS n FROM content_items").fetchone()
+        stats["total_articles"] = int((r["n"] if r else 0) or 0)
+    except Exception:
+        pass
+    try:
+        r = conn.execute(
+            "SELECT updated_at FROM content_items INDEXED BY idx_content_updated ORDER BY updated_at DESC, id DESC LIMIT 1"
+        ).fetchone()
+        stats["latest_update"] = str((r["updated_at"] if r else "") or "")
+    except Exception:
+        pass
+    count_specs = (
+        ("same_region_count", "idx_content_region", "region_code", item.get("region_code")),
+        ("same_topic_count", "idx_content_topic_category", "topic_category", item.get("topic_category")),
+        ("same_intent_count", "idx_content_intent_target", "intent_target", item.get("intent_target")),
+    )
+    for out_key, idx_name, col_name, raw_value in count_specs:
+        if _article_related_value_is_broad(col_name, raw_value):
+            continue
+        try:
+            r = conn.execute(
+                f"SELECT COUNT(1) AS c FROM content_items INDEXED BY {idx_name} WHERE {col_name} = ?",
+                (str(raw_value or "").strip(),),
+            ).fetchone()
+            stats[out_key] = int((r["c"] if r else 0) or 0)
+        except Exception:
+            pass
+    return stats
+
+
+def _article_related_news_fast(
+    conn: sqlite3.Connection, item: dict[str, Any], slug_key: str, rel_limit: int
+) -> list[Any]:
+    rows: list[Any] = []
+    item_sid = int(item.get("source_item_id") or 0)
+    seen: set[str] = {f"{item_sid}:{str(slug_key or '').strip()}"}
+    query_specs = (
+        ("idx_content_region", "region_code", item.get("region_code")),
+        ("idx_content_topic_category", "topic_category", item.get("topic_category")),
+        ("idx_content_intent_target", "intent_target", item.get("intent_target")),
+    )
+    per_query = max(6, min(24, int(rel_limit or 10) * 2))
+    for idx_name, col_name, raw_value in query_specs:
+        val = str(raw_value or "").strip()
+        if _article_related_value_is_broad(col_name, val):
+            continue
+        try:
+            cand = conn.execute(
+                f"""
+                SELECT
+                    c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category, c.intent_target, c.updated_at,
+                    s.source_name, s.item_url, s.access_status,
+                    COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
+                FROM content_items c INDEXED BY {idx_name}
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE c.source_item_id <> ?
+                  AND c.{col_name} = ?
+                ORDER BY c.id DESC
+                LIMIT ?
+                """,
+                (item_sid, val, per_query),
+            ).fetchall()
+        except Exception:
+            cand = []
+        for r in cand:
+            row_sid = int(r["source_item_id"] or 0)
+            row_slug = str(r["seo_slug"] or "").strip()
+            key = f"{row_sid}:{row_slug}"
+            if row_sid <= 0 or not row_slug or key in seen:
+                continue
+            seen.add(key)
+            rows.append(r)
+            if len(rows) >= int(rel_limit or 10):
+                return rows
+    return rows[: int(rel_limit or 10)]
+
+
+def _filter_related_news_for_article(item: dict[str, Any], rows: list[Any]) -> list[Any]:
+    raw = list(rows)
+    if not _infer_kyushu_okinawa_geo_focus(item):
+        return raw[:10]
+
+    def as_dict(r: Any) -> dict[str, Any]:
+        return dict(r)
+
+    geo_prime = [
+        r
+        for r in raw
+        if _related_row_matches_kyushu_okinawa(as_dict(r))
+        and not _related_row_geo_mismatch_tokyo_ring(as_dict(r))
+        and not _related_row_placeholder_listing(as_dict(r))
+    ]
+    if len(geo_prime) >= 2:
+        return geo_prime[:10]
+    geo_ok = [
+        r
+        for r in raw
+        if _related_row_matches_kyushu_okinawa(as_dict(r)) and not _related_row_geo_mismatch_tokyo_ring(as_dict(r))
+    ]
+    if len(geo_ok) >= 2:
+        return geo_ok[:10]
+    no_noise = [r for r in raw if not _related_row_geo_mismatch_tokyo_ring(as_dict(r)) and not _related_row_placeholder_listing(as_dict(r))]
+    if len(no_noise) >= 2:
+        return no_noise[:10]
+    no_tokyo = [r for r in raw if not _related_row_geo_mismatch_tokyo_ring(as_dict(r))]
+    if len(no_tokyo) >= 2:
+        return no_tokyo[:10]
+    return raw[:10]
+
+
+_ARTICLE_ROUTE_RELATED_INDEXES: dict[str, str] = {
+    "idx_content_seo_slug": "CREATE INDEX IF NOT EXISTS idx_content_seo_slug ON content_items(seo_slug)",
+    "idx_content_source_item": "CREATE INDEX IF NOT EXISTS idx_content_source_item ON content_items(source_item_id)",
+    "idx_content_region": "CREATE INDEX IF NOT EXISTS idx_content_region ON content_items(region_code)",
+    "idx_content_topic_category": "CREATE INDEX IF NOT EXISTS idx_content_topic_category ON content_items(topic_category)",
+    "idx_content_intent_target": "CREATE INDEX IF NOT EXISTS idx_content_intent_target ON content_items(intent_target)",
+    "idx_content_updated": "CREATE INDEX IF NOT EXISTS idx_content_updated ON content_items(updated_at DESC, id DESC)",
+    "idx_content_region_recent": "CREATE INDEX IF NOT EXISTS idx_content_region_recent ON content_items(region_code, id DESC)",
+    "idx_content_topic_recent": "CREATE INDEX IF NOT EXISTS idx_content_topic_recent ON content_items(topic_category, id DESC)",
+    "idx_content_intent_recent": "CREATE INDEX IF NOT EXISTS idx_content_intent_recent ON content_items(intent_target, id DESC)",
+    "idx_content_case_region_recent": (
+        "CREATE INDEX IF NOT EXISTS idx_content_case_region_recent "
+        "ON content_items(case_jp_region_override, id DESC)"
+    ),
+    "idx_content_case_transaction_recent": (
+        "CREATE INDEX IF NOT EXISTS idx_content_case_transaction_recent "
+        "ON content_items(case_transaction_override, id DESC)"
+    ),
+    "idx_content_jp_station_recent": (
+        "CREATE INDEX IF NOT EXISTS idx_content_jp_station_recent "
+        "ON content_items(jp_station_id, id DESC)"
+    ),
+}
+
+
+def _article_route_related_index_status(conn: sqlite3.Connection) -> dict[str, bool]:
+    try:
+        rows = conn.execute("PRAGMA index_list(content_items)").fetchall()
+        existing = {str(r["name"] if isinstance(r, sqlite3.Row) else r[1]) for r in rows}
+    except Exception:
+        existing = set()
+    return {name: name in existing for name in _ARTICLE_ROUTE_RELATED_INDEXES}
+
+
+def _ensure_article_route_related_indexes(conn: sqlite3.Connection) -> dict[str, bool]:
+    for sql in _ARTICLE_ROUTE_RELATED_INDEXES.values():
+        try:
+            conn.execute(sql)
+        except sqlite3.OperationalError:
+            pass
+    try:
+        conn.commit()
+    except Exception:
+        pass
+    return _article_route_related_index_status(conn)
+
+
+def _standard_article_path(slug: Any, source_item_id: Any = 0) -> str:
+    slug_text = str(slug or "").strip().strip("/")
+    if not slug_text:
+        return ""
+    try:
+        sid = int(source_item_id or 0)
+    except Exception:
+        sid = 0
+    if sid > 0:
+        return f"/article/case-{sid}-{quote(slug_text, safe='-._~')}"
+    return "/article/" + quote(slug_text, safe="-._~")
+
+
+def _standard_case_path(source_item_id: Any) -> str:
+    try:
+        sid = int(source_item_id or 0)
+    except Exception:
+        sid = 0
+    return f"/case/{sid}" if sid > 0 else ""
+
+
+def _article_slug_is_standard(slug: Any) -> bool:
+    s = str(slug or "").strip()
+    return bool(s) and s == s.strip("/") and not any(ch.isspace() for ch in s) and "/" not in s and "\\" not in s
+
+
+def _case_related_item_for_source(conn: sqlite3.Connection, source_item_id: int) -> dict[str, Any] | None:
+    sid = int(source_item_id or 0)
+    if sid <= 0:
+        return None
+    row = conn.execute(
+        """
+        SELECT
+            c.id, c.source_item_id, c.seo_slug, c.seo_title, c.seo_description, c.region_code,
+            c.body_zh_hant, c.body_zh_hans, c.schema_json, c.keyword_type,
+            c.intent_target, c.topic_category, c.keyword_tags, c.updated_at,
+            COALESCE(c.jp_station_id, 0) AS jp_station_id,
+            COALESCE(c.walk_min, 0) AS walk_min,
+            COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+            COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+            COALESCE(c.case_transit_override, '') AS case_transit_override,
+            COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+            COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+            s.source_name, s.item_url, s.access_status, s.access_note, s.last_checked_at,
+            s.source_url, s.title_original, s.body_original, s.image_urls,
+            COALESCE(s.content_kind, '') AS content_kind
+        FROM content_items c
+        JOIN source_items s ON s.id = c.source_item_id
+        WHERE c.source_item_id = ?
+        ORDER BY c.id DESC
+        LIMIT 1
+        """,
+        (sid,),
+    ).fetchone()
+    return _normalize_article_item(dict(row)) if row else None
+
+
+def _related_article_row_lite(row: Any) -> dict[str, Any]:
+    d = _coerce_str_fields(
+        dict(row),
+        (
+            "seo_slug",
+            "seo_title",
+            "item_url",
+            "source_name",
+            "region_code",
+            "topic_category",
+            "intent_target",
+            "updated_at",
+            "access_status",
+            "source_content_kind",
+        ),
+    )
+    sid = int(d.get("source_item_id") or 0)
+    slug = str(d.get("seo_slug") or "").strip()
+    d["source_item_id"] = sid
+    d["case_path"] = _standard_case_path(sid)
+    d["article_path"] = _standard_article_path(slug, sid)
+    d["standard_article_path_ok"] = bool(d["article_path"]) and _article_slug_is_standard(slug)
+    return d
+
+
+def _related_articles_lite_fallback_rows(
+    conn: sqlite3.Connection, item: dict[str, Any], *, limit: int = 8
+) -> list[Any]:
+    sid = int(item.get("source_item_id") or 0)
+    slug_key = str(item.get("seo_slug") or "").strip()
+    out: list[Any] = []
+    seen_keys: set[str] = {f"{sid}:{slug_key}"}
+    rel_limit = max(1, min(20, int(limit or 8)))
+    station_id = int(item.get("jp_station_id") or 0)
+    region_text = str(item.get("case_jp_region_override") or "").strip()
+
+    def add_rows(rows: list[Any]) -> None:
+        for row in rows:
+            row_sid = int(row["source_item_id"] or 0)
+            row_slug = str(row["seo_slug"] or "").strip()
+            key = f"{row_sid}:{row_slug}"
+            if row_sid <= 0 or not row_slug or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            out.append(row)
+            if len(out) >= rel_limit:
+                break
+
+    specs: list[tuple[str, tuple[Any, ...]]] = []
+    if station_id > 0:
+        specs.append(("c.jp_station_id = ?", (station_id,)))
+    if region_text:
+        specs.append(("c.case_jp_region_override = ?", (region_text,)))
+
+    for extra_sql, extra_params in specs:
+        if len(out) >= rel_limit:
+            break
+        try:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category,
+                    c.intent_target, c.updated_at,
+                    s.source_name, s.item_url, s.access_status,
+                    COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE c.source_item_id <> ?
+                  AND TRIM(COALESCE(c.seo_slug, '')) <> ''
+                  AND {extra_sql}
+                ORDER BY c.id DESC
+                LIMIT ?
+                """,
+                (sid, *extra_params, rel_limit * 3),
+            ).fetchall()
+        except Exception:
+            rows = []
+        add_rows(rows)
+
+    if len(out) < rel_limit and sid > 0:
+        try:
+            region_rows = conn.execute(
+                """
+                SELECT region_key
+                FROM jp_listing_region_index
+                WHERE source_item_id = ?
+                ORDER BY
+                    CASE
+                        WHEN LENGTH(region_key) BETWEEN 2 AND 4 THEN 0
+                        ELSE 1
+                    END,
+                    region_key
+                LIMIT 8
+                """,
+                (sid,),
+            ).fetchall()
+        except Exception:
+            region_rows = []
+        region_keys: list[str] = []
+        seen_region_keys: set[str] = set()
+        for r in region_rows:
+            key = str(r["region_key"] or "").strip()
+            if key and key not in seen_region_keys:
+                seen_region_keys.add(key)
+                region_keys.append(key)
+        for region_key in region_keys:
+            if len(out) >= rel_limit:
+                break
+            try:
+                rows = conn.execute(
+                    """
+                    SELECT
+                        c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category,
+                        c.intent_target, c.updated_at,
+                        s.source_name, s.item_url, s.access_status,
+                        COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
+                    FROM jp_listing_region_index ri INDEXED BY idx_jp_listing_region_sort_time
+                    JOIN content_items c ON c.source_item_id = ri.source_item_id
+                    JOIN source_items s ON s.id = c.source_item_id
+                    WHERE ri.region_key = ?
+                      AND ri.source_item_id <> ?
+                      AND TRIM(COALESCE(c.seo_slug, '')) <> ''
+                    ORDER BY ri.sort_time DESC, ri.source_item_id DESC
+                    LIMIT ?
+                    """,
+                    (region_key, sid, rel_limit * 4),
+                ).fetchall()
+            except Exception:
+                rows = []
+            add_rows(rows)
+
+    if len(out) < rel_limit:
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category,
+                    c.intent_target, c.updated_at,
+                    s.source_name, s.item_url, s.access_status,
+                    COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE c.source_item_id <> ?
+                  AND TRIM(COALESCE(c.seo_slug, '')) <> ''
+                  AND COALESCE(s.content_kind, '') = 'jp_listing'
+                ORDER BY c.id DESC
+                LIMIT ?
+                """,
+                (sid, rel_limit * 3),
+            ).fetchall()
+        except Exception:
+            rows = []
+        add_rows(rows)
+    return out[:rel_limit]
+
+
+def _related_articles_lite_for_item(
+    conn: sqlite3.Connection, item: dict[str, Any], *, limit: int = 8
+) -> list[dict[str, Any]]:
+    slug_key = str(item.get("seo_slug") or "").strip()
+    rel_limit = max(1, min(20, int(limit or 8)))
+    rows = _article_related_news_fast(conn, item, slug_key, rel_limit * 3)
+    rows = _filter_related_news_for_article(item, list(rows))
+    if len(rows) < rel_limit:
+        rows = list(rows) + _related_articles_lite_fallback_rows(conn, item, limit=rel_limit * 2)
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        d = _related_article_row_lite(row)
+        key = str(d.get("article_path") or d.get("case_path") or "")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+        if len(out) >= rel_limit:
+            break
+    return out
+
+
+def _article_route_scope_where(scope: str) -> str:
+    s = str(scope or "jp_listing").strip().lower()
+    if s in {"all", "source", "sources"}:
+        return "1=1"
+    if s in {"content", "articles"}:
+        return "c.id IS NOT NULL"
+    return "COALESCE(s.content_kind, '') = 'jp_listing'"
+
+
+def _article_route_scope_kind(scope: str) -> str:
+    s = str(scope or "jp_listing").strip().lower()
+    if s in {"all", "source", "sources"}:
+        return "all"
+    if s in {"content", "articles"}:
+        return "content"
+    return "jp_listing"
+
+
+_ARTICLE_ROUTE_BAD_SLUG_SQL = """
+(
+    TRIM(COALESCE(c.seo_slug, '')) = ''
+    OR c.seo_slug LIKE '/%'
+    OR c.seo_slug LIKE '%/%'
+    OR c.seo_slug LIKE '%' || char(9) || '%'
+    OR c.seo_slug LIKE '%' || char(10) || '%'
+    OR c.seo_slug LIKE '%' || char(13) || '%'
+    OR c.seo_slug LIKE '% %'
+)
+"""
+
+
+def _scan_nonstandard_article_slugs(conn: sqlite3.Connection, *, sample_limit: int = 20) -> dict[str, Any]:
+    total = 0
+    samples: list[str] = []
+    try:
+        rows = conn.execute("SELECT seo_slug FROM content_items INDEXED BY idx_content_seo_slug")
+    except Exception:
+        rows = []
+    for row in rows:
+        slug = str(row["seo_slug"] or "")
+        if _article_slug_is_standard(slug):
+            continue
+        total += 1
+        if len(samples) < sample_limit:
+            samples.append(slug.strip())
+    return {"count": total, "samples": samples}
+
+
+def _article_route_audit_summary_fast(
+    conn: sqlite3.Connection, scope: str, bad_slug_count: int
+) -> dict[str, int]:
+    kind = _article_route_scope_kind(scope)
+    try:
+        if kind == "content":
+            total_cases = int(conn.execute("SELECT COUNT(1) AS n FROM content_items").fetchone()["n"] or 0)
+            missing_slug = min(max(0, int(bad_slug_count or 0)), total_cases)
+            return {
+                "total_cases": total_cases,
+                "with_content": total_cases,
+                "missing_content": 0,
+                "with_article_path": max(0, total_cases - missing_slug),
+                "missing_article_slug": missing_slug,
+            }
+        if kind == "all":
+            total_cases = int(conn.execute("SELECT COUNT(1) AS n FROM source_items").fetchone()["n"] or 0)
+            with_content = int(
+                conn.execute(
+                    """
+                    SELECT COUNT(1) AS n
+                    FROM source_items s
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM content_items c INDEXED BY idx_content_source_item
+                        WHERE c.source_item_id = s.id
+                        LIMIT 1
+                    )
+                    """
+                ).fetchone()["n"]
+                or 0
+            )
+        else:
+            total_cases = int(
+                conn.execute(
+                    """
+                    SELECT COUNT(1) AS n
+                    FROM source_items INDEXED BY idx_source_items_content_kind_last_checked
+                    WHERE content_kind = 'jp_listing'
+                    """
+                ).fetchone()["n"]
+                or 0
+            )
+            with_content = int(
+                conn.execute(
+                    """
+                    SELECT COUNT(1) AS n
+                    FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
+                    WHERE s.content_kind = 'jp_listing'
+                      AND EXISTS (
+                          SELECT 1
+                          FROM content_items c INDEXED BY idx_content_source_item
+                          WHERE c.source_item_id = s.id
+                          LIMIT 1
+                      )
+                    """
+                ).fetchone()["n"]
+                or 0
+            )
+        missing_content = max(0, total_cases - with_content)
+        if bad_slug_count <= 0:
+            missing_slug = 0
+        elif kind == "jp_listing":
+            missing_slug = int(
+                conn.execute(
+                    f"""
+                    SELECT COUNT(1) AS n
+                    FROM content_items c
+                    JOIN source_items s ON s.id = c.source_item_id
+                    WHERE s.content_kind = 'jp_listing'
+                      AND {_ARTICLE_ROUTE_BAD_SLUG_SQL}
+                    """
+                ).fetchone()["n"]
+                or 0
+            )
+        else:
+            missing_slug = int(bad_slug_count or 0)
+        return {
+            "total_cases": total_cases,
+            "with_content": with_content,
+            "missing_content": missing_content,
+            "with_article_path": max(0, with_content - missing_slug),
+            "missing_article_slug": max(0, missing_slug),
+        }
+    except Exception:
+        return {
+            "total_cases": 0,
+            "with_content": 0,
+            "missing_content": 0,
+            "with_article_path": 0,
+            "missing_article_slug": 0,
+        }
+
+
+def _listing_panel_needs_live_enrich(
+    fields: dict[str, Any], gallery_property_urls: list[str], *, item_url: str = ""
+) -> bool:
+    """缺少主圖、主圖疑似仲介人像、或多項核心欄位、或門戶詳情頁缺少築年月／屋齡時，即時補抓原頁。"""
+    if gallery_property_urls:
+        gu0 = str(gallery_property_urls[0] or "").strip()
+        if gu0 and is_likely_agent_portrait_image_url(gu0):
+            return True
+    if not gallery_property_urls:
+        return True
+    ul = (item_url or "").lower()
+    portal_detail = (
+        "suumo.jp" in ul
+        or "realestate.yahoo.co.jp" in ul
+        or "athome.co.jp" in ul
+        or "/mansion/" in ul
+        or "/ms/" in ul
+        or "/chintai/" in ul
+    )
+    no_price = not str(fields.get("price_text_hant") or "").strip()
+    # 詳情頁常見：庫存內文為列表／摘要，未含萬円價格 → 務必再抓原頁以便擷取價格與表格式欄位
+    if portal_detail and no_price:
+        return True
+    core_ready = all(
+        str(fields.get(k) or "").strip()
+        for k in (
+            "address_line_jp",
+            "access_line_jp",
+            "area_text_hant",
+            "layout_text_hant",
+        )
+    )
+    no_built = not str(fields.get("built_ym_jp") or "").strip() and not str(
+        fields.get("age_text_hant") or ""
+    ).strip()
+    # 新築マンション常未明示築年月；核心欄位與圖片已齊時不要每次進頁都重抓原站。
+    if portal_detail and no_built and not (core_ready and gallery_property_urls):
+        return True
+    if portal_detail and core_ready and gallery_property_urls:
+        return False
+    required = (
+        "address_line_jp",
+        "access_line_jp",
+        "area_text_hant",
+        "layout_text_hant",
+        "built_ym_jp",
+        "floor_text_hant",
+    )
+    missing = sum(1 for k in required if not str(fields.get(k) or "").strip())
+    # 門戶物件頁：缺欄較多時略為積極補抓（手機／桌機同一資料源）
+    if portal_detail and missing >= 2:
+        return True
+    return missing >= 3
+
+
+def _case_display_live_enrich_enabled() -> bool:
+    """External live fetches are for batch jobs; page render stays fast by default."""
+    return str(os.getenv("SCLAW_CASE_DISPLAY_LIVE_ENRICH", "")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def _case_media_nfkc(value: Any) -> str:
+    try:
+        return unicodedata.normalize("NFKC", str(value or ""))
+    except Exception:
+        return str(value or "")
+
+
+def _case_media_compact_key(value: Any) -> str:
+    s = _case_media_nfkc(value).lower()
+    s = re.sub(r"[\s　・,，、。.\-_/｜|:：;；()（）【】\[\]「」『』<>＜＞]+", "", s)
+    return s
+
+
+def _canonical_case_building_name_for_media(*values: Any) -> str:
+    """Return a conservative project/building name for cross-source media matching."""
+    for raw in values:
+        s = _case_media_nfkc(raw).strip()
+        if not s:
+            continue
+        s = re.sub(r"^\s*日本房[產产]案源\s*[:：]\s*", "", s)
+        s = re.sub(r"^\s*【[^】]{1,40}】\s*", "", s)
+        s = re.sub(r"^\s*(?:マンション|新築マンション|中古マンション|公寓大樓)\s+", "", s)
+        s = re.split(r"\s*[｜|]\s*", s, maxsplit=1)[0]
+        s = re.split(r"\s+(?:交通|所在地|閲覧済|販売価格|物件情報)\b", s, maxsplit=1)[0]
+        s = re.sub(r"(?:の物件情報|物件情報|新築マンション.*|分譲マンション.*|閲覧済.*)$", "", s).strip()
+        s = re.sub(r"^\s*(?:マンション|新築マンション|中古マンション|公寓大樓)\s+", "", s)
+        s = s.strip(" 　-－_｜|:：")
+        key = _case_media_compact_key(s)
+        if len(key) >= 4:
+            return s[:90]
+    return ""
+
+
+def _case_media_total_units_key(*values: Any) -> str:
+    text = _case_media_nfkc(" ".join(str(v or "") for v in values if str(v or "").strip()))
+    if not text:
+        return ""
+    m = re.search(r"(?:総戸数|總戶數|总户数)\D{0,18}([0-9]{1,5})\s*(?:戸|戶|户)", text)
+    return str(int(m.group(1))) if m else ""
+
+
+def _case_media_address_key(*values: Any) -> str:
+    text = _case_media_nfkc(" ".join(str(v or "") for v in values if str(v or "").strip()))
+    if not text:
+        return ""
+    m = re.search(r"((?:北海道|東京都|(?:京都|大阪)府|.{2,4}県)[^。。\n\r]{4,130})", text)
+    if not m:
+        return ""
+    s = m.group(1)
+    s = re.split(r"(?:交通|沿線|総戸数|總戶數|詳細|地図|情報|価格|販売|間取り|専有|格局|来源|來源|【)", s, maxsplit=1)[0]
+    return _case_media_compact_key(s)[:90]
+
+
+def _case_media_station_keys(*values: Any) -> set[str]:
+    text = _case_media_nfkc(" ".join(str(v or "") for v in values if str(v or "").strip()))
+    if not text:
+        return set()
+    out: set[str] = set()
+    for m in re.finditer(r"[「『]?([一-龥ぁ-んァ-ヶーA-Za-z0-9]{1,14})[」』]?\s*(?:駅|站)", text):
+        k = _case_media_compact_key(m.group(1))
+        if len(k) >= 2 and k not in {"所在地", "交通", "沿線"}:
+            out.add(k)
+    return out
+
+
+def _case_media_address_overlaps(a: str, b: str) -> bool:
+    if not a or not b:
+        return False
+    short, long = (a, b) if len(a) <= len(b) else (b, a)
+    if len(short) >= 12 and short[:12] in long:
+        return True
+    for size in (24, 20, 16, 12):
+        if len(short) < size:
+            continue
+        for i in range(0, max(1, len(short) - size + 1), 4):
+            if short[i : i + size] in long:
+                return True
+    return False
+
+
+def _suumo_bukken_image_sequence_for_media(url: str) -> int:
+    try:
+        hay = unquote(str(url or ""))
+    except Exception:
+        hay = str(url or "")
+    m = re.search(r"_(\d{6})\.(?:jpe?g|png|webp)", hay, re.I)
+    if not m:
+        return 0
+    try:
+        return int(m.group(1))
+    except Exception:
+        return 0
+
+
+def _sort_borrowed_equivalent_gallery_urls(urls: list[str], *, limit: int = 10) -> list[str]:
+    cleaned = [str(u or "").strip() for u in urls if str(u or "").strip()]
+    if not cleaned:
+        return []
+    # SUUMO 新築マンション頁常把「訪談／宣傳」圖排在相簿最前面；
+    # 借圖時只要還有足夠物件圖，避免這類中段序號圖搶主圖。
+    non_promo = [u for u in cleaned if not (50 <= _suumo_bukken_image_sequence_for_media(u) <= 79)]
+    if len(cleaned) >= 3 and len(non_promo) >= 2:
+        cleaned = non_promo
+
+    def _borrow_score(u: str, original_index: int) -> tuple[int, int]:
+        seq = _suumo_bukken_image_sequence_for_media(u)
+        score = _real_estate_image_score(u)
+        if seq:
+            if 1 <= seq <= 20:
+                score += 180
+            elif 21 <= seq <= 49:
+                score += 55
+            elif 50 <= seq <= 79:
+                score -= 220
+            elif seq >= 120:
+                score -= 20
+        return score, -original_index
+
+    ranked = sorted(enumerate(cleaned), key=lambda it: _borrow_score(it[1], it[0]), reverse=True)
+    return [u for _, u in ranked[: max(1, min(int(limit or 10), 24))]]
+
+
+def _case_media_fts_phrase(value: Any) -> str:
+    s = _case_media_nfkc(value).strip()
+    s = re.sub(r'["\x00-\x1f]+', " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    if not s:
+        return ""
+    return f'"{s}"'
+
+
+def _borrow_equivalent_listing_gallery_from_db(
+    row: dict[str, Any],
+    fields: dict[str, Any],
+    *,
+    limit: int = 10,
+) -> dict[str, Any]:
+    """Use another portal's gallery only when it is clearly the same property."""
+    name = _canonical_case_building_name_for_media(
+        fields.get("building_name_jp"),
+        row.get("title_original"),
+        row.get("title_zh_hant"),
+    )
+    name_key = _case_media_compact_key(name)
+    if len(name_key) < 4:
+        return {}
+    sid = int(row.get("source_item_id") or row.get("id") or 0)
+    base_texts = [
+        row.get("title_original"),
+        row.get("title_zh_hant"),
+        row.get("body_original"),
+        row.get("body_zh_hant"),
+        fields.get("address_line_jp"),
+        fields.get("access_line_jp"),
+        fields.get("total_units_jp"),
+    ]
+    base_units = _case_media_total_units_key(*base_texts)
+    base_addr = _case_media_address_key(*base_texts)
+    base_stations = _case_media_station_keys(*base_texts)
+    matches: list[tuple[int, int, list[str], dict[str, Any]]] = []
+    like = f"%{name}%"
+    try:
+        with get_conn() as conn:
+            rows = []
+            fts_query = _case_media_fts_phrase(name)
+            fts_unavailable = False
+            if fts_query:
+                try:
+                    rows = conn.execute(
+                        """
+                        SELECT
+                          s.id AS source_item_id,
+                          s.source_name,
+                          s.item_url,
+                          s.title_original,
+                          COALESCE(s.body_original, '') AS body_original,
+                          COALESCE(s.image_urls, '') AS image_urls,
+                          COALESCE(s.last_checked_at, '') AS last_checked_at,
+                          COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+                          COALESCE(c.body_zh_hant, '') AS body_zh_hant,
+                          COALESCE(c.listing_media_json, '[]') AS listing_media_json
+                        FROM source_fts f
+                        JOIN source_items s ON s.id = f.rowid
+                        LEFT JOIN content_items c ON c.source_item_id = s.id
+                        WHERE source_fts MATCH ?
+                          AND s.id != ?
+                          AND COALESCE(s.content_kind, '') = 'jp_listing'
+                          AND (
+                            TRIM(COALESCE(s.image_urls, '')) != ''
+                            OR TRIM(COALESCE(c.listing_media_json, '[]')) NOT IN ('', '[]')
+                          )
+                        ORDER BY s.last_checked_at DESC, s.id DESC
+                        LIMIT 24
+                        """,
+                        (fts_query, sid),
+                    ).fetchall()
+                except Exception:
+                    fts_unavailable = True
+                    rows = []
+            if not rows and (not fts_query or fts_unavailable):
+                rows = conn.execute(
+                    """
+                    SELECT
+                      s.id AS source_item_id,
+                      s.source_name,
+                      s.item_url,
+                      s.title_original,
+                      COALESCE(s.body_original, '') AS body_original,
+                      COALESCE(s.image_urls, '') AS image_urls,
+                      COALESCE(s.last_checked_at, '') AS last_checked_at,
+                      COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+                      COALESCE(c.body_zh_hant, '') AS body_zh_hant,
+                      COALESCE(c.listing_media_json, '[]') AS listing_media_json
+                    FROM source_items s
+                    LEFT JOIN content_items c ON c.source_item_id = s.id
+                    WHERE s.id != ?
+                      AND COALESCE(s.content_kind, '') = 'jp_listing'
+                      AND (
+                        s.title_original LIKE ?
+                        OR COALESCE(c.title_zh_hant, '') LIKE ?
+                      )
+                      AND (
+                        TRIM(COALESCE(s.image_urls, '')) != ''
+                        OR TRIM(COALESCE(c.listing_media_json, '[]')) NOT IN ('', '[]')
+                      )
+                    ORDER BY s.last_checked_at DESC, s.id DESC
+                    LIMIT 24
+                    """,
+                    (sid, like, like),
+                ).fetchall()
+    except Exception:
+        return {}
+    for cand_row in rows:
+        cand = dict(cand_row)
+        cand_name = _canonical_case_building_name_for_media(
+            cand.get("title_original"),
+            cand.get("title_zh_hant"),
+            cand.get("body_original"),
+        )
+        cand_key = _case_media_compact_key(cand_name)
+        if not cand_key:
+            continue
+        exact_name = cand_key == name_key
+        contains_name = len(name_key) >= 5 and (name_key in cand_key or cand_key in name_key)
+        if not exact_name and not contains_name:
+            continue
+        cand_texts = [
+            cand.get("title_original"),
+            cand.get("title_zh_hant"),
+            cand.get("body_original"),
+            cand.get("body_zh_hant"),
+        ]
+        score = 100 if exact_name else 70
+        cand_units = _case_media_total_units_key(*cand_texts)
+        cand_addr = _case_media_address_key(*cand_texts)
+        cand_stations = _case_media_station_keys(*cand_texts)
+        if base_units and cand_units and base_units == cand_units:
+            score += 25
+        if _case_media_address_overlaps(base_addr, cand_addr):
+            score += 35
+        if base_stations and cand_stations and (base_stations & cand_stations):
+            score += 20
+        if score < 120:
+            continue
+        gallery = ordered_listing_image_urls(
+            str(cand.get("image_urls") or ""),
+            str(cand.get("body_original") or ""),
+            str(cand.get("listing_media_json") or "[]"),
+            item_url=str(cand.get("item_url") or ""),
+            limit=limit,
+        )
+        gallery = [u for u in gallery if str(u or "").strip() and not is_likely_agent_portrait_image_url(str(u))]
+        if not gallery:
+            continue
+        gallery = _sort_borrowed_equivalent_gallery_urls(gallery, limit=limit)
+        matches.append((score, len(gallery), gallery[:limit], cand))
+    if not matches:
+        return {}
+    matches.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    score, _count, gallery, cand = matches[0]
+    return {
+        "source_item_id": int(cand.get("source_item_id") or 0),
+        "source_name": str(cand.get("source_name") or ""),
+        "score": score,
+        "gallery_property_urls": gallery,
+    }
+
+
+def _enrich_listing_row_from_live_page(row: dict[str, Any]) -> dict[str, Any] | None:
+    item_url = str(row.get("item_url") or "").strip()
+    if not live_enrich_eligible_url(item_url):
+        return None
+    ul = item_url.lower()
+    if "realestate.yahoo.co.jp" in ul:
+        # 僅在「網址即搜尋頁」且內文已像搜尋彙整時跳過；詳情 URL 即使庫存內文錯仍即時補抓以補足價格／欄位
+        bo0 = str(row.get("body_original") or "")
+        path_u = (urlparse(item_url).path or "").lower()
+        looks_like_search_url = "/search/" in path_u or path_u.rstrip("/").endswith("search")
+        if looks_like_search_url and (
+            "[Yahoo 土地搜尋結果]" in bo0 or "[Yahoo 搜尋結果]" in bo0
+            ) and len(bo0.strip()) > 800:
+            return None
+
+    def _merged_result(title: str, body_original: str, imgs: list[str]) -> dict[str, Any] | None:
+        if not str(body_original or "").strip() and not imgs:
+            return None
+        d = dict(row)
+        if str(title or "").strip():
+            d["title_original"] = str(title).strip()[:200]
+        if str(body_original or "").strip():
+            d["body_original"] = str(body_original).strip()
+        old_imgs = [x.strip() for x in str(row.get("image_urls") or "").splitlines() if x.strip()]
+        try:
+            from src.homes_media_token import homes_listing_image_tokens, merge_homes_listing_image_urls
+
+            homes_tokens = homes_listing_image_tokens(item_url)
+            merged = merge_homes_listing_image_urls(item_url, list(imgs or []), old_imgs)
+        except Exception:
+            homes_tokens = ()
+            merged = list(dict.fromkeys([*(imgs or []), *old_imgs]))
+        if merged:
+            d["image_urls"] = "\n".join(merged[:60])
+        elif homes_tokens:
+            d["image_urls"] = ""
+        return d
+
+    def _homes_playwright_result() -> dict[str, Any] | None:
+        if "homes.co.jp" not in ul and "homes.jp" not in ul:
+            return None
+        try:
+            from src.homes_detail_playwright import fetch_homes_detail_playwright
+
+            pw = fetch_homes_detail_playwright(item_url)
+        except Exception:
+            return None
+        if not pw or not pw.get("ok"):
+            return None
+        return _merged_result(
+            str(pw.get("title") or ""),
+            str(pw.get("body_original") or ""),
+            list(pw.get("image_urls") or []),
+        )
+
+    try:
+        from src.portal_property_crawl import fetch_property_detail
+
+        if "realestate.yahoo.co.jp" in ul and ("/land/search/" in ul or "/used/mansion/search/" in ul):
+            to = 22.0
+        elif "homes.co.jp" in ul:
+            to = 22.0
+        elif "realestate.rakuten.co.jp" in ul or "yes1.co.jp" in ul:
+            to = 22.0
+        else:
+            to = 18.0
+        with httpx.Client(timeout=to, follow_redirects=True, headers=BROWSER_HEADERS) as client:
+            title, body_original, imgs = fetch_property_detail(client, item_url)
+        live = _merged_result(title, body_original, list(imgs or []))
+        return live or _homes_playwright_result()
+    except Exception:
+        return _homes_playwright_result()
+
+
+def _effective_live_enrich_persist_enabled() -> bool:
+    raw = os.getenv("SCLAW_PERSIST_LIVE_ENRICH")
+    if raw is not None and str(raw).strip() != "":
+        return str(raw).strip().lower() in ("1", "true", "yes")
+    try:
+        st = load_crawl_settings()
+    except Exception:
+        st = {}
+    return bool((st or {}).get("portal_backfill_persist", False))
+
+
+def _persist_live_enrich_snapshot_if_enabled(
+    source_item_id: int, snap: dict[str, str] | None, *, force: bool = False
+) -> None:
+    """若設 SCLAW_PERSIST_LIVE_ENRICH=1（或 force），將即時補抓結果寫回 source_items。"""
+    if not snap:
+        return
+    if not force and not _effective_live_enrich_persist_enabled():
+        return
+    sid = int(source_item_id or 0)
+    if sid <= 0:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE source_items
+                SET title_original = ?,
+                    body_original = ?,
+                    image_urls = ?,
+                    last_checked_at = ?,
+                    crawled_at = ?
+                WHERE id = ?
+                """,
+                (
+                    str(snap.get("title_original") or "")[:400],
+                    str(snap.get("body_original") or ""),
+                    str(snap.get("image_urls") or ""),
+                    now,
+                    now,
+                    sid,
+                ),
+            )
+            conn.commit()
+    except Exception:
+        pass
+
+
+def _effective_portal_thumb_backfill_options() -> tuple[bool, int, bool]:
+    """以 crawl_settings 為主；對應環境變數有設定時覆寫。"""
+    st = load_crawl_settings()
+    raw_en = os.getenv("SCLAW_PORTAL_BACKFILL_EMPTY_THUMBS")
+    if raw_en is not None and str(raw_en).strip() != "":
+        enabled = str(raw_en).strip().lower() in ("1", "true", "yes")
+    else:
+        enabled = bool(st.get("portal_backfill_empty_thumbs", True))
+
+    raw_mx = os.getenv("SCLAW_PORTAL_BACKFILL_MAX")
+    if raw_mx is not None and str(raw_mx).strip() != "":
+        try:
+            mx = int(raw_mx)
+        except Exception:
+            mx = int(st.get("portal_backfill_max", 3))
+    else:
+        mx = int(st.get("portal_backfill_max", 3))
+    mx = max(1, min(mx, 12))
+
+    raw_p = os.getenv("SCLAW_PORTAL_BACKFILL_PERSIST")
+    if raw_p is not None and str(raw_p).strip() != "":
+        persist_ok = str(raw_p).strip().lower() not in ("0", "false", "no")
+    else:
+        persist_ok = bool(st.get("portal_backfill_persist", True))
+
+    return enabled, mx, persist_ok
+
+
+def _portal_item_thumb_needs_property_backfill(item: dict[str, Any]) -> bool:
+    """是否應對該列向原站補抓物件圖（無縮圖、或縮圖疑似業者／人像）。"""
+    url = str(item.get("item_url") or "").strip()
+    if not url or not live_enrich_eligible_url(url):
+        return False
+    tu = str(item.get("thumb_url") or "").strip()
+    if not tu:
+        return True
+    return bool(is_likely_agent_portrait_image_url(tu))
+
+
+def _portal_api_backfill_empty_thumbs(
+    items: list[dict[str, Any]],
+    *,
+    allow_live_fetch: bool = True,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """智慧查詢 API：對無縮圖或疑似仲介人像縮圖之列，即時 fetch 原頁補物件圖。
+
+    預設啟用（後台 crawl_settings；初期環境無需額外變數）。
+    選用環境變數覆寫：SCLAW_PORTAL_BACKFILL_EMPTY_THUMBS、SCLAW_PORTAL_BACKFILL_MAX、SCLAW_PORTAL_BACKFILL_PERSIST。
+    """
+    meta: dict[str, Any] = {"enabled": False, "filled": 0, "attempted": 0, "live_fetch": bool(allow_live_fetch)}
+    enabled, mx, persist_ok = _effective_portal_thumb_backfill_options()
+    if not enabled:
+        return items, meta
+    meta["enabled"] = True
+    meta["max"] = mx
+    meta["persist"] = persist_ok
+    if not allow_live_fetch:
+        meta["skipped_reason"] = "fast_transit_search"
+        return items, meta
+    done = 0
+    out: list[dict[str, Any]] = []
+    for item in items:
+        if done >= mx:
+            out.append(item)
+            continue
+        sid = int(item.get("source_item_id") or 0)
+        if not _portal_item_thumb_needs_property_backfill(item):
+            out.append(item)
+            continue
+        url = str(item.get("item_url") or "").strip()
+        meta["attempted"] += 1
+        row = {
+            "item_url": url,
+            "image_urls": "",
+            "body_original": "",
+            "title_original": str(item.get("title_original") or ""),
+        }
+        live_d = _enrich_listing_row_from_live_page(row)
+        if not live_d:
+            out.append(item)
+            continue
+        snap = {
+            "title_original": str(live_d.get("title_original") or ""),
+            "body_original": str(live_d.get("body_original") or ""),
+            "image_urls": str(live_d.get("image_urls") or ""),
+        }
+        if persist_ok:
+            _persist_live_enrich_snapshot_if_enabled(sid, snap, force=True)
+        lm = "[]"
+        thumb = _first_thumb(snap["image_urls"], snap["body_original"], lm, item_url=url)
+        gallery = ordered_listing_image_urls(
+            snap["image_urls"], snap["body_original"], lm, item_url=url, limit=6
+        )
+        nit = dict(item)
+        nit["thumb_url"] = thumb
+        nit["gallery_urls"] = gallery
+        nit["thumb_kind"] = _thumb_kind_label(thumb) if thumb else ""
+        done += 1
+        meta["filled"] += 1
+        out.append(nit)
+    return out, meta
+
+
+def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:
+    """SUUMO 式明細用：擷取價格／格局／日文地址交通等，並排序圖集網址。"""
+    from src.case_metadata import gloss_jp_property_line_for_zh, infer_case_metadata
+    from src.portal_case_search import _extract_listing_fields, split_listing_image_urls_property_vs_agent
+
+    d = dict(row)
+    cache_body_hant = str(d.get("body_zh_hant") or "")
+    cache_body_sufficient = bool(
+        re.match(r"^\s*日本房[產产]案源（本地快取重整）", cache_body_hant)
+        and "所在地：" in cache_body_hant
+        and "交通：" in cache_body_hant
+        and "專有面積：" in cache_body_hant
+        and "格局：" in cache_body_hant
+    )
+    meta = infer_case_metadata(d)
+    fields = _extract_listing_fields(d, meta=meta)
+    g_prop, g_agent = split_listing_image_urls_property_vs_agent(
+        str(d.get("image_urls") or ""),
+        str(d.get("body_original") or ""),
+        str(d.get("listing_media_json") or ""),
+        item_url=str(d.get("item_url") or ""),
+        prop_limit=10,
+        agent_limit=6,
+    )
+    norm = lambda u, w, h: _normalize_listing_image_url_for_display(u, suumo_w=w, suumo_h=h)
+    gallery_prop = _dedupe_case_gallery_urls(
+        [norm(u, _SOURCE_IMAGE_HIGH_RES_W, _SOURCE_IMAGE_HIGH_RES_H) for u in g_prop if str(u or "").strip()], suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H
+    )
+    gallery_agent = _dedupe_case_gallery_urls(
+        [norm(u, _SOURCE_IMAGE_HIGH_RES_W, _SOURCE_IMAGE_HIGH_RES_H) for u in g_agent if str(u or "").strip()], suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H
+    )
+    applied_live_enrich = False
+    needs_panel_live_enrich = _listing_panel_needs_live_enrich(
+        fields,
+        gallery_prop,
+        item_url=str(d.get("item_url") or ""),
+    )
+    has_stored_media_candidates = bool(str(d.get("image_urls") or "").strip()) or str(
+        d.get("listing_media_json") or "[]"
+    ).strip() not in {"", "[]"}
+    allow_display_live_enrich = _case_display_live_enrich_enabled() and not _case_listing_body_indicates_ended(d)
+    if allow_display_live_enrich and needs_panel_live_enrich and (
+        (not cache_body_sufficient) or ((not gallery_prop) and has_stored_media_candidates)
+    ):
+        live_d = _enrich_listing_row_from_live_page(d)
+        if live_d:
+            d = live_d
+            applied_live_enrich = True
+            meta = infer_case_metadata(d)
+            fields = _extract_listing_fields(d, meta=meta)
+            g_prop, g_agent = split_listing_image_urls_property_vs_agent(
+                str(d.get("image_urls") or ""),
+                str(d.get("body_original") or ""),
+                str(d.get("listing_media_json") or ""),
+                item_url=str(d.get("item_url") or ""),
+                prop_limit=10,
+                agent_limit=6,
+            )
+            gallery_prop = _dedupe_case_gallery_urls(
+                [norm(u, _SOURCE_IMAGE_HIGH_RES_W, _SOURCE_IMAGE_HIGH_RES_H) for u in g_prop if str(u or "").strip()], suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H
+            )
+            gallery_agent = _dedupe_case_gallery_urls(
+                [norm(u, _SOURCE_IMAGE_HIGH_RES_W, _SOURCE_IMAGE_HIGH_RES_H) for u in g_agent if str(u or "").strip()], suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H
+            )
+    borrowed_media: dict[str, Any] = {}
+    if not gallery_prop:
+        borrowed_media = _borrow_equivalent_listing_gallery_from_db(d, fields, limit=10)
+        borrowed_prop = borrowed_media.get("gallery_property_urls") or []
+        if borrowed_prop:
+            gallery_prop = _dedupe_case_gallery_urls(
+                [
+                    norm(u, _SOURCE_IMAGE_HIGH_RES_W, _SOURCE_IMAGE_HIGH_RES_H)
+                    for u in borrowed_prop
+                    if str(u or "").strip()
+                ],
+                suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+            )
+    gallery_all = gallery_prop + gallery_agent
+
+    meta_out = dict(meta)
+    meta_out["address_line_zh_read"] = gloss_jp_property_line_for_zh(str(fields.get("address_line_jp") or ""))
+    meta_out["access_line_zh_read"] = gloss_jp_property_line_for_zh(str(fields.get("access_line_jp") or ""))
+    meta_out["transit_line_zh_read"] = gloss_jp_property_line_for_zh(str(meta.get("transit_line_zh") or ""))
+    if borrowed_media:
+        meta_out["borrowed_media_source_item_id"] = borrowed_media.get("source_item_id")
+        meta_out["borrowed_media_source_name"] = borrowed_media.get("source_name")
+    out: dict[str, Any] = {
+        "meta": meta_out,
+        "fields": fields,
+        "gallery_urls": gallery_all,
+        "gallery_property_urls": gallery_prop,
+        "gallery_agent_urls": gallery_agent,
+    }
+    if applied_live_enrich:
+        out["_live_enrich_snapshot"] = {
+            "title_original": str(d.get("title_original") or ""),
+            "body_original": str(d.get("body_original") or ""),
+            "image_urls": str(d.get("image_urls") or ""),
+        }
+    return out
+
+
+@app.get("/article/{slug}")
+def article_page(request: Request, slug: str):
+    slug_key_raw = unquote((slug or "").strip()).strip("/")
+    route_source_item_id = 0
+    slug_key = slug_key_raw
+    m_route = re.match(r"^case-(\d+)-(.+)$", slug_key_raw)
+    if m_route:
+        route_source_item_id = int(m_route.group(1) or 0)
+        slug_key = str(m_route.group(2) or "").strip()
+    with get_conn() as conn:
+        where_sql = "c.seo_slug = ?"
+        params: tuple[Any, ...] = (slug_key,)
+        if route_source_item_id > 0:
+            where_sql = "c.source_item_id = ? AND c.seo_slug = ?"
+            params = (route_source_item_id, slug_key)
+        row = conn.execute(
+            f"""
+            SELECT
+                c.id, c.source_item_id, c.seo_slug, c.seo_title, c.seo_description, c.region_code,
+                c.body_zh_hant, c.body_zh_hans, c.schema_json, c.keyword_type,
+                c.intent_target, c.topic_category, c.keyword_tags, c.updated_at,
+                COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+                COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+                COALESCE(c.jp_station_id, 0) AS jp_station_id,
+                COALESCE(c.walk_min, 0) AS walk_min,
+                COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+                COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+                COALESCE(c.case_transit_override, '') AS case_transit_override,
+                COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+                s.source_name, s.item_url, s.access_status, s.access_note, s.last_checked_at,
+                s.source_url, s.title_original, s.body_original, s.image_urls,
+                COALESCE(s.content_kind, '') AS content_kind
+            FROM content_items c INDEXED BY idx_content_seo_slug
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE {where_sql}
+            ORDER BY c.id DESC
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+    if not row:
+        return Response(status_code=404, content="Not Found")
+    item = _normalize_article_item(dict(row))
+    item["article_path"] = _standard_article_path(item.get("seo_slug"), item.get("source_item_id"))
+    item["body_zh_hant"] = sanitize_article_display_body(str(item.get("body_zh_hant") or ""))
+    item["body_zh_hans"] = sanitize_article_display_body(str(item.get("body_zh_hans") or ""))
+    rel_limit = 40 if _infer_kyushu_okinawa_geo_focus(item) else 10
+    with get_conn() as conn:
+        stats = _article_related_stats_fast(conn, item)
+        related_news = _related_articles_lite_for_item(conn, item, limit=min(12, rel_limit))
+    article_listing_panel = _build_portal_listing_panel(dict(row))
+    _art_snap = article_listing_panel.pop("_live_enrich_snapshot", None)
+    if _art_snap:
+        item["title_original"] = str(_art_snap.get("title_original") or item.get("title_original") or "")
+        item["body_original"] = str(_art_snap.get("body_original") or item.get("body_original") or "")
+        if "image_urls" in _art_snap:
+            item["image_urls"] = str(_art_snap.get("image_urls") or "")
+        else:
+            item["image_urls"] = str(item.get("image_urls") or "")
+    _persist_live_enrich_snapshot_if_enabled(int(item.get("source_item_id") or 0), _art_snap)
+    hero_imgs, _ = extract_media_urls_from_row(item)
+    g_prop_art = article_listing_panel.get("gallery_property_urls") or []
+    article_hero_thumb = str(g_prop_art[0]).strip() if g_prop_art else ""
+    if not article_hero_thumb:
+        for u in hero_imgs:
+            if u and not is_likely_agent_portrait_image_url(u):
+                article_hero_thumb = u
+                break
+    article_display_images = hero_imgs[:10]
+    fb_reading = _article_fallback_text_for_reading_pack(item)
+    h_body_raw = str(item.get("body_zh_hant") or "")
+    s_body_raw = str(item.get("body_zh_hans") or "")
+    h_fb = fb_reading if body_zh_field_is_corrupt_jp_placeholder(h_body_raw) else ""
+    s_fb = fb_reading if body_zh_field_is_corrupt_jp_placeholder(s_body_raw) else ""
+    try:
+        ai_pack_hant = build_ai_reading_pack(h_body_raw, fallback_text=h_fb, locale="hant")
+        ai_pack_hans = build_ai_reading_pack(s_body_raw, fallback_text=s_fb, locale="hans")
+    except Exception:
+        _ap_base = {
+            "conclusion": "本篇重點請先確認交易條件、成本與風險，再做決策。",
+            "must_know": [],
+            "action": [],
+            "risk": [],
+        }
+        ai_pack_hant = dict(_ap_base)
+        ai_pack_hans = dict(_ap_base)
+    restricted = item.get("access_status") == "restricted" or "需授權或無法抓取" in (item.get("body_zh_hant") or "")
+    fallback_guide_hant = [
+        "此來源目前需要授權，系統無法直接抓完整內文。",
+        "你仍可先用官方資料完成決策：先看國稅廳（稅務）與官方稅務問答。",
+        "市場行情請交叉比對 SUUMO、HOMES、AtHome 的同區域物件與租金資訊。",
+        "若要轉成可發布文章：先整理問題清單，再用公開資料補證據，最後附來源連結。",
+    ]
+    fallback_guide_hans = [
+        "该来源目前需要授权，系统无法直接抓完整内文。",
+        "你仍可先用官方资料完成决策：先看国税厅（税务）与官方税务问答。",
+        "市场行情请交叉比对 SUUMO、HOMES、AtHome 的同区域物件与租金资讯。",
+        "若要转成可发布文章：先整理问题清单，再用公开资料补证据，最后附来源链接。",
+    ]
+    article_smart_keywords = list(LIGHT_KNOWLEDGE_KEYWORDS) + [
+        "日本買房 流程",
+        "東京 不動產 投資",
+        "日本 中古屋 注意",
+        "外國人 日本 房貸",
+    ]
+    article_smart_keywords = article_smart_keywords[:18]
+    return templates.TemplateResponse(
+        request=request,
+        name="article.html",
+        context={
+            "request": request,
+            "item": item,
+            "site_name": SITE_NAME,
+            "site_url": get_effective_site_url(),
+            "brand_name": BRAND_NAME,
+            "is_restricted": restricted,
+            "fallback_guide_hant": fallback_guide_hant,
+            "fallback_guide_hans": fallback_guide_hans,
+            "ai_pack_hant": ai_pack_hant,
+            "ai_pack_hans": ai_pack_hans,
+            "article_body_zh_warn_hant": body_zh_field_is_corrupt_jp_placeholder(h_body_raw),
+            "article_body_zh_warn_hans": body_zh_field_is_corrupt_jp_placeholder(s_body_raw),
+            "related_stats": stats,
+            "related_news": related_news,
+            "article_smart_keywords": article_smart_keywords,
+            "knowledge_sources_grouped": KNOWLEDGE_SOURCES,
+            "article_hero_thumb": article_hero_thumb,
+            "article_display_images": article_display_images,
+            "article_listing_panel": article_listing_panel,
+            "support_avatar_url": get_support_avatar_url(),
+        },
+    )
+
+
+@app.get("/api/cases/{source_item_id}/related-lite")
+def api_case_related_lite(
+    source_item_id: int,
+    limit: int = Query(default=8, ge=1, le=20),
+):
+    with get_conn() as conn:
+        indexes = _article_route_related_index_status(conn)
+        item = _case_related_item_for_source(conn, int(source_item_id))
+        if not item:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "source_item_id": int(source_item_id),
+                    "case_path": _standard_case_path(source_item_id),
+                    "article_path": "",
+                    "items": [],
+                    "index_ready": indexes,
+                    "message": "此案件尚未建立站內文章資料，仍可使用 /case/{id} 案件頁。",
+                },
+                status_code=200,
+            )
+        items = _related_articles_lite_for_item(conn, item, limit=int(limit))
+    slug = str(item.get("seo_slug") or "").strip()
+    return JSONResponse(
+        {
+            "ok": True,
+            "source_item_id": int(source_item_id),
+            "case_path": _standard_case_path(source_item_id),
+            "article_path": _standard_article_path(slug, source_item_id),
+            "standard_article_path_ok": _article_slug_is_standard(slug),
+            "related_count": len(items),
+            "items": items,
+            "index_ready": indexes,
+        }
+    )
+
+
+@app.get("/api/articles/{slug:path}/related-lite")
+def api_article_related_lite(slug: str, limit: int = Query(default=8, ge=1, le=20)):
+    slug_key_raw = unquote((slug or "").strip()).strip("/")
+    route_source_item_id = 0
+    slug_key = slug_key_raw
+    m_route = re.match(r"^case-(\d+)-(.+)$", slug_key_raw)
+    if m_route:
+        route_source_item_id = int(m_route.group(1) or 0)
+        slug_key = str(m_route.group(2) or "").strip()
+    with get_conn() as conn:
+        indexes = _article_route_related_index_status(conn)
+        where_sql = "c.seo_slug = ?"
+        params: tuple[Any, ...] = (slug_key,)
+        if route_source_item_id > 0:
+            where_sql = "c.source_item_id = ? AND c.seo_slug = ?"
+            params = (route_source_item_id, slug_key)
+        row = conn.execute(
+            f"""
+            SELECT
+                c.id, c.source_item_id, c.seo_slug, c.seo_title, c.seo_description, c.region_code,
+                c.body_zh_hant, c.body_zh_hans, c.schema_json, c.keyword_type,
+                c.intent_target, c.topic_category, c.keyword_tags, c.updated_at,
+                s.source_name, s.item_url, s.access_status, s.access_note, s.last_checked_at,
+                s.source_url, s.title_original, s.body_original, s.image_urls,
+                COALESCE(s.content_kind, '') AS content_kind
+            FROM content_items c INDEXED BY idx_content_seo_slug
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE {where_sql}
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="article not found")
+        item = _normalize_article_item(dict(row))
+        items = _related_articles_lite_for_item(conn, item, limit=int(limit))
+    return JSONResponse(
+        {
+            "ok": True,
+            "source_item_id": int(item.get("source_item_id") or 0),
+            "case_path": _standard_case_path(item.get("source_item_id")),
+            "article_path": _standard_article_path(item.get("seo_slug"), item.get("source_item_id")),
+            "standard_article_path_ok": _article_slug_is_standard(item.get("seo_slug")),
+            "related_count": len(items),
+            "items": items,
+            "index_ready": indexes,
+        }
+    )
+
+
+@app.get("/api/cases/article-route-audit")
+def api_cases_article_route_audit(
+    scope: str = Query(default="jp_listing"),
+    limit: int = Query(default=30, ge=1, le=200),
+    probe_limit: int = Query(default=12, ge=1, le=40),
+):
+    scope_where = _article_route_scope_where(scope)
+    scope_kind = _article_route_scope_kind(scope)
+    with get_conn() as conn:
+        indexes = _ensure_article_route_related_indexes(conn)
+        bad_slug_scan = _scan_nonstandard_article_slugs(conn, sample_limit=int(limit))
+        summary = _article_route_audit_summary_fast(conn, scope, int(bad_slug_scan.get("count") or 0))
+        duplicate_slugs = [
+            {"seo_slug": str(r["seo_slug"] or ""), "count": int(r["n"] or 0)}
+            for r in conn.execute(
+                """
+                SELECT seo_slug, COUNT(1) AS n
+                FROM content_items
+                WHERE TRIM(COALESCE(seo_slug, '')) <> ''
+                GROUP BY seo_slug
+                HAVING COUNT(1) > 1
+                ORDER BY n DESC, seo_slug
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+        ]
+        issue_rows: list[Any] = []
+        if scope_kind in {"jp_listing", "all"}:
+            source_scope_sql = "s.content_kind = 'jp_listing'" if scope_kind == "jp_listing" else "1=1"
+            issue_rows.extend(
+                conn.execute(
+                    f"""
+                    SELECT
+                        s.id AS source_item_id, s.source_name, s.item_url, COALESCE(s.content_kind, '') AS content_kind,
+                        NULL AS content_id, '' AS seo_slug, '' AS seo_title
+                    FROM source_items s
+                    WHERE {source_scope_sql}
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM content_items c INDEXED BY idx_content_source_item
+                          WHERE c.source_item_id = s.id
+                          LIMIT 1
+                      )
+                    ORDER BY s.id DESC
+                    LIMIT ?
+                    """,
+                    (int(limit),),
+                ).fetchall()
+            )
+        if len(issue_rows) < int(limit) and int(bad_slug_scan.get("count") or 0) > 0:
+            remaining = max(1, int(limit) - len(issue_rows))
+            bad_scope_sql = "s.content_kind = 'jp_listing'" if scope_kind == "jp_listing" else "1=1"
+            if scope_kind == "content":
+                bad_scope_sql = "1=1"
+            issue_rows.extend(
+                conn.execute(
+                    f"""
+                    SELECT
+                        s.id AS source_item_id, s.source_name, s.item_url, COALESCE(s.content_kind, '') AS content_kind,
+                        c.id AS content_id, COALESCE(c.seo_slug, '') AS seo_slug, COALESCE(c.seo_title, '') AS seo_title
+                    FROM content_items c
+                    JOIN source_items s ON s.id = c.source_item_id
+                    WHERE {bad_scope_sql}
+                      AND {_ARTICLE_ROUTE_BAD_SLUG_SQL}
+                    ORDER BY c.source_item_id DESC
+                    LIMIT ?
+                    """,
+                    (remaining,),
+                ).fetchall()
+            )
+        issues = []
+        for r in issue_rows:
+            d = dict(r)
+            slug = str(d.get("seo_slug") or "").strip()
+            reason = "missing_content" if not d.get("content_id") else "missing_or_nonstandard_slug"
+            issues.append(
+                {
+                    "source_item_id": int(d.get("source_item_id") or 0),
+                    "case_path": _standard_case_path(d.get("source_item_id")),
+                    "article_path": _standard_article_path(slug, d.get("source_item_id")),
+                    "seo_slug": slug,
+                    "seo_title": str(d.get("seo_title") or ""),
+                    "source_name": str(d.get("source_name") or ""),
+                    "content_kind": str(d.get("content_kind") or ""),
+                    "reason": reason,
+                }
+            )
+        probe_rows = conn.execute(
+            f"""
+            SELECT
+                c.id, c.source_item_id, c.seo_slug, c.seo_title, c.seo_description, c.region_code,
+                c.body_zh_hant, c.body_zh_hans, c.schema_json, c.keyword_type,
+                c.intent_target, c.topic_category, c.keyword_tags, c.updated_at,
+                s.source_name, s.item_url, s.access_status, s.access_note, s.last_checked_at,
+                s.source_url, s.title_original, s.body_original, s.image_urls,
+                COALESCE(s.content_kind, '') AS content_kind
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE {scope_where}
+              AND TRIM(COALESCE(c.seo_slug, '')) <> ''
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ?
+            """,
+            (int(probe_limit),),
+        ).fetchall()
+        related_probe = []
+        for row in probe_rows:
+            item = _normalize_article_item(dict(row))
+            related = _related_articles_lite_for_item(conn, item, limit=5)
+            related_probe.append(
+                {
+                    "source_item_id": int(item.get("source_item_id") or 0),
+                    "case_path": _standard_case_path(item.get("source_item_id")),
+                    "article_path": _standard_article_path(item.get("seo_slug"), item.get("source_item_id")),
+                    "standard_article_path_ok": _article_slug_is_standard(item.get("seo_slug")),
+                    "related_count": len(related),
+                    "related_sample": related[:3],
+                }
+            )
+    index_ok = all(indexes.values())
+    missing_content = int(summary.get("missing_content") or 0)
+    missing_slug = int(summary.get("missing_article_slug") or 0)
+    ok = bool(index_ok and missing_content == 0 and missing_slug == 0 and not issues)
+    return JSONResponse(
+        {
+            "ok": ok,
+            "scope": str(scope or "jp_listing"),
+            "standard": {
+                "case_path": "/case/{source_item_id}",
+                "article_path": "/article/case-{source_item_id}-{seo_slug}",
+                "legacy_article_path": "/article/{seo_slug}",
+                "related_lite": "/api/cases/{source_item_id}/related-lite",
+            },
+            "summary": {k: int(v or 0) for k, v in summary.items()},
+            "index_ready": indexes,
+            "nonstandard_slug_scan": bad_slug_scan,
+            "duplicate_slugs": duplicate_slugs,
+            "duplicate_slugs_handled_by_source_id_path": True,
+            "issues": issues,
+            "related_probe": related_probe,
+        }
+    )
+
+
+@app.get("/robots.txt")
+def robots():
+    base = get_effective_site_url()
+    body = f"User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n"
+    return Response(content=body, media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    base = get_effective_site_url()
+    with get_conn() as conn:
+        _ensure_article_route_related_indexes(conn)
+        rows = conn.execute(
+            """
+            SELECT seo_slug, source_item_id
+            FROM content_items INDEXED BY idx_content_seo_slug
+            WHERE TRIM(COALESCE(seo_slug, '')) <> ''
+            ORDER BY id DESC
+            LIMIT 5000
+            """
+        ).fetchall()
+        case_rows = conn.execute(
+            """
+            SELECT s.id AS source_item_id
+            FROM source_items s
+            LEFT JOIN content_items c ON c.source_item_id = s.id
+            WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+              AND TRIM(COALESCE(c.seo_slug, '')) = ''
+            ORDER BY COALESCE(s.published_at, s.crawled_at, s.last_checked_at, '') DESC, s.id DESC
+            LIMIT 2000
+            """
+        ).fetchall()
+        seo_draft_rows = conn.execute(
+            "SELECT seo_slug FROM seo_draft_items ORDER BY updated_at DESC, id DESC LIMIT 2000"
+        ).fetchall()
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        f"<url><loc>{base}</loc></url>",
+    ]
+    for region in TARGET_REGIONS:
+        code = region["code"]
+        lines.append(f"<url><loc>{base}/zh-hant/{code}</loc></url>")
+        lines.append(f"<url><loc>{base}/zh-hans/{code}</loc></url>")
+    for group_slug in REGION_GROUPS:
+        lines.append(f"<url><loc>{base}/zh-hant/{group_slug}</loc></url>")
+        lines.append(f"<url><loc>{base}/zh-hans/{group_slug}</loc></url>")
+    seen_paths: set[str] = set()
+    for row in rows:
+        path = _standard_article_path(row["seo_slug"], row["source_item_id"] if "source_item_id" in row.keys() else 0)
+        if path and path not in seen_paths:
+            seen_paths.add(path)
+            lines.append(f"<url><loc>{base}{path}</loc></url>")
+    for row in case_rows:
+        path = _standard_case_path(row["source_item_id"])
+        if path and path not in seen_paths:
+            seen_paths.add(path)
+            lines.append(f"<url><loc>{base}{path}</loc></url>")
+    for row in seo_draft_rows:
+        lines.append(f"<url><loc>{base}/seo-draft/{row['seo_slug']}</loc></url>")
+    lines.append("</urlset>")
+    return Response(content="\n".join(lines), media_type="application/xml")
+

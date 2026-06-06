@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ company_profile.name }}｜{{ site_name }}</title>
+  <meta name="description" content="公司背景、服務流程、資訊來源與查詢導引。{{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
+  <link rel="stylesheet" href="/static/site.css">
+</head>
+<body class="site-lang-hant">
+  <main class="container">
+    {% include 'partials/site_language_switch.html' %}
+    <section class="hero">
+      {% if brand_name %}
+      <div class="brand-badge">{{ brand_name }}</div>
+      {% endif %}
+      <h1>{{ company_profile.name }}</h1>
+      <p>{{ company_profile.service_name }}｜頁籤式公司介紹</p>
+    </section>
+
+    <section class="panel company-tab-wrap">
+      <a href="/">← 返回查詢首頁</a>
+      <p class="muted">以下內容已整合自官方公司頁，並轉為本站可讀性較高的頁籤模式。</p>
+      <div class="company-tab-nav">
+        {% for tab in company_tabs %}
+        <button class="company-tab-btn{% if loop.first %} active{% endif %}" data-tab="{{ tab.id }}">{{ tab.label }}</button>
+        {% endfor %}
+      </div>
+
+      {% for tab in company_tabs %}
+      <article class="company-tab-panel{% if loop.first %} active{% endif %}" id="tab-{{ tab.id }}">
+        <h2>{{ tab.title }}</h2>
+        <p>{{ tab.summary }}</p>
+        <ul>
+          {% for bullet in tab.bullets %}
+          <li>{{ bullet }}</li>
+          {% endfor %}
+        </ul>
+        {% if tab.steps %}
+        <h3>流程重點</h3>
+        <ol>
+          {% for step in tab.steps %}
+          <li>{{ step }}</li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </section>
+
+    <section class="panel">
+      <h2>查詢資料來源整合</h2>
+      <p class="muted">已把公司頁「日本不動產」服務說明整合進本站資料架構，以下為可交叉驗證來源：</p>
+      {% for category, items in knowledge_sources.items() %}
+      <h3>{{ category }}</h3>
+      <ul>
+        {% for item in items %}
+        <li><a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.name }}</a>｜{{ item.use }}</li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+    </section>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+
+  <script>
+    (function () {
+      const btns = document.querySelectorAll('.company-tab-btn');
+      const panels = document.querySelectorAll('.company-tab-panel');
+      for (const btn of btns) {
+        btn.addEventListener('click', () => {
+          const key = btn.getAttribute('data-tab');
+          for (const b of btns) b.classList.remove('active');
+          for (const p of panels) p.classList.remove('active');
+          btn.classList.add('active');
+          const panel = document.getElementById(`tab-${key}`);
+          if (panel) panel.classList.add('active');
+        });
+      }
+    })();
+  </script>
+  {% include 'partials/support_chat_public_fab.html' %}
+</body>
+</html>

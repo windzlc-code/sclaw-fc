@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ article.title }}｜{{ site_name }}</title>
+  <meta name="description" content="台灣人買日本房完整流程，整合官方、房仲與投資資料來源。{{ seo_description_suffix }}">
+  <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
+  <link rel="stylesheet" href="/static/site.css">
+</head>
+<body class="site-lang-hant">
+  <main class="container">
+    {% include 'partials/site_language_switch.html' %}
+    <section class="hero">
+      {% if brand_name %}
+      <div class="brand-badge">{{ brand_name }}</div>
+      {% endif %}
+      <h1>{{ article.title }}</h1>
+      <p>SEO 教學文章範本，可直接改寫後發佈到 WordPress</p>
+    </section>
+
+    <section class="panel">
+      <a href="/">← 返回查詢首頁</a>
+    </section>
+
+    <article class="card">
+      <h2>文章大綱</h2>
+      <ol>
+        {% for section in article.sections %}
+        <li>{{ section }}</li>
+        {% endfor %}
+      </ol>
+    </article>
+
+    <section class="panel">
+      <h2>引用資料來源建議</h2>
+      {% for category, items in knowledge_sources.items() %}
+      <h3>{{ category }}</h3>
+      <ul>
+        {% for item in items %}
+        <li><a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.name }}</a>｜{{ item.use }}</li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+    </section>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+  {% include 'partials/support_chat_public_fab.html' %}
+</body>
+</html>

@@ -1,0 +1,194 @@
+<section class="site-language-switch" aria-label="中文版本切換">
+  <div class="site-language-switch-copy">
+    <strong>中文版本</strong>
+    <span>全站文字以這兩個按鈕切換。</span>
+  </div>
+  <div class="site-language-switch-actions" role="group" aria-label="選擇中文版本">
+    <button type="button" class="site-language-btn is-active" data-site-lang-choice="hant" aria-pressed="true">繁體中文</button>
+    <button type="button" class="site-language-btn" data-site-lang-choice="hans" aria-pressed="false">简体中文</button>
+  </div>
+</section>
+<script>
+  (function () {
+    const STORAGE_KEY = 'sclaw.site_lang.v1';
+    const HOME_HANS_PHRASES = [
+      ['日本不動產案件｜BOT 智慧查詢', '日本不动产案件｜BOT 智慧查询'],
+      ['BOT 智能判斷＋查詢案件', 'BOT 智能判断＋查询案件'],
+      ['本網站預設查詢重點｜買屋案件', '本网站预设查询重点｜买屋案件'],
+      ['篩選條件（區域、類型、總價、格局、沿線／車站）', '筛选条件（区域、类型、总价、格局、沿线／车站）'],
+      ['沿線／車站查詢', '沿线／车站查询'],
+      ['都縣／都市圈', '都县／都市圈'],
+      ['交通系統', '交通系统'],
+      ['沿線／路線', '沿线／路线'],
+      ['車站（可選）', '车站（可选）'],
+      ['清除交通條件', '清除交通条件'],
+      ['下拉區域', '下拉区域'],
+      ['選取物件類型（可複選）', '选取物件类型（可复选）'],
+      ['總價', '总价'],
+      ['格局', '格局'],
+      ['最低', '最低'],
+      ['最高', '最高'],
+      ['不限', '不限'],
+      ['全選', '全选'],
+      ['智慧查詢', '智慧查询'],
+      ['智能客服', '智能客服'],
+      ['查詢中', '查询中'],
+      ['資料彙整中，請稍候', '资料汇整中，请稍候'],
+      ['中文版本', '中文版本'],
+      ['全站文字以這兩個按鈕切換。', '全站文字以这两个按钮切换。'],
+      ['選擇中文版本', '选择中文版本'],
+      ['繁體中文', '繁体中文'],
+      ['地圖', '地图'],
+      ['收合地圖區', '收合地图区'],
+      ['顧問', '顾问'],
+      ['請輸入', '请输入'],
+      ['查詢', '查询'],
+      ['清除', '清除'],
+      ['案件', '案件'],
+      ['資料', '资料'],
+      ['物件', '物件'],
+    ];
+    const HOME_HANS_CHAR_MAP = {
+      '體': '体', '動': '动', '產': '产', '國': '国', '專': '专', '業': '业', '顧': '顾', '問': '问',
+      '購': '购', '買': '买', '賣': '卖', '區': '区', '縣': '县', '線': '线', '車': '车', '點': '点',
+      '選': '选', '擇': '择', '複': '复', '總': '总', '價': '价', '萬': '万', '顯': '显', '較': '较',
+      '給': '给', '過': '过', '濾': '滤', '條': '条', '筆': '笔', '數': '数', '圖': '图', '欄': '栏',
+      '場': '场', '間': '间', '開': '开', '關': '关', '閉': '闭', '這': '这', '個': '个', '鈕': '钮',
+      '換': '换', '會': '会', '參': '参', '來': '来', '進': '进', '與': '与', '並': '并', '為': '为',
+      '將': '将', '應': '应', '氣': '气', '實': '实', '檢': '检', '覽': '览', '節': '节', '態': '态',
+      '態': '态', '設': '设', '備': '备', '構': '构', '築': '筑', '樓': '楼', '層': '层', '廣': '广',
+      '臺': '台', '灣': '湾', '讀': '读', '寫': '写', '導': '导', '輸': '输', '載': '载', '歷': '历',
+      '儲': '储', '啟': '启', '塊': '块', '摺': '折', '標': '标', '籤': '签', '類': '类', '驟': '骤',
+      '幣': '币', '雜': '杂', '寬': '宽', '窄': '窄', '離': '离', '雖': '虽', '處': '处', '續': '续',
+      '傳': '传', '庫': '库', '靈': '灵', '據': '据', '彙': '汇', '請': '请', '尋': '寻', '隱': '隐',
+      '藏': '藏', '頁': '页', '須': '须', '優': '优', '化': '化', '報': '报', '單': '单', '語': '语',
+      '買屋': '买屋'
+    };
+    const HOME_LANG_ATTRS = ['placeholder', 'title', 'aria-label', 'data-text', 'value'];
+
+    function normalizeSiteLang(lang) {
+      const v = String(lang || '').toLowerCase();
+      return v === 'hans' || v === 'zh-hans' || v === 'cn' || v === 'simplified' ? 'hans' : 'hant';
+    }
+    function getInitialSiteLang() {
+      try {
+        const q = new URLSearchParams(window.location.search || '');
+        const qLang = q.get('lang') || q.get('site_lang') || '';
+        if (qLang) return normalizeSiteLang(qLang);
+      } catch (_) {}
+      try {
+        const m = String(window.location.pathname || '').match(/^\/zh-(hant|hans)\//i);
+        if (m && m[1]) return normalizeSiteLang(m[1]);
+      } catch (_) {}
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) return normalizeSiteLang(saved);
+      } catch (_) {}
+      return 'hant';
+    }
+    function toHansText(input) {
+      let out = String(input || '');
+      HOME_HANS_PHRASES.forEach(([from, to]) => {
+        out = out.split(from).join(to);
+      });
+      out = out.replace(/[體動產國專業顧問購買賣區縣線車點選擇複總價萬顯較給過濾條筆數圖欄場間開關閉這個鈕換會參來進與並為將應氣實檢覽節態設備構築樓層廣臺灣讀寫導輸載歷儲啟塊摺標籤類驟幣雜寬離雖處續傳庫靈據彙請尋隱頁須優報單語]/g, (ch) => HOME_HANS_CHAR_MAP[ch] || ch);
+      return out;
+    }
+    function shouldSkipSiteLangNode(el) {
+      if (!el || el.nodeType !== 1) return false;
+      const tag = String(el.tagName || '').toLowerCase();
+      return tag === 'script' || tag === 'style' || tag === 'svg' || tag === 'canvas' || tag === 'noscript';
+    }
+    function applySiteLanguageText(lang) {
+      const pick = normalizeSiteLang(lang);
+      const root = document.body;
+      if (!root) return;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const parent = node.parentElement;
+          if (!parent || shouldSkipSiteLangNode(parent)) return NodeFilter.FILTER_REJECT;
+          const raw = String(node.nodeValue || '');
+          if (!raw.trim()) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach((node) => {
+        if (typeof node.__sclawHantText !== 'string') node.__sclawHantText = String(node.nodeValue || '');
+        node.nodeValue = pick === 'hans' ? toHansText(node.__sclawHantText) : node.__sclawHantText;
+      });
+      root.querySelectorAll('*').forEach((el) => {
+        if (shouldSkipSiteLangNode(el)) return;
+        HOME_LANG_ATTRS.forEach((attr) => {
+          if (!el.hasAttribute(attr)) return;
+          const key = `sclawHantAttr_${attr}`;
+          if (typeof el[key] !== 'string') el[key] = String(el.getAttribute(attr) || '');
+          el.setAttribute(attr, pick === 'hans' ? toHansText(el[key]) : el[key]);
+        });
+      });
+    }
+    function applySiteLanguage(lang) {
+      const pick = normalizeSiteLang(lang);
+      try {
+        localStorage.setItem(STORAGE_KEY, pick);
+        localStorage.setItem('sclaw_article_lang_pref', pick);
+      } catch (_) {}
+      document.documentElement.lang = pick === 'hans' ? 'zh-Hans' : 'zh-Hant';
+      if (document.body) {
+        document.body.classList.toggle('site-lang-hant', pick === 'hant');
+        document.body.classList.toggle('site-lang-hans', pick === 'hans');
+        document.body.classList.toggle('article-lang-hant', pick === 'hant');
+        document.body.classList.toggle('article-lang-hans', pick === 'hans');
+      }
+      document.querySelectorAll('[data-site-lang-choice]').forEach((btn) => {
+        const active = normalizeSiteLang(btn.getAttribute('data-site-lang-choice')) === pick;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-site-lang-pane], [data-lang-pane]').forEach((pane) => {
+        const paneLang = normalizeSiteLang(pane.getAttribute('data-site-lang-pane') || pane.getAttribute('data-lang-pane'));
+        const show = paneLang === pick;
+        pane.hidden = !show;
+        pane.setAttribute('aria-hidden', show ? 'false' : 'true');
+      });
+      document.querySelectorAll('[data-lang-tab]').forEach((btn) => {
+        const active = normalizeSiteLang(btn.getAttribute('data-lang-tab')) === pick;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      applySiteLanguageText(pick);
+      try {
+        window.dispatchEvent(new CustomEvent('site-language-change', { detail: { lang: pick } }));
+      } catch (_) {}
+      return pick;
+    }
+    window.setSiteLanguage = applySiteLanguage;
+    window.getSiteLanguagePreference = function () {
+      try {
+        return normalizeSiteLang(localStorage.getItem(STORAGE_KEY) || getInitialSiteLang());
+      } catch (_) {
+        return getInitialSiteLang();
+      }
+    };
+    function initSiteLanguageSwitch() {
+      document.querySelectorAll('[data-site-lang-choice]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const pick = normalizeSiteLang(btn.getAttribute('data-site-lang-choice'));
+          applySiteLanguage(pick);
+          try {
+            const path = String(window.location.pathname || '');
+            if (/^\/zh-(hant|hans)\//i.test(path)) {
+              const nextPath = path.replace(/^\/zh-(hant|hans)\//i, `/zh-${pick}/`);
+              if (nextPath !== path) window.location.href = nextPath + String(window.location.search || '') + String(window.location.hash || '');
+            }
+          } catch (_) {}
+        });
+      });
+      applySiteLanguage(getInitialSiteLang());
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSiteLanguageSwitch);
+    else initSiteLanguageSwitch();
+  })();
+</script>
