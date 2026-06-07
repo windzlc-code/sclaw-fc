@@ -3083,6 +3083,18 @@ class HumanIntakeRequest(BaseModel):
     questionnaire: dict[str, Any] = Field(default_factory=dict)
 
 
+class AdminHandoffUpdateRequest(BaseModel):
+    name: str = ""
+    phone: str = ""
+    email: str = ""
+    note: str = ""
+    action_id: str = ""
+    matched_scene_id: str = ""
+    matched_scene_label: str = ""
+    context_message: str = ""
+    opinion: str = ""
+
+
 class HandoffConversationSyncRequest(BaseModel):
     """留單送出後，將網頁端持續對話覆寫回同一筆客戶留單（依 session 對應最新一筆）。"""
 
@@ -11974,6 +11986,49 @@ def api_admin_handoff_request_detail(handoff_id: int, request: Request):
     return JSONResponse({"ok": True, "item": d})
 
 
+@app.put("/api/admin/handoff-requests/{handoff_id}")
+def api_admin_handoff_request_update(handoff_id: int, payload: AdminHandoffUpdateRequest, request: Request):
+    _require_admin_password(request)
+    hid = int(handoff_id)
+    fields = {
+        "name": (payload.name or "").strip()[:120],
+        "phone": (payload.phone or "").strip()[:80],
+        "email": (payload.email or "").strip()[:160],
+        "note": (payload.note or "").strip()[:2000],
+        "action_id": (payload.action_id or "").strip()[:80],
+        "matched_scene_id": (payload.matched_scene_id or "").strip()[:80],
+        "matched_scene_label": (payload.matched_scene_label or "").strip()[:160],
+        "context_message": (payload.context_message or "").strip()[:2000],
+        "opinion": (payload.opinion or "").strip()[:2000],
+    }
+    with get_conn() as conn:
+        exists = conn.execute("SELECT id FROM human_handoff_requests WHERE id = ? LIMIT 1", (hid,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="handoff not found")
+        conn.execute(
+            """
+            UPDATE human_handoff_requests
+            SET name = ?, phone = ?, email = ?, note = ?, action_id = ?,
+                matched_scene_id = ?, matched_scene_label = ?, context_message = ?, opinion = ?
+            WHERE id = ?
+            """,
+            (
+                fields["name"],
+                fields["phone"],
+                fields["email"],
+                fields["note"],
+                fields["action_id"],
+                fields["matched_scene_id"],
+                fields["matched_scene_label"],
+                fields["context_message"],
+                fields["opinion"],
+                hid,
+            ),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True, "id": hid, "item": fields})
+
+
 @app.delete("/api/admin/handoff-requests/{handoff_id}")
 def api_admin_handoff_request_delete(handoff_id: int, request: Request):
     _require_admin_password(request)
@@ -18878,6 +18933,12 @@ def api_handoff_requests_no_admin_path(
 def api_handoff_request_detail_no_admin_path(handoff_id: int, request: Request):
     """與 GET /api/admin/handoff-requests/{id} 相同。"""
     return api_admin_handoff_request_detail(handoff_id, request)
+
+
+@app.put("/api/handoff-requests/{handoff_id}")
+def api_handoff_request_update_no_admin_path(handoff_id: int, payload: AdminHandoffUpdateRequest, request: Request):
+    """與 PUT /api/admin/handoff-requests/{id} 相同。"""
+    return api_admin_handoff_request_update(handoff_id, payload, request)
 
 
 @app.delete("/api/handoff-requests/{handoff_id}")

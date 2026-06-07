@@ -1,7 +1,23 @@
 {# 與首頁 index 浮動智能客服相同之 DOM；需搭配首頁既有內嵌腳本（toggleSupportChat 等）。 #}
-    <div id="support-chat-widget" class="support-chat-widget" aria-live="polite" style="display:block;">
+    <div id="support-chat-widget" class="support-chat-widget" aria-live="polite">
       <div id="support-chat-backdrop" class="support-chat-backdrop" style="display: none;" onclick="toggleSupportChat(false)" aria-hidden="true"></div>
       <div id="support-selected-cases-drawer-backdrop" class="support-selected-cases-drawer-backdrop" style="display:none;" onclick="toggleSupportSelectedCasesDrawer(false)" aria-hidden="true"></div>
+      <div id="support-phone-login-backdrop" class="support-phone-login-backdrop" style="display:none;" onclick="toggleSupportPhoneLoginModal(false)" aria-hidden="true"></div>
+      <div id="support-phone-login-modal" class="support-phone-login-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="support-phone-login-title">
+        <div class="support-phone-login-head">
+          <div>
+            <strong id="support-phone-login-title">號碼登入</strong>
+            <p class="muted">輸入聯絡號碼後，後台可在客戶留單查看並編輯。</p>
+          </div>
+          <button type="button" class="ui-close-btn" onclick="toggleSupportPhoneLoginModal(false)" aria-label="關閉號碼登入" title="關閉">×</button>
+        </div>
+        <div class="support-phone-login-body">
+          <label for="support-phone-login-input">聯絡電話</label>
+          <input id="support-phone-login-input" type="tel" inputmode="tel" autocomplete="tel" maxlength="40" placeholder="請輸入電話號碼">
+          <button id="support-phone-login-submit" type="button" class="primary" onclick="submitSupportPhoneLogin()">登入並送出</button>
+          <p id="support-phone-login-msg" class="muted" aria-live="polite"></p>
+        </div>
+      </div>
       <div id="support-selected-cases-drawer" class="support-selected-cases-drawer" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="support-selected-cases-drawer-title">
         <div class="support-selected-cases-drawer-head">
           <div class="support-selected-cases-drawer-head-main">
@@ -10,7 +26,7 @@
           </div>
           <div class="support-selected-cases-drawer-head-actions">
             <button type="button" class="secondary" onclick="clearSupportSelectedCases()">清空</button>
-            <button type="button" class="secondary" onclick="toggleSupportSelectedCasesDrawer(false)">關閉</button>
+            <button type="button" class="ui-close-btn" onclick="toggleSupportSelectedCasesDrawer(false)" aria-label="關閉已選案件清單" title="關閉">×</button>
           </div>
         </div>
         <div id="support-selected-cases-drawer-list" class="support-selected-cases-drawer-list muted">尚未加入案件。可在智慧查詢結果點選心型收藏。</div>
@@ -27,7 +43,7 @@
             </span>
             <strong>線上智能客服</strong>
           </div>
-          <button type="button" class="secondary" onclick="toggleSupportChat(false)">收起</button>
+          <button type="button" class="ui-close-btn" onclick="toggleSupportChat(false)" aria-label="收起線上智能客服" title="收起">×</button>
         </div>
         <div class="support-chat-body">
         <div id="support-chat-messages" class="support-chat-messages"></div>
@@ -62,11 +78,29 @@
         </div>
         <p id="support-chat-mic-hint" class="muted" style="font-size:12px;margin:0.35rem 0 0;line-height:1.45;">點一下麥克風開始口語輸入，再點一下結束（轉成文字後不會自動送出）。</p>
       </div>
-      <button id="support-selected-cases-fab" type="button" class="support-selected-cases-fab" onclick="toggleSupportSelectedCasesDrawer()" aria-label="已選案件清單" aria-haspopup="dialog" aria-controls="support-selected-cases-drawer" aria-expanded="false">
+      <button id="support-phone-login-toggle" type="button" class="support-phone-login-toggle floating-action-btn" onclick="toggleSupportPhoneLoginModal()" aria-label="號碼登入" aria-haspopup="dialog" aria-controls="support-phone-login-modal" aria-expanded="false" title="號碼登入" data-floating-label="號碼登入">
+        <span class="support-phone-login-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" focusable="false">
+            <path d="M11.2 6.8h9.6a2.4 2.4 0 0 1 2.4 2.4v13.6a2.4 2.4 0 0 1-2.4 2.4h-9.6a2.4 2.4 0 0 1-2.4-2.4V9.2a2.4 2.4 0 0 1 2.4-2.4Z" />
+            <path d="M13.2 10h5.6M14 22h4" />
+            <path d="M12.8 15.2c1.1-1.2 2.1-1.8 3.2-1.8s2.1.6 3.2 1.8M12.4 18.4c1.2-1.1 2.4-1.7 3.6-1.7s2.4.6 3.6 1.7" />
+          </svg>
+        </span>
+      </button>
+      <button id="support-chat-toggle" type="button" class="support-chat-toggle floating-action-btn" onclick="toggleSupportChat()" aria-label="開啟線上智能客服對話" title="線上智能客服" data-floating-label="線上客服">
+        <span class="support-chat-robot-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" focusable="false">
+            <path class="robot-antenna" d="M16 6V3.8M12.5 3.5h7" />
+            <rect class="robot-head" x="7" y="8" width="18" height="16" rx="6" />
+            <circle class="robot-eye" cx="13" cy="15" r="1.8" />
+            <circle class="robot-eye" cx="19" cy="15" r="1.8" />
+            <path class="robot-mouth" d="M12.5 20.2c2.3 1.4 4.7 1.4 7 0" />
+            <path class="robot-ear" d="M5.7 14.2v4.6M26.3 14.2v4.6" />
+          </svg>
+        </span>
+      </button>
+      <button id="support-selected-cases-fab" type="button" class="support-selected-cases-fab floating-action-btn" onclick="toggleSupportSelectedCasesDrawer()" aria-label="已選案件清單" aria-haspopup="dialog" aria-controls="support-selected-cases-drawer" aria-expanded="false" data-floating-label="已選清單">
         <span class="support-selected-cases-fab-icon" aria-hidden="true">♥</span>
         <span id="support-selected-cases-fab-count" class="support-selected-cases-fab-count" aria-hidden="true">0</span>
-      </button>
-      <button id="support-chat-toggle" type="button" class="support-chat-toggle" onclick="toggleSupportChat()" aria-label="開啟線上智能客服對話" title="線上智能客服">
-        <img src="{{ support_avatar_url }}" class="support-chat-toggle-avatar" alt="{{ seo_phrase_brand }}｜{{ seo_phrase_entry }}" loading="lazy" decoding="async" width="58" height="58">
       </button>
     </div>

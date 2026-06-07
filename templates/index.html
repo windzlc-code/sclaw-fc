@@ -19,14 +19,15 @@
   <meta name="twitter:description" content="提供海外買家日本不動產購買支援與站內查詢。{{ seo_description_suffix }}">
   <meta name="twitter:image" content="https://images.unsplash.com/photo-1480796927426-f609979314bd?auto=format&amp;fit=crop&amp;w=1600&amp;q=80">
   <link rel="canonical" href="{{ site_url }}/">
-  <link rel="stylesheet" href="/static/site.css?v=20260607-lang-select">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
+  <link rel="stylesheet" href="/static/site.css?v=20260608-map-selection-no-keyword-zoom75">
+  <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
   <script>window.__SUPPORT_AVATAR_ALT__={{ (seo_phrase_brand ~ '｜' ~ seo_phrase_entry ~ '｜智能助理') | tojson }};</script>
 </head>
 <body class="site-home site-lang-hant">
   <main class="container">
-    {% include 'partials/site_language_switch.html' %}
     <div id="query-progress" class="query-progress" style="display:none;">
       <div class="query-progress-track"><div class="query-progress-bar"></div></div>
       <span id="query-progress-text" class="muted">查詢中...</span>
@@ -48,19 +49,6 @@
     </section>
 
     <section class="hero site-home-hero" aria-labelledby="home-hero-heading">
-      <div class="hero-top">
-        <div class="hero-brand-logo">
-          <img src="/static/brand-logo1.png" alt="{{ site_name }}" width="320" height="320" decoding="async" loading="eager" fetchpriority="high">
-        </div>
-        <div class="hero-copy">
-          {% if brand_name %}
-          <div class="brand-badge">{{ brand_name }}</div>
-          {% endif %}
-          <h1 id="home-hero-heading">{{ seo_phrase_brand }}</h1>
-          <p class="hero-subtitle">{{ seo_phrase_entry }}</p>
-          <p>提供海外買家日本不動產購買支援，包含市場分析、購屋流程說明、合法合規仲介轉介與專業流程對接。</p>
-        </div>
-      </div>
       {% set hero_media_ns = namespace(item=None) %}
       {% for media_item in home_video_carousel %}
         {% if hero_media_ns.item is none and media_item.media_type == "video" %}
@@ -70,18 +58,40 @@
       {% set initial_hero_media = hero_media_ns.item %}
       <div class="hero-media{% if home_video_carousel %} hero-media--video-carousel{% endif %}" data-home-hero-theme="{{ home_hero.theme }}" data-home-hero-media-type="{{ initial_hero_media.media_type if initial_hero_media else home_hero.media_type }}" data-home-hero-fallback-image="{{ home_hero.image_url }}" data-home-hero-items='{{ home_video_carousel|tojson|forceescape }}' style="--home-hero-image: url('{{ initial_hero_media.url if initial_hero_media and initial_hero_media.media_type == "image" else home_hero.image_url }}');">
         {% if initial_hero_media and initial_hero_media.media_type == "video" %}
-        <video id="home-hero-video-carousel-player" class="home-hero-video home-hero-generated-video" src="{{ initial_hero_media.url }}" autoplay muted loop playsinline controls preload="auto"></video>
+        <video id="home-hero-video-carousel-player" class="home-hero-video home-hero-generated-video" src="{{ initial_hero_media.url }}" autoplay muted loop playsinline preload="auto"></video>
         {% elif home_hero.media_type == 'video' and home_hero.media_url %}
-        <video class="home-hero-video" src="{{ home_hero.media_url }}" autoplay muted loop playsinline controls preload="metadata"></video>
+        <video class="home-hero-video" src="{{ home_hero.media_url }}" autoplay muted loop playsinline preload="metadata"></video>
         {% endif %}
+        <div class="home-hero-video-placeholder" aria-hidden="true"></div>
         <audio id="home-hero-audio-carousel-player" class="home-hero-audio" preload="auto"></audio>
         <div class="hero-media-overlay">
+          <div class="hero-video-chrome">
+            <div class="hero-video-brand-row">
+              <div class="hero-top">
+                <div class="hero-brand-logo">
+                  <img src="/static/brand-logo1.png" alt="{{ site_name }}" width="320" height="320" decoding="async" loading="eager" fetchpriority="high">
+                </div>
+                <div class="hero-copy">
+                  {% if brand_name %}
+                  <div class="brand-badge">{{ brand_name }}</div>
+                  {% endif %}
+                  <h1 id="home-hero-heading">{{ seo_phrase_brand }}</h1>
+                  <p class="hero-subtitle">{{ seo_phrase_entry }}</p>
+                  <p>提供海外買家日本不動產購買支援，包含市場分析、購屋流程說明、合法合規仲介轉介與專業流程對接。</p>
+                </div>
+              </div>
+              <div class="hero-video-actions">
+                <button type="button" class="home-hero-sound-toggle" data-home-hero-sound-toggle aria-pressed="false">開啟聲音輪播</button>
+                <button id="config-launcher" class="config-launcher" type="button" aria-label="開啟後台管理" aria-expanded="false" title="後台管理（快捷鍵 Ctrl+Shift+B）">⚙</button>
+                {% include 'partials/site_language_switch.html' %}
+              </div>
+            </div>
+          </div>
           <div class="hero-media-overlay-copy">
             <p class="hero-kicker">{{ seo_phrase_hero_kicker }}</p>
             <h2>上方頁籤快速切換，集中查詢與翻譯操作</h2>
           </div>
         </div>
-        <button type="button" class="home-hero-sound-toggle" data-home-hero-sound-toggle aria-pressed="false">開啟聲音輪播</button>
       </div>
     </section>
 
@@ -100,10 +110,6 @@
           <button type="button" class="secondary jp-map-hub-ref-link" id="jp-map-hub-collapse-btn" aria-expanded="true" title="僅收合上方地圖與條件區；下方日本不動產案件區仍保留">收合地圖區</button>
         </span>
       </div>
-      <div class="jp-map-hub-collapsed-strip" id="jp-map-hub-collapsed-strip" hidden>
-        <span class="muted">地圖與區域選擇區（已收合）；下方日本不動產案件查詢仍可使用</span>
-        <button type="button" class="secondary" id="jp-map-hub-expand-btn">展開地圖區</button>
-      </div>
       <div class="jp-map-hub-collapsible" id="jp-map-hub-collapsible">
       <div class="jp-map-hub-shell jp-map-hub-shell--integrated">
         <div class="jp-map-hub-main">
@@ -114,20 +120,21 @@
                 <div class="jp-area-picker-map-wrap">
                   <div class="jp-map-hub-map jp-map-hub-map--solo jp-map-hub-map--raster jp-area-picker-map-inner" role="application" aria-label="日本地圖：點區塊查詢案件">
                     <div class="jp-map-hub-raster-stack jp-area-picker-raster-stack">
+                      <div id="jp-leaflet-map" class="jp-leaflet-map" aria-label="可縮放日本地圖"></div>
                       <img class="jp-map-hub-map-raster-img" src="/static/img/jp-area-map-clean.png?v=clean-map-20260503" alt="日本地圖：請點選圖上的大區標籤或綠色熱區" width="1024" height="640" loading="lazy" decoding="async" data-jp-map-base-img />
                       <svg class="jp-map-hub-map-svg jp-map-hub-map-svg--hit" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="presentation">
                         <title>地區點選（透明熱區）</title>
                         <g class="jp-map-broad-hits" aria-label="地區點選（大區）">
-                          <path class="jp-map-broad-hit" data-jp-hub-region="沖繩" title="沖繩" d="M30.8 22.8H55.8V47.2H30.8Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="九州" title="九州" d="M28.6 63.2H47.8V85.2H28.6Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="四國" title="四國" d="M49.8 75.4H66.4V90.8H49.8Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="中國地方" title="中國地方" d="M39.4 51.2H68.8V69.0H39.4Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="北海道" title="北海道" d="M104.2 18.3H129.8V33.6H104.2Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="東北" title="東北" d="M97.0 34.2H126.2V59.4H97.0Z M109.6 42.4H124.2V50.4H109.6Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="關東" title="關東" d="M103.8 57.4H128.0V73.8H103.8Z M106.0 62.0H119.0V70.0H106.0Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="甲信越・北陸" title="甲信越・北陸" d="M66.8 46.8H91.2V56.8H66.8Z M75.8 47.0H96.4V69.2H75.8Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="東海" title="東海" d="M83.8 73.8H101.6V86.8H83.8Z M74.0 65.2H92.2V75.8H74.0Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="關西" title="關西" d="M65.0 78.0H80.6V91.8H65.0Z M58.8 66.2H75.8V78.8H58.8Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="沖繩" title="沖繩" d="M37.7 23.8C38.4 23.1 39.7 22.9 40.6 23.4C41.1 24.2 40.1 25.1 38.9 25.2C37.9 25.0 37.2 24.4 37.7 23.8Z M32.4 28.1C33.4 27.5 35.2 27.6 36.0 28.6C35.9 29.8 34.3 30.5 33.0 30.1C32.2 29.7 31.9 28.7 32.4 28.1Z M47.0 39.6C49.2 38.4 52.7 38.8 54.0 40.9C53.6 42.4 51.4 43.3 49.0 42.9C47.4 42.4 46.4 40.8 47.0 39.6Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="九州" title="九州" d="M36.4 58.8C40.2 58.8 44.4 61.4 46.7 65.2C49.1 69.0 48.1 72.8 45.2 76.4C42.8 79.3 43.0 83.0 39.6 85.3C36.1 87.7 31.4 85.3 29.3 81.4C27.1 77.1 28.0 72.5 30.6 69.5C33.0 66.7 31.3 62.7 34.0 60.4C34.8 59.6 35.5 59.1 36.4 58.8Z M44.1 57.8C46.5 57.1 49.6 58.5 50.8 60.9C50.4 63.1 47.4 64.0 44.8 62.8C42.8 61.7 42.3 58.9 44.1 57.8Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="四國" title="四國" d="M48.4 77.1C51.8 75.0 57.1 74.2 62.9 75.3C67.0 76.1 69.1 78.1 68.3 80.3C67.4 82.7 62.4 84.5 56.9 84.8C52.4 85.0 48.2 83.1 47.5 80.6C47.1 79.1 47.3 77.9 48.4 77.1Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="中國地方" title="中國地方" d="M38.4 55.5C42.6 52.5 51.3 51.0 60.3 52.0C66.5 52.7 71.5 55.6 72.0 58.7C71.4 61.9 64.9 64.3 56.2 64.8C48.5 65.3 41.6 63.5 38.7 60.4C37.2 58.8 37.2 56.6 38.4 55.5Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="北海道" title="北海道" d="M103.4 22.2C107.8 18.5 117.9 17.2 126.1 20.0C132.8 22.3 135.0 26.4 130.8 29.8C126.1 33.6 116.5 34.8 109.1 31.5C103.2 28.9 100.3 24.8 103.4 22.2Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="東北" title="東北" d="M100.0 33.2C104.3 31.2 111.8 32.8 116.2 37.1C121.2 42.0 123.2 50.4 120.2 57.1C117.8 62.3 111.8 64.4 106.8 60.5C102.5 57.0 98.8 50.8 96.7 44.7C94.8 39.2 96.0 35.1 100.0 33.2Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="關東" title="關東" d="M101.8 60.4C105.3 57.7 112.4 57.7 118.6 60.6C124.3 63.2 126.4 67.5 123.6 71.1C120.7 74.7 113.8 75.5 108.0 72.7C102.8 70.3 99.0 64.1 101.8 60.4Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="甲信越・北陸" title="甲信越・北陸" d="M67.5 57.0C72.8 53.7 80.7 52.1 88.5 52.6C95.0 53.1 100.0 56.0 101.0 59.2C96.1 58.6 90.8 58.9 85.2 59.7C77.7 60.8 70.8 61.8 66.8 59.8C65.7 59.0 66.2 57.8 67.5 57.0Z M75.0 61.5C79.2 59.1 85.4 59.0 90.2 61.2C94.0 63.0 92.1 66.4 88.0 68.0C82.1 70.4 75.5 67.5 72.8 64.4C71.7 62.8 72.8 62.0 75.0 61.5Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="東海" title="東海" d="M74.0 65.2C78.2 63.2 85.6 64.0 92.3 67.6C98.2 70.7 101.2 76.0 99.1 80.0C96.8 84.1 89.7 84.2 83.8 80.5C78.4 77.2 72.5 69.6 74.0 65.2Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="關西" title="關西" d="M59.3 66.7C62.9 64.2 70.1 64.7 75.0 67.9C79.8 71.0 80.2 76.0 76.0 80.8C72.4 84.9 66.4 85.1 61.8 81.6C57.1 78.1 55.8 69.2 59.3 66.7Z"/>
                         </g>
                       </svg>
                       <div class="jp-map-pref-overlays" id="jp-map-hub-details-pref" aria-label="地圖內都道府縣文字區塊">
@@ -145,14 +152,19 @@
                         {% endfor %}
                       </div>
                     </div>
+                    <div class="jp-map-zoom-controls" role="group" aria-label="地圖縮放">
+                      <button type="button" class="jp-map-zoom-btn" data-jp-map-zoom="out" aria-label="縮小地圖">−</button>
+                      <button type="button" class="jp-map-zoom-btn jp-map-zoom-btn--reset" data-jp-map-zoom="reset" aria-label="顯示全日本地圖">全</button>
+                      <button type="button" class="jp-map-zoom-btn" data-jp-map-zoom="in" aria-label="放大地圖">＋</button>
+                    </div>
                     <p class="jp-map-hub-map-live" id="jp-map-hub-map-live" aria-live="polite">
                       <span id="jp-map-hub-hover-label" class="jp-map-hub-map-live-hover"></span>
                       <span id="jp-map-hub-selected-label" class="jp-map-hub-map-live-selected"></span>
+                      <span id="jp-map-hub-coordinate-label" class="jp-map-hub-map-live-coordinate"></span>
                     </p>
                     <div class="jp-map-selected-pref-panel" id="jp-map-selected-pref-panel" hidden>
                       <div class="jp-map-selected-pref-head">
                         <strong id="jp-map-selected-pref-title">都道府縣</strong>
-                        <button type="button" class="secondary jp-map-selected-pref-close" id="jp-map-selected-pref-close">收起</button>
                       </div>
                       <div class="jp-map-selected-pref-chips" id="jp-map-selected-pref-chips" aria-label="都道府縣選擇"></div>
                     </div>
@@ -305,9 +317,10 @@
           <label class="figure-smart-label">地圖點選</label>
           <div style="display:flex;flex-direction:column;gap:0.35rem;">
             <p class="muted" style="margin:0;font-size:12px;line-height:1.5;">請先在上方「日本找房工作台」點選大區／都道府縣，條件會帶入；再按下方<strong>查詢日本不動產案件</strong>。</p>
+            <p id="figure-map-selection-summary" class="figure-map-selection-summary" hidden aria-live="polite"></p>
             <div style="display:flex;flex-wrap:wrap;gap:0.45rem;">
               <button type="button" class="secondary" onclick="scrollToJpMapHub()">捲動到地圖工作台</button>
-              <button type="button" class="secondary" onclick="clearFigureMapSelection()">清除地圖選擇</button>
+              <button type="button" class="secondary" id="figure-map-clear-btn" onclick="clearFigureMapSelection()" hidden>清除地圖選擇</button>
             </div>
           </div>
         </div>
@@ -620,7 +633,7 @@
     <aside id="admin-drawer" class="config-drawer admin-drawer" aria-hidden="true">
       <div class="config-drawer-head">
         <strong>後台管理</strong>
-        <button class="secondary" type="button" onclick="toggleAdminDrawer(false)">關閉</button>
+        <button class="ui-close-btn" type="button" onclick="toggleAdminDrawer(false)" aria-label="關閉後台管理" title="關閉">×</button>
       </div>
       <p class="muted admin-drawer-note">密碼登入後即可管理；頁籤負責切換模組。</p>
       <div class="panel admin-auth-panel">
@@ -1759,10 +1772,6 @@
 
   </main>
 
-  <button id="config-launcher" class="config-launcher" type="button" aria-label="開啟後台管理" title="後台管理（快捷鍵 Ctrl+Shift+B）">
-    ⚙
-  </button>
-
   <div id="image-lightbox" class="image-lightbox" aria-hidden="true">
     <div class="image-lightbox-inner">
       <button id="image-lightbox-prev" class="image-lightbox-nav image-lightbox-prev" type="button" aria-label="上一張">‹</button>
@@ -2667,15 +2676,76 @@
       }
     }
 
-    function clearFigureMapSelection() {
+    function setFigureMapSelectionSummary(selection) {
+      const summary = document.getElementById('figure-map-selection-summary');
+      const clearBtn = document.getElementById('figure-map-clear-btn');
+      const region = String((selection && selection.region) || '').trim();
+      const prefLabel = String((selection && selection.prefLabel) || '').trim();
+      const queryRegion = String((selection && selection.queryRegion) || '').trim();
+      const keyword = String((selection && selection.keyword) || '').trim();
+      const parts = [];
+      if (region) parts.push(`大區：${region}`);
+      if (prefLabel) parts.push(`都道府縣：${prefLabel}`);
+      const hasSelection = parts.length > 0;
+      if (summary) {
+        summary.textContent = hasSelection ? `已帶入地圖選擇｜${parts.join('｜')}` : '';
+        summary.hidden = !hasSelection;
+        summary.dataset.hasSelection = hasSelection ? '1' : '0';
+        summary.dataset.mapRegion = hasSelection ? region : '';
+        summary.dataset.mapPrefLabel = hasSelection ? prefLabel : '';
+        summary.dataset.mapQueryRegion = hasSelection ? (queryRegion || prefLabel || region) : '';
+        summary.dataset.mapKeyword = hasSelection ? keyword : '';
+      }
+      if (clearBtn) clearBtn.hidden = !hasSelection;
+    }
+
+    function getFigureMapSelectionState() {
+      const summary = document.getElementById('figure-map-selection-summary');
+      if (!summary || summary.hidden || summary.dataset.hasSelection !== '1') {
+        return { hasSelection: false, region: '', prefLabel: '', queryRegion: '', keyword: '' };
+      }
+      return {
+        hasSelection: true,
+        region: String(summary.dataset.mapRegion || '').trim(),
+        prefLabel: String(summary.dataset.mapPrefLabel || '').trim(),
+        queryRegion: String(summary.dataset.mapQueryRegion || '').trim(),
+        keyword: String(summary.dataset.mapKeyword || '').trim(),
+      };
+    }
+
+    function resetJpMapWorkbenchVisualSelection() {
+      if (typeof window.__sclawResetJpMapWorkbenchVisualSelection === 'function') {
+        try {
+          window.__sclawResetJpMapWorkbenchVisualSelection();
+          return;
+        } catch (_) {
+          /* fall back to DOM cleanup */
+        }
+      }
       const hub = document.getElementById('jp-map-hub');
       if (hub) {
-        hub.querySelectorAll('.jp-map-pref-overlay.is-active, .jp-map-hub-chip.is-active, .jp-map-selected-pref-chip.is-active').forEach((el) => {
+        hub.querySelectorAll('.jp-map-pref-overlay.is-active, .jp-map-hub-chip.is-active, .jp-map-selected-pref-chip.is-active, .jp-area-picker-side-btn.is-active, .jp-map-region-label.is-active').forEach((el) => {
           try { el.classList.remove('is-active'); } catch (_) {}
         });
+        hub.querySelectorAll('.jp-map-selected-pref-row.is-confirming').forEach((el) => {
+          try { el.classList.remove('is-confirming'); } catch (_) {}
+        });
+        hub.querySelectorAll('.jp-map-pref-confirm-actions').forEach((el) => {
+          try { el.hidden = true; } catch (_) {}
+        });
+      }
+      const panel = document.getElementById('jp-map-selected-pref-panel');
+      if (panel) {
+        panel.classList.remove('is-open');
+        panel.hidden = true;
       }
       const selLive = document.getElementById('jp-map-hub-selected-label');
       if (selLive) selLive.textContent = '';
+    }
+
+    function clearFigureMapSelection() {
+      resetJpMapWorkbenchVisualSelection();
+      setFigureMapSelectionSummary(null);
       if (typeof updateJpMapHubCrumbTail === 'function') updateJpMapHubCrumbTail('地域');
       const regionSel = document.getElementById('figure_region');
       if (regionSel) {
@@ -6084,39 +6154,117 @@
       }
     }
 
-    function toggleSupportChat(force) {
+    function figureCarouselArrowSvg(dir) {
+      const d = dir === 'next' ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7';
+      return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    }
+
+    function setupFigureResultsCarousel(shell) {
+      if (!shell || shell.dataset.figureCarouselBound === '1') return;
+      shell.dataset.figureCarouselBound = '1';
+      const track = shell.querySelector('.figure-results-carousel-track');
+      const prev = shell.querySelector('[data-figure-carousel="prev"]');
+      const next = shell.querySelector('[data-figure-carousel="next"]');
+      if (!track || !prev || !next) return;
+      let autoTimer = 0;
+      let paused = false;
+      const step = () => Math.max(260, Math.round(track.clientWidth * 0.82));
+      const scrollByDir = (dir) => {
+        const maxLeft = Math.max(0, track.scrollWidth - track.clientWidth - 2);
+        const atEnd = track.scrollLeft >= maxLeft;
+        const atStart = track.scrollLeft <= 2;
+        if (dir > 0 && atEnd) {
+          track.scrollTo({ left: 0, behavior: 'smooth' });
+          return;
+        }
+        if (dir < 0 && atStart) {
+          track.scrollTo({ left: maxLeft, behavior: 'smooth' });
+          return;
+        }
+        track.scrollBy({ left: step() * dir, behavior: 'smooth' });
+      };
+      prev.addEventListener('click', () => {
+        paused = true;
+        scrollByDir(-1);
+      });
+      next.addEventListener('click', () => {
+        paused = true;
+        scrollByDir(1);
+      });
+      ['mouseenter', 'focusin', 'touchstart', 'pointerdown'].forEach((evt) => {
+        shell.addEventListener(evt, () => {
+          paused = true;
+        }, { passive: true });
+      });
+      ['mouseleave', 'focusout'].forEach((evt) => {
+        shell.addEventListener(evt, () => {
+          paused = false;
+        });
+      });
+      const tick = () => {
+        if (!document.body.contains(shell)) {
+          window.clearInterval(autoTimer);
+          return;
+        }
+        if (!paused && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) scrollByDir(1);
+      };
+      autoTimer = window.setInterval(tick, 5200);
+    }
+
+    function enhanceFigureResultsCarousel() {
+      const wrap = document.getElementById('figure-results');
+      if (!wrap) return;
+      const directCards = Array.from(wrap.children).filter((el) => el.matches && el.matches('.market-item-card.figure-case-card'));
+      if (directCards.length < 2) {
+        wrap.classList.remove('figure-results-carousel-wrap');
+        return;
+      }
+      const shell = document.createElement('div');
+      shell.className = 'figure-results-carousel-shell';
+      const controls = document.createElement('div');
+      controls.className = 'figure-results-carousel-controls';
+      controls.innerHTML = `
+        <button type="button" class="figure-results-carousel-btn" data-figure-carousel="prev" aria-label="上一組案件">${figureCarouselArrowSvg('prev')}</button>
+        <button type="button" class="figure-results-carousel-btn" data-figure-carousel="next" aria-label="下一組案件">${figureCarouselArrowSvg('next')}</button>
+      `;
+      const track = document.createElement('div');
+      track.className = 'figure-results-carousel-track';
+      directCards.forEach((card) => track.appendChild(card));
+      shell.appendChild(controls);
+      shell.appendChild(track);
+      wrap.textContent = '';
+      wrap.classList.add('figure-results-carousel-wrap');
+      wrap.appendChild(shell);
+      setupFigureResultsCarousel(shell);
+    }
+
+    function toggleSupportChat(force, options = {}) {
       const panel = document.getElementById('support-chat-panel');
       const btn = document.getElementById('support-chat-toggle');
       const backdrop = document.getElementById('support-chat-backdrop');
       const widget = document.getElementById('support-chat-widget');
       if (!panel) return;
       const open = typeof force === 'boolean' ? force : panel.style.display === 'none';
+      if (open && !(options && options.skipExclusive)) closeFloatingPanelsExcept('support');
       panel.style.display = open ? 'flex' : 'none';
       supportChatOpen = open;
       const mobile = isSupportMobileUi();
-      if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (btn) {
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('aria-label', open ? '關閉線上智能客服對話' : '開啟線上智能客服對話');
+      }
       if (widget) widget.classList.toggle('is-expanded', open && mobile);
       if (backdrop) {
-        backdrop.style.display = open && mobile ? 'block' : 'none';
-        backdrop.setAttribute('aria-hidden', open && mobile ? 'false' : 'true');
+        backdrop.style.display = 'none';
+        backdrop.setAttribute('aria-hidden', 'true');
       }
       updateSupportChatVisualViewportVars();
-      if (open && mobile) {
-        document.body.classList.add('support-chat-scroll-lock');
-        try {
-          const y = window.scrollY || window.pageYOffset || 0;
-          document.body.dataset.supportChatScrollY = String(y);
-          document.body.style.position = 'fixed';
-          document.body.style.top = `-${y}px`;
-          document.body.style.left = '0';
-          document.body.style.right = '0';
-          document.body.style.width = '100%';
-        } catch (_) {}
-      } else {
+      if (!open) {
         document.body.classList.remove('support-chat-scroll-lock');
         document.body.classList.remove('support-chat-keyboard-open');
         document.body.classList.remove('support-chat-composer-focus');
         try {
+          const hasStoredScroll = Object.prototype.hasOwnProperty.call(document.body.dataset, 'supportChatScrollY');
           const y = parseInt(String(document.body.dataset.supportChatScrollY || '0'), 10) || 0;
           document.body.style.position = '';
           document.body.style.top = '';
@@ -6124,7 +6272,7 @@
           document.body.style.right = '';
           document.body.style.width = '';
           delete document.body.dataset.supportChatScrollY;
-          window.scrollTo(0, y);
+          if (hasStoredScroll) window.scrollTo(0, y);
         } catch (_) {}
       }
       if (open) {
@@ -6651,6 +6799,95 @@
       return generated;
     }
 
+    const SUPPORT_PHONE_LOGIN_KEY = 'sclaw_support_phone_login';
+
+    function closeFloatingPanelsExcept(exceptKey) {
+      const keep = String(exceptKey || '');
+      if (keep !== 'phone') setSupportPhoneLoginModalOpen(false, { skipExclusive: true, restoreFocus: false });
+      if (keep !== 'support') toggleSupportChat(false, { skipExclusive: true });
+      if (keep !== 'selected') setSupportSelectedCasesDrawerOpen(false, { skipExclusive: true, restoreFocus: false });
+      if (keep !== 'admin') toggleAdminDrawer(false, { skipExclusive: true });
+    }
+
+    function setSupportPhoneLoginModalOpen(open, options = {}) {
+      const shouldOpen = !!open;
+      const modal = document.getElementById('support-phone-login-modal');
+      const backdrop = document.getElementById('support-phone-login-backdrop');
+      const btn = document.getElementById('support-phone-login-toggle');
+      if (!modal) return;
+      if (shouldOpen && !(options && options.skipExclusive)) closeFloatingPanelsExcept('phone');
+      modal.style.display = shouldOpen ? 'block' : 'none';
+      if (backdrop) {
+        backdrop.style.display = shouldOpen ? 'block' : 'none';
+        backdrop.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+      }
+      if (btn) {
+        btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        btn.classList.toggle('is-active', shouldOpen);
+      }
+      if (shouldOpen) {
+        const input = document.getElementById('support-phone-login-input');
+        const msg = document.getElementById('support-phone-login-msg');
+        try {
+          const cached = localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '';
+          if (input && cached && !input.value) input.value = cached;
+        } catch (_) {}
+        if (msg && !String(msg.textContent || '').trim()) msg.textContent = '請輸入可聯絡的電話號碼。';
+        setTimeout(() => {
+          try {
+            if (input && typeof input.focus === 'function') input.focus({ preventScroll: true });
+          } catch (_) {}
+        }, 30);
+      } else if (options && options.restoreFocus !== false) {
+        try {
+          if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
+        } catch (_) {}
+      }
+    }
+
+    function toggleSupportPhoneLoginModal(force) {
+      const modal = document.getElementById('support-phone-login-modal');
+      const open = typeof force === 'boolean' ? force : !(modal && modal.style.display !== 'none');
+      setSupportPhoneLoginModalOpen(open);
+    }
+
+    async function submitSupportPhoneLogin() {
+      const input = document.getElementById('support-phone-login-input');
+      const msg = document.getElementById('support-phone-login-msg');
+      const btn = document.getElementById('support-phone-login-submit');
+      const phone = String(input?.value || '').trim();
+      if (!phone) {
+        if (msg) msg.textContent = '請先輸入電話號碼。';
+        if (input && typeof input.focus === 'function') input.focus();
+        return;
+      }
+      if (btn) btn.disabled = true;
+      if (msg) msg.textContent = '送出中…';
+      try {
+        const payload = {
+          name: '號碼登入訪客',
+          phone,
+          email: '',
+          note: '【號碼登入】使用者由右側浮動面板提交聯絡號碼。',
+          action_id: 'phone_login',
+          session_id: getSupportSalesSessionId(),
+          conversation: typeof supportChatHandoffConversationPayload === 'function' ? supportChatHandoffConversationPayload() : [],
+        };
+        const res = await postSupportHumanIntake(payload);
+        const data = await parseApiResponseSafe(res);
+        try {
+          localStorage.setItem(SUPPORT_PHONE_LOGIN_KEY, phone);
+        } catch (_) {}
+        if (msg) msg.textContent = `已登入並建立留單 #${data.handoff_id || ''}，後台可查看與編輯。`;
+        const adminQ = document.getElementById('admin-handoff-q');
+        if (adminQ && !adminQ.value) adminQ.value = phone;
+      } catch (err) {
+        if (msg) msg.textContent = `送出失敗：${formatApiError(err)}`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
     function supportCaseKeyFromItem(it) {
       const sid = Number(it && it.source_item_id);
       if (sid > 0) return `sid:${sid}`;
@@ -6998,7 +7235,8 @@
       }
       document.body.classList.toggle('support-selected-cases-open', shouldOpen);
       if (shouldOpen) {
-        lockBodyScrollForSupportSelectedCasesDrawer();
+        unlockBodyScrollForSupportSelectedCasesDrawer();
+        if (!(options && options.skipExclusive)) closeFloatingPanelsExcept('selected');
         renderSupportSelectedCasesDrawerList();
         try {
           const focusTarget = drawer && drawer.querySelector ? drawer.querySelector('button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])') : null;
@@ -11088,6 +11326,24 @@
         }
         h += '</div>';
 
+        h += '<div class="admin-handoff-edit-form">';
+        h += '<div class="admin-handoff-edit-grid">';
+        h += `<label>姓名<input id="admin-handoff-edit-name" type="text" value="${esc(String(it.name || ''))}" maxlength="120"></label>`;
+        h += `<label>電話<input id="admin-handoff-edit-phone" type="text" value="${esc(String(it.phone || ''))}" maxlength="80"></label>`;
+        h += `<label>信箱<input id="admin-handoff-edit-email" type="email" value="${esc(String(it.email || ''))}" maxlength="160"></label>`;
+        h += `<label>動作<input id="admin-handoff-edit-action" type="text" value="${esc(actionId)}" maxlength="80"></label>`;
+        h += `<label>場景 ID<input id="admin-handoff-edit-scene-id" type="text" value="${esc(String(it.matched_scene_id || ''))}" maxlength="80"></label>`;
+        h += `<label>場景名稱<input id="admin-handoff-edit-scene-label" type="text" value="${esc(String(it.matched_scene_label || ''))}" maxlength="160"></label>`;
+        h += '</div>';
+        h += `<label class="admin-handoff-edit-wide">脈絡<textarea id="admin-handoff-edit-context" rows="3" maxlength="2000">${esc(String(it.context_message || ''))}</textarea></label>`;
+        h += `<label class="admin-handoff-edit-wide">意見<textarea id="admin-handoff-edit-opinion" rows="3" maxlength="2000">${esc(String(it.opinion || ''))}</textarea></label>`;
+        h += `<label class="admin-handoff-edit-wide">備註<textarea id="admin-handoff-edit-note" rows="5" maxlength="2000">${esc(String(it.note || ''))}</textarea></label>`;
+        h += '<div class="search-row-basic" style="gap:0.5rem;align-items:center;margin-top:0.5rem;">';
+        h += `<button id="admin-handoff-edit-save-btn" type="button" class="primary" onclick="saveAdminHandoffDetailEdit(${id})">儲存編輯</button>`;
+        h += '<span id="admin-handoff-edit-msg" class="muted"></span>';
+        h += '</div>';
+        h += '</div>';
+
         h += `<p style="margin:0 0 0.25rem;"><strong>${esc(baseTitle || '')}</strong></p>`;
         h += '<div style="display:grid;grid-template-columns:7.25rem 1fr;gap:0.15rem 0.75rem;align-items:start;">';
         h += `<div class="muted">建立時間</div><div>${esc(String(it.created_at || ''))}</div>`;
@@ -11189,6 +11445,41 @@
         if (body) body.innerHTML = h || '<p class="muted">（無內容）</p>';
       } catch (err) {
         if (body) body.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
+      }
+    }
+
+    async function saveAdminHandoffDetailEdit(handoffId) {
+      const id = Number(handoffId);
+      if (!id || !adminPanelPassword) return;
+      const msg = document.getElementById('admin-handoff-edit-msg');
+      const btn = document.getElementById('admin-handoff-edit-save-btn');
+      const val = (fieldId) => String(document.getElementById(fieldId)?.value || '').trim();
+      const payload = {
+        name: val('admin-handoff-edit-name'),
+        phone: val('admin-handoff-edit-phone'),
+        email: val('admin-handoff-edit-email'),
+        note: val('admin-handoff-edit-note'),
+        action_id: val('admin-handoff-edit-action'),
+        matched_scene_id: val('admin-handoff-edit-scene-id'),
+        matched_scene_label: val('admin-handoff-edit-scene-label'),
+        context_message: val('admin-handoff-edit-context'),
+        opinion: val('admin-handoff-edit-opinion'),
+      };
+      if (btn) btn.disabled = true;
+      if (msg) msg.textContent = '儲存中…';
+      try {
+        const res = await fetchSclawApiFirstOk([`/api/handoff-requests/${id}`, `/api/admin/handoff-requests/${id}`], {
+          method: 'PUT',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify(payload),
+        });
+        await parseApiResponseSafe(res);
+        if (msg) msg.textContent = '已儲存。';
+        await openAdminHandoffDetail(id);
+      } catch (err) {
+        if (msg) msg.textContent = `儲存失敗：${formatApiError(err)}`;
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
@@ -12838,7 +13129,7 @@
         });
       }
       if (btn) {
-        btn.textContent = homeHeroSoundEnabled ? '聲音播放中｜點一下關閉聲音' : '開啟聲音輪播';
+        btn.textContent = homeHeroSoundEnabled ? '關閉聲音輪播' : '開啟聲音輪播';
         btn.setAttribute('aria-pressed', homeHeroSoundEnabled ? 'true' : 'false');
       }
     }
@@ -12879,12 +13170,13 @@
           video.volume = homeHeroSoundEnabled ? 1 : 0;
           video.loop = true;
           video.playsInline = true;
-          video.controls = true;
+          video.controls = false;
           video.preload = 'metadata';
           hero.insertBefore(video, hero.firstChild);
         }
         if (!video.id) video.id = 'home-hero-video-carousel-player';
-        video.controls = true;
+        video.controls = false;
+        video.removeAttribute('controls');
         video.preload = 'auto';
         video.muted = !homeHeroSoundEnabled;
         video.volume = homeHeroSoundEnabled ? 1 : 0;
@@ -13378,7 +13670,10 @@
             }
           };
           video.onpause = () => {
-            if (!video.ended && items[activeIndex]?.media_type === 'video') userPausedHeroVideo = true;
+            if (document.hidden || video.ended || items[activeIndex]?.media_type !== 'video') return;
+            window.setTimeout(() => {
+              if (items[activeIndex]?.media_type === 'video') video.play().catch(() => {});
+            }, 450);
           };
           video.onplay = () => {
             userPausedHeroVideo = false;
@@ -14007,14 +14302,22 @@
       }
     }
 
-    function toggleAdminDrawer(open) {
+    function toggleAdminDrawer(open, options = {}) {
       const drawer = document.getElementById('admin-drawer');
       const backdrop = document.getElementById('admin-backdrop');
       if (!drawer || !backdrop) return;
-      drawer.classList.toggle('open', open);
-      backdrop.classList.toggle('open', open);
-      drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
-      if (open) {
+      const shouldOpen = typeof open === 'boolean' ? open : !drawer.classList.contains('open');
+      if (shouldOpen && !(options && options.skipExclusive)) closeFloatingPanelsExcept('admin');
+      drawer.classList.toggle('open', shouldOpen);
+      backdrop.classList.toggle('open', shouldOpen);
+      drawer.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+      const launcher = document.getElementById('config-launcher');
+      if (launcher) {
+        launcher.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        launcher.setAttribute('aria-label', shouldOpen ? '關閉後台管理' : '開啟後台管理');
+        launcher.classList.toggle('is-active', shouldOpen);
+      }
+      if (shouldOpen) {
         if (!adminPanelPassword) {
           try {
             adminPanelPassword = localStorage.getItem(ADMIN_PASSWORD_CACHE_KEY) || '';
@@ -16986,6 +17289,7 @@
       `;
       resultWrap.innerHTML = renderPortalCaseCards(items);
       syncFigureCaseFavoriteButtons();
+      enhanceFigureResultsCarousel();
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';
@@ -17114,6 +17418,7 @@
       let homesLocLabel = '';
       let jpTransitUiLabel = '';
       let commuteRegionHint = '';
+      let mapSelectionState = null;
       let jptLine = 0;
       let jptSta = 0;
       let jptWalk = 0;
@@ -17148,12 +17453,19 @@
         if (walkMax > 0) bits.push(`徒步≤${walkMax}分`);
         jpTransitUiLabel = bits.join(' › ');
       } else {
-        // map 模式：沿用目前 figure_keyword（由地圖／使用者輸入帶入），不強制改寫
-        keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim();
+        // map 模式：優先使用地圖確認後保存的狀態；hidden keyword 只作為備援。
+        mapSelectionState = typeof getFigureMapSelectionState === 'function' ? getFigureMapSelectionState() : null;
+        keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim() || String(mapSelectionState?.keyword || '').trim();
+        if (hiddenKeyword && keyword) hiddenKeyword.value = keyword;
       }
       if (resetKeyword && regionSel) regionSel.value = regionSel.value || '';
       const rawRegionHint = regionSel && regionSel.value ? String(regionSel.value).trim() : '';
-      const regionHint = geoMode === 'commute' ? (commuteRegionHint || '') : rawRegionHint;
+      const regionHint =
+        geoMode === 'commute'
+          ? (commuteRegionHint || '')
+          : geoMode === 'map'
+            ? (rawRegionHint || String(mapSelectionState?.queryRegion || '').trim() || String(mapSelectionState?.prefLabel || '').trim() || String(mapSelectionState?.region || '').trim())
+            : rawRegionHint;
       if (geoMode === 'commute' && !jptLine && !jptSta && !jptWalk) {
         const msg = '通勤路線模式：請先選擇都市圈→路線（可選駅）或設定徒步上限後再查詢。';
         summary.innerHTML = `<p class="muted">${esc(msg)}</p>`;
@@ -17246,6 +17558,7 @@
       `;
       resultWrap.innerHTML = renderPortalCaseCards(items);
       syncFigureCaseFavoriteButtons();
+      enhanceFigureResultsCarousel();
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';
@@ -17327,6 +17640,8 @@
     window.clearFilters = clearFilters;
     window.setFigureTransaction = setFigureTransaction;
     window.setSmartQueryMainTab = setSmartQueryMainTab;
+    window.toggleSupportPhoneLoginModal = toggleSupportPhoneLoginModal;
+    window.submitSupportPhoneLogin = submitSupportPhoneLogin;
     window.toggleAdminDrawer = toggleAdminDrawer;
     window.unlockAdminPanel = unlockAdminPanel;
     window.clearAdminAuth = clearAdminAuth;
@@ -17342,7 +17657,7 @@
           const btn = el.closest('#config-launcher');
           if (!btn) return;
           ev.preventDefault();
-          if (typeof toggleAdminDrawer === 'function') toggleAdminDrawer(true);
+          if (typeof toggleAdminDrawer === 'function') toggleAdminDrawer();
         },
         true
       );
@@ -17354,7 +17669,7 @@
           const tag = ae && ae.tagName ? String(ae.tagName).toUpperCase() : '';
           if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
           ev.preventDefault();
-          if (typeof toggleAdminDrawer === 'function') toggleAdminDrawer(true);
+          if (typeof toggleAdminDrawer === 'function') toggleAdminDrawer();
         },
         false
       );
@@ -17383,6 +17698,8 @@
       if (e.key === 'Escape') {
         toggleAdminDrawer(false);
         toggleSupportSelectedCasesDrawer(false);
+        toggleSupportPhoneLoginModal(false);
+        toggleSupportChat(false);
       }
     });
     loadGuidance();
@@ -17470,9 +17787,7 @@
       const selectedPrefClose = document.getElementById('jp-map-selected-pref-close');
       const LS_COLLAPSE = 'sclaw_jp_map_hub_collapsed_v1';
       const collapsible = document.getElementById('jp-map-hub-collapsible');
-      const collapsedStrip = document.getElementById('jp-map-hub-collapsed-strip');
       const collapseToggleBtn = document.getElementById('jp-map-hub-collapse-btn');
-      const expandStripBtn = document.getElementById('jp-map-hub-expand-btn');
       let jpMapHubCollapsed = false;
       try {
         jpMapHubCollapsed = localStorage.getItem(LS_COLLAPSE) === '1';
@@ -17481,8 +17796,8 @@
       }
       function applyJpMapHubCollapsed(collapsed) {
         jpMapHubCollapsed = !!collapsed;
+        root.classList.toggle('is-map-collapsed', jpMapHubCollapsed);
         if (collapsible) collapsible.hidden = jpMapHubCollapsed;
-        if (collapsedStrip) collapsedStrip.hidden = !jpMapHubCollapsed;
         if (collapseToggleBtn) {
           collapseToggleBtn.textContent = jpMapHubCollapsed ? '展開地圖區' : '收合地圖區';
           collapseToggleBtn.setAttribute('aria-expanded', jpMapHubCollapsed ? 'false' : 'true');
@@ -17492,13 +17807,16 @@
         } catch (_) {
           /* ignore */
         }
+        if (!jpMapHubCollapsed) {
+          window.setTimeout(() => {
+            const map = window.__sclawJpLeafletMap || document.getElementById('jp-leaflet-map')?.__sclawLeafletMap;
+            if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+          }, 80);
+        }
       }
       applyJpMapHubCollapsed(jpMapHubCollapsed);
       if (collapseToggleBtn) {
         collapseToggleBtn.addEventListener('click', () => applyJpMapHubCollapsed(!jpMapHubCollapsed));
-      }
-      if (expandStripBtn) {
-        expandStripBtn.addEventListener('click', () => applyJpMapHubCollapsed(false));
       }
 
       root.querySelectorAll('input[name="jp-map-hub-deal"]').forEach((r) => {
@@ -17529,8 +17847,47 @@
       }
       function closeJpMapPrefPanel() {
         if (!selectedPrefPanel) return;
-        selectedPrefPanel.hidden = true;
-        if (selectedPrefChips) selectedPrefChips.innerHTML = '';
+        selectedPrefPanel.classList.remove('is-open');
+        window.setTimeout(() => {
+          if (!selectedPrefPanel.classList.contains('is-open')) {
+            selectedPrefPanel.hidden = true;
+            if (selectedPrefChips) selectedPrefChips.innerHTML = '';
+          }
+        }, 190);
+      }
+      function clearJpMapPrefConfirmActions() {
+        if (!selectedPrefChips) return;
+        selectedPrefChips.querySelectorAll('.jp-map-selected-pref-row.is-confirming').forEach((row) => row.classList.remove('is-confirming'));
+        selectedPrefChips.querySelectorAll('.jp-map-pref-confirm-actions').forEach((actions) => {
+          actions.hidden = true;
+        });
+      }
+      function cancelJpMapPendingPref(btn, srcBtn) {
+        if (btn) btn.classList.remove('is-active');
+        if (srcBtn) srcBtn.classList.remove('is-active');
+        clearJpMapPrefConfirmActions();
+        jpLeafletState.selectedPref = '';
+        const title = selectedPrefTitle ? String(selectedPrefTitle.textContent || '').trim() : '';
+        const broadKeys = CLUSTER_TITLE_TO_BROAD_KEYS[title] || ORBIT_TITLE_TO_BROAD_KEYS[title] || [];
+        jpLeafletState.selectedBroad = new Set(broadKeys);
+        refreshJpLeafletStyles();
+        const selLive = document.getElementById('jp-map-hub-selected-label');
+        if (selLive) selLive.textContent = title || '';
+      }
+      function setJpMapPendingPref(btn, srcBtn, options) {
+        if (!btn) return;
+        clearJpMapPrefConfirmActions();
+        root.querySelectorAll('.jp-map-hub-chip.is-active').forEach((el) => el.classList.remove('is-active'));
+        selectedPrefChips?.querySelectorAll('.jp-map-selected-pref-chip.is-active').forEach((el) => el.classList.remove('is-active'));
+        if (srcBtn) srcBtn.classList.add('is-active');
+        btn.classList.add('is-active');
+        const row = btn.closest('.jp-map-selected-pref-row');
+        if (row) row.classList.add('is-confirming');
+        const actions = row ? row.querySelector('.jp-map-pref-confirm-actions') : null;
+        if (actions) actions.hidden = false;
+        const label = String(btn.getAttribute('data-jp-pref-label') || btn.textContent || '').trim();
+        selectJpMapPref(label);
+        if (!options || options.focusMap !== false) focusJpMapPref(label);
       }
       function openJpMapPrefPanel(clusterSec) {
         if (!selectedPrefPanel || !selectedPrefTitle || !selectedPrefChips || !clusterSec) {
@@ -17553,6 +17910,8 @@
         selectedPrefTitle.textContent = title || '都道府縣';
         selectedPrefChips.innerHTML = '';
         sourceChips.forEach((srcBtn) => {
+          const row = document.createElement('div');
+          row.className = 'jp-map-selected-pref-row';
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'jp-map-hub-chip jp-map-selected-pref-chip';
@@ -17562,25 +17921,62 @@
             if (val != null) btn.setAttribute(name, val);
           });
           if (srcBtn.classList.contains('is-active')) btn.classList.add('is-active');
+          btn.addEventListener('pointerenter', () => {
+            const label = String(btn.getAttribute('data-jp-pref-label') || btn.textContent || '').trim();
+            if (label) previewJpMapPref(label);
+          });
+          btn.addEventListener('focusin', () => {
+            const label = String(btn.getAttribute('data-jp-pref-label') || btn.textContent || '').trim();
+            if (label) previewJpMapPref(label);
+          });
+          btn.addEventListener('pointerleave', () => clearJpMapPreview(root, mapSvg));
+          btn.addEventListener('focusout', () => clearJpMapPreview(root, mapSvg));
           btn.addEventListener('click', () => {
-            root.querySelectorAll('.jp-map-hub-chip.is-active').forEach((el) => el.classList.remove('is-active'));
-            selectedPrefChips.querySelectorAll('.jp-map-selected-pref-chip.is-active').forEach((el) => el.classList.remove('is-active'));
-            srcBtn.classList.add('is-active');
-            btn.classList.add('is-active');
+            setJpMapPendingPref(btn, srcBtn);
+          });
+          const actions = document.createElement('div');
+          actions.className = 'jp-map-pref-confirm-actions';
+          actions.hidden = true;
+          const confirmBtn = document.createElement('button');
+          confirmBtn.type = 'button';
+          confirmBtn.className = 'jp-map-pref-confirm-btn jp-map-pref-confirm-btn--ok';
+          confirmBtn.textContent = '確認';
+          const cancelBtn = document.createElement('button');
+          cancelBtn.type = 'button';
+          cancelBtn.className = 'jp-map-pref-confirm-btn jp-map-pref-confirm-btn--cancel';
+          cancelBtn.textContent = '取消';
+          confirmBtn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
             const region = String(btn.getAttribute('data-jp-pref-region') || '').trim();
             const kw = String(btn.getAttribute('data-jp-pref-kw') || '').trim();
             const label = String(btn.getAttribute('data-jp-pref-label') || btn.textContent || '').trim();
-            void runJpMapHubPrefSearch({ region, kw, label });
+            void runJpMapHubPrefSearch({ region, kw, label, broadLabel: title });
           });
-          selectedPrefChips.appendChild(btn);
+          cancelBtn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            cancelJpMapPendingPref(btn, srcBtn);
+          });
+          actions.appendChild(confirmBtn);
+          actions.appendChild(cancelBtn);
+          row.appendChild(btn);
+          row.appendChild(actions);
+          selectedPrefChips.appendChild(row);
         });
         selectedPrefPanel.hidden = false;
+        try { selectedPrefPanel.getBoundingClientRect(); } catch (_) {}
+        selectedPrefPanel.classList.add('is-open');
       }
       if (selectedPrefClose) selectedPrefClose.addEventListener('click', closeJpMapPrefPanel);
       function clearJpMapHitSelection(rootEl, mapSvgEl) {
+        clearJpMapPrefConfirmActions();
         rootEl.querySelectorAll('.jp-area-picker-side-btn.is-active, .jp-map-region-label.is-active').forEach((el) => el.classList.remove('is-active'));
         rootEl.querySelectorAll('.jp-map-pref-overlay.is-active, .jp-map-hub-chip.is-active').forEach((el) => el.classList.remove('is-active'));
         if (mapSvgEl) mapSvgEl.querySelectorAll('.jp-map-broad-hit.is-selected').forEach((el) => el.classList.remove('is-selected'));
+        jpLeafletState.selectedBroad.clear();
+        jpLeafletState.selectedPref = '';
+        refreshJpLeafletStyles();
       }
       function applyJpMapHitSelection(rootEl, mapSvgEl, broadKeys) {
         clearJpMapHitSelection(rootEl, mapSvgEl);
@@ -17595,6 +17991,8 @@
           if (keys.has(k)) r.classList.add('is-selected');
         });
         const ot = jpMapBroadToOrbitTitle(Array.from(keys)[0]);
+        const selLive = document.getElementById('jp-map-hub-selected-label');
+        if (selLive) selLive.textContent = ot || '';
         rootEl.querySelectorAll('.jp-area-picker-side-btn, .jp-map-region-label').forEach((btn) => {
           if (String(btn.getAttribute('data-jp-orbit-title') || '').trim() === ot) btn.classList.add('is-active');
         });
@@ -17604,7 +18002,17 @@
           sec.classList.toggle('is-active', secKeys.some((k) => keys.has(String(k || '').trim())));
         });
         openJpMapPrefPanel(rootEl.querySelector('.jp-map-pref-overlay.is-active'));
+        setJpMapSelectedBroad(Array.from(keys));
       }
+      function resetJpMapSelection(rootEl, mapSvgEl) {
+        clearJpMapHitSelection(rootEl, mapSvgEl);
+        clearJpMapPreview(rootEl, mapSvgEl);
+        closeJpMapPrefPanel();
+        const selLive = document.getElementById('jp-map-hub-selected-label');
+        if (selLive) selLive.textContent = '';
+        setJpMapHoverLive('');
+      }
+      window.__sclawResetJpMapWorkbenchVisualSelection = () => resetJpMapSelection(root, mapSvg);
       const CLUSTER_TITLE_TO_BROAD_KEYS = {
         北海道: ['北海道'],
         東北: ['東北'],
@@ -17620,18 +18028,274 @@
         沖繩: ['沖繩'],
       };
       const mapSvg = root.querySelector('.jp-map-hub-map-svg');
+      const leafletHost = document.getElementById('jp-leaflet-map');
+      const JP_LEAFLET_PREF_GEOJSON_URL = '/static/vendor/japan-map/japan-prefectures-lite.geojson?v=20260607-compact';
+      const JP_PREF_NAME_ALIASES = {
+        青森縣: '青森県',
+        岩手縣: '岩手県',
+        宮城縣: '宮城県',
+        秋田縣: '秋田県',
+        山形縣: '山形県',
+        福島縣: '福島県',
+        茨城縣: '茨城県',
+        栃木縣: '栃木県',
+        群馬縣: '群馬県',
+        埼玉縣: '埼玉県',
+        千葉縣: '千葉県',
+        神奈川縣: '神奈川県',
+        山梨縣: '山梨県',
+        長野縣: '長野県',
+        新潟縣: '新潟県',
+        富山縣: '富山県',
+        石川縣: '石川県',
+        福井縣: '福井県',
+        岐阜縣: '岐阜県',
+        靜岡縣: '静岡県',
+        愛知縣: '愛知県',
+        三重縣: '三重県',
+        滋賀縣: '滋賀県',
+        兵庫縣: '兵庫県',
+        奈良縣: '奈良県',
+        和歌山縣: '和歌山県',
+        鳥取縣: '鳥取県',
+        島根縣: '島根県',
+        岡山縣: '岡山県',
+        廣島縣: '広島県',
+        山口縣: '山口県',
+        德島縣: '徳島県',
+        香川縣: '香川県',
+        愛媛縣: '愛媛県',
+        高知縣: '高知県',
+        福岡縣: '福岡県',
+        佐賀縣: '佐賀県',
+        長崎縣: '長崎県',
+        熊本縣: '熊本県',
+        大分縣: '大分県',
+        宮崎縣: '宮崎県',
+        鹿兒島縣: '鹿児島県',
+        沖繩縣: '沖縄県',
+      };
+      const JP_PREF_LABEL_BY_JA = Object.fromEntries(Object.entries(JP_PREF_NAME_ALIASES).map(([label, ja]) => [ja, label]));
+      JP_PREF_LABEL_BY_JA['北海道'] = '北海道';
+      JP_PREF_LABEL_BY_JA['東京都'] = '東京都';
+      JP_PREF_LABEL_BY_JA['京都府'] = '京都府';
+      JP_PREF_LABEL_BY_JA['大阪府'] = '大阪府';
+      const jpLeafletState = {
+        map: null,
+        geoJson: null,
+        regionMarkers: [],
+        selectedBroad: new Set(),
+        previewBroad: new Set(),
+        selectedPref: '',
+        previewPref: '',
+        prefLayerByName: new Map(),
+        broadForPref: new Map(),
+        wholeBounds: null,
+      };
+      const JP_LEAFLET_REGION_LABELS = {
+        北海道: [43.55, 142.35],
+        東北: [39.25, 140.75],
+        關東: [36.05, 139.85],
+        '甲信越・北陸': [36.85, 137.75],
+        東海: [35.15, 137.25],
+        關西: [34.75, 135.35],
+        中國地方: [34.65, 132.55],
+        四國: [33.75, 133.55],
+        九州: [32.2, 130.75],
+        沖繩: [26.5, 127.9],
+      };
+      function normalizeJpPrefName(name) {
+        const raw = String(name || '').trim();
+        if (!raw) return '';
+        if (JP_PREF_NAME_ALIASES[raw]) return JP_PREF_NAME_ALIASES[raw];
+        return raw
+          .replace(/縣/g, '県')
+          .replace(/靜/g, '静')
+          .replace(/廣/g, '広')
+          .replace(/德/g, '徳')
+          .replace(/繩/g, '縄')
+          .replace(/兒/g, '児');
+      }
+      function jpMapRingAreaScore(ring) {
+        if (!Array.isArray(ring) || ring.length < 4) return 0;
+        let area = 0;
+        for (let i = 0; i < ring.length - 1; i += 1) {
+          const a = ring[i] || [];
+          const b = ring[i + 1] || [];
+          area += (Number(a[0]) || 0) * (Number(b[1]) || 0) - (Number(b[0]) || 0) * (Number(a[1]) || 0);
+        }
+        return Math.abs(area / 2);
+      }
+      function compactJpMapPolygons(coords, minArea) {
+        const polygons = (Array.isArray(coords) ? coords : [])
+          .map((poly) => {
+            if (!Array.isArray(poly) || !Array.isArray(poly[0])) return null;
+            return { poly, area: jpMapRingAreaScore(poly[0]) };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.area - a.area);
+        if (!polygons.length) return [];
+        const kept = polygons.filter((item) => item.area >= minArea);
+        return (kept.length ? kept : [polygons[0]]).map((item) => item.poly);
+      }
+      function compactJpMapFeatureGeometry(feature) {
+        if (!feature || !feature.geometry) return feature;
+        const geom = feature.geometry;
+        const minArea = 0.006;
+        if (geom.type === 'MultiPolygon') {
+          return {
+            ...feature,
+            geometry: {
+              ...geom,
+              coordinates: compactJpMapPolygons(geom.coordinates, minArea),
+            },
+          };
+        }
+        if (geom.type === 'Polygon') {
+          const area = jpMapRingAreaScore(geom.coordinates && geom.coordinates[0]);
+          if (area < minArea) return { ...feature, geometry: { ...geom, coordinates: [] } };
+        }
+        return feature;
+      }
+      function buildJpLeafletPrefMeta() {
+        const broadForPref = new Map();
+        root.querySelectorAll('.jp-map-pref-overlay').forEach((sec) => {
+          const title = String(sec.getAttribute('data-jp-pref-cluster') || '').trim();
+          const broadKeys = CLUSTER_TITLE_TO_BROAD_KEYS[title] || ORBIT_TITLE_TO_BROAD_KEYS[title] || [];
+          const broadKey = broadKeys[0] || (title === '中國' ? '中國地方' : title);
+          sec.querySelectorAll('.jp-map-hub-chip').forEach((chip) => {
+            const label = String(chip.getAttribute('data-jp-pref-label') || chip.textContent || '').trim();
+            const normalized = normalizeJpPrefName(label);
+            if (normalized && broadKey) broadForPref.set(normalized, broadKey);
+          });
+        });
+        jpLeafletState.broadForPref = broadForPref;
+      }
+      function jpLeafletLayerStyle(feature) {
+        const name = normalizeJpPrefName(feature && feature.properties && feature.properties.name);
+        const broad = jpLeafletState.broadForPref.get(name) || '';
+        const isPrefSelected = jpLeafletState.selectedPref === name;
+        const isPrefPreview = jpLeafletState.previewPref === name;
+        const isBroadSelected = !jpLeafletState.selectedPref && jpLeafletState.selectedBroad.has(broad);
+        const isBroadContext = jpLeafletState.selectedPref && jpLeafletState.selectedBroad.has(broad);
+        const isBroadPreview = jpLeafletState.previewBroad.has(broad);
+        return {
+          color: isPrefSelected ? '#1d4ed8' : isPrefPreview ? '#b91c1c' : isBroadSelected ? '#047857' : isBroadPreview ? '#059669' : isBroadContext ? '#4f8f68' : '#9fb8ab',
+          weight: isPrefSelected ? 3.25 : isPrefPreview ? 2.65 : isBroadSelected ? 2.2 : isBroadPreview ? 1.9 : isBroadContext ? 1.2 : 0.7,
+          opacity: isPrefSelected || isPrefPreview || isBroadSelected || isBroadPreview ? 1 : 0.76,
+          fillColor: isPrefSelected ? '#3b82f6' : isPrefPreview ? '#ef4444' : isBroadSelected ? '#10b981' : isBroadPreview ? '#34d399' : isBroadContext ? '#a7f3d0' : '#f9fffb',
+          fillOpacity: isPrefSelected ? 0.56 : isPrefPreview ? 0.38 : isBroadSelected ? 0.42 : isBroadPreview ? 0.34 : isBroadContext ? 0.24 : 0.1,
+          lineJoin: 'round',
+          lineCap: 'round',
+        };
+      }
+      function refreshJpLeafletStyles() {
+        if (jpLeafletState.geoJson && typeof jpLeafletState.geoJson.setStyle === 'function') {
+          jpLeafletState.geoJson.setStyle(jpLeafletLayerStyle);
+        }
+      }
+      function setJpLeafletPreviewBroad(broadKeys) {
+        jpLeafletState.previewBroad = new Set((broadKeys || []).map((k) => String(k || '').trim()).filter(Boolean));
+        refreshJpLeafletStyles();
+      }
+      function clearJpLeafletPreview() {
+        jpLeafletState.previewBroad.clear();
+        jpLeafletState.previewPref = '';
+        refreshJpLeafletStyles();
+      }
+      function setJpMapSelectedBroad(broadKeys) {
+        jpLeafletState.selectedBroad = new Set((broadKeys || []).map((k) => String(k || '').trim()).filter(Boolean));
+        jpLeafletState.selectedPref = '';
+        refreshJpLeafletStyles();
+      }
+      function selectJpMapPref(prefName) {
+        const pref = normalizeJpPrefName(prefName);
+        jpLeafletState.selectedPref = pref;
+        const broad = jpLeafletState.broadForPref.get(pref);
+        jpLeafletState.selectedBroad = broad ? new Set([broad]) : new Set();
+        const selLive = document.getElementById('jp-map-hub-selected-label');
+        if (selLive && prefName) selLive.textContent = String(prefName).trim();
+        refreshJpLeafletStyles();
+      }
+      function formatJpMapLatLng(latlng) {
+        if (!latlng) return '';
+        const lat = Number(latlng.lat);
+        const lng = Number(latlng.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      }
+      function setJpMapCoordinateLive(latlng, label) {
+        const coordLive = document.getElementById('jp-map-hub-coordinate-label');
+        if (!coordLive) return;
+        const coord = formatJpMapLatLng(latlng);
+        if (!coord) {
+          coordLive.textContent = '';
+          return;
+        }
+        const map = jpLeafletState.map;
+        const zoom = map && typeof map.getZoom === 'function' ? Number(map.getZoom()).toFixed(2) : '';
+        coordLive.textContent = `${label || '座標'}：${coord}${zoom ? `｜縮放 ${zoom}` : ''}`;
+      }
+      function fitJpLeafletWholeJapan(options) {
+        const map = jpLeafletState.map;
+        const bounds = jpLeafletState.wholeBounds;
+        if (!map || !bounds || typeof map.fitBounds !== 'function') return;
+        try {
+          map.fitBounds(bounds, {
+            animate: !!(options && options.animate),
+            duration: 0.35,
+            paddingTopLeft: [42, 34],
+            paddingBottomRight: [42, 34],
+          });
+          setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
+        } catch (_) {
+          /* keep current map view */
+        }
+      }
+      function focusJpMapPref(prefName) {
+        const pref = normalizeJpPrefName(prefName);
+        const layer = jpLeafletState.prefLayerByName.get(pref);
+        const map = jpLeafletState.map;
+        if (!layer || !map) return;
+        const targetZoom = Math.max(map.getMinZoom(), Math.min(7.5, map.getMaxZoom()));
+        try {
+          if (typeof layer.getBounds === 'function') {
+            const bounds = layer.getBounds();
+            if (bounds && typeof bounds.isValid === 'function' && bounds.isValid()) {
+              map.setView(bounds.getCenter(), targetZoom, { animate: true });
+              return;
+            }
+          }
+          if (typeof layer.getLatLng === 'function') {
+            map.setView(layer.getLatLng(), targetZoom, { animate: true });
+          }
+        } catch (_) {
+          /* keep current map view */
+        }
+      }
+      function previewJpMapPref(prefName) {
+        const pref = normalizeJpPrefName(prefName);
+        jpLeafletState.previewPref = pref;
+        const broad = jpLeafletState.broadForPref.get(pref);
+        if (broad) jpLeafletState.previewBroad = new Set([broad]);
+        refreshJpLeafletStyles();
+        if (prefName) setJpMapHoverLive(String(prefName).trim());
+      }
       function clearJpMapPreview(rootEl, mapSvgEl) {
         rootEl.querySelectorAll('.is-preview').forEach((el) => el.classList.remove('is-preview'));
         if (mapSvgEl) mapSvgEl.querySelectorAll('.jp-map-broad-hit.is-preview').forEach((el) => el.classList.remove('is-preview'));
+        clearJpLeafletPreview();
       }
       function applyJpMapPreview(rootEl, mapSvgEl, broadKeys) {
         clearJpMapPreview(rootEl, mapSvgEl);
         const keys = new Set((broadKeys || []).map((k) => String(k || '').trim()).filter(Boolean));
-        if (!keys.size || !mapSvgEl) return;
-        mapSvgEl.querySelectorAll('.jp-map-broad-hit').forEach((r) => {
-          const k = String(r.getAttribute('data-jp-hub-region') || '').trim();
-          if (keys.has(k)) r.classList.add('is-preview');
-        });
+        if (!keys.size) return;
+        if (mapSvgEl) {
+          mapSvgEl.querySelectorAll('.jp-map-broad-hit').forEach((r) => {
+            const k = String(r.getAttribute('data-jp-hub-region') || '').trim();
+            if (keys.has(k)) r.classList.add('is-preview');
+          });
+        }
         const ot = jpMapBroadToOrbitTitle(Array.from(keys)[0]);
         rootEl.querySelectorAll('.jp-area-picker-side-btn, .jp-map-region-label').forEach((btn) => {
           if (String(btn.getAttribute('data-jp-orbit-title') || '').trim() === ot) btn.classList.add('is-preview');
@@ -17641,6 +18305,7 @@
           const secKeys = CLUSTER_TITLE_TO_BROAD_KEYS[title] || ORBIT_TITLE_TO_BROAD_KEYS[title] || [];
           if (secKeys.some((k) => keys.has(String(k || '').trim()))) sec.classList.add('is-preview');
         });
+        setJpLeafletPreviewBroad(Array.from(keys));
       }
       function broadKeysForJpMapControl(el) {
         if (!el) return null;
@@ -17653,18 +18318,206 @@
         if (orbitTitle) return ORBIT_TITLE_TO_BROAD_KEYS[orbitTitle] || CLUSTER_TITLE_TO_BROAD_KEYS[orbitTitle] || null;
         return null;
       }
+      function jpMapClusterForRegion(regionKey) {
+        const target = jpMapBroadToOrbitTitle(regionKey);
+        return Array.from(root.querySelectorAll('.jp-map-pref-overlay')).find((sec) => {
+          return String(sec.getAttribute('data-jp-pref-cluster') || '').trim() === target;
+        });
+      }
+      function buildJpLeafletRegionMarkers(map) {
+        if (!map || typeof window.L === 'undefined') return;
+        jpLeafletState.regionMarkers.forEach((marker) => {
+          try { map.removeLayer(marker); } catch (_) {}
+        });
+        jpLeafletState.regionMarkers = [];
+        root.querySelectorAll('.jp-map-pref-overlay').forEach((sec) => {
+          const title = String(sec.getAttribute('data-jp-pref-cluster') || '').trim();
+          const broadKeys = CLUSTER_TITLE_TO_BROAD_KEYS[title] || ORBIT_TITLE_TO_BROAD_KEYS[title] || [];
+          const broad = broadKeys[0] || (title === '中國' ? '中國地方' : title);
+          const latLng = JP_LEAFLET_REGION_LABELS[broad];
+          if (!latLng) return;
+          const titleBtn = sec.querySelector('.jp-map-pref-overlay-title, .jp-map-region-label');
+          const label = String(
+            titleBtn?.getAttribute('data-jp-pref-label') ||
+              titleBtn?.getAttribute('data-jp-orbit-title') ||
+              title ||
+              ''
+          ).trim();
+          if (!label) return;
+          const wideClass = label === '甲信越・北陸' ? ' jp-map-region-label--wide' : '';
+          const marker = window.L.marker(latLng, {
+            interactive: true,
+            keyboard: true,
+            title: label,
+            icon: window.L.divIcon({
+              className: 'jp-leaflet-region-marker',
+              html: `<button type="button" class="jp-map-region-label jp-map-leaflet-region-label${wideClass}" data-jp-orbit-title="${label}" data-jp-pref-region="${broad}" data-jp-pref-label="${label}" data-jp-broad-key="${broad}">${label}</button>`,
+              iconSize: [1, 1],
+              iconAnchor: [0, 0],
+            }),
+          }).addTo(map);
+          const preview = () => {
+            setJpMapHoverLive(broad);
+            applyJpMapPreview(root, mapSvg, [broad]);
+          };
+          const clear = () => {
+            setJpMapHoverLive('');
+            clearJpMapPreview(root, mapSvg);
+          };
+          const activate = () => {
+            applyJpMapHitSelection(root, mapSvg, [broad]);
+            openJpMapPrefPanel(sec);
+          };
+          marker.on('mouseover focus', preview);
+          marker.on('mouseout blur', clear);
+          marker.on('click', activate);
+          window.setTimeout(() => {
+            const btn = marker.getElement()?.querySelector('.jp-map-leaflet-region-label');
+            if (!btn) return;
+            btn.addEventListener('focusin', preview);
+            btn.addEventListener('focusout', clear);
+            btn.addEventListener('keydown', (ev) => {
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                activate();
+              }
+            });
+          }, 0);
+          jpLeafletState.regionMarkers.push(marker);
+        });
+      }
+      async function initJpLeafletMap() {
+        if (!leafletHost || typeof window.L === 'undefined') return;
+        buildJpLeafletPrefMeta();
+        try {
+          const map = window.L.map(leafletHost, {
+            center: [37.8, 137.8],
+            zoom: 5,
+            minZoom: 4,
+            maxZoom: 9,
+            zoomSnap: 0.25,
+            zoomDelta: 0.25,
+            wheelPxPerZoomLevel: 180,
+            zoomControl: false,
+            attributionControl: false,
+            scrollWheelZoom: true,
+            doubleClickZoom: false,
+            boxZoom: false,
+            tap: false,
+          });
+          const res = await fetch(JP_LEAFLET_PREF_GEOJSON_URL, { cache: 'force-cache' });
+          if (!res.ok) throw new Error(`GeoJSON ${res.status}`);
+          const geo = await res.json();
+          if (geo && Array.isArray(geo.features)) {
+            geo.features = geo.features
+              .map(compactJpMapFeatureGeometry)
+              .filter((feature) => feature && feature.geometry && Array.isArray(feature.geometry.coordinates) && feature.geometry.coordinates.length);
+          }
+          const geoLayer = window.L.geoJSON(geo, {
+            style: jpLeafletLayerStyle,
+            onEachFeature(feature, layer) {
+              const prefName = normalizeJpPrefName(feature && feature.properties && feature.properties.name);
+              if (prefName) jpLeafletState.prefLayerByName.set(prefName, layer);
+              const broad = jpLeafletState.broadForPref.get(prefName) || '';
+              const label = JP_PREF_LABEL_BY_JA[prefName] || prefName;
+              layer.on({
+                mouseover() {
+                  if (broad) applyJpMapPreview(root, mapSvg, [broad]);
+                  if (label) previewJpMapPref(label);
+                },
+                mouseout() {
+                  setJpMapHoverLive('');
+                  clearJpMapPreview(root, mapSvg);
+                },
+                click() {
+                  if (broad) {
+                    applyJpMapHitSelection(root, mapSvg, [broad]);
+                    const cluster = jpMapClusterForRegion(broad);
+                    if (cluster) openJpMapPrefPanel(cluster);
+                  }
+                  if (label) {
+                    if (selectedPrefChips) {
+                      const matchedChip = Array.from(selectedPrefChips.querySelectorAll('.jp-map-selected-pref-chip')).find((btn) => {
+                        return String(btn.getAttribute('data-jp-pref-label') || btn.textContent || '').trim() === label;
+                      });
+                      const sourceChip = Array.from(root.querySelectorAll('.jp-map-pref-overlay.is-active .jp-map-hub-chip')).find((btn) => {
+                        return String(btn.getAttribute('data-jp-pref-label') || btn.textContent || '').trim() === label;
+                      });
+                      if (matchedChip) setJpMapPendingPref(matchedChip, sourceChip || null);
+                      else {
+                        selectJpMapPref(label);
+                        focusJpMapPref(label);
+                      }
+                    }
+                  }
+                },
+              });
+              if (label) layer.bindTooltip(label, { sticky: true, direction: 'top' });
+            },
+          }).addTo(map);
+          jpLeafletState.map = map;
+          jpLeafletState.geoJson = geoLayer;
+          jpLeafletState.wholeBounds = geoLayer.getBounds();
+          leafletHost.__sclawLeafletMap = map;
+          window.__sclawJpLeafletMap = map;
+          try {
+            map.fitBounds(jpLeafletState.wholeBounds, { paddingTopLeft: [42, 34], paddingBottomRight: [42, 34], animate: false });
+            const fitZoom = map.getZoom();
+            map.setMinZoom(fitZoom);
+            map.setZoom(fitZoom, { animate: false });
+            setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
+          } catch (_) {}
+          buildJpLeafletRegionMarkers(map);
+          map.on('mousemove', (ev) => {
+            if (ev && ev.latlng) setJpMapCoordinateLive(ev.latlng, '座標');
+          });
+          map.on('mouseout', () => {
+            setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
+          });
+          map.on('zoomend moveend', () => {
+            setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
+          });
+          map.on('click', (ev) => {
+            const target = ev && ev.originalEvent && ev.originalEvent.target;
+            if (target && target.closest && target.closest('.jp-map-leaflet-region-label, .leaflet-interactive, .jp-map-zoom-controls, .jp-map-selected-pref-panel, .jp-map-selected-pref-chip, button')) return;
+            if (ev && ev.originalEvent && typeof ev.originalEvent.preventDefault === 'function') ev.originalEvent.preventDefault();
+            resetJpMapSelection(root, mapSvg);
+          });
+          root.querySelector('.jp-map-hub-map--raster')?.classList.add('is-leaflet-ready');
+          window.setTimeout(() => {
+            map.invalidateSize();
+            fitJpLeafletWholeJapan({ animate: false });
+            try { map.setMinZoom(map.getZoom()); } catch (_) {}
+          }, 120);
+        } catch (err) {
+          console.warn('Leaflet Japan map failed; using static fallback.', err);
+          if (leafletHost) leafletHost.textContent = '';
+        }
+      }
       root.querySelectorAll('[data-jp-pref-region]').forEach((chip) => {
         chip.addEventListener('mouseover', () => {
           const broadKeys = broadKeysForJpMapControl(chip);
           if (broadKeys && mapSvg) applyJpMapPreview(root, mapSvg, broadKeys);
+          if (chip.classList.contains('jp-map-hub-chip')) {
+            const label = String(chip.getAttribute('data-jp-pref-label') || chip.textContent || '').trim();
+            if (label) previewJpMapPref(label);
+          }
         });
         chip.addEventListener('pointerenter', () => {
           const broadKeys = broadKeysForJpMapControl(chip);
           if (broadKeys && mapSvg) applyJpMapPreview(root, mapSvg, broadKeys);
+          if (chip.classList.contains('jp-map-hub-chip')) {
+            const label = String(chip.getAttribute('data-jp-pref-label') || chip.textContent || '').trim();
+            if (label) previewJpMapPref(label);
+          }
         });
         chip.addEventListener('focusin', () => {
           const broadKeys = broadKeysForJpMapControl(chip);
           if (broadKeys && mapSvg) applyJpMapPreview(root, mapSvg, broadKeys);
+          if (chip.classList.contains('jp-map-hub-chip')) {
+            const label = String(chip.getAttribute('data-jp-pref-label') || chip.textContent || '').trim();
+            if (label) previewJpMapPref(label);
+          }
         });
         chip.addEventListener('mouseout', () => clearJpMapPreview(root, mapSvg));
         chip.addEventListener('pointerleave', () => clearJpMapPreview(root, mapSvg));
@@ -17673,7 +18526,6 @@
           const region = String(chip.getAttribute('data-jp-pref-region') || '').trim();
           const kw = String(chip.getAttribute('data-jp-pref-kw') || '').trim();
           const label = String(chip.getAttribute('data-jp-pref-label') || '').trim();
-          void runJpMapHubPrefSearch({ region, kw, label });
           let broadKeys = null;
           const clusterSec = chip.closest('.jp-map-hub-cluster');
           if (clusterSec && root.contains(clusterSec)) {
@@ -17686,6 +18538,8 @@
           if (broadKeys && mapSvg) applyJpMapHitSelection(root, mapSvg, broadKeys);
           if (chip.classList.contains('jp-map-hub-chip')) {
             chip.classList.add('is-active');
+            if (label) selectJpMapPref(label);
+            void runJpMapHubPrefSearch({ region, kw, label });
             if (clusterSec) openJpMapPrefPanel(clusterSec);
           } else if (clusterSec) {
             openJpMapPrefPanel(clusterSec);
@@ -17694,6 +18548,34 @@
       });
       const hoverLive = document.getElementById('jp-map-hub-hover-label');
       const rasterStack = root.querySelector('.jp-map-hub-raster-stack');
+      const zoomBtns = root.querySelectorAll('[data-jp-map-zoom]');
+      let jpMapZoom = 1;
+      function applyJpMapZoom(nextZoom) {
+        jpMapZoom = Math.max(0.9, Math.min(1.45, Number(nextZoom || 1)));
+        if (rasterStack) rasterStack.style.setProperty('--jp-map-zoom', String(jpMapZoom));
+      }
+      zoomBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const dir = String(btn.getAttribute('data-jp-map-zoom') || '').trim();
+          if (dir === 'reset') {
+            if (jpLeafletState.map) {
+              fitJpLeafletWholeJapan({ animate: true });
+              return;
+            }
+            applyJpMapZoom(1);
+            return;
+          }
+          if (jpLeafletState.map) {
+            const delta = dir === 'in' ? 0.25 : -0.25;
+            const currentZoom = jpLeafletState.map.getZoom();
+            const nextZoom = Math.max(jpLeafletState.map.getMinZoom(), Math.min(jpLeafletState.map.getMaxZoom(), currentZoom + delta));
+            jpLeafletState.map.setZoom(nextZoom, { animate: true });
+            return;
+          }
+          applyJpMapZoom(jpMapZoom + (dir === 'in' ? 0.12 : -0.12));
+        });
+      });
+      applyJpMapZoom(1);
       function setJpMapHoverLive(txt) {
         if (!hoverLive) return;
         hoverLive.textContent = txt ? String(txt).trim() : '';
@@ -17749,9 +18631,9 @@
           const region = String(hit.getAttribute('data-jp-hub-region') || '').trim();
           if (!region) return;
           applyJpMapHitSelection(root, mapSvg, [region]);
-          void runJpMapHubPrefSearch({ region, label: region });
         });
       }
+      void initJpLeafletMap();
       if (typeof initJpTransitSmartFilter === 'function') initJpTransitSmartFilter();
     }
 
@@ -17759,6 +18641,7 @@
       if (typeof clearJpTransitSmartFilters === 'function') clearJpTransitSmartFilters();
       const region = String((opts && opts.region) || '').trim();
       const prefLabel = String((opts && opts.label) || '').trim();
+      const broadLabel = String((opts && opts.broadLabel) || '').trim();
       const selLive = document.getElementById('jp-map-hub-selected-label');
       if (selLive) {
         const show = prefLabel || region;
@@ -17797,10 +18680,42 @@
         if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('map');
         try { localStorage.setItem('figure_geo_mode', 'map'); } catch (_) {}
       }
+      if (typeof setFigureMapSelectionSummary === 'function') {
+        setFigureMapSelectionSummary({
+          region: broadLabel || region,
+          prefLabel,
+          queryRegion: region,
+          keyword: kwCore,
+        });
+      }
       // 同步級聯下拉（都道府縣／地區）資料，方便使用者切回「地域／地區」時不必再手動觸發。
       if (typeof _dispatchChange === 'function' && regionSel) _dispatchChange(regionSel);
+      const prefSel = document.getElementById('figure_homes_pref');
+      if (prefSel && prefLabel) {
+        const prefJa = typeof normalizeJpPrefName === 'function' ? normalizeJpPrefName(prefLabel) : prefLabel;
+        const matchPref = () => Array.from(prefSel.options || []).find((opt) => {
+          const txt = String(opt.textContent || '').trim();
+          const zh = String(opt.getAttribute('data-pref-label-zh') || '').trim();
+          const jp = String(opt.getAttribute('data-pref-label-jp') || '').trim();
+          return txt === prefLabel || zh === prefLabel || jp === prefJa;
+        });
+        let prefOpt = matchPref();
+        if (!prefOpt && typeof _waitForSelect === 'function') {
+          try {
+            await _waitForSelect(prefSel, () => !!matchPref(), 1800);
+            prefOpt = matchPref();
+          } catch (_) {
+            prefOpt = matchPref();
+          }
+        }
+        if (prefOpt) {
+          prefSel.value = String(prefOpt.value || '');
+          if (typeof _dispatchChange === 'function') _dispatchChange(prefSel);
+        }
+      }
       if (typeof setAllFigureSources === 'function') setAllFigureSources(true);
       if (typeof setSmartQueryMainTab === 'function') setSmartQueryMainTab('cases');
+      if (typeof resetJpMapWorkbenchVisualSelection === 'function') resetJpMapWorkbenchVisualSelection();
       try {
         const dlg = document.getElementById('query-dialog');
         if (dlg && typeof dlg.scrollIntoView === 'function') dlg.scrollIntoView({ behavior: 'smooth', block: 'start' });
