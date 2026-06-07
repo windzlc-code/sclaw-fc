@@ -19,7 +19,7 @@
   <meta name="twitter:description" content="提供海外買家日本不動產購買支援與站內查詢。{{ seo_description_suffix }}">
   <meta name="twitter:image" content="https://images.unsplash.com/photo-1480796927426-f609979314bd?auto=format&amp;fit=crop&amp;w=1600&amp;q=80">
   <link rel="canonical" href="{{ site_url }}/">
-  <link rel="stylesheet" href="/static/site.css?v=20260606-map-workbench-polish">
+  <link rel="stylesheet" href="/static/site.css?v=20260607-lang-select">
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
   <script>window.__SUPPORT_AVATAR_ALT__={{ (seo_phrase_brand ~ '｜' ~ seo_phrase_entry ~ '｜智能助理') | tojson }};</script>
@@ -3037,7 +3037,7 @@
     } catch (_) {
       // ignore
     }
-    /** 智慧查詢／客服附帶知識庫：跟隨全站中文版本大按鈕。 */
+    /** 智慧查詢／客服附帶知識庫：跟隨全站中文版本切換器。 */
     function getDialogKnowledgeZhVariant() {
       if (typeof window.getSiteLanguagePreference === 'function') {
         return window.getSiteLanguagePreference() === 'hans' ? 'hans' : 'hant';

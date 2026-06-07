@@ -1,12 +1,11 @@
 <section class="site-language-switch" aria-label="中文版本切換">
-  <div class="site-language-switch-copy">
-    <strong>中文版本</strong>
-    <span>全站文字以這兩個按鈕切換。</span>
-  </div>
-  <div class="site-language-switch-actions" role="group" aria-label="選擇中文版本">
-    <button type="button" class="site-language-btn is-active" data-site-lang-choice="hant" aria-pressed="true">繁體中文</button>
-    <button type="button" class="site-language-btn" data-site-lang-choice="hans" aria-pressed="false">簡體中文</button>
-  </div>
+  <label class="site-language-select-wrap">
+    <span class="site-language-select-label">中文</span>
+    <select class="site-language-select" data-site-lang-select aria-label="中文版本">
+      <option value="hant">繁體中文</option>
+      <option value="hans">簡體中文</option>
+    </select>
+  </label>
 </section>
 <script>
   (function () {
@@ -80,7 +79,6 @@
       ['查詢中', '查询中'],
       ['資料彙整中，請稍候', '资料汇整中，请稍候'],
       ['中文版本', '中文版本'],
-      ['全站文字以這兩個按鈕切換。', '全站文字以这两个按钮切换。'],
       ['選擇中文版本', '选择中文版本'],
       ['繁體中文', '繁体中文'],
       ['簡體中文', '简体中文'],
@@ -220,6 +218,9 @@
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
         btn.setAttribute('aria-selected', active ? 'true' : 'false');
       });
+      document.querySelectorAll('[data-site-lang-select]').forEach((select) => {
+        if (select.value !== pick) select.value = pick;
+      });
       document.querySelectorAll('[data-site-lang-pane], [data-lang-pane]').forEach((pane) => {
         const paneLang = normalizeSiteLang(pane.getAttribute('data-site-lang-pane') || pane.getAttribute('data-lang-pane'));
         const show = paneLang === pick;
@@ -249,6 +250,19 @@
       document.querySelectorAll('[data-site-lang-choice]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const pick = normalizeSiteLang(btn.getAttribute('data-site-lang-choice'));
+          applySiteLanguage(pick);
+          try {
+            const path = String(window.location.pathname || '');
+            if (/^\/zh-(hant|hans)\//i.test(path)) {
+              const nextPath = path.replace(/^\/zh-(hant|hans)\//i, `/zh-${pick}/`);
+              if (nextPath !== path) window.location.href = nextPath + String(window.location.search || '') + String(window.location.hash || '');
+            }
+          } catch (_) {}
+        });
+      });
+      document.querySelectorAll('[data-site-lang-select]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const pick = normalizeSiteLang(select.value);
           applySiteLanguage(pick);
           try {
             const path = String(window.location.pathname || '');
