@@ -11658,6 +11658,15 @@ body.site-home .jp-map-selected-pref-chip {
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
+body.site-home .jp-map-selected-pref-chip--broad {
+  border-color: rgba(12, 95, 78, 0.76);
+  background: linear-gradient(180deg, rgba(209, 250, 229, 0.98) 0%, rgba(236, 253, 245, 0.96) 100%);
+  color: #065f46;
+  box-shadow:
+    inset 0 0 0 1px rgba(16, 185, 129, 0.18),
+    0 10px 22px rgba(15, 118, 110, 0.12);
+}
+
 body.site-home .jp-map-selected-pref-row {
   position: relative;
   display: flex;
@@ -11802,8 +11811,9 @@ body.site-home .jp-map-zoom-btn:hover {
 }
 
 body.site-home #query-dialog {
-  max-width: 1180px;
-  margin: 0 auto 0 !important;
+  width: 100%;
+  max-width: none;
+  margin: 0 !important;
   border-radius: 0 0 30px 30px !important;
   border-top: 1px solid rgba(204, 220, 210, 0.74) !important;
   padding: clamp(18px, 2.1vw, 26px);
@@ -11820,15 +11830,19 @@ body.site-home .smart-query-run-row button {
 }
 
 body.site-home .figure-results-carousel-shell {
+  position: relative;
   padding-top: 0;
 }
 
 body.site-home .figure-results-carousel-controls {
-  position: sticky;
-  top: 10px;
-  display: flex;
-  justify-content: flex-end;
-  margin: 0 0 12px;
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  grid-template-columns: auto minmax(68px, auto) auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(8px, 1.2vw, 18px);
   pointer-events: none;
 }
 
@@ -11849,6 +11863,33 @@ body.site-home .figure-results-carousel-btn {
   pointer-events: auto;
 }
 
+body.site-home .figure-results-carousel-btn[data-figure-carousel="prev"] {
+  justify-self: start;
+}
+
+body.site-home .figure-results-carousel-btn[data-figure-carousel="next"] {
+  justify-self: end;
+}
+
+body.site-home .figure-results-carousel-status {
+  position: sticky;
+  top: 10px;
+  justify-self: center;
+  align-self: start;
+  min-width: 70px;
+  margin-top: 8px;
+  padding: 0.42rem 0.72rem;
+  border: 1px solid rgba(181, 202, 190, 0.85);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #24513a;
+  font-size: 13px;
+  font-weight: 850;
+  text-align: center;
+  box-shadow: 0 10px 22px rgba(34, 66, 50, 0.12);
+  pointer-events: auto;
+}
+
 body.site-home .figure-results-carousel-btn:hover {
   background: #24513a;
   border-color: #24513a;
@@ -11862,12 +11903,12 @@ body.site-home .figure-results-carousel-btn svg {
 
 body.site-home .figure-results-carousel-track {
   display: flex;
-  gap: 16px;
+  gap: clamp(18px, 2vw, 26px);
   overflow-x: auto;
   overflow-y: visible;
-  padding: 4px 2px 18px;
+  padding: 4px clamp(58px, 6vw, 86px) 24px;
   scroll-snap-type: x mandatory;
-  scroll-padding: 2px;
+  scroll-padding-inline: clamp(58px, 6vw, 86px);
   -webkit-overflow-scrolling: touch;
 }
 
@@ -11881,15 +11922,15 @@ body.site-home .figure-results-carousel-track::-webkit-scrollbar-thumb {
 }
 
 body.site-home .figure-results-carousel-track .market-item-card.figure-case-card {
-  flex: 0 0 clamp(300px, 30vw, 380px);
+  flex: 0 0 clamp(680px, calc(100vw - 180px), 980px);
   scroll-snap-align: start;
 }
 
 body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card {
-  max-height: 860px;
   min-height: 0;
-  overflow-y: auto;
-  padding: 12px;
+  max-height: none;
+  overflow: visible;
+  padding: clamp(16px, 2vw, 24px);
   border-radius: 24px;
 }
 
@@ -11918,23 +11959,22 @@ body.site-home .figure-results-carousel-track .market-source-avatar {
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-headrow p {
-  display: -webkit-box;
+  display: block;
   margin: 0;
   padding: 0;
-  font-size: 12px;
-  line-height: 1.35;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: visible;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-title {
-  margin: 0 0 6px;
+  margin: 0 0 10px;
   padding-left: 0;
   padding-right: 0;
-  font-size: 1rem;
-  line-height: 1.35;
-  -webkit-line-clamp: 2;
+  font-size: clamp(1.1rem, 1.6vw, 1.35rem);
+  line-height: 1.38;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-price {
@@ -11948,63 +11988,62 @@ body.site-home .figure-results-carousel-track .portal-suumo-card-price {
 body.site-home .figure-results-carousel-track .portal-suumo-card-jpline,
 body.site-home .figure-results-carousel-track .figure-case-meta,
 body.site-home .figure-results-carousel-track .portal-suumo-card-snippet {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: block;
+  overflow: visible;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-jpline {
-  margin: 0 0 3px;
+  margin: 0 0 5px;
   padding-left: 0;
   padding-right: 0;
-  -webkit-line-clamp: 1;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-snippet {
-  margin: 6px 0 0;
+  margin: 10px 0 0;
   padding-left: 0;
   padding-right: 0;
-  -webkit-line-clamp: 2;
 }
 
 body.site-home .figure-results-carousel-track .figure-case-meta {
-  margin: 5px 0 0;
+  margin: 8px 0 0;
   padding-left: 0;
   padding-right: 0;
-  -webkit-line-clamp: 1;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-tabstrip {
-  display: none;
+  display: flex;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-split {
-  display: block;
-  margin-top: 0.55rem;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.92fr) minmax(360px, 1.08fr);
+  gap: clamp(14px, 1.8vw, 24px);
+  align-items: start;
+  margin-top: 0.75rem;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-subthumbs {
-  display: none;
+  display: flex;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-spec {
-  max-height: 142px;
-  margin-top: 10px;
-  overflow: auto;
+  max-height: none;
+  margin-top: 0;
+  overflow: visible;
   border-radius: 16px;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-tags {
   margin-top: 8px;
-  max-height: 40px;
-  overflow: hidden;
+  max-height: none;
+  overflow: visible;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-card-cta-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 7px;
-  margin: 8px 0 8px;
+  margin: 10px 0;
 }
 
 body.site-home .figure-results-carousel-track .portal-suumo-cta {
@@ -12026,10 +12065,714 @@ body.site-home .figure-results-carousel-track .figure-case-actions .figure-case-
 body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .figure-case-thumb img,
 body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .portal-suumo-card-heroimg,
 body.site-home .figure-results-carousel-track .market-item-card.figure-case-card .figure-case-thumb img {
-  height: 190px;
+  height: clamp(240px, 32vw, 420px);
+}
+
+/* 智慧查詢結果：小卡片輪播，保留完整資訊在卡片內展開 */
+body.site-home .figure-results-carousel-shell {
+  padding: 2px 0 0;
+}
+
+body.site-home .figure-results-carousel-controls {
+  padding: 0 clamp(4px, 0.8vw, 12px);
+}
+
+body.site-home .figure-results-carousel-status {
+  top: auto;
+  align-self: end;
+  margin: 0 0 10px;
+  min-width: 76px;
+  padding: 0.34rem 0.7rem;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+}
+
+body.site-home .figure-results-carousel-track {
+  gap: clamp(18px, 2vw, 28px);
+  padding: 8px clamp(54px, 5vw, 78px) 58px;
+  scroll-padding-inline: clamp(54px, 5vw, 78px);
+}
+
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card {
+  flex: 0 0 clamp(360px, 30vw, 470px);
+  scroll-snap-align: center;
+}
+
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card {
+  position: relative;
+  padding: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow:
+    0 18px 42px rgba(31, 58, 48, 0.12),
+    inset 0 0 0 1px rgba(215, 226, 217, 0.9);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-compact-card {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.05fr) minmax(158px, 0.95fr);
+  min-height: 254px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-col {
+  min-width: 0;
+  background: linear-gradient(180deg, #edf6f8, #f7faf6);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 14px 14px 12px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow {
+  margin: 0 0 8px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow .market-item-head {
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 7px;
+}
+
+body.site-home .figure-results-carousel-track .market-source-avatar {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  font-size: 13px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow strong {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #263845;
+  font-size: 13px;
+  line-height: 1.22;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow p {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-title {
+  display: -webkit-box;
+  margin: 0 0 7px;
+  color: #17233a;
+  font-size: 0.98rem;
+  font-weight: 850;
+  line-height: 1.34;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-price {
+  margin: 0 0 7px;
+  color: #d4011f;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-fx {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-jpline {
+  display: -webkit-box;
+  margin: 0 0 4px;
+  color: #3d4b5b;
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin: 7px 0 0;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-facts span {
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid rgba(214, 226, 216, 0.9);
+  border-radius: 10px;
+  background: #f7fbf5;
+  color: #1f3428;
+  font-size: 11px;
+  line-height: 1.28;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-facts b {
+  display: block;
+  margin-bottom: 1px;
+  color: #6a7a6b;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-snippet {
+  display: -webkit-box;
+  margin: 7px 0 0;
+  font-size: 11px;
+  line-height: 1.38;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: auto 0 0;
+  padding-top: 9px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-cta {
+  min-height: 28px;
+  padding: 0.3rem 0.52rem;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+body.site-home .figure-results-carousel-track .figure-case-actions {
+  position: absolute;
+  right: 10px;
+  bottom: 48px;
+  margin: 0;
+  padding: 0;
+  z-index: 2;
+}
+
+body.site-home .figure-results-carousel-track .figure-case-actions .figure-case-fav-btn {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.15);
+}
+
+body.site-home .figure-results-carousel-track .figure-case-actions .figure-case-fav-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media.figure-case-thumb {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media > a {
+  display: block;
+  height: 100%;
+}
+
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .figure-case-thumb img,
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .portal-suumo-card-heroimg,
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card .figure-case-thumb img {
+  height: 100%;
+  min-height: 254px;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-subthumbs {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-subthumb {
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 5px 14px rgba(17, 24, 39, 0.16);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-subthumb img {
+  height: 44px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more {
+  border-top: 1px solid rgba(222, 232, 222, 0.92);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbf7 100%);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 46px 0 14px;
+  color: #28523b;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more > summary::after {
+  content: "+";
+  margin-left: 7px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more[open] > summary::after {
+  content: "×";
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more[open] {
+  padding: 0 12px 12px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more[open] > summary {
+  margin: 0 -12px 10px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more .portal-suumo-card-spec {
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 14px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more .portal-suumo-card-tabstrip {
+  display: flex;
+  max-height: 58px;
+  overflow: auto;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-more .portal-suumo-card-tags {
+  max-height: 58px;
+  overflow: auto;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-snippet--full {
+  display: block;
+  max-height: 96px;
+  overflow: auto;
+  -webkit-line-clamp: unset;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-cta-row--more {
+  margin-top: 8px;
+  padding-top: 0;
+}
+
+/* 2026-06-09：案件卡片收紧为单图容器 + 点状切图 */
+body.site-home .figure-results-carousel-controls {
+  align-items: center;
+  padding: 0 clamp(8px, 1vw, 16px);
+}
+
+body.site-home .figure-results-carousel-indicator {
+  align-self: end;
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  pointer-events: auto;
+}
+
+body.site-home .figure-results-carousel-status {
+  position: static;
+  margin: 0;
+  min-width: 72px;
+  padding: 0.28rem 0.64rem;
+  font-size: 12px;
+}
+
+body.site-home .figure-results-carousel-dots {
+  display: flex;
+  max-width: min(52vw, 420px);
+  gap: 7px;
+  overflow: hidden;
+  padding: 4px 8px;
+  border: 1px solid rgba(214, 226, 216, 0.72);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 8px 18px rgba(31, 58, 48, 0.1);
+}
+
+body.site-home .figure-results-carousel-dot,
+body.site-home .portal-suumo-card-image-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  min-height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(131, 151, 138, 0.34);
+  cursor: pointer;
+}
+
+body.site-home .figure-results-carousel-dot.is-active,
+body.site-home .portal-suumo-card-image-dot.is-active {
+  width: 20px;
+  background: #1d5f46;
+  box-shadow: 0 0 0 3px rgba(29, 95, 70, 0.12);
+}
+
+body.site-home .figure-results-carousel-track {
+  gap: clamp(20px, 1.8vw, 28px);
+  padding: 8px clamp(52px, 4.6vw, 72px) 54px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: clamp(52px, 4.6vw, 72px);
+}
+
+body.site-home .figure-results-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card {
+  flex: 0 0 clamp(390px, calc((100vw - 230px) / 3), 430px);
+}
+
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card {
+  border-radius: 22px;
+  box-shadow:
+    0 16px 36px rgba(31, 58, 48, 0.12),
+    inset 0 0 0 1px rgba(214, 226, 216, 0.9);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-compact-card {
+  grid-template-columns: minmax(148px, 0.95fr) minmax(180px, 1.05fr);
+  min-height: 218px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media.figure-case-thumb {
+  isolation: isolate;
+  min-height: 218px;
+  background: #eef5f2;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media > a {
+  height: 100%;
+}
+
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .figure-case-thumb img,
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .portal-suumo-card-heroimg,
+body.site-home .figure-results-carousel-track .market-item-card.figure-case-card .figure-case-thumb img {
+  min-height: 218px;
+  height: 100%;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-badges,
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-overlay,
+body.site-home .figure-results-carousel-track .portal-suumo-card-image-dots {
+  position: absolute;
+  z-index: 2;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-badges {
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-badges span {
+  max-width: 100%;
+  padding: 0.24rem 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #263845;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-overlay {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: 4px;
+  padding: 44px 12px 32px;
+  background: linear-gradient(180deg, rgba(13, 27, 24, 0) 0%, rgba(13, 27, 24, 0.78) 100%);
+  color: #fff;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-overlay strong {
+  font-size: 1.16rem;
+  line-height: 1.15;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-media-overlay span {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-image-dots {
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-image-dot {
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 0 0 1px rgba(14, 32, 24, 0.14);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-image-dot.is-active {
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(14, 32, 24, 0.12),
+    0 4px 10px rgba(14, 32, 24, 0.2);
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-subthumbs {
+  display: none !important;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-main {
+  padding: 13px 14px 12px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow {
+  margin-bottom: 7px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow .market-item-head {
+  grid-template-columns: 32px minmax(0, 1fr);
+}
+
+body.site-home .figure-results-carousel-track .market-source-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  font-size: 14px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow strong {
+  font-size: 14px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-headrow p {
+  font-size: 12px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-title {
+  margin-bottom: 8px;
+  font-size: 1.08rem;
+  line-height: 1.34;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-jpline {
+  margin-bottom: 5px;
+  font-size: 13px;
+  line-height: 1.36;
+  -webkit-line-clamp: 2;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-card-cta-row {
+  gap: 7px;
+  padding-top: 10px;
+}
+
+body.site-home .figure-results-carousel-track .portal-suumo-cta {
+  min-height: 32px;
+  padding: 0.38rem 0.64rem;
+  font-size: 12.5px;
+  font-weight: 850;
+}
+
+body.site-home .figure-results-carousel-track .figure-case-actions {
+  right: 10px;
+  bottom: 48px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap {
+  display: block;
+  width: min(calc(100% - clamp(56px, 8vw, 150px)), 1520px);
+  margin: 14px auto 0;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-shell {
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-controls {
+  padding: 0;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-track {
+  gap: 24px;
+  overflow: visible;
+  padding: 8px 0 54px;
+  scroll-padding-inline: 0;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card {
+  flex: 0 0 calc((100% - 48px) / 3);
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card.portal-suumo-card {
+  border: 1px solid rgba(206, 223, 211, 0.95);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfff9 100%);
+  transition:
+    transform 260ms ease,
+    border-color 260ms ease,
+    background 260ms ease,
+    box-shadow 260ms ease;
+  will-change: transform;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card.portal-suumo-card:hover {
+  transform: translateY(-6px) scale(1.018);
+  border-color: rgba(28, 116, 84, 0.48);
+  background: linear-gradient(180deg, #f7fff9 0%, #ffffff 100%);
+  box-shadow:
+    0 24px 50px rgba(28, 73, 55, 0.18),
+    0 0 0 4px rgba(36, 132, 94, 0.08);
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-compact-card {
+  grid-template-columns: minmax(190px, 1.18fr) minmax(190px, 0.82fr);
+  height: 246px;
+  min-height: 246px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-title {
+  -webkit-line-clamp: 2;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-media.figure-case-thumb,
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-media > a,
+body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card.portal-suumo-card .figure-case-thumb img,
+body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card.portal-suumo-card .portal-suumo-card-heroimg,
+body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card .figure-case-thumb img {
+  height: 246px;
+  min-height: 246px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-main {
+  position: relative;
+  padding: 14px 14px 13px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-headrow {
+  padding-right: 38px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-jpline {
+  font-size: 13.5px;
+  line-height: 1.38;
+  -webkit-line-clamp: 1;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-cta-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0.42rem 0.58rem;
+  overflow: hidden;
+  font-size: 13px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-case-actions {
+  top: 12px;
+  right: 12px;
+  bottom: auto;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-case-actions .figure-case-fav-btn {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-more {
+  display: none !important;
 }
 
 @media (max-width: 760px) {
+  body.site-home #figure-results.figure-results-carousel-wrap {
+    width: 100%;
+  }
+
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-controls {
+    padding: 0 8px;
+  }
+
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-track {
+    padding-inline: 48px;
+    scroll-padding-inline: 48px;
+  }
+
+  body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card {
+    flex-basis: min(390px, calc(100vw - 104px));
+  }
+
+  body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-compact-card {
+    height: auto;
+    min-height: 0;
+  }
+
   body.site-home .container {
     padding: 0 0 104px;
   }
@@ -12140,16 +12883,133 @@ body.site-home .figure-results-carousel-track .market-item-card.figure-case-card
   }
 
   body.site-home .figure-results-carousel-controls {
+    padding: 0 8px;
+  }
+
+  body.site-home .figure-results-carousel-status {
     top: 8px;
+    margin-top: 6px;
+    min-width: 58px;
+    padding: 0.34rem 0.56rem;
+    font-size: 12px;
+  }
+
+  body.site-home .figure-results-carousel-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  body.site-home .figure-results-carousel-track {
+    padding-inline: 48px;
+    scroll-padding-inline: 48px;
   }
 
   body.site-home .figure-results-carousel-track .market-item-card.figure-case-card {
-    flex-basis: min(84vw, 340px);
+    flex-basis: calc(100vw - 112px);
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-split {
+    grid-template-columns: 1fr;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-tabstrip {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
   }
 
   body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .figure-case-thumb img,
   body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .portal-suumo-card-heroimg,
   body.site-home .figure-results-carousel-track .market-item-card.figure-case-card .figure-case-thumb img {
-    height: 170px;
+    height: 100%;
+    min-height: 220px;
+  }
+
+  body.site-home .figure-results-carousel-track .market-item-card.figure-case-card {
+    flex-basis: min(420px, calc(100vw - 96px));
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-compact-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-media.figure-case-thumb,
+  body.site-home .figure-results-carousel-track .portal-suumo-card-media > a {
+    height: 220px;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-main {
+    padding: 13px 13px 12px;
+  }
+
+  body.site-home .figure-results-carousel-track .figure-case-actions {
+    bottom: 50px;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-more .portal-suumo-card-spec {
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 760px) {
+  body.site-home .figure-results-carousel-indicator {
+    margin-bottom: 8px;
+  }
+
+  body.site-home .figure-results-carousel-status {
+    position: static;
+    margin: 0;
+    font-size: 12px;
+  }
+
+  body.site-home .figure-results-carousel-dots {
+    max-width: 58vw;
+    gap: 6px;
+  }
+
+  body.site-home .figure-results-carousel-track {
+    padding-inline: 48px;
+    padding-bottom: 54px;
+    scrollbar-width: none;
+    scroll-padding-inline: 48px;
+  }
+
+  body.site-home .figure-results-carousel-track .market-item-card.figure-case-card {
+    flex-basis: min(390px, calc(100vw - 104px));
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-compact-card {
+    grid-template-columns: 1fr;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-media.figure-case-thumb,
+  body.site-home .figure-results-carousel-track .portal-suumo-card-media > a {
+    height: 190px;
+    min-height: 190px;
+  }
+
+  body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .figure-case-thumb img,
+  body.site-home .figure-results-carousel-track .market-item-card.figure-case-card.portal-suumo-card .portal-suumo-card-heroimg,
+  body.site-home .figure-results-carousel-track .market-item-card.figure-case-card .figure-case-thumb img {
+    min-height: 190px;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-main {
+    padding: 13px;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-title {
+    font-size: 1.03rem;
+  }
+
+  body.site-home .figure-results-carousel-track .portal-suumo-card-jpline {
+    font-size: 12.5px;
+  }
+
+  body.site-home .figure-results-carousel-track .figure-case-actions {
+    bottom: 48px;
   }
 }
