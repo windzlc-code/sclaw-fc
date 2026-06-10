@@ -17305,3 +17305,36 @@ body.site-home .bh-hero-proof-row button {
     gap: 10px !important;
   }
 }
+
+/* 2026-06-10: show every prefecture option and keep confirm actions visible. */
+body.site-home .jp-map-selected-pref-panel {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body.site-home .jp-map-selected-pref-chips {
+  flex: 0 0 auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 2px !important;
+  scrollbar-gutter: auto !important;
+}
+
+body.site-home .jp-map-selected-pref-row {
+  position: relative !important;
+  overflow: visible !important;
+  z-index: 1;
+}
+
+body.site-home .jp-map-selected-pref-row.is-confirming {
+  z-index: 30;
+}
+
+body.site-home .jp-map-pref-confirm-actions {
+  z-index: 40 !important;
+  left: calc(100% + 12px) !important;
+}
+
+body.site-home .jp-map-selected-pref-chips::-webkit-scrollbar {
+  display: none;
+}
