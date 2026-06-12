@@ -16003,7 +16003,7 @@
         const av = (it.source_name || '?').slice(0, 1);
         const galsProp = portalCaseGalleryUrlsPropertyOnly(it);
         const mainRaw = galsProp.length ? String(galsProp[0]).trim() : '';
-        const mainSrc = mainRaw ? portalListingThumbDisplayUrl(mainRaw, 420, 280) : LISTING_IMAGE_FALLBACK_URL;
+        const mainSrc = mainRaw ? portalListingThumbDisplayUrl(mainRaw, 240, 160) : LISTING_IMAGE_FALLBACK_URL;
         const mainFullSrc = mainRaw ? portalListingFullDisplayUrl(mainRaw) : mainSrc;
         const thumbKind = esc(String(it.thumb_kind || '').trim());
         const caseKey = supportCaseKeyFromItem(it);
@@ -16021,7 +16021,7 @@
           .slice(0, 6)
           .map((u, ix) => {
             const raw = String(u || '').trim();
-            const su = portalListingThumbDisplayUrl(raw, 420, 280);
+            const su = portalListingThumbDisplayUrl(raw, 240, 160);
             const fu = portalListingFullDisplayUrl(raw) || su;
             if (!su) return '';
             return `<button type="button" class="portal-suumo-card-image-dot${ix === 0 ? ' is-active' : ''}" data-card-img-src="${esc(su)}" data-card-img-full="${esc(fu)}" aria-label="查看第 ${ix + 1} 張圖片" aria-selected="${ix === 0 ? 'true' : 'false'}"></button>`;
@@ -16053,7 +16053,7 @@
         const specTable = `<div class="portal-suumo-specwrap"><table class="portal-suumo-spec-table portal-suumo-spec-table--card portal-suumo-spec-table--fixed"><tbody>${specRowsFig.join('')}</tbody></table></div>`;
         const candUrls =
           galsProp.length > 0
-            ? galsProp.map((u) => portalListingThumbDisplayUrl(String(u).trim(), 420, 280)).filter(Boolean)
+            ? galsProp.map((u) => portalListingThumbDisplayUrl(String(u).trim(), 240, 160)).filter(Boolean)
             : [mainSrc];
         if (!candUrls.includes(LISTING_IMAGE_FALLBACK_URL)) candUrls.push(LISTING_IMAGE_FALLBACK_URL);
         const candAttr = esc(JSON.stringify(candUrls));
