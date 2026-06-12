@@ -14677,6 +14677,79 @@ def _social_candidate_rows(limit: int) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def _social_search_candidate_rows(query: str) -> list[dict[str, Any]]:
+    terms = [x for x in re.split(r"\s+", str(query or "").strip()) if x]
+    if not terms:
+        return []
+    base_sql = """
+        SELECT
+          c.id AS content_id,
+          c.seo_title,
+          c.title_zh_hant,
+          c.body_zh_hant,
+          c.updated_at,
+          c.region_code,
+          c.keyword_type,
+          c.topic_category,
+          COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+          COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+          COALESCE(c.case_transit_override, '') AS case_transit_override,
+          COALESCE(c.jp_station_id, 0) AS jp_station_id,
+          COALESCE(c.walk_min, 0) AS walk_min,
+          COALESCE(c.featured_weight, 0) AS featured_weight,
+          COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+          s.id AS source_item_id,
+          s.source_name,
+          s.item_url,
+          s.title_original,
+          substr(COALESCE(s.body_original,''),1,6000) AS body_original,
+          substr(COALESCE(s.image_urls,''),1,12000) AS image_urls,
+          s.access_status,
+          s.access_note,
+          s.published_at,
+          s.crawled_at,
+          s.last_checked_at,
+          COALESCE(s.content_kind, '') AS content_kind,
+          COALESCE(jst.station_name, '') AS jp_bind_station_name,
+          COALESCE(jln.line_name, '') AS jp_bind_line_name
+        FROM source_items s
+        LEFT JOIN content_items c ON c.source_item_id = s.id
+        LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
+        LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+        WHERE {kind_where}
+          AND s.access_status = 'public'
+          AND {term_where}
+        ORDER BY s.last_checked_at DESC, s.id DESC
+    """
+    searchable_fields = (
+        "COALESCE(c.seo_title, '')",
+        "COALESCE(c.title_zh_hant, '')",
+        "COALESCE(c.body_zh_hant, '')",
+        "COALESCE(c.case_jp_region_override, '')",
+        "COALESCE(c.case_transit_override, '')",
+        "COALESCE(s.source_name, '')",
+        "COALESCE(s.item_url, '')",
+        "COALESCE(s.title_original, '')",
+        "COALESCE(s.body_original, '')",
+        "COALESCE(jst.station_name, '')",
+        "COALESCE(jln.line_name, '')",
+    )
+    term_clauses: list[str] = []
+    params: list[str] = []
+    for term in terms:
+        ors = [f"{field} LIKE ?" for field in searchable_fields]
+        term_clauses.append("(" + " OR ".join(ors) + ")")
+        params.extend([f"%{term}%"] * len(searchable_fields))
+    term_where = " AND ".join(term_clauses)
+    with get_conn() as conn:
+        sql = base_sql.format(kind_where="s.content_kind = 'jp_listing'", term_where=term_where)
+        rows = conn.execute(sql, params).fetchall()
+        if not rows:
+            fallback_sql = base_sql.format(kind_where="1 = 1", term_where=term_where)
+            rows = conn.execute(fallback_sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
 def _social_best_cases(limit: int = 8, *, area: str = "all") -> list[dict[str, Any]]:
     safe_limit = max(1, min(50, int(limit or 8)))
     rows = _social_candidate_rows(max(safe_limit, min(50, safe_limit * 3)))
@@ -16210,7 +16283,7 @@ def social_case_workbench_page(request: Request):
 
 @app.get("/api/social-case-workbench")
 def api_social_case_workbench(
-    limit: int = Query(default=10, ge=1, le=50),
+    limit: int = Query(default=10, ge=1, le=100000),
     sort: str = Query(default="latest"),
     area: str = Query(default="all"),
     q: str = Query(default=""),
@@ -16218,9 +16291,9 @@ def api_social_case_workbench(
     sort_key = str(sort or "score").strip().lower()
     area_key = str(area or "all").strip()
     query = str(q or "").strip()
+    requested_limit = max(1, min(50, int(limit or 10)))
     if query:
-        search_pool = max(int(limit or 10), min(60, int(limit or 10) * 5))
-        rows = _social_candidate_rows(search_pool)
+        rows = _social_search_candidate_rows(query)
         items = [_social_row_to_item(r) for r in rows]
         items = _social_filter_area(items, area_key)
         items = _social_filter_query(items, query)
@@ -16244,9 +16317,8 @@ def api_social_case_workbench(
                 ),
                 reverse=True,
             )
-        items = items[: max(1, min(50, int(limit or 10)))]
     else:
-        items = _social_latest_cases(limit, area=area_key) if sort_key in ("latest", "date", "newest") else _social_best_cases(limit, area=area_key)
+        items = _social_latest_cases(requested_limit, area=area_key) if sort_key in ("latest", "date", "newest") else _social_best_cases(requested_limit, area=area_key)
     return JSONResponse(
         {
             "ok": True,
@@ -16255,7 +16327,8 @@ def api_social_case_workbench(
             "sort": sort_key,
             "area": area_key,
             "query": query,
-            "limit": max(1, min(50, int(limit or 10))),
+            "limit": len(items) if query else requested_limit,
+            "matched_count": len(items),
             "area_options": _social_area_options(),
             "tg": _social_tg_snapshot_cached(limit=8),
             "seedance": _social_seedance_config_snapshot(),
@@ -21791,13 +21864,10 @@ def _normalize_smart_query_portals(*raw_values: Any) -> list[str]:
 def api_portal_case_search(payload: PortalCaseSearchRequest):
     settings = load_crawl_settings()
     cap = max(1000, min(100000, int(settings.get("portal_query_max_records", 100000))))
-    interactive_cap = max(50, min(2000, int(settings.get("portal_query_interactive_max_records", 60) or 60)))
-    if bool(payload.coverage_matrix_aligned):
-        interactive_cap = max(interactive_cap, 500)
     req_lim = int(payload.limit) if payload.limit is not None else cap
     if req_lim <= 0:
-        req_lim = interactive_cap
-    lim = max(10, min(req_lim, cap, interactive_cap, 2000))
+        req_lim = cap
+    lim = max(10, min(req_lim, cap))
     allowed_tx = _allowed_portal_transactions(settings)
 
     tx = (payload.transaction or "").strip().lower()

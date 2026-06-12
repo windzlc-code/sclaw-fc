@@ -3071,7 +3071,7 @@
               </select>
             </label>
             <label class="control-field">
-              <span>案件數</span>
+              <span>案件數（無關鍵字）</span>
               <select id="case-limit-select" onchange="loadWorkbench()" aria-label="案件數">
                 <option value="10" selected>10 筆</option>
                 <option value="20">20 筆</option>
@@ -7307,11 +7307,14 @@
       state.caseSort = $('case-sort-select')?.value || state.caseSort || 'latest';
       state.caseQuery = String($('case-search-input')?.value || state.caseQuery || '').trim();
       const query = new URLSearchParams({
-        limit: String(Math.max(1, Math.min(50, state.caseLimit || 10))),
         sort: state.caseSort || 'latest',
         area: state.caseArea || 'all',
       });
-      if (state.caseQuery) query.set('q', state.caseQuery);
+      if (state.caseQuery) {
+        query.set('q', state.caseQuery);
+      } else {
+        query.set('limit', String(Math.max(1, Math.min(50, state.caseLimit || 10))));
+      }
       const data = await apiFetchJson(`/api/social-case-workbench?${query.toString()}`, {}, '案件列表載入失敗');
       state.items = (data.items || []).map((item) => sanitizeWorkbenchItem(item));
       state.selected = sanitizeWorkbenchItem(data.selected || state.items[0] || null);
@@ -7325,13 +7328,13 @@
       state.dataRefresh = data.data_refresh || state.dataRefresh || null;
       state.areaOptions = data.area_options || state.areaOptions || [];
       state.caseArea = data.area || state.caseArea || 'all';
-      state.caseLimit = Number(data.limit || state.caseLimit || 10);
+      if (!state.caseQuery) state.caseLimit = Number(data.limit || state.caseLimit || 10);
       state.caseSort = data.sort || state.caseSort || 'latest';
       state.caseQuery = data.query || state.caseQuery || '';
       state.checkedIds = new Set();
       if (state.selected) state.checkedIds.add(itemId(state.selected));
       renderAreaOptions();
-      if ($('case-limit-select')) $('case-limit-select').value = String(state.caseLimit);
+      if ($('case-limit-select') && !state.caseQuery) $('case-limit-select').value = String(state.caseLimit);
       if ($('case-sort-select')) $('case-sort-select').value = state.caseSort;
       if ($('case-search-input')) $('case-search-input').value = state.caseQuery;
       renderCaseList();

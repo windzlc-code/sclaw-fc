@@ -2176,7 +2176,7 @@
       portal: 'all',
       portals: [],
       maxAgeDays: 180,
-      limit: 20,
+      limit: 0,
       coverageMatrixAligned: false,
     });
 
@@ -16003,7 +16003,7 @@
         const av = (it.source_name || '?').slice(0, 1);
         const galsProp = portalCaseGalleryUrlsPropertyOnly(it);
         const mainRaw = galsProp.length ? String(galsProp[0]).trim() : '';
-        const mainSrc = mainRaw ? portalListingThumbDisplayUrl(mainRaw, 960, 720) : LISTING_IMAGE_FALLBACK_URL;
+        const mainSrc = mainRaw ? portalListingThumbDisplayUrl(mainRaw, 420, 280) : LISTING_IMAGE_FALLBACK_URL;
         const mainFullSrc = mainRaw ? portalListingFullDisplayUrl(mainRaw) : mainSrc;
         const thumbKind = esc(String(it.thumb_kind || '').trim());
         const caseKey = supportCaseKeyFromItem(it);
@@ -16021,7 +16021,7 @@
           .slice(0, 6)
           .map((u, ix) => {
             const raw = String(u || '').trim();
-            const su = portalListingThumbDisplayUrl(raw, 960, 720);
+            const su = portalListingThumbDisplayUrl(raw, 420, 280);
             const fu = portalListingFullDisplayUrl(raw) || su;
             if (!su) return '';
             return `<button type="button" class="portal-suumo-card-image-dot${ix === 0 ? ' is-active' : ''}" data-card-img-src="${esc(su)}" data-card-img-full="${esc(fu)}" aria-label="查看第 ${ix + 1} 張圖片" aria-selected="${ix === 0 ? 'true' : 'false'}"></button>`;
@@ -16053,7 +16053,7 @@
         const specTable = `<div class="portal-suumo-specwrap"><table class="portal-suumo-spec-table portal-suumo-spec-table--card portal-suumo-spec-table--fixed"><tbody>${specRowsFig.join('')}</tbody></table></div>`;
         const candUrls =
           galsProp.length > 0
-            ? galsProp.map((u) => portalListingThumbDisplayUrl(String(u).trim(), 960, 720)).filter(Boolean)
+            ? galsProp.map((u) => portalListingThumbDisplayUrl(String(u).trim(), 420, 280)).filter(Boolean)
             : [mainSrc];
         if (!candUrls.includes(LISTING_IMAGE_FALLBACK_URL)) candUrls.push(LISTING_IMAGE_FALLBACK_URL);
         const candAttr = esc(JSON.stringify(candUrls));
@@ -16120,6 +16120,15 @@
         `;
       }
       return html || '<div class="panel muted">目前沒有符合條件的站內案件；請調整來源／區域／關鍵字／日期，或確認後台案件管理已入庫 7 個日本來源資料。</div>';
+    }
+
+    function portalCaseResultCountText(count, appliedLimit, truncNote) {
+      const n = Number(count || 0);
+      const lim = Number(appliedLimit || 0);
+      if (truncNote) {
+        return `本次回傳：<strong>${n}</strong> 筆／系統上限 ${lim || '未設定'} 筆${esc(String(truncNote))}`;
+      }
+      return `本次回傳：<strong>${n}</strong> 筆（當前條件已全部列示）`;
     }
 
     function bindMarketTabs() {
@@ -18553,7 +18562,11 @@
       latestFigureCaseItems = Array.isArray(items) ? items : [];
       applySmartQueryTransactionVisibility(data || {});
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
-      const trunc = data.truncation_note ? '（已達單次回傳上限，可調高 crawl 設定之智慧查詢筆數或縮小條件）' : '';
+      const resultCountText = portalCaseResultCountText(
+        Number(data.count != null ? data.count : items.length),
+        appliedLimit,
+        data.truncation_note ? '（已達單次回傳上限，可調高 crawl 設定之智慧查詢筆數或縮小條件）' : '',
+      );
       const resultPortals = Array.isArray(data.portal_keys) && data.portal_keys.length ? data.portal_keys : portalKeys;
       const isMatAligned = !!(data && data.coverage_matrix_aligned);
       const effRegionHint = isMatAligned && data.region_hint != null && String(data.region_hint).trim()
@@ -18604,7 +18617,7 @@
           : '';
       summary.innerHTML = `
         <p><strong>條件</strong>：${lineCond} ｜ 來源：${esc(formatFigurePortalLabel(resultPortals))} ｜ 區域：${effRegionHint ? esc(effRegionHint) : '不限'}${regInf} ｜ 最新區間：${Number(data.max_age_days || maxAgeDays) ? `${Number(data.max_age_days || maxAgeDays)} 天內` : '不限制'}</p>
-        <p class="muted">${lineKwJpt} ｜ 本次回傳：<strong>${Number(data.count != null ? data.count : items.length)}</strong> 筆／上限 ${appliedLimit} 筆${esc(trunc)}</p>
+        <p class="muted">${lineKwJpt} ｜ ${resultCountText}</p>
         ${scopeNoteHtml}
         ${matCountLine}
         ${matNote}
@@ -18810,7 +18823,8 @@
       const priceLabel = formatFigurePriceLabel(priceRange.priceMin, priceRange.priceMax);
       const layoutLabel = formatFigureLayoutLabel(layoutRange.layoutMin, layoutRange.layoutMax);
       const botRuntime = getBotSmartQueryRuntime();
-      const limitReq = Number(botRuntime.limit || 60);
+      const rawBotLimit = Number(botRuntime.limit);
+      const limitReq = Number.isFinite(rawBotLimit) ? Math.max(0, rawBotLimit) : 0;
       const geoBits = [];
       if (regionHint) geoBits.push(regionHint);
       if (homesLocLabel) geoBits.push(homesLocLabel);
@@ -18883,8 +18897,8 @@
             });
           });
           const merged = { ...(firstPayload || {}) };
-          const mergedLimit = Math.max(1, Number(limitReq || firstPayload?.limit || rows.length || 1));
-          merged.items = rows.slice(0, mergedLimit);
+          const mergedLimit = Math.max(1, Number(firstPayload?.limit || limitReq || rows.length || 1));
+          merged.items = rows;
           merged.count = merged.items.length;
           merged.limit = mergedLimit;
           merged.region_hint = (regionKeys || []).join(' / ');
@@ -18974,7 +18988,11 @@
       applySmartQueryTransactionVisibility(data || {});
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
       const count = Number(data.count != null ? data.count : items.length);
-      const trunc = data.truncation_note ? '（已達單次回傳上限，可縮小區域／類型／總價／格局條件）' : '';
+      const resultCountText = portalCaseResultCountText(
+        count,
+        appliedLimit,
+        data.truncation_note ? '（已達單次回傳上限，可縮小區域／類型／總價／格局條件）' : '',
+      );
       const meta = data.structured_filter_meta || {};
       const beforeCount = Number(meta.before_count || 0);
       const transitMeta = data.transit_filter_meta || {};
@@ -18990,7 +19008,7 @@
         : '';
       summary.innerHTML = `
         <p><strong>條件</strong>：區域：${esc(geoLabel)} ｜ 類型：${esc(typeLabel)} ｜ 總價：${esc(priceLabel)} ｜ 格局：${esc(layoutLabel)}</p>
-        <p class="muted">本次回傳：<strong>${count}</strong> 筆／上限 ${appliedLimit} 筆${esc(trunc)}</p>
+        <p class="muted">${resultCountText}</p>
         ${filterNote}
         ${transitNote}
         ${relaxedNote}
