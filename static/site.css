@@ -3457,9 +3457,21 @@ button:hover {
   gap: 7px;
 }
 
+.sales-lead-board-head {
+  display: grid;
+  grid-template-columns: 150px 86px minmax(260px, 1fr) 150px 70px;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 6px;
+  padding: 0 10px;
+  color: #61728c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .sales-lead-row {
   display: grid;
-  grid-template-columns: 88px 86px minmax(260px, 1fr) 150px 70px;
+  grid-template-columns: 150px 86px minmax(260px, 1fr) 150px 70px;
   align-items: center;
   gap: 0.55rem;
   padding: 8px 10px;
@@ -3497,6 +3509,11 @@ button:hover {
   white-space: nowrap;
 }
 
+.sales-lead-row-id span {
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .sales-lead-row-state strong {
   color: #1d63d8;
   font-size: 18px;
@@ -3529,6 +3546,20 @@ button:hover {
 
 .sales-lead-row-detail p:last-child {
   margin-bottom: 0;
+}
+
+.sales-lead-board-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 10px 0 0;
+}
+
+.sales-lead-board-pager button {
+  min-height: 34px !important;
+  padding: 0.34rem 0.75rem !important;
+  border-radius: 10px !important;
 }
 
 .social-radar-account-table-wrap {
@@ -3632,6 +3663,10 @@ button:hover {
 
   .sales-lead-row {
     grid-template-columns: 1fr;
+  }
+
+  .sales-lead-board-head {
+    display: none;
   }
 
   .sales-lead-row-session,

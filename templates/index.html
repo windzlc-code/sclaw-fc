@@ -3475,6 +3475,10 @@
     let adminCasesCrawlTaskId = '';
     let adminCasesCrawlPollTimer = 0;
     let latestSocialRadarItems = [];
+    let latestSalesLeadBoardItems = [];
+    let latestSalesLeadBoardRawCount = 0;
+    let salesLeadBoardPage = 1;
+    const SALES_LEAD_BOARD_PAGE_SIZE = 12;
     let adminSimpleMode = true;
     const ADMIN_SIMPLE_MODE_CACHE_KEY = 'sclaw.admin.simple_mode.v2';
     const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'portal-matrix']);
@@ -17836,11 +17840,12 @@
       const reply = String(row.assistant_reply_preview || '');
       const conv = String(row.conversation_preview || '');
       const rowId = esc(String(row.id != null ? row.id : ''));
+      const createdAt = esc(String(row.created_at || '-'));
       const sessionBtn = sid
         ? `<button type="button" class="secondary" onclick="fillSessionFromLeadBoard('${esc(sid)}')">${esc(sid).slice(0, 18)}</button>`
         : '<span class="muted">無 Session</span>';
       return `<article class="sales-lead-row" role="listitem">
-        <div class="sales-lead-row-id"><strong>#${rowId}</strong><span>${esc(String(row.created_at || '')).slice(0, 16)}</span></div>
+        <div class="sales-lead-row-id"><strong>#${rowId}</strong><span>${createdAt}</span></div>
         <div class="sales-lead-row-state"><span>${esc(stageText)}</span><strong>${Number(row.intent_score || 0)}</strong></div>
         <div class="sales-lead-row-copy"><strong>${esc(userMsg).slice(0, 54) || '—'}</strong><span>${esc(reply).slice(0, 70) || '尚無回覆摘要'}</span></div>
         <div class="sales-lead-row-session">${sessionBtn}</div>
@@ -17862,6 +17867,44 @@
       const nextOpen = detail.hasAttribute('hidden');
       detail.toggleAttribute('hidden', !nextOpen);
       btn.textContent = nextOpen ? '收合' : '詳情';
+    }
+
+    function salesLeadStageLabel(s) {
+      return ({
+        discover: '需求探索',
+        consideration: '評估比較',
+        closing: '高意願成交',
+        lost: '低意願追蹤',
+      }[String(s || '')] || String(s || '-'));
+    }
+
+    function renderSalesLeadBoardPage() {
+      const wrap = document.getElementById('sales-mcp-lead-board');
+      if (!wrap) return;
+      const items = Array.isArray(latestSalesLeadBoardItems) ? latestSalesLeadBoardItems : [];
+      if (!items.length) {
+        wrap.innerHTML = '<p class="muted">目前條件下尚無顧問建議紀錄。</p>';
+        return;
+      }
+      const totalPages = Math.max(1, Math.ceil(items.length / SALES_LEAD_BOARD_PAGE_SIZE));
+      salesLeadBoardPage = Math.max(1, Math.min(totalPages, Number(salesLeadBoardPage || 1)));
+      const start = (salesLeadBoardPage - 1) * SALES_LEAD_BOARD_PAGE_SIZE;
+      const pageItems = items.slice(start, start + SALES_LEAD_BOARD_PAGE_SIZE);
+      let html =
+        `<div class="sales-lead-board-meta"><span>原始 ${latestSalesLeadBoardRawCount} 筆</span><span>符合 ${items.length} 筆</span><span>第 ${salesLeadBoardPage} / ${totalPages} 頁</span></div>` +
+        '<div class="sales-lead-board-head"><span>ID / 時間</span><span>階段 / 意願</span><span>客戶訊息 / 回覆摘要</span><span>Session</span><span>操作</span></div>' +
+        '<div class="sales-lead-board-list" role="list">';
+      for (const row of pageItems) {
+        html += renderSalesLeadBoardRow(row, salesLeadStageLabel(row.stage));
+      }
+      html += '</div>';
+      html += `<div class="sales-lead-board-pager"><button type="button" class="secondary" ${salesLeadBoardPage <= 1 ? 'disabled' : ''} onclick="setSalesLeadBoardPage(${salesLeadBoardPage - 1})">上一頁</button><span class="muted">${start + 1} - ${Math.min(start + pageItems.length, items.length)} / ${items.length}</span><button type="button" class="secondary" ${salesLeadBoardPage >= totalPages ? 'disabled' : ''} onclick="setSalesLeadBoardPage(${salesLeadBoardPage + 1})">下一頁</button></div>`;
+      wrap.innerHTML = html;
+    }
+
+    function setSalesLeadBoardPage(page) {
+      salesLeadBoardPage = Number(page || 1);
+      renderSalesLeadBoardPage();
     }
 
     async function loadSalesMcpLeadBoard() {
@@ -17902,38 +17945,11 @@
           wrap.innerHTML = '<p class="muted">目前條件下尚無顧問建議紀錄。</p>';
           return;
         }
-        const stageLabel = (s) => ({
-          discover: '需求探索',
-          consideration: '評估比較',
-          closing: '高意願成交',
-          lost: '低意願追蹤',
-        }[String(s || '')] || String(s || '-'));
-        let html =
-          `<div class="sales-lead-board-meta"><span>原始 ${rawItems.length} 筆</span><span>符合 ${items.length} 筆</span></div>` +
-          '<div class="sales-lead-board-list" role="list">';
-        for (const row of items) {
-          const sid = String(row.session_id || '');
-          const botScore = row.bot_eval_score == null ? '-' : `${Number(row.bot_eval_score || 0)} / ${esc(String(row.bot_optimization_level || ''))}`;
-          const botStatus = supportBotStatusLabel(row.bot_status || '');
-          html += renderSalesLeadBoardRow(row, stageLabel(row.stage));
-          continue;
-          html += `<tr>
-            <td>${esc(String(row.id != null ? row.id : ''))}</td>
-            <td>${esc(String(row.created_at || ''))}</td>
-            <td>${esc(stageLabel(row.stage))}</td>
-            <td>${Number(row.intent_score || 0)}</td>
-            <td>${esc(botScore)}<br><span class="muted">${esc(botStatus)}</span></td>
-            <td>${Number(row.notify_count || 0)}</td>
-            <td class="muted" style="max-width:9rem;word-break:break-all;">
-              ${sid ? `<button type="button" class="secondary" onclick="fillSessionFromLeadBoard('${esc(sid)}')">${esc(sid).slice(0, 24)}</button>` : '-'}
-            </td>
-            <td style="max-width:14rem;">${esc(String(row.user_message || '')).slice(0, 200)}</td>
-            <td class="muted" style="max-width:12rem;">${esc(String(row.assistant_reply_preview || '')).slice(0, 160)}</td>
-            <td class="muted" style="max-width:12rem;">${esc(String(row.conversation_preview || '')).slice(0, 160)}</td>
-          </tr>`;
-        }
-        html += '</table>';
-        wrap.innerHTML = html;
+        latestSalesLeadBoardRawCount = rawItems.length;
+        latestSalesLeadBoardItems = items;
+        salesLeadBoardPage = 1;
+        renderSalesLeadBoardPage();
+        return;
       } catch (err) {
         if (botSummary) botSummary.innerHTML = '';
         wrap.innerHTML = `<p class="muted">載入顧問建議紀錄失敗：${esc(formatApiError(err))}</p>`;
