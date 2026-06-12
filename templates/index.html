@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260612-admin-page-b">
+  <link rel="stylesheet" href="/static/site.css?v=20260612-admin-compact-a">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -54,7 +54,6 @@
       <div class="bh-site-titlebar-actions" aria-label="首頁工具列">
         <button type="button" class="home-hero-sound-toggle" data-home-hero-sound-toggle aria-pressed="false">開啟聲音輪播</button>
         {% include 'partials/site_language_switch.html' %}
-        <a class="bh-site-nav-cta" href="#query-dialog">開始查詢</a>
       </div>
     </nav>
   </header>
@@ -666,7 +665,31 @@
     <aside id="admin-drawer" class="config-drawer admin-drawer" aria-hidden="true">
       <div class="config-drawer-head">
         <strong>後台管理</strong>
-        <button class="ui-close-btn" type="button" onclick="toggleAdminDrawer(false)" aria-label="關閉後台管理" title="關閉">×</button>
+        <div class="admin-head-actions">
+          <section class="site-language-switch site-language-switch--globe admin-language-switch" aria-label="中文版本切換" data-site-lang-menu-root>
+            <button
+              type="button"
+              class="site-language-globe-btn"
+              data-site-lang-menu-toggle
+              aria-label="切換中文版本"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              title="切換中文版本"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <circle cx="12" cy="12" r="8.6"></circle>
+                <path d="M3.8 12h16.4M12 3.4c2.2 2.2 3.3 5.1 3.3 8.6S14.2 18.4 12 20.6M12 3.4C9.8 5.6 8.7 8.5 8.7 12s1.1 6.4 3.3 8.6"></path>
+              </svg>
+              <span data-site-lang-current>繁</span>
+            </button>
+            <div class="site-language-menu" data-site-lang-menu role="menu" hidden>
+              <button type="button" role="menuitemradio" data-site-lang-choice="hant" aria-checked="true">繁體中文</button>
+              <button type="button" role="menuitemradio" data-site-lang-choice="hans" aria-checked="false">簡體中文</button>
+            </div>
+          </section>
+          <button id="admin-header-logout" class="secondary admin-head-logout" type="button" onclick="clearAdminAuth()" hidden>退出登入</button>
+          <button class="ui-close-btn" type="button" onclick="toggleAdminDrawer(false)" aria-label="關閉後台管理" title="關閉">×</button>
+        </div>
       </div>
       <p class="muted admin-drawer-note">密碼登入後即可管理；頁籤負責切換模組。</p>
       <div class="panel admin-auth-panel">
@@ -677,7 +700,6 @@
         <div class="search-row-basic admin-auth-row">
           <input id="admin-password-input" type="password" placeholder="輸入後台密碼" autocomplete="off">
           <button type="button" class="secondary" onclick="unlockAdminPanel()">登入</button>
-          <button type="button" class="secondary" onclick="clearAdminAuth()">登出</button>
         </div>
       </div>
       <div class="search-row-basic admin-mode-strip">
@@ -711,27 +733,7 @@
         <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼管理</button>
         <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">LINE/TG</button>
         <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶留單</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="site-dns">站台／DNS</button>
         <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">七大站報表</button>
-      </div>
-
-      <div id="admin-tab-site-dns" class="admin-tab-panel" role="tabpanel">
-      <div class="panel">
-        <h3 class="config-subhead">站台／DNS（對外網址）</h3>
-        <p class="muted">「主要網址」作為全站 <strong>canonical</strong>：SEO、sitemap、結構化資料、站內絕對連結、智能客服引用、Telegram Webhook 建議網址等皆以此為準。「別名」會額外加入瀏覽器跨域（CORS）允許（例如同時支援 apex 與 www）。未於此填寫時沿用伺服器環境變數 <code>SITE_URL</code>。</p>
-        <label class="muted">主要站台網址（無尾隨斜線）
-          <input id="admin-site-dns-primary" type="url" autocomplete="off" placeholder="https://www.manuvip.com">
-        </label>
-        <label class="muted">其他別名（一行一個，含 https）
-          <textarea id="admin-site-dns-aliases" rows="4" style="width:100%;box-sizing:border-box;" placeholder="https://manuvip.com"></textarea>
-        </label>
-        <p id="admin-site-dns-effective" class="muted" style="font-size:12px;line-height:1.5;margin:0.35rem 0 0;"></p>
-        <div class="search-row-basic" style="margin-top:0.5rem;">
-          <button type="button" onclick="saveAdminSiteDnsSettings()">儲存 DNS 設定</button>
-          <button type="button" class="secondary" onclick="loadAdminSiteDnsSettings()">重新載入</button>
-        </div>
-        <p id="admin-site-dns-msg" class="muted"></p>
-      </div>
       </div>
 
       <div id="admin-tab-portal-matrix" class="admin-tab-panel" role="tabpanel">
@@ -1081,6 +1083,7 @@
         <label class="muted">API Key（留空不變）
           <input id="admin-llm-deepseek-key" type="password" autocomplete="new-password" placeholder="已設定則顯示遮罩，改動請重新貼上">
         </label>
+        <p id="admin-llm-deepseek-key-status" class="admin-llm-secret-status muted">DeepSeek Key：狀態載入中…</p>
         <label class="muted" style="display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;">
           <input id="admin-llm-clear-deepseek-key" type="checkbox"> 清除 DeepSeek 金鑰
         </label>
@@ -1096,6 +1099,7 @@
         <label class="muted">API Key（留空不變）
           <input id="admin-llm-gemini-key" type="password" autocomplete="new-password" placeholder="已設定則顯示遮罩，改動請重新貼上">
         </label>
+        <p id="admin-llm-gemini-key-status" class="admin-llm-secret-status muted">Gemini Key：狀態載入中…</p>
         <label class="muted" style="display:flex;align-items:center;gap:0.4rem;margin-top:0.25rem;">
           <input id="admin-llm-clear-gemini-key" type="checkbox"> 清除 Gemini 金鑰
         </label>
@@ -1112,8 +1116,15 @@
 
       <div id="admin-tab-cases" class="admin-tab-panel is-active" role="tabpanel">
       <div class="panel">
-        <h3 class="config-subhead">案件管理（日本不動產買／賣／租）</h3>
-        <p class="muted">站內智慧查詢以 <strong>七大日本門戶</strong>（SUUMO／LIFULL HOME'S／at home／Yahoo!不動産／楽天不動産／イエステーション／OHEYASU）與 <strong>預設 180 天（約半年）</strong>新鮮度為主；入庫後請以列表預覽與編輯確認 <strong>標題、摘要、圖片、價格／所在地／交通等欄位</strong>。列表下方提供篩選、匯入匯出 CSV、單筆或批次重抓物件頁補欄位。</p>
+        <div class="admin-panel-title-row admin-panel-title-row--compact">
+          <h3 class="config-subhead">案件管理</h3>
+          <div class="admin-ui-chipline" aria-label="案件管理摘要">
+            <span>日本不動產</span>
+            <span>七大門戶</span>
+            <span>180 天新鮮度</span>
+            <span>列表精簡</span>
+          </div>
+        </div>
         <details class="panel slim admin-case-settings-details" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f0f5ff 0%,#fff 100%);border:1px solid #d1ddf5;border-radius:10px;">
           <summary>
             <strong>七大站分段補全（固定順序）</strong>
@@ -1265,7 +1276,7 @@
               <option value="5000">5000</option>
               <option value="10000">10000</option>
             </select>
-            <span class="muted" style="font-size:0.85rem;max-width:18rem;display:inline-block;">七站補抓時，進度列「已收 N 筆」為<strong>七站累積</strong>；每站最多＝此處筆數（單次總連結與執行時間後端仍有保護）。要大量入庫可提高筆數或分多次執行。</span>
+            <span class="muted admin-inline-hint">七站累積上限；大量入庫請分批。</span>
           </label>
           <button type="button" class="secondary" onclick="batchRecrawlAdminCasesPage()">批次重爬本頁</button>
           <button type="button" class="secondary" onclick="downloadAdminCasesTemplate()">下載 CSV 範本</button>
@@ -3446,7 +3457,6 @@
       telegram: 'Telegram（智能客服通知）',
       handoffs: '客戶留單（人工接手）',
       'portal-matrix': '七大站×地區報表',
-      'site-dns': '站台／DNS',
       'support-hub': '客服訓練／支援中心',
       llm: 'AI 供應商',
       password: '密碼管理',
@@ -6749,6 +6759,11 @@
       const widget = document.getElementById('support-chat-widget');
       if (!panel) return;
       const open = typeof force === 'boolean' ? force : panel.style.display === 'none';
+      if (open && !(options && options.skipPhoneGate) && !isSupportPhoneLoggedIn()) {
+        supportPhoneLoginReturnToChat = true;
+        setSupportPhoneLoginModalOpen(true, { returnToChat: true });
+        return;
+      }
       if (open && !(options && options.skipExclusive)) closeFloatingPanelsExcept('support');
       panel.style.display = open ? 'flex' : 'none';
       supportChatOpen = open;
@@ -7304,6 +7319,19 @@
     }
 
     const SUPPORT_PHONE_LOGIN_KEY = 'sclaw_support_phone_login';
+    let supportPhoneLoginReturnToChat = false;
+
+    function getSupportPhoneLoginValue() {
+      try {
+        return String(localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '').trim();
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function isSupportPhoneLoggedIn() {
+      return !!getSupportPhoneLoginValue();
+    }
 
     function closeFloatingPanelsExcept(exceptKey) {
       const keep = String(exceptKey || '');
@@ -7915,6 +7943,8 @@
       const backdrop = document.getElementById('support-phone-login-backdrop');
       const btn = document.getElementById('support-phone-login-toggle');
       if (!modal) return;
+      if (shouldOpen && options && options.returnToChat) supportPhoneLoginReturnToChat = true;
+      if (!shouldOpen && options && options.clearReturnToChat) supportPhoneLoginReturnToChat = false;
       if (shouldOpen && !(options && options.skipExclusive)) closeFloatingPanelsExcept('phone');
       modal.style.display = shouldOpen ? 'block' : 'none';
       if (backdrop) {
@@ -7932,7 +7962,11 @@
           const cached = localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '';
           if (input && cached && !input.value) input.value = cached;
         } catch (_) {}
-        if (msg && !String(msg.textContent || '').trim()) msg.textContent = '請輸入可聯絡的電話號碼。';
+        if (msg && !String(msg.textContent || '').trim()) {
+          msg.textContent = supportPhoneLoginReturnToChat
+            ? '請先完成號碼登入，登入後會自動開啟 AI 智能客服。'
+            : '請輸入可聯絡的電話號碼。';
+        }
         setTimeout(() => {
           try {
             if (input && typeof input.focus === 'function') input.focus({ preventScroll: true });
@@ -7981,6 +8015,12 @@
         if (msg) msg.textContent = `已登入並建立留單 #${data.handoff_id || ''}，後台可查看與編輯。`;
         const adminQ = document.getElementById('admin-handoff-q');
         if (adminQ && !adminQ.value) adminQ.value = phone;
+        const shouldOpenChat = true;
+        supportPhoneLoginReturnToChat = false;
+        window.setTimeout(() => {
+          setSupportPhoneLoginModalOpen(false, { skipExclusive: true, restoreFocus: false, clearReturnToChat: true });
+          if (shouldOpenChat) toggleSupportChat(true, { skipPhoneGate: true });
+        }, 260);
       } catch (err) {
         if (msg) msg.textContent = `送出失敗：${formatApiError(err)}`;
       } finally {
@@ -9817,6 +9857,68 @@
         `；自動通知：${chText}`;
     }
 
+    function setAdminLlmSecretStatus(provider, isSet, masked, options = {}) {
+      const key = String(provider || '').toLowerCase() === 'gemini' ? 'gemini' : 'deepseek';
+      const label = key === 'gemini' ? 'Gemini' : 'DeepSeek';
+      const status = document.getElementById(`admin-llm-${key}-key-status`);
+      const input = document.getElementById(`admin-llm-${key}-key`);
+      const clearing = Boolean(options && options.clearing);
+      const saved = Boolean(isSet);
+      const mask = String(masked || '').trim();
+      if (status) {
+        status.dataset.saved = saved ? '1' : '0';
+        status.dataset.masked = mask;
+        status.classList.toggle('is-saved', saved && !clearing);
+        status.classList.toggle('is-empty', !saved && !clearing);
+        status.classList.toggle('is-clearing', clearing);
+        if (clearing) {
+          status.textContent = `${label} Key：已勾選清除，按「儲存 AI 設定」後會刪除。`;
+        } else if (saved) {
+          status.textContent = `${label} Key：已保存${mask ? `（${mask}）` : ''}，留空再儲存不會覆蓋。`;
+        } else {
+          status.textContent = `${label} Key：尚未保存，請貼上 API Key 後儲存。`;
+        }
+      }
+      if (input) {
+        const nextPlaceholder = saved
+          ? `已保存${mask ? `：${mask}` : ''}；重新貼上可覆蓋`
+          : '尚未保存，請貼上 API Key';
+        input.sclawHantAttr_placeholder = nextPlaceholder;
+        input.setAttribute('placeholder', nextPlaceholder);
+      }
+    }
+
+    function updateAdminLlmSecretStatuses(data) {
+      const d = data || {};
+      const cdk = document.getElementById('admin-llm-clear-deepseek-key');
+      const cgk = document.getElementById('admin-llm-clear-gemini-key');
+      setAdminLlmSecretStatus('deepseek', Boolean(d.deepseek_api_key_set), d.deepseek_api_key_masked, {
+        clearing: Boolean(cdk && cdk.checked),
+      });
+      setAdminLlmSecretStatus('gemini', Boolean(d.gemini_api_key_set), d.gemini_api_key_masked, {
+        clearing: Boolean(cgk && cgk.checked),
+      });
+    }
+
+    function bindAdminLlmClearStatusOnce() {
+      const bindings = [
+        ['admin-llm-clear-deepseek-key', 'deepseek'],
+        ['admin-llm-clear-gemini-key', 'gemini'],
+      ];
+      bindings.forEach(([id, provider]) => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.statusBound === '1') return;
+        el.dataset.statusBound = '1';
+        el.addEventListener('change', () => {
+          const key = provider === 'gemini' ? 'gemini' : 'deepseek';
+          const status = document.getElementById(`admin-llm-${key}-key-status`);
+          const hasSaved = status ? status.dataset.saved === '1' : false;
+          const mask = status ? String(status.dataset.masked || '') : '';
+          setAdminLlmSecretStatus(key, hasSaved, mask, { clearing: Boolean(el.checked) });
+        });
+      });
+    }
+
     async function loadAdminLlmSettings() {
       const msg = document.getElementById('admin-llm-msg');
       if (!adminPanelPassword) {
@@ -9846,6 +9948,8 @@
         const cgk = document.getElementById('admin-llm-clear-gemini-key');
         if (cdk) cdk.checked = false;
         if (cgk) cgk.checked = false;
+        bindAdminLlmClearStatusOnce();
+        updateAdminLlmSecretStatuses(data);
         const hint = `DeepSeek Key：${data.deepseek_api_key_set ? data.deepseek_api_key_masked || '已設定' : '未設定'}；Gemini Key：${data.gemini_api_key_set ? data.gemini_api_key_masked || '已設定' : '未設定'}`;
         if (msg) msg.textContent = hint;
       } catch (err) {
@@ -9889,6 +9993,8 @@
         const c2 = document.getElementById('admin-llm-clear-gemini-key');
         if (c1) c1.checked = false;
         if (c2) c2.checked = false;
+        bindAdminLlmClearStatusOnce();
+        updateAdminLlmSecretStatuses(data);
         await refreshLlmUiFromStatus();
         if (data && msg) {
           const hint = `DeepSeek Key：${data.deepseek_api_key_set ? data.deepseek_api_key_masked || '已設定' : '未設定'}；Gemini Key：${data.gemini_api_key_set ? data.gemini_api_key_masked || '已設定' : '未設定'}`;
@@ -9952,6 +10058,12 @@
         loadAdminSupportQaTraining();
         loadAdminSupportCrmPrompt();
         loadAdminSupportBotStatus();
+      }
+      if (targetTab === 'llm') {
+        refreshLlmUiFromStatus();
+        if (adminPanelPassword) {
+          loadAdminLlmSettings();
+        }
       }
       if (targetTab === 'leads') {
         if (adminPanelPassword) {
@@ -11981,10 +12093,11 @@
           return;
         }
         let html =
-          '<table class="admin-cases-table"><thead><tr><th>操作</th><th>ID</th><th>縮圖</th><th>交易別</th><th>日本區域</th><th>交通摘要</th><th>站ID</th><th>徒</th><th>權重</th><th>標題</th><th>來源</th><th>圖</th><th>影</th><th>更新</th></tr></thead><tbody>';
+          '<table class="admin-cases-table admin-cases-table--compact"><thead><tr><th>操作</th><th>ID</th><th>縮圖</th><th>交易別</th><th>日本區域</th><th>交通摘要</th><th>站ID</th><th>徒</th><th>權重</th><th>標題</th><th>來源</th><th>圖</th><th>影</th><th>更新</th></tr></thead><tbody>';
         for (const it of items) {
           const id = Number(it.content_id);
-          const title = esc(String(it.title_zh_hant || it.seo_slug || '未命名').slice(0, 72));
+          const fullTitle = String(it.title_zh_hant || it.seo_slug || '未命名');
+          const title = esc(fullTitle.slice(0, 92));
           const tx = esc(String(it.transaction_label_zh || it.transaction_side || ''));
           const jreg = esc(String(it.jp_region_display_zh || '—').slice(0, 36));
           const tr = esc(String(it.transit_line_zh || '').slice(0, 32) || '—');
@@ -12010,7 +12123,7 @@
             ? `<td class="admin-cases-thumb-cell"><img class="admin-cases-thumb" src="${esc(disp)}" alt="" width="56" height="56" loading="lazy" decoding="async" data-thumb-candidates="${candsJson}" data-thumb-i="0" onerror="adminCaseThumbImgOnError(this)">${tk ? `<span class="thumb-kind-badge">${tk}</span>` : ''}</td>`
             : '<td class="admin-cases-thumb-cell muted">—</td>';
           html += `<tr><td class="admin-cases-actions">`;
-          html += `<button type="button" class="secondary" onclick="previewAdminCase(${id})">預覽</button> `;
+          html += `<button type="button" class="secondary" onclick="previewAdminCase(${id})">查看</button> `;
           html += `<button type="button" class="secondary" onclick="openAdminCaseEdit(${id})">編輯</button> `;
           html += `<button type="button" class="secondary" onclick="deleteAdminCase(${id})">刪除</button>`;
           const sid = Number(it.jp_station_id || 0);
@@ -15262,6 +15375,25 @@
       }
     }
 
+    function syncAdminAuthUi(message) {
+      const drawer = document.getElementById('admin-drawer');
+      const authPanel = document.querySelector('.admin-auth-panel');
+      const authMsg = document.getElementById('admin-auth-msg');
+      const headerLogout = document.getElementById('admin-header-logout');
+      const note = document.querySelector('.admin-drawer-note');
+      const loggedIn = !!String(adminPanelPassword || '').trim();
+      if (drawer) drawer.classList.toggle('is-authenticated', loggedIn);
+      if (authPanel) authPanel.hidden = loggedIn;
+      if (headerLogout) headerLogout.hidden = !loggedIn;
+      if (authMsg) authMsg.textContent = String(message || (loggedIn ? '已登入' : '尚未登入'));
+      if (note) {
+        note.textContent = loggedIn
+          ? '已登入後台；可使用上方退出登入。'
+          : '密碼登入後即可管理；頁籤負責切換模組。';
+      }
+      setStandaloneAdminLocked(!loggedIn);
+    }
+
     async function unlockAdminPanel() {
       const pwdInput = document.getElementById('admin-password-input');
       const authMsg = document.getElementById('admin-auth-msg');
@@ -15284,7 +15416,7 @@
       if (authMsg2) {
         authMsg2.textContent = '已登入';
       }
-      setStandaloneAdminLocked(false);
+      syncAdminAuthUi('已登入');
     }
 
     function clearAdminAuth() {
@@ -15319,7 +15451,7 @@
       resetAdminScenarioForm();
       resetAdminSupportQaForm();
       updateAdminHandoffBulkControls();
-      setStandaloneAdminLocked(true);
+      syncAdminAuthUi('已登出');
     }
 
     function editAdminScenario(sceneId) {
@@ -15440,6 +15572,7 @@
         if (pwdInput && adminPanelPassword && !pwdInput.value) {
           pwdInput.value = adminPanelPassword;
         }
+        syncAdminAuthUi(adminPanelPassword ? '已登入' : '');
         bindAdminTabBarOnce();
         applyAdminSimpleModeVisibility();
         const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');

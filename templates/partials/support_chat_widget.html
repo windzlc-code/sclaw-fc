@@ -218,11 +218,18 @@
           </div>
         </section>
       </div>
-      <div id="support-phone-login-modal" class="support-phone-login-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="support-phone-login-title">
+      <div id="support-phone-login-modal" class="support-phone-login-modal support-phone-login-modal--chat-gate" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="support-phone-login-title">
         <div class="support-phone-login-head">
           <div>
+            <span class="support-phone-login-icon support-phone-login-icon--modal" aria-hidden="true">
+              <svg viewBox="0 0 32 32" focusable="false">
+                <path d="M11.2 6.8h9.6a2.4 2.4 0 0 1 2.4 2.4v13.6a2.4 2.4 0 0 1-2.4 2.4h-9.6a2.4 2.4 0 0 1-2.4-2.4V9.2a2.4 2.4 0 0 1 2.4-2.4Z" />
+                <path d="M13.2 10h5.6M14 22h4" />
+                <path d="M12.8 15.2c1.1-1.2 2.1-1.8 3.2-1.8s2.1.6 3.2 1.8M12.4 18.4c1.2-1.1 2.4-1.7 3.6-1.7s2.4.6 3.6 1.7" />
+              </svg>
+            </span>
             <strong id="support-phone-login-title">號碼登入</strong>
-            <p class="muted">輸入聯絡號碼後，後台可在客戶留單查看並編輯。</p>
+            <p class="muted">請先輸入聯絡號碼；登入後即可使用 AI 智能客服與後續顧問接手。</p>
           </div>
           <button type="button" class="ui-close-btn" onclick="toggleSupportPhoneLoginModal(false)" aria-label="關閉號碼登入" title="關閉">×</button>
         </div>
@@ -293,7 +300,7 @@
         </div>
         <p id="support-chat-mic-hint" class="muted" style="font-size:12px;margin:0.35rem 0 0;line-height:1.45;">點一下麥克風開始口語輸入，再點一下結束（轉成文字後不會自動送出）。</p>
       </div>
-	      <button id="support-phone-login-toggle" type="button" class="support-phone-login-toggle floating-action-btn" onclick="toggleSupportPhoneLoginModal()" aria-label="號碼登入" aria-haspopup="dialog" aria-controls="support-phone-login-modal" aria-expanded="false" title="號碼登入" data-floating-label="號碼登入">
+	      <button id="support-phone-login-toggle" type="button" class="support-phone-login-toggle floating-action-btn support-phone-login-toggle--standalone" onclick="toggleSupportPhoneLoginModal()" aria-label="號碼登入" aria-haspopup="dialog" aria-controls="support-phone-login-modal" aria-expanded="false" title="號碼登入" data-floating-label="號碼登入">
         <span class="support-phone-login-icon" aria-hidden="true">
           <svg viewBox="0 0 32 32" focusable="false">
             <path d="M11.2 6.8h9.6a2.4 2.4 0 0 1 2.4 2.4v13.6a2.4 2.4 0 0 1-2.4 2.4h-9.6a2.4 2.4 0 0 1-2.4-2.4V9.2a2.4 2.4 0 0 1 2.4-2.4Z" />
@@ -312,7 +319,7 @@
 	          </svg>
 	        </span>
 	      </button>
-	      <button id="support-chat-toggle" type="button" class="support-chat-toggle floating-action-btn" onclick="toggleSupportChat()" aria-label="開啟線上智能客服對話" title="線上智能客服" data-floating-label="線上客服">
+	      <button id="support-chat-toggle" type="button" class="support-chat-toggle floating-action-btn" onclick="toggleSupportChat()" aria-label="號碼登入後開啟線上智能客服對話" title="線上智能客服" data-floating-label="線上客服">
         <span class="support-chat-robot-icon" aria-hidden="true">
           <svg viewBox="0 0 32 32" focusable="false">
             <path class="robot-antenna" d="M16 6V3.8M12.5 3.5h7" />
