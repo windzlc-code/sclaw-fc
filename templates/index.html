@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260612-admin-compact-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260612-admin-organized-a">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -712,33 +712,51 @@
       </div>
       <div class="panel admin-quick-map">
         <div class="admin-quick-map-head">
-          <h3 class="config-subhead">快速操作</h3>
-          <span class="muted">前台對應</span>
+          <h3 class="config-subhead">常用入口</h3>
+          <span class="muted">日常管理</span>
         </div>
         <div class="search-row-basic admin-quick-map-grid">
-          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>入庫與列表</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">02</span><span><strong>知識庫</strong><small>問答與素材</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">03</span><span><strong>通知</strong><small>LINE / TG</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">04</span><span><strong>留單</strong><small>客戶接手</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('leads')"><span class="admin-flow-index">05</span><span><strong>雷達</strong><small>社群獲客</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>列表與入庫</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">02</span><span><strong>留單</strong><small>客戶跟進</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">03</span><span><strong>客服 AI</strong><small>訓練與提示詞</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">04</span><span><strong>知識庫</strong><small>問答素材</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>通知</strong><small>LINE / TG</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">06</span><span><strong>數據維護</strong><small>首頁與報表</small></span></button>
         </div>
         <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
       </div>
-      <div class="admin-tab-bar" role="tablist" id="admin-tab-bar">
-        <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="support-hub">客服訓練／支援中心</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="llm">AI 供應商</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">案件管理</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="leads">顧問線索</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼管理</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">LINE/TG</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶留單</button>
-        <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">七大站報表</button>
+      <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
+        <div class="admin-tab-group" data-admin-group="daily">
+          <span class="admin-tab-group-label">日常運營</span>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">案件管理</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶留單</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
+        </div>
+        <div class="admin-tab-group" data-admin-group="support">
+          <span class="admin-tab-group-label">客服 AI</span>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="support-hub">訓練中心</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">LINE/TG</button>
+        </div>
+        <div class="admin-tab-group" data-admin-group="maintenance">
+          <span class="admin-tab-group-label">數據維護</span>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">首頁／報表</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="leads">社群雷達</button>
+        </div>
+        <div class="admin-tab-group" data-admin-group="system">
+          <span class="admin-tab-group-label">系統設定</span>
+          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="llm">AI 供應商</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼管理</button>
+        </div>
       </div>
 
       <div id="admin-tab-portal-matrix" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
-        <div class="admin-home-hero-panel">
+        <details class="admin-home-hero-panel admin-management-section">
+          <summary>
+            <strong>首頁內容管理</strong>
+            <span class="muted">影片輪播、口播介紹、首頁主視覺</span>
+          </summary>
+          <div class="admin-management-section-body">
           <div class="admin-home-hero-panel-head">
             <div>
               <h3 class="config-subhead" style="margin-bottom:0.2rem;">首頁影片輪播順序</h3>
@@ -829,7 +847,8 @@
             <input id="home_intro_video_url" type="hidden" value="">
             <p id="home-intro-video-msg" class="muted" style="margin:0.45rem 0 0;font-size:0.85rem;"></p>
           </div>
-        </div>
+          </div>
+        </details>
         <h3 class="config-subhead">七大站 × 全地區案件數統計</h3>
         <p class="muted" style="margin:0 0 0.65rem;line-height:1.55;">
           <strong>① 前四站</strong>：SUUMO → LIFULL HOME'S → at home → Yahoo!　<strong>② 後三站</strong>：楽天／Yes!station／OHEYASU。
@@ -1320,6 +1339,12 @@
       <div class="panel social-radar-panel">
         <h3 class="config-subhead">TikTok／社群獲客雷達</h3>
         <p class="muted">搜尋日本房地產對標帳號後，把公開帳號數據、影片互動與評論區名單貼入下方；系統會分析粉絲量、喜好、評論內容與用戶畫像，抓出東京偏好、預算、投資意圖，再導入智能客服渠道。</p>
+        <details class="social-radar-tools admin-management-section">
+          <summary>
+            <strong>導入／分析工具</strong>
+            <span class="muted">貼上帳號、評論名單後分析</span>
+          </summary>
+          <div class="admin-management-section-body">
         <div class="social-radar-search-pack">
           <strong>TikTok 搜尋包</strong>
           <div class="social-radar-search-actions">
@@ -1363,6 +1388,8 @@
           <button type="button" class="secondary" onclick="loadSocialRadarLeads()">載入已儲存線索</button>
         </div>
         <p id="social-radar-msg" class="muted"></p>
+          </div>
+        </details>
         <div id="social-radar-summary" class="muted">尚未載入社群雷達。</div>
         <div id="social-radar-account-matrix" class="muted"></div>
         <div id="social-radar-results" class="muted"></div>
@@ -3450,17 +3477,17 @@
     let latestSocialRadarItems = [];
     let adminSimpleMode = true;
     const ADMIN_SIMPLE_MODE_CACHE_KEY = 'sclaw.admin.simple_mode.v2';
-    const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'leads', 'knowledge', 'telegram', 'handoffs', 'portal-matrix']);
+    const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'portal-matrix']);
     const ADMIN_TAB_LABEL_MAP = {
-      cases: '案件管理（前台案件列表）',
-      knowledge: '知識庫（前台知識檢索）',
-      telegram: 'Telegram（智能客服通知）',
-      handoffs: '客戶留單（人工接手）',
-      'portal-matrix': '七大站×地區報表',
-      'support-hub': '客服訓練／支援中心',
-      llm: 'AI 供應商',
+      cases: '案件管理',
+      handoffs: '客戶留單',
+      'support-hub': '客服 AI 訓練',
+      knowledge: '知識庫',
+      telegram: 'LINE/TG 通知',
+      'portal-matrix': '首頁內容／數據報表',
+      leads: '社群雷達',
+      llm: 'AI 供應商設定',
       password: '密碼管理',
-      leads: '顧問線索',
     };
     try {
       const cached = String(localStorage.getItem(ADMIN_SIMPLE_MODE_CACHE_KEY) || '').trim();
@@ -9637,7 +9664,7 @@
             <td>${it.item_url ? `<a href="${esc(String(it.item_url))}" target="_blank" rel="nofollow noopener">查看來源</a>` : '<span class="muted">-</span>'}</td>
           </tr>`;
         }
-        html += '</table>';
+        html += '</div>';
         wrap.innerHTML = html;
       } catch (err) {
         wrap.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
@@ -10111,6 +10138,11 @@
         btn.style.display = hide ? 'none' : '';
         if (!hide) visibleCount += 1;
       }
+      drawer.querySelectorAll('.admin-tab-group').forEach((group) => {
+        const groupBtns = Array.from(group.querySelectorAll('.admin-tab-btn'));
+        const hasVisible = groupBtns.some((btn) => btn.style.display !== 'none');
+        group.style.display = hasVisible ? '' : 'none';
+      });
       if (meta) {
         meta.textContent = adminSimpleMode
           ? `核心模式：${visibleCount} 個分頁`
@@ -17796,6 +17828,42 @@
       }
     }
 
+    function renderSalesLeadBoardRow(row, stageText) {
+      const sid = String(row.session_id || '');
+      const botScore = row.bot_eval_score == null ? '-' : `${Number(row.bot_eval_score || 0)} / ${esc(String(row.bot_optimization_level || ''))}`;
+      const botStatus = supportBotStatusLabel(row.bot_status || '');
+      const userMsg = String(row.user_message || '');
+      const reply = String(row.assistant_reply_preview || '');
+      const conv = String(row.conversation_preview || '');
+      const rowId = esc(String(row.id != null ? row.id : ''));
+      const sessionBtn = sid
+        ? `<button type="button" class="secondary" onclick="fillSessionFromLeadBoard('${esc(sid)}')">${esc(sid).slice(0, 18)}</button>`
+        : '<span class="muted">無 Session</span>';
+      return `<article class="sales-lead-row" role="listitem">
+        <div class="sales-lead-row-id"><strong>#${rowId}</strong><span>${esc(String(row.created_at || '')).slice(0, 16)}</span></div>
+        <div class="sales-lead-row-state"><span>${esc(stageText)}</span><strong>${Number(row.intent_score || 0)}</strong></div>
+        <div class="sales-lead-row-copy"><strong>${esc(userMsg).slice(0, 54) || '—'}</strong><span>${esc(reply).slice(0, 70) || '尚無回覆摘要'}</span></div>
+        <div class="sales-lead-row-session">${sessionBtn}</div>
+        <button type="button" class="secondary sales-lead-detail-btn" onclick="toggleSalesLeadDetails(this)">詳情</button>
+        <div class="sales-lead-row-detail" hidden>
+          <p><strong>BOT 自評</strong>：${esc(botScore)}｜${esc(botStatus)}　<strong>通知</strong>：${Number(row.notify_count || 0)}</p>
+          <p><strong>Session</strong>：${esc(sid || '-')}</p>
+          <p><strong>客戶訊息</strong>：${esc(userMsg || '-')}</p>
+          <p><strong>回覆摘要</strong>：${esc(reply || '-')}</p>
+          <p><strong>對話摘要</strong>：${esc(conv || '-')}</p>
+        </div>
+        </article>`;
+    }
+
+    function toggleSalesLeadDetails(btn) {
+      const row = btn && btn.closest ? btn.closest('.sales-lead-row') : null;
+      const detail = row ? row.querySelector('.sales-lead-row-detail') : null;
+      if (!detail) return;
+      const nextOpen = detail.hasAttribute('hidden');
+      detail.toggleAttribute('hidden', !nextOpen);
+      btn.textContent = nextOpen ? '收合' : '詳情';
+    }
+
     async function loadSalesMcpLeadBoard() {
       const wrap = document.getElementById('sales-mcp-lead-board');
       const botSummary = document.getElementById('sales-mcp-bot-status-summary');
@@ -17841,12 +17909,14 @@
           lost: '低意願追蹤',
         }[String(s || '')] || String(s || '-'));
         let html =
-          `<p class="muted">原始 ${rawItems.length} 筆；符合目前條件 ${items.length} 筆。</p>` +
-          '<table class="data-table"><tr><th>ID</th><th>時間</th><th>階段</th><th>意願</th><th>BOT自評</th><th>通知</th><th>Session</th><th>客戶訊息</th><th>回覆摘</th><th>對話摘</th></tr>';
+          `<div class="sales-lead-board-meta"><span>原始 ${rawItems.length} 筆</span><span>符合 ${items.length} 筆</span></div>` +
+          '<div class="sales-lead-board-list" role="list">';
         for (const row of items) {
           const sid = String(row.session_id || '');
           const botScore = row.bot_eval_score == null ? '-' : `${Number(row.bot_eval_score || 0)} / ${esc(String(row.bot_optimization_level || ''))}`;
           const botStatus = supportBotStatusLabel(row.bot_status || '');
+          html += renderSalesLeadBoardRow(row, stageLabel(row.stage));
+          continue;
           html += `<tr>
             <td>${esc(String(row.id != null ? row.id : ''))}</td>
             <td>${esc(String(row.created_at || ''))}</td>
