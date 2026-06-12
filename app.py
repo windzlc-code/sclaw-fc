@@ -3659,8 +3659,7 @@ def build_index_schema(top_keywords: list[dict]) -> str:
     return json.dumps(schema, ensure_ascii=False)
 
 
-@app.get("/")
-def index(request: Request):
+def _index_template_context(request: Request, *, admin_standalone: bool = False) -> dict[str, Any]:
     top_keywords = fetch_top_keywords(limit=12)
     seo_keyword_meta = ",".join([x["keyword"] for x in top_keywords if x.get("keyword")][:12])
     crawl_settings = load_crawl_settings()
@@ -3672,45 +3671,61 @@ def index(request: Request):
         preferred_kind_label="首頁影片",
         published_items=crawl_settings.get("home_carousel_items"),
     )
+    return {
+        "request": request,
+        "site_name": SITE_NAME,
+        "brand_name": BRAND_NAME,
+        "regions": TARGET_REGIONS,
+        "intent_targets": ["房地產", "投資", "稅務", "貸款", "政策"],
+        "topic_categories": ["市場資訊", "投資分析", "稅務法規", "貸款流程", "官方制度", "日本房產案源"],
+        "access_statuses": ["public", "restricted"],
+        "region_groups": REGION_GROUPS,
+        "company_profile": COMPANY_PROFILE,
+        "knowledge_sources": KNOWLEDGE_SOURCES,
+        "light_knowledge_keywords": LIGHT_KNOWLEDGE_KEYWORDS,
+        "seo_article_tw": SEO_ARTICLE_TW,
+        "crawl_settings": crawl_settings,
+        "home_hero": home_hero,
+        "home_video_carousel": home_video_carousel,
+        "home_hero_options": [
+            {
+                "key": k,
+                "label": HOME_HERO_PRESETS.get(k, {}).get("label", k),
+                "theme": HOME_HERO_PRESETS.get(k, {}).get("theme", "brand"),
+                "image_url": HOME_HERO_PRESETS.get(k, {}).get("image_url", ""),
+            }
+            for k in HOME_HERO_KEYS
+        ],
+        "sources": load_sources(),
+        "site_url": get_effective_site_url(),
+        "support_avatar_url": get_support_avatar_url(),
+        "seo_keyword_meta": seo_keyword_meta,
+        "top_keywords": top_keywords,
+        "default_schema": build_index_schema(top_keywords),
+        "sclaw_api_base": str(request.base_url).rstrip("/"),
+        "jp_area_labels": JP_AREA_FILTER_LABELS,
+        "jp_map_pref_clusters": HOMES_STYLE_PREF_CLUSTERS,
+        "jp_map_pref_map_clusters": [*JP_MAP_ORBIT_EAST, *JP_MAP_ORBIT_WEST],
+        "admin_standalone": admin_standalone,
+    }
+
+
+@app.get("/")
+def index(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={
-            "request": request,
-            "site_name": SITE_NAME,
-            "brand_name": BRAND_NAME,
-            "regions": TARGET_REGIONS,
-            "intent_targets": ["房地產", "投資", "稅務", "貸款", "政策"],
-            "topic_categories": ["市場資訊", "投資分析", "稅務法規", "貸款流程", "官方制度", "日本房產案源"],
-            "access_statuses": ["public", "restricted"],
-            "region_groups": REGION_GROUPS,
-            "company_profile": COMPANY_PROFILE,
-            "knowledge_sources": KNOWLEDGE_SOURCES,
-            "light_knowledge_keywords": LIGHT_KNOWLEDGE_KEYWORDS,
-            "seo_article_tw": SEO_ARTICLE_TW,
-            "crawl_settings": crawl_settings,
-            "home_hero": home_hero,
-            "home_video_carousel": home_video_carousel,
-            "home_hero_options": [
-                {
-                    "key": k,
-                    "label": HOME_HERO_PRESETS.get(k, {}).get("label", k),
-                    "theme": HOME_HERO_PRESETS.get(k, {}).get("theme", "brand"),
-                    "image_url": HOME_HERO_PRESETS.get(k, {}).get("image_url", ""),
-                }
-                for k in HOME_HERO_KEYS
-            ],
-            "sources": load_sources(),
-            "site_url": get_effective_site_url(),
-            "support_avatar_url": get_support_avatar_url(),
-            "seo_keyword_meta": seo_keyword_meta,
-            "top_keywords": top_keywords,
-            "default_schema": build_index_schema(top_keywords),
-            "sclaw_api_base": str(request.base_url).rstrip("/"),
-            "jp_area_labels": JP_AREA_FILTER_LABELS,
-            "jp_map_pref_clusters": HOMES_STYLE_PREF_CLUSTERS,
-            "jp_map_pref_map_clusters": [*JP_MAP_ORBIT_EAST, *JP_MAP_ORBIT_WEST],
-        },
+        context=_index_template_context(request),
+    )
+
+
+@app.get("/admin")
+@app.get("/admin/")
+def admin_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context=_index_template_context(request, admin_standalone=True),
     )
 
 
