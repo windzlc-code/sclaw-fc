@@ -1,5 +1,6 @@
 import sqlite3
 import threading
+import os
 from contextlib import contextmanager
 
 from src.config import DATA_DIR, DB_PATH
@@ -19,9 +20,14 @@ def _configure_sqlite_connection(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA synchronous=NORMAL")
         # 毫秒；與 connect(timeout=…) 併用
-        conn.execute("PRAGMA busy_timeout=60000")
-        conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA cache_size=-64000")
+        busy_ms = max(1000, min(60000, int(os.getenv("SCLAW_SQLITE_BUSY_TIMEOUT_MS", "15000") or 15000)))
+        conn.execute(f"PRAGMA busy_timeout={busy_ms}")
+        temp_store = (os.getenv("SCLAW_SQLITE_TEMP_STORE") or "FILE").strip().upper()
+        if temp_store not in {"DEFAULT", "FILE", "MEMORY"}:
+            temp_store = "FILE"
+        conn.execute(f"PRAGMA temp_store={temp_store}")
+        cache_kib = max(1024, min(64000, int(os.getenv("SCLAW_SQLITE_CACHE_SIZE_KIB", "8000") or 8000)))
+        conn.execute(f"PRAGMA cache_size=-{cache_kib}")
         # WAL 只需每個進程確認一次；每次查詢都設定會在背景寫入時放大鎖等待。
         if not _WAL_CONFIGURED:
             with _WAL_LOCK:

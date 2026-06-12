@@ -3143,7 +3143,8 @@ def startup_event() -> None:
     # 站內的排程型背景工作（FAQ refresh / smart-nav intel）若不加控管，會造成重複執行、額外寫入與鎖表等待，
     # 影響「搜尋穩定」與 DB 壓力。正式環境建議改由外部排程（scripts/run_daily.ps1 等）運行。
     bg = (os.getenv("SCLAW_ENABLE_BACKGROUND_WORKERS") or "").strip().lower()
-    if bg in ("1", "true", "yes", "on"):
+    bg_enabled = bg in ("1", "true", "yes", "on")
+    if bg_enabled:
         _start_faq_refresh_worker()
         _start_smart_nav_intel_worker()
         _start_portal_image_backfill_worker()
@@ -3157,37 +3158,40 @@ def startup_event() -> None:
         f"SCLAW: FastAPI 已啟動（載入檔案：{_app_file}）。請確認 GET /api/health 或 GET /sclaw-ping 回傳 ok。",
         flush=True,
     )
+    if bg_enabled:
+        try:
+            if start_case_auto_refresh_worker(invalidate_caches=_invalidate_case_data_caches):
+                print("SCLAW: 案件自動更新已啟動（啟動後背景抓取最新案件與原站高清圖文）", flush=True)
+        except Exception as exc:
+            print(f"SCLAW: 案件自動更新啟動失敗：{type(exc).__name__}: {exc}", flush=True)
+        try:
+            if start_case_quality_batch_worker(invalidate_caches=_invalidate_case_data_caches):
+                st = case_quality_batch_status()
+                print(
+                    "SCLAW: 每日案件品質批次已啟動"
+                    f"（台北時間下一次：{st.get('next_run_at_taipei') or '排程中'}）",
+                    flush=True,
+                )
+        except Exception as exc:
+            print(f"SCLAW: 每日案件品質批次啟動失敗：{type(exc).__name__}: {exc}", flush=True)
+    else:
+        print("SCLAW: 案件自動更新與品質批次已停用（由外部排程按需執行）", flush=True)
     try:
-        if start_case_auto_refresh_worker(invalidate_caches=_invalidate_case_data_caches):
-            print("SCLAW: 案件自動更新已啟動（啟動後背景抓取最新案件與原站高清圖文）", flush=True)
-    except Exception as exc:
-        print(f"SCLAW: 案件自動更新啟動失敗：{type(exc).__name__}: {exc}", flush=True)
-    try:
-        if start_case_quality_batch_worker(invalidate_caches=_invalidate_case_data_caches):
-            st = case_quality_batch_status()
-            print(
-                "SCLAW: 每日案件品質批次已啟動"
-                f"（台北時間下一次：{st.get('next_run_at_taipei') or '排程中'}）",
-                flush=True,
-            )
-    except Exception as exc:
-        print(f"SCLAW: 每日案件品質批次啟動失敗：{type(exc).__name__}: {exc}", flush=True)
-    try:
-        if (os.getenv("SCLAW_COVERAGE_MATRIX_PREWARM") or "1").strip().lower() not in (
+        if (os.getenv("SCLAW_COVERAGE_MATRIX_PREWARM") or "0").strip().lower() not in (
             "0",
             "false",
             "no",
             "off",
         ):
             threading.Thread(target=_prewarm_coverage_matrix_cache, daemon=True).start()
-        if (os.getenv("SCLAW_INVENTORY_STATS_PREWARM") or "1").strip().lower() not in (
+        if (os.getenv("SCLAW_INVENTORY_STATS_PREWARM") or "0").strip().lower() not in (
             "0",
             "false",
             "no",
             "off",
         ):
             threading.Thread(target=_prewarm_inventory_stats_cache, daemon=True).start()
-        if (os.getenv("SCLAW_PORTAL_SEARCH_PREWARM") or "1").strip().lower() not in (
+        if (os.getenv("SCLAW_PORTAL_SEARCH_PREWARM") or "0").strip().lower() not in (
             "0",
             "false",
             "no",
