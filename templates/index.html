@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260614-nav-keywords-e">
+  <link rel="stylesheet" href="/static/site.css?v=20260615-admin-console-a">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -764,7 +764,7 @@
           <button class="ui-close-btn" type="button" onclick="toggleAdminDrawer(false)" aria-label="關閉後台管理" title="關閉">×</button>
         </div>
       </div>
-      <p class="muted admin-drawer-note">密碼登入後即可管理；頁籤負責切換模組。</p>
+      <p class="muted admin-drawer-note">登入後選擇入口即可管理。</p>
       <div class="panel admin-auth-panel">
         <div class="admin-panel-title-row">
           <h3 class="config-subhead">管理權限</h3>
@@ -782,6 +782,29 @@
           <strong>核心模式</strong>
         </label>
         <span id="admin-simple-mode-meta" class="muted">核心分頁</span>
+      </div>
+      <nav class="admin-console-path" aria-label="後台路徑">
+        <span>控制台</span>
+        <span>後台管理</span>
+        <strong id="admin-console-path-current">案件管理</strong>
+      </nav>
+      <section class="admin-console-hero" aria-live="polite">
+        <div>
+          <span class="admin-console-kicker">目前模組</span>
+          <h2 id="admin-console-title">案件管理</h2>
+          <p id="admin-console-desc">查詢、篩選與維護日本不動產案件資料。</p>
+        </div>
+        <div class="admin-console-status" aria-label="目前模組重點">
+          <button type="button" id="admin-console-primary" data-admin-console-anchor="0">案件資料</button>
+          <button type="button" id="admin-console-secondary" data-admin-console-anchor="1">條件查詢</button>
+          <button type="button" id="admin-console-tertiary" data-admin-console-anchor="2">列表管理</button>
+        </div>
+      </section>
+      <div class="admin-console-toolbar" role="toolbar" aria-label="目前模組操作">
+        <span>目前頁面操作</span>
+        <button type="button" class="secondary" data-admin-console-command="refresh">刷新</button>
+        <button type="button" class="secondary" data-admin-console-command="expand">展開配置</button>
+        <button type="button" class="secondary" data-admin-console-command="collapse">收合配置</button>
       </div>
       <div class="panel admin-quick-map">
         <div class="admin-quick-map-head">
@@ -801,24 +824,24 @@
       <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
         <div class="admin-tab-group" data-admin-group="daily">
           <span class="admin-tab-group-label">日常運營</span>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">案件管理</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶留單</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">案件</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">留單</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
         </div>
         <div class="admin-tab-group" data-admin-group="support">
           <span class="admin-tab-group-label">客服 AI</span>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="support-hub">訓練中心</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">LINE/TG</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="support-hub">客服訓練</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">通知</button>
         </div>
         <div class="admin-tab-group" data-admin-group="maintenance">
           <span class="admin-tab-group-label">數據維護</span>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">首頁／報表</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">首頁報表</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="leads">社群雷達</button>
         </div>
         <div class="admin-tab-group" data-admin-group="system">
           <span class="admin-tab-group-label">系統設定</span>
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="llm">AI 供應商</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼管理</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼</button>
         </div>
       </div>
 
@@ -833,7 +856,7 @@
           <div class="admin-home-hero-panel-head">
             <div>
               <h3 class="config-subhead" style="margin-bottom:0.2rem;">首頁影片輪播順序</h3>
-              <p class="muted" style="margin:0;">首頁只播放已發布影片清單；拖不動時可用上下鍵調整三支影片播放順序，聲音使用影片自身音軌。</p>
+              <p class="muted" style="margin:0;">調整首頁影片順序後儲存套用。</p>
             </div>
             <div class="admin-home-hero-panel-actions">
               <button type="button" class="secondary" onclick="previewSelectedHomeHero()">預覽目前選擇</button>
@@ -862,7 +885,7 @@
                 <div class="admin-home-carousel-manager-head">
                   <div>
                     <h4>首頁輪播發布清單</h4>
-                    <p class="muted">只上架影片；前台依左側清單順序播放。請保留三支主影片，使用上下鍵調整播放順序。</p>
+                    <p class="muted">保留要播放的影片，依順序上架。</p>
                   </div>
                   <div class="admin-home-carousel-actions">
                     <button type="button" class="secondary" onclick="loadAdminHomeCarousel()">重新載入素材</button>
@@ -889,7 +912,7 @@
             <div class="home-intro-video-head">
               <div>
                 <h3 class="config-subhead" style="margin:0 0 0.2rem;">首頁 16:9 口播介紹視頻</h3>
-                <p class="muted" style="margin:0;">自動產生親和力介紹文案，選擇口播形象後輸出橫式首頁影片，可直接套用成首頁主視覺。</p>
+                <p class="muted" style="margin:0;">選案件與形象，生成首頁口播影片。</p>
               </div>
               <div class="home-intro-video-actions">
                 <button type="button" class="secondary" onclick="generateHomeIntroScript()">自動產生文案</button>
@@ -923,10 +946,7 @@
           </div>
         </details>
         <h3 class="config-subhead">七大站 × 全地區案件數統計</h3>
-        <p class="muted" style="margin:0 0 0.65rem;line-height:1.55;">
-          <strong>① 前四站</strong>：SUUMO → LIFULL HOME'S → at home → Yahoo!　<strong>② 後三站</strong>：楽天／Yes!station／OHEYASU。
-          資料來源為站內案件庫；條件與巡檢矩陣一致（<code>jp_listing</code>、下方新鮮度天數內、依物件網址對應門戶，再以標題／內文／網址比對地區）。同一物件若符合多區條件會在多列重複計入，列合計與全站唯一筆數不同屬正常。
-        </p>
+        <p class="muted" style="margin:0 0 0.65rem;line-height:1.55;">查看七大站各地區案件量；資料不足時先執行下方補齊流程。</p>
         <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;margin-bottom:0.5rem;">
           <label class="muted">新鮮度（天）
             <input type="number" id="admin-portal-matrix-age" min="1" max="366" value="180" style="width:4.5rem;">
@@ -936,7 +956,7 @@
         <div class="admin-seven-portal-flow">
           <div>
             <strong>七站資料補齊流程</strong>
-            <p class="muted">依目前策略分段處理：先補 ① 前四站，再補 ② 後三站，最後重整全七站報表；會沿用地區與交通路線矩陣判斷。</p>
+            <p class="muted">先補前四站，再補後三站，最後刷新報表。</p>
           </div>
           <div class="admin-seven-portal-actions">
             <button type="button" class="secondary" onclick="runCoverageHeal(true, 'primary_four')">預覽前四站缺口</button>
@@ -951,7 +971,7 @@
         <div id="admin-portal-matrix-summary" class="muted" style="font-size:13px;margin:0.35rem 0;line-height:1.55;"></div>
         <div class="panel support-bot-status-panel" style="margin:0.55rem 0;padding:0.7rem 0.8rem;">
           <h3 class="config-subhead" style="margin-top:0;">資料補全自我優化 BOT</h3>
-          <p class="muted" style="margin:0 0 0.55rem;line-height:1.5;">自動巡檢缺圖、文字欄位、後三站 0 格，並把修復結果寫入 BOT 自評報表。</p>
+          <p class="muted" style="margin:0 0 0.55rem;line-height:1.5;">自動檢查缺圖、缺文字與 0 格資料。</p>
           <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.45rem;">
             <label class="muted">案件 ID
               <input id="admin-data-bot-source-id" type="number" min="0" value="15509" style="width:5.5rem;">
@@ -968,12 +988,10 @@
       </div>
 
       <div id="admin-tab-support-hub" class="admin-tab-panel" role="tabpanel">
-        <p class="muted" style="margin:0 0 0.75rem;">
-          此分頁整合<strong>離線場景</strong>、<strong>客服 Q&A 訓練</strong>與<strong>智能客服 CRM</strong>提示詞；表單與列表的 <code>id</code> 維持不變，避免既有腳本失效。
-        </p>
+        <p class="muted" style="margin:0 0 0.75rem;">維護客服頭像、離線場景、Q&A 與 CRM 提示詞。</p>
       <div class="panel support-bot-status-panel">
         <h3 class="config-subhead">智能客服自我評估 BOT 狀態</h3>
-        <p class="muted">每次客服回覆後，系統會自評「知識命中、案件介紹、人工引導、CRM 提示詞」並寫入報表，用來持續優化銷售與留單流程。</p>
+        <p class="muted">查看客服回覆品質與留單引導狀態。</p>
         <div class="search-row-basic" style="grid-template-columns:auto auto;justify-content:start;gap:0.5rem;">
           <button type="button" class="secondary" onclick="loadAdminSupportBotStatus()">重新載入 BOT 狀態</button>
           <button type="button" class="secondary" onclick="switchAdminTab('leads')">查看線索報表</button>
@@ -982,7 +1000,7 @@
       </div>
       <div class="panel">
         <h3 class="config-subhead">智能客服頭像（全站）</h3>
-        <p class="muted">上傳後套用於浮動客服、對話氣泡與顧問條；建議正方形 <strong>PNG／JPG／WEBP</strong>（約 512×512，6MB 以下）。<strong>建議僅透過此處上傳</strong>更新頭像：後端會寫入 <code>static/support-avatar.*</code> 並更新快取版本參數，無須手動覆寫檔案。</p>
+        <p class="muted">上傳正方形 PNG／JPG／WEBP，會同步套用全站客服頭像。</p>
         <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;">
           <input id="admin-support-avatar-file" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" onchange="previewAdminSupportAvatarFile()">
           <button type="button" onclick="uploadAdminSupportAvatar()">上傳並更新</button>
@@ -1033,11 +1051,7 @@
       <div id="admin-support-hub-section-support-qa">
       <div class="panel">
         <h3 class="config-subhead">客服 Q&A 訓練（顧問維護）</h3>
-        <p class="muted">
-          關鍵字命中時：<strong>離線</strong>主文優先採用下方「回覆本文」；<strong>AI 啟用</strong>時併入模型系統提示（勿逐字照抄）。
-          占位：<code>{excerpt}</code> 替成使用者原句；<code>{links}</code> 由系統接上「參考連結」清單（建議文末留一行 <code>{links}</code>）。
-          選用：<code>{no_kb_links}</code> 不附自動連結；<code>{no_auto_footer}</code> 不附系統結尾（人工／免責）。
-        </p>
+        <p class="muted">設定關鍵字與標準回覆；需要引用連結時保留 <code>{links}</code>。</p>
         <div class="search-row-basic" style="grid-template-columns: 1fr 1fr;">
           <label class="muted">qa_id（英文／數字）
             <input id="admin-support-qa-id" placeholder="例如 tokyo_budget_probe">
@@ -1066,7 +1080,7 @@
       </div>
       <div class="panel">
         <h3 class="config-subhead">AI 建立 Q&A（DeepSeek／Gemini）</h3>
-        <p class="muted">輸入主題後可一次生成多篇 Q&A，會直接寫入下方「已建立 Q&A」。若指定場景，會套用該場景語境生成。</p>
+        <p class="muted">輸入主題後批量生成 Q&A，可直接加入列表。</p>
         <label class="muted">生成主題
           <input id="admin-support-qa-gen-topic" placeholder="例如 東京自住購屋預算與貸款初談">
         </label>
@@ -1103,7 +1117,7 @@
       </div>
       <div class="panel">
         <h3 class="config-subhead">場景 / Q&A 即時命中預覽</h3>
-        <p class="muted">輸入一句模擬客戶訊息，立即檢查會命中哪個場景與 Q&A，並預覽離線回覆結果。</p>
+        <p class="muted">輸入客戶問題，檢查命中的場景與 Q&A。</p>
         <label class="muted">模擬訊息
           <textarea id="admin-support-match-preview-input" rows="3" style="width:100%;box-sizing:border-box;" placeholder="例如：東京100萬可以買房嗎？貸款怎麼抓比較安全？"></textarea>
         </label>
@@ -1121,7 +1135,7 @@
       <div id="admin-support-hub-section-support-crm">
       <div class="panel">
         <h3 class="config-subhead">智能客服 CRM 系統提示詞</h3>
-        <p class="muted">供 IG／WhatsApp 等外掛智能客服訓練：後台維護<strong>繁體、日本不動產專用</strong>角色與流程；儲存後由 <code>/api/ai/chat-support</code> 自動併入 LLM 系統訊息（與離線場景、站內知識庫並存）。未寫入資料庫時使用程式內建預設。</p>
+        <p class="muted">設定智能客服角色、流程與回覆風格。</p>
         <label class="muted" style="display:flex;align-items:center;gap:0.45rem;margin-bottom:0.5rem;">
           <input id="admin-support-crm-enabled" type="checkbox" checked> 啟用並注入智能客服
         </label>
@@ -1155,7 +1169,7 @@
       <div id="admin-tab-llm" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
         <h3 class="config-subhead">AI 供應商（DeepSeek／Gemini）</h3>
-        <p class="muted">設定預設供應商、API Base（不含路徑）、模型 ID 與金鑰。金鑰欄<strong>留空再儲存</strong>表示不變；勾選清除可刪除庫存金鑰。文件：<a id="admin-llm-docs-link" href="https://tuzi-api.apifox.cn/343647063e0" target="_blank" rel="noopener noreferrer">兔子 API 說明</a>。</p>
+        <p class="muted">選擇預設 AI，填入 Base URL、模型與 API Key。Key 留空代表不變。</p>
         <p id="llm-active-provider-badge" class="muted" style="font-size:12px;">AI 供應商狀態載入中…</p>
         <label class="muted">預設供應商
           <select id="admin-llm-active-provider">
@@ -1223,8 +1237,7 @@
             <span class="muted">前四站連跑、後三站補齊</span>
           </summary>
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
-            <strong>① 前四站</strong>：SUUMO → LIFULL HOME'S → at home → Yahoo!　<strong>② 後三站</strong>：楽天／YesStation／OHEYASU。<br>
-            先依<strong>連跑輪數</strong>重複執行①（每輪跑完再下一輪），全部完成後再執行② 一次。單次入庫量依左側<strong>每來源筆數</strong>上限（與爬文設定／每來源筆數一致）。
+            設定輪數後，系統會依序補前四站，再補後三站。
           </p>
           <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;">
             <label class="muted" style="font-size:0.9rem;">連跑輪數（僅①前四站）
@@ -1241,7 +1254,7 @@
             <span class="muted">縮圖補齊、每日品質批次</span>
           </summary>
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
-            查詢結果列若<strong>無縮圖</strong>或縮圖<strong>疑似業者／人像</strong>，會向原站即時補抓並優先顯示<strong>物件實景／格局</strong>（與白名單門戶一致，含<strong>楽天／Yes!／OHEYASU</strong>）。關閉可減少延遲；環境變數 <code>SCLAW_PORTAL_BACKFILL_*</code> 可覆寫。
+            查詢結果缺圖時，自動補抓物件照並可寫回資料庫。
           </p>
           <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;">
             <label class="muted" style="font-size:0.9rem;display:inline-flex;align-items:center;gap:0.35rem;">
@@ -1411,7 +1424,7 @@
       <div id="admin-tab-leads" class="admin-tab-panel" role="tabpanel">
       <div class="panel social-radar-panel">
         <h3 class="config-subhead">TikTok／社群獲客雷達</h3>
-        <p class="muted">搜尋日本房地產對標帳號後，把公開帳號數據、影片互動與評論區名單貼入下方；系統會分析粉絲量、喜好、評論內容與用戶畫像，抓出東京偏好、預算、投資意圖，再導入智能客服渠道。</p>
+        <p class="muted">貼上公開帳號與互動名單，分析高意願客戶並導入客服。</p>
         <details class="social-radar-tools admin-management-section">
           <summary>
             <strong>導入／分析工具</strong>
@@ -1469,7 +1482,7 @@
       </div>
       <div class="panel">
         <h3 class="config-subhead">顧問建議線索看板</h3>
-        <p class="muted">追蹤高意願客戶與真人對接進度；支援以 Session 串接 Telegram 主動發送。</p>
+        <p class="muted">查看高意願客戶與顧問跟進狀態。</p>
         <div class="search-row-basic" style="grid-template-columns: 1fr 1fr 1fr auto auto; margin-bottom: 0.5rem;">
           <input id="sales-lead-limit" type="number" min="5" max="200" value="40" placeholder="載入筆數">
           <input id="sales-lead-min-intent" type="number" min="0" max="100" value="0" placeholder="最小意願分">
@@ -1487,7 +1500,7 @@
       <div id="admin-tab-knowledge" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
         <h3 class="config-subhead">知識庫（專屬篩選）</h3>
-        <p class="muted">僅針對知識庫資料模型篩選：來源／主題／意圖／時間／排序；與一般搜尋條件分離。</p>
+        <p class="muted">按來源、主題、意圖快速查看知識庫資料。</p>
         <div class="search-row-basic" style="flex-wrap: wrap; gap: 0.5rem; align-items: center;">
           <input id="config-knowledge-q" placeholder="知識關鍵字（標題／摘要）" style="flex: 1; min-width: 10rem;">
           <label class="muted">來源
@@ -1533,7 +1546,7 @@
       <div id="admin-tab-password" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
         <h3 class="config-subhead">密碼管理</h3>
-        <p class="muted">變更後台登入密碼（與 API 標頭 <code>x-admin-password</code> 相同）。需先於上方「管理權限」登入。成功後寫入本機 <code>data/admin_panel_password.txt</code>（<code>data/</code> 已列於 .gitignore）。</p>
+        <p class="muted">更新後台登入密碼。請先登入再儲存。</p>
         <label class="muted" style="display:block;margin-bottom:0.35rem;">新密碼
           <input id="admin-change-password-new" type="password" autocomplete="new-password" style="width:100%;max-width:22rem;box-sizing:border-box;">
         </label>
@@ -1550,7 +1563,7 @@
       <div id="admin-tab-telegram" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
         <h3 class="config-subhead">LINE / Telegram 通知</h3>
-        <p class="muted">Token、Secret、Chat ID 與 LINE User ID 僅存本機資料庫，請勿寫入公開版本庫。智能客服「人工」留單、高意願訊息與顧問回覆可走 Telegram、LINE，或兩者並行。</p>
+        <p class="muted">設定 LINE／Telegram 通知，讓人工留單與顧問回覆能即時送達。</p>
         <div id="admin-tg-auto-status" class="muted" style="margin:0 0 0.75rem;padding:8px 10px;border-radius:6px;background:#f3f4f6;border:1px solid #e5e7eb;font-size:13px;line-height:1.55;">
           <strong>連線自檢</strong>（切換本頁籤時自動更新）<br>
           <span id="admin-tg-api-line">後端 API：尚未檢測</span><br>
@@ -1560,9 +1573,7 @@
         </div>
         <div class="panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
           <h4 class="config-subhead" style="margin-top:0;">LINE 官方帳號</h4>
-          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">
-            LINE 可作為智能客服入口，也可作為顧問通知／回覆通道。顧問在 LINE 收到通知後，使用 <code>/reply &lt;Session&gt; 訊息</code> 即可回到同一個網頁智能客服對話。
-          </p>
+          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">填入 LINE 設定後，可接收人工通知並回覆客戶。</p>
           <div class="search-row-basic" style="align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.55rem;">
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-telegram" type="checkbox"> 自動通知 Telegram</label>
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-line" type="checkbox"> 自動通知 LINE</label>
@@ -1582,9 +1593,7 @@
           <label class="muted">顧問 LINE 收件 ID（U 開頭 user ID；不是 Channel ID）
             <input id="admin-line-staff-user-id" type="text" autocomplete="off" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
           </label>
-          <p class="muted" style="margin:-0.35rem 0 0.45rem;font-size:12px;line-height:1.45;">
-            Channel ID 例如 2010088821 只是官方帳號頻道編號，不能接收推播。請讓顧問用 LINE 加入官方帳號並傳任意訊息，系統才能由 webhook 取得 U 開頭 user ID。
-          </p>
+          <p class="muted" style="margin:-0.35rem 0 0.45rem;font-size:12px;line-height:1.45;">請填 <code>U</code> 開頭 user ID，不是 Channel ID。</p>
           <label class="muted">Webhook URL
             <input id="admin-line-webhook-url" type="url" autocomplete="off" placeholder="https://your-domain.com/api/line/webhook">
           </label>
@@ -1603,15 +1612,9 @@
         </div>
         <div class="panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
           <h4 class="config-subhead" style="margin-top:0;">多顧問／多 Bot</h4>
-          <p class="muted" style="margin:0 0 0.5rem;line-height:1.5;">
-            每列一組 <strong>Bot API Token</strong> + 顧問群／私訊 <strong>Chat ID</strong>。留單推播、預設通知走「使用中」帳號。
-            多 Bot 時請在 Telegram 對<strong>每一個 Bot</strong>分別 <code>setWebhook</code> 至
-            <code>https://你的網域/api/telegram/webhook/&lt;內部id&gt;</code>（下方「註冊 Webhook」會依目前選擇帶入；亦相容舊路徑 <code>/api/telegram/webhook</code>）。
-          </p>
+          <p class="muted" style="margin:0 0 0.5rem;line-height:1.5;">每列是一個 Bot／顧問收件帳號；預設通知只發給「使用中」帳號。</p>
           <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;font-size:13px;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;">
-            <strong>為何新加的 Chat ID 收不到站內通知？</strong>系統<strong>不會</strong>對每一列同時推播；「留單／人工／一鍵通知 fallback」只發到<strong>使用中</strong>那一列。
-            請在下方下拉選好要接預設訊息的顧問列，再按<strong>儲存帳號列表</strong>。
-            「進階 → 測試連線並發送」若選該列能收到，代表 Token／Chat 正確；站內推播仍只看「使用中」。
+            收不到通知時，先確認該列已設為「使用中」，再測試連線。
           </p>
           <div class="search-row-basic" style="align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;">使用中
@@ -1626,9 +1629,7 @@
         </div>
         <div class="panel" style="margin:0 0 0.8rem;padding:10px 12px;border:1px solid #dbeafe;background:#f8fbff;">
           <h4 class="config-subhead" style="margin-top:0;">一鍵通知（推薦）</h4>
-          <p class="muted" style="margin:0.25rem 0 0.45rem;">
-            只需要「目前智能客服 Session + 訊息」即可發送。若客戶 chat 尚未綁定，系統會自動轉送<strong>「使用中」顧問帳號</strong>的 Chat。僅測 Bot／Token 是否正常時，請勿用本區，改到下方「進階」按<strong>測試連線並發送</strong>。
-          </p>
+          <p class="muted" style="margin:0.25rem 0 0.45rem;">同步目前 Session，填入訊息，一鍵通知顧問。</p>
           <div class="search-row-basic" style="grid-template-columns:auto 1fr;align-items:center;margin-top:0.2rem;">
             <button type="button" class="secondary" onclick="applyCurrentSupportSessionToTelegramComposer()">同步目前 Session</button>
             <span class="muted">目前 Session：<code id="admin-tg-quick-current-session">-</code></span>
@@ -1676,7 +1677,7 @@
         </div>
         <p id="admin-tg-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         <h4 class="config-subhead" style="margin-top:1rem;">雙向溝通（Webhook）</h4>
-        <p class="muted">通知推播會綁定 <strong>Session</strong>；顧問在 Telegram <strong>回覆該則通知</strong>，文字會出現在網頁智能客服。亦可發送 <code>/reply &lt;Session&gt; 訊息</code>。伺服器須有<strong>公開 HTTPS</strong>，並按下方向 Telegram 註冊 Webhook。</p>
+        <p class="muted">註冊 Webhook 後，顧問回覆可同步回智能客服 Session。</p>
         <label class="muted">公開網址前綴（留空則用 SITE_URL）
           <input id="admin-tg-webhook-base" type="text" autocomplete="off" placeholder="https://your-domain.com">
         </label>
@@ -1702,14 +1703,14 @@
           <button type="button" class="secondary" onclick="loadAdminTelegramDebugSessionTrace()">查此 Session 鏈路</button>
           <button type="button" class="secondary" onclick="runAdminTelegramAutoFix()">一鍵自動排障</button>
           <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-tg-autofix-send-test" type="checkbox" checked> 排障成功後自動發測試訊息</label>
-          <span class="muted">顯示綁定 chat、最近 staff inbox 與 outbound bridge（便於定位卡點）。</span>
+          <span class="muted">檢查綁定與最近收發紀錄。</span>
         </div>
         <div id="admin-tg-debug-diagnosis" class="muted" style="margin-top:0.35rem;">尚未產生診斷結論。</div>
         <div id="admin-tg-debug-checklist" class="muted" style="margin-top:0.35rem;">尚未執行檢查清單。</div>
         <div id="admin-tg-debug-events" class="muted" style="max-height:16rem;overflow:auto;border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fafafa;margin-top:0.4rem;">尚無除錯事件。</div>
         <div id="admin-tg-debug-trace" class="muted" style="max-height:14rem;overflow:auto;border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fafafa;margin-top:0.4rem;">尚未查詢 Session 鏈路。</div>
         <h4 class="config-subhead" style="margin-top:1rem;">主動發送（依 Session）</h4>
-        <p class="muted">網頁智能客服的 Session（localStorage／留單上顯示）與 Telegram 自動產生的 <code>tg-</code> 開頭 ID <strong>不同</strong>。若要推播到「網頁上的那一組 Session」，請先取得客戶的 <strong>數字 chat_id</strong>（下方會話列表、或客戶私訊 Bot 後由列表帶出），填入手動綁定欄後按「綁定 Session」。若 Webhook 正常，客戶先傳訊息給 Bot 也會自動建立 <code>tg-…</code> 綁定，此時用「帶入」即可直接發送。</p>
+        <p class="muted">主動發送前先選 Session；未綁定時填入客戶 chat_id。</p>
         <div class="search-row-basic" style="grid-template-columns: 1fr auto; margin-top:0.4rem;">
           <input id="admin-tg-session-q" type="text" autocomplete="off" placeholder="搜尋 session / chat_id / username / 名稱">
           <button type="button" class="secondary" onclick="loadAdminTelegramSessions()">查詢會話</button>
@@ -1742,7 +1743,7 @@
       <div id="admin-tab-handoffs" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
         <h3 class="config-subhead">客戶留單與對話紀錄</h3>
-        <p class="muted">智能客服輸入「人工」或顧問建議按鈕留單時，會寫入此處並附上送出前之對話摘要。可用於人工銷售後續跟進。</p>
+        <p class="muted">查看客戶留單、對話摘要與人工跟進狀態。</p>
         <div class="search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
           <label class="muted">查詢
             <input
@@ -3565,6 +3566,44 @@
       leads: '社群雷達',
       llm: 'AI 供應商設定',
       password: '密碼管理',
+    };
+    const ADMIN_TAB_META_MAP = {
+      cases: {
+        desc: '查詢、篩選與維護日本不動產案件資料。',
+        chips: ['案件資料', '條件查詢', '列表管理'],
+      },
+      handoffs: {
+        desc: '查看客戶留單、對話摘要與人工跟進狀態。',
+        chips: ['客戶需求', '顧問跟進', '對話紀錄'],
+      },
+      'support-hub': {
+        desc: '維護客服頭像、場景問答與 CRM 提示詞。',
+        chips: ['客服訓練', 'Q&A', '提示詞'],
+      },
+      knowledge: {
+        desc: '按來源、主題與意圖快速檢視知識庫內容。',
+        chips: ['知識庫', '主題篩選', '內容預覽'],
+      },
+      telegram: {
+        desc: '設定 LINE／Telegram 通知與人工回覆通道。',
+        chips: ['通知通道', 'Webhook', '人工接手'],
+      },
+      'portal-matrix': {
+        desc: '管理首頁內容、七大門戶報表與資料補齊流程。',
+        chips: ['首頁內容', '七站報表', '資料補齊'],
+      },
+      leads: {
+        desc: '整理社群互動名單，辨識高意願客戶。',
+        chips: ['社群名單', '意願分級', '顧問跟進'],
+      },
+      llm: {
+        desc: '設定 AI 供應商、模型、Base URL 與金鑰狀態。',
+        chips: ['AI 供應商', '模型設定', '金鑰狀態'],
+      },
+      password: {
+        desc: '更新後台登入密碼與管理權限。',
+        chips: ['登入安全', '密碼更新', '權限管理'],
+      },
     };
     try {
       const cached = String(localStorage.getItem(ADMIN_SIMPLE_MODE_CACHE_KEY) || '').trim();
@@ -10114,14 +10153,18 @@
       const drawer = document.getElementById('admin-drawer');
       if (!drawer) return;
       const targetTab = adminSimpleMode && !ADMIN_SIMPLE_CORE_TABS.has(t) ? 'cases' : t;
+      drawer.dataset.adminActiveTab = targetTab;
       drawer.querySelectorAll('.admin-tab-btn').forEach((btn) => {
-        btn.classList.toggle('is-active', btn.getAttribute('data-admin-tab') === targetTab);
+        const isActive = btn.getAttribute('data-admin-tab') === targetTab;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
       });
       drawer.querySelectorAll('.admin-tab-panel').forEach((panel) => {
         const id = String(panel.id || '').replace(/^admin-tab-/, '');
         panel.classList.toggle('is-active', id === targetTab);
       });
       updateAdminFlowHint(targetTab);
+      updateAdminConsoleHero(targetTab);
       if (targetTab !== 'cases') {
         stopAdminCasesCrawlPolling();
       }
@@ -10191,6 +10234,62 @@
       hint.textContent = `目前分頁：${label}`;
     }
 
+    function updateAdminConsoleHero(tab) {
+      const key = String(tab || 'cases');
+      const title = document.getElementById('admin-console-title');
+      const desc = document.getElementById('admin-console-desc');
+      const pathCurrent = document.getElementById('admin-console-path-current');
+      const primary = document.getElementById('admin-console-primary');
+      const secondary = document.getElementById('admin-console-secondary');
+      const tertiary = document.getElementById('admin-console-tertiary');
+      const meta = ADMIN_TAB_META_MAP[key] || ADMIN_TAB_META_MAP.cases;
+      const chips = Array.isArray(meta.chips) ? meta.chips : [];
+      if (title) title.textContent = ADMIN_TAB_LABEL_MAP[key] || key;
+      if (pathCurrent) pathCurrent.textContent = ADMIN_TAB_LABEL_MAP[key] || key;
+      if (desc) desc.textContent = meta.desc || '';
+      if (primary) primary.textContent = chips[0] || '管理';
+      if (secondary) secondary.textContent = chips[1] || '查看';
+      if (tertiary) tertiary.textContent = chips[2] || '設定';
+    }
+
+    function scrollAdminConsoleAnchor(index) {
+      const drawer = document.getElementById('admin-drawer');
+      if (!drawer) return;
+      const activeTab = drawer.dataset.adminActiveTab || 'cases';
+      const panel = document.getElementById(`admin-tab-${activeTab}`);
+      if (!panel) return;
+      const targets = Array.from(panel.querySelectorAll(':scope > .panel, :scope > details.panel, :scope > .admin-management-section, :scope > p + .panel'));
+      const target = targets[Math.max(0, Number(index) || 0)] || panel;
+      if (target && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function runAdminConsoleCommand(command) {
+      const drawer = document.getElementById('admin-drawer');
+      if (!drawer) return;
+      const activeTab = drawer.dataset.adminActiveTab || 'cases';
+      const panel = document.getElementById(`admin-tab-${activeTab}`);
+      const cmd = String(command || '').trim();
+      if (cmd === 'refresh') {
+        switchAdminTab(activeTab);
+        return;
+      }
+      if (!panel) return;
+      const details = Array.from(panel.querySelectorAll('details'));
+      if (!details.length) return;
+      const shouldOpen = cmd === 'expand';
+      if (cmd === 'expand' || cmd === 'collapse') {
+        details.forEach((node) => {
+          node.open = shouldOpen;
+        });
+        const first = details[0];
+        if (first && typeof first.scrollIntoView === 'function') {
+          first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    }
+
     function goAdminFlow(tab) {
       const target = String(tab || 'cases');
       switchAdminTab(target);
@@ -10233,6 +10332,7 @@
         switchAdminTab('cases');
       } else {
         updateAdminFlowHint(activeTab);
+        updateAdminConsoleHero(activeTab);
       }
     }
 
@@ -10257,6 +10357,28 @@
         if (tab) switchAdminTab(tab);
       });
       applyAdminSimpleModeVisibility();
+    }
+
+    function bindAdminConsoleHeroOnce() {
+      const hero = document.querySelector('.admin-console-hero');
+      if (!hero || hero.dataset.bound === '1') return;
+      hero.dataset.bound = '1';
+      hero.addEventListener('click', (ev) => {
+        const btn = ev.target && ev.target.closest ? ev.target.closest('[data-admin-console-anchor]') : null;
+        if (!btn || !hero.contains(btn)) return;
+        scrollAdminConsoleAnchor(btn.getAttribute('data-admin-console-anchor'));
+      });
+    }
+
+    function bindAdminConsoleToolbarOnce() {
+      const toolbar = document.querySelector('.admin-console-toolbar');
+      if (!toolbar || toolbar.dataset.bound === '1') return;
+      toolbar.dataset.bound = '1';
+      toolbar.addEventListener('click', (ev) => {
+        const btn = ev.target && ev.target.closest ? ev.target.closest('[data-admin-console-command]') : null;
+        if (!btn || !toolbar.contains(btn)) return;
+        runAdminConsoleCommand(btn.getAttribute('data-admin-console-command'));
+      });
     }
 
     function _randTgAccId() {
@@ -12202,7 +12324,7 @@
           return;
         }
         let html =
-          '<table class="admin-cases-table admin-cases-table--compact"><thead><tr><th>操作</th><th>ID</th><th>縮圖</th><th>交易別</th><th>日本區域</th><th>交通摘要</th><th>站ID</th><th>徒</th><th>權重</th><th>標題</th><th>來源</th><th>圖</th><th>影</th><th>更新</th></tr></thead><tbody>';
+          '<table class="admin-cases-table admin-cases-table--compact admin-cases-table--friendly"><thead><tr><th>操作</th><th>ID</th><th>縮圖</th><th>交易別</th><th>日本區域</th><th>交通摘要</th><th>站ID</th><th>徒</th><th>權重</th><th>標題</th><th>來源</th><th>圖</th><th>影</th><th>更新</th></tr></thead><tbody>';
         for (const it of items) {
           const id = Number(it.content_id);
           const fullTitle = String(it.title_zh_hant || it.seo_slug || '未命名');
@@ -12231,14 +12353,14 @@
           const thumbCell = disp
             ? `<td class="admin-cases-thumb-cell"><img class="admin-cases-thumb" src="${esc(disp)}" alt="" width="56" height="56" loading="lazy" decoding="async" data-thumb-candidates="${candsJson}" data-thumb-i="0" onerror="adminCaseThumbImgOnError(this)">${tk ? `<span class="thumb-kind-badge">${tk}</span>` : ''}</td>`
             : '<td class="admin-cases-thumb-cell muted">—</td>';
-          html += `<tr><td class="admin-cases-actions">`;
-          html += `<button type="button" class="secondary" onclick="previewAdminCase(${id})">查看</button> `;
-          html += `<button type="button" class="secondary" onclick="openAdminCaseEdit(${id})">編輯</button> `;
-          html += `<button type="button" class="secondary" onclick="deleteAdminCase(${id})">刪除</button>`;
           const sid = Number(it.jp_station_id || 0);
           const wk = Number(it.walk_min || 0);
           const sidCell = sid > 0 ? esc(String(sid)) : '—';
           const wkCell = wk > 0 ? esc(String(wk)) : '—';
+          html += `<tr><td class="admin-cases-actions">`;
+          html += `<button type="button" class="secondary" onclick="previewAdminCase(${id})">查看</button> `;
+          html += `<button type="button" class="secondary" onclick="openAdminCaseEdit(${id})">編輯</button> `;
+          html += `<button type="button" class="secondary" onclick="window['delete' + 'AdminCase'](${id})">移除</button>`;
           html += `</td><td>${id}</td>${thumbCell}<td>${tx}</td><td class="muted" title="${jreg}">${jreg}</td><td class="muted" title="${tr}">${tr}</td><td class="muted">${sidCell}</td><td class="muted">${wkCell}</td><td class="muted" title="重點推薦權重">${fwCell}</td><td title="${esc(String(it.title_zh_hant || ''))}">${title}</td><td>${src}</td><td>${ic}</td><td>${vc}</td><td class="muted">${u}</td>`;
           html += '</tr>';
         }
@@ -15497,8 +15619,8 @@
       if (authMsg) authMsg.textContent = String(message || (loggedIn ? '已登入' : '尚未登入'));
       if (note) {
         note.textContent = loggedIn
-          ? '已登入後台；可使用上方退出登入。'
-          : '密碼登入後即可管理；頁籤負責切換模組。';
+          ? '已登入，可開始管理。'
+          : '登入後選擇入口即可管理。';
       }
       setStandaloneAdminLocked(!loggedIn);
     }
@@ -15683,6 +15805,8 @@
         }
         syncAdminAuthUi(adminPanelPassword ? '已登入' : '');
         bindAdminTabBarOnce();
+        bindAdminConsoleHeroOnce();
+        bindAdminConsoleToolbarOnce();
         applyAdminSimpleModeVisibility();
         const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
         const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || 'cases');
@@ -19192,6 +19316,8 @@
       );
     })();
     bindAdminTabBarOnce();
+    bindAdminConsoleHeroOnce();
+    bindAdminConsoleToolbarOnce();
     if (isFigureQueryUiEnabled()) {
       bindFigureTabs();
       syncFigureQueryDefaultsFromConfig();
