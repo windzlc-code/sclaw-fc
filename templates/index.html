@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260615-admin-console-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260615-admin-tencent-c">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -737,7 +737,15 @@
 
     <aside id="admin-drawer" class="config-drawer admin-drawer" aria-hidden="true">
       <div class="config-drawer-head">
-        <strong>後台管理</strong>
+        <div class="admin-head-brand">
+          <span class="admin-head-menu-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+          <strong>後台管理</strong>
+          <span class="admin-head-console">控制台</span>
+        </div>
+        <label class="admin-head-search" aria-label="後台全域搜尋">
+          <span aria-hidden="true">⌕</span>
+          <input id="admin-global-search" type="search" placeholder="搜尋案件 ID、客戶訊息、知識庫關鍵字" autocomplete="off">
+        </label>
         <div class="admin-head-actions">
           <section class="site-language-switch site-language-switch--globe admin-language-switch" aria-label="中文版本切換" data-site-lang-menu-root>
             <button
@@ -783,44 +791,6 @@
         </label>
         <span id="admin-simple-mode-meta" class="muted">核心分頁</span>
       </div>
-      <nav class="admin-console-path" aria-label="後台路徑">
-        <span>控制台</span>
-        <span>後台管理</span>
-        <strong id="admin-console-path-current">案件管理</strong>
-      </nav>
-      <section class="admin-console-hero" aria-live="polite">
-        <div>
-          <span class="admin-console-kicker">目前模組</span>
-          <h2 id="admin-console-title">案件管理</h2>
-          <p id="admin-console-desc">查詢、篩選與維護日本不動產案件資料。</p>
-        </div>
-        <div class="admin-console-status" aria-label="目前模組重點">
-          <button type="button" id="admin-console-primary" data-admin-console-anchor="0">案件資料</button>
-          <button type="button" id="admin-console-secondary" data-admin-console-anchor="1">條件查詢</button>
-          <button type="button" id="admin-console-tertiary" data-admin-console-anchor="2">列表管理</button>
-        </div>
-      </section>
-      <div class="admin-console-toolbar" role="toolbar" aria-label="目前模組操作">
-        <span>目前頁面操作</span>
-        <button type="button" class="secondary" data-admin-console-command="refresh">刷新</button>
-        <button type="button" class="secondary" data-admin-console-command="expand">展開配置</button>
-        <button type="button" class="secondary" data-admin-console-command="collapse">收合配置</button>
-      </div>
-      <div class="panel admin-quick-map">
-        <div class="admin-quick-map-head">
-          <h3 class="config-subhead">常用入口</h3>
-          <span class="muted">日常管理</span>
-        </div>
-        <div class="search-row-basic admin-quick-map-grid">
-          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>列表與入庫</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">02</span><span><strong>留單</strong><small>客戶跟進</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">03</span><span><strong>客服 AI</strong><small>訓練與提示詞</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">04</span><span><strong>知識庫</strong><small>問答素材</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>通知</strong><small>LINE / TG</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">06</span><span><strong>數據維護</strong><small>首頁與報表</small></span></button>
-        </div>
-        <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
-      </div>
       <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
         <div class="admin-tab-group" data-admin-group="daily">
           <span class="admin-tab-group-label">日常運營</span>
@@ -843,6 +813,48 @@
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="llm">AI 供應商</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼</button>
         </div>
+      </div>
+      <nav class="admin-console-path" aria-label="後台路徑">
+        <span>控制台</span>
+        <span>後台管理</span>
+        <strong id="admin-console-path-current">案件管理</strong>
+      </nav>
+      <section class="admin-console-hero" aria-live="polite">
+        <div>
+          <span class="admin-console-kicker">目前模組</span>
+          <h2 id="admin-console-title">案件管理</h2>
+          <p id="admin-console-desc">查詢、篩選與維護日本不動產案件資料。</p>
+        </div>
+      </section>
+      <nav class="admin-console-module-tabs admin-console-status" aria-label="目前模組頁籤">
+        <button type="button" id="admin-console-primary" data-admin-console-anchor="0" class="is-active">案件資料</button>
+        <button type="button" id="admin-console-secondary" data-admin-console-anchor="1">條件查詢</button>
+        <button type="button" id="admin-console-tertiary" data-admin-console-anchor="2">列表管理</button>
+      </nav>
+      <div class="admin-console-toolbar" role="toolbar" aria-label="目前模組操作">
+        <span>目前頁面操作</span>
+        <button type="button" class="secondary" data-admin-console-command="refresh">刷新</button>
+        <button type="button" class="secondary" data-admin-console-command="expand">展開配置</button>
+        <button type="button" class="secondary" data-admin-console-command="collapse">收合配置</button>
+      </div>
+      <div class="admin-console-notice" role="note">
+        <span>提示</span>
+        <p id="admin-console-notice-text">目前操作只作用於選中的後台模組；刷新、展開與收合不會影響其他模組資料。</p>
+      </div>
+      <div class="panel admin-quick-map">
+        <div class="admin-quick-map-head">
+          <h3 class="config-subhead">常用入口</h3>
+          <span class="muted">日常管理</span>
+        </div>
+        <div class="search-row-basic admin-quick-map-grid">
+          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>列表與入庫</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">02</span><span><strong>留單</strong><small>客戶跟進</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">03</span><span><strong>客服 AI</strong><small>訓練與提示詞</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">04</span><span><strong>知識庫</strong><small>問答素材</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>通知</strong><small>LINE / TG</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">06</span><span><strong>數據維護</strong><small>首頁與報表</small></span></button>
+        </div>
+        <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
       </div>
 
       <div id="admin-tab-portal-matrix" class="admin-tab-panel" role="tabpanel">
@@ -10250,6 +10262,16 @@
       if (primary) primary.textContent = chips[0] || '管理';
       if (secondary) secondary.textContent = chips[1] || '查看';
       if (tertiary) tertiary.textContent = chips[2] || '設定';
+      updateAdminConsoleAnchorState(0);
+    }
+
+    function updateAdminConsoleAnchorState(index) {
+      const current = Math.max(0, Number(index) || 0);
+      document.querySelectorAll('[data-admin-console-anchor]').forEach((btn) => {
+        const isActive = Number(btn.getAttribute('data-admin-console-anchor') || 0) === current;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
     }
 
     function scrollAdminConsoleAnchor(index) {
@@ -10261,8 +10283,38 @@
       const targets = Array.from(panel.querySelectorAll(':scope > .panel, :scope > details.panel, :scope > .admin-management-section, :scope > p + .panel'));
       const target = targets[Math.max(0, Number(index) || 0)] || panel;
       if (target && typeof target.scrollIntoView === 'function') {
+        updateAdminConsoleAnchorState(index);
         target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+    }
+
+    function runAdminGlobalSearch() {
+      const input = document.getElementById('admin-global-search');
+      const q = String(input?.value || '').trim();
+      if (!q) return;
+      if (/ai|模型|供應商|key|gemini|deepseek/i.test(q)) {
+        switchAdminTab('llm');
+        return;
+      }
+      if (/客服|qa|話術|提示詞/i.test(q)) {
+        switchAdminTab('support-hub');
+        return;
+      }
+      if (/line|telegram|tg|通知/i.test(q)) {
+        switchAdminTab('telegram');
+        return;
+      }
+      if (/留單|客戶|對話|session/i.test(q)) {
+        switchAdminTab('handoffs');
+        return;
+      }
+      switchAdminTab('cases');
+      const caseQ = document.getElementById('admin-cases-q');
+      if (caseQ) {
+        caseQ.value = q;
+        caseQ.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      scrollAdminConsoleAnchor(1);
     }
 
     function runAdminConsoleCommand(command) {
@@ -10360,14 +10412,25 @@
     }
 
     function bindAdminConsoleHeroOnce() {
-      const hero = document.querySelector('.admin-console-hero');
-      if (!hero || hero.dataset.bound === '1') return;
-      hero.dataset.bound = '1';
-      hero.addEventListener('click', (ev) => {
-        const btn = ev.target && ev.target.closest ? ev.target.closest('[data-admin-console-anchor]') : null;
-        if (!btn || !hero.contains(btn)) return;
-        scrollAdminConsoleAnchor(btn.getAttribute('data-admin-console-anchor'));
+      const roots = Array.from(document.querySelectorAll('.admin-console-hero, .admin-console-module-tabs'));
+      roots.forEach((root) => {
+        if (!root || root.dataset.bound === '1') return;
+        root.dataset.bound = '1';
+        root.addEventListener('click', (ev) => {
+          const btn = ev.target && ev.target.closest ? ev.target.closest('[data-admin-console-anchor]') : null;
+          if (!btn || !root.contains(btn)) return;
+          scrollAdminConsoleAnchor(btn.getAttribute('data-admin-console-anchor'));
+        });
       });
+      const globalSearch = document.getElementById('admin-global-search');
+      if (globalSearch && globalSearch.dataset.bound !== '1') {
+        globalSearch.dataset.bound = '1';
+        globalSearch.addEventListener('keydown', (ev) => {
+          if (ev.key !== 'Enter') return;
+          ev.preventDefault();
+          runAdminGlobalSearch();
+        });
+      }
     }
 
     function bindAdminConsoleToolbarOnce() {

@@ -20728,3 +20728,1036 @@ body.site-admin-standalone #admin-tab-telegram .search-row-basic {
     transition: none;
   }
 }
+
+/* 2026-06-15: Tencent Lighthouse console reference pass. */
+body.site-admin-standalone {
+  background: #f2f4f8;
+}
+
+body.site-admin-standalone main.container {
+  padding: 0;
+  max-width: none;
+}
+
+body.site-admin-standalone .config-drawer.admin-drawer,
+body.site-admin-standalone .config-drawer.admin-drawer.open {
+  width: 100%;
+  min-height: 100vh;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background: #f4f6fa;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-drawer {
+  --admin-sidebar-width: 232px;
+}
+
+body.site-admin-standalone .admin-drawer .config-drawer-head {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: -22px -22px 0;
+  min-height: 58px;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: #171b22;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+}
+
+body.site-admin-standalone .admin-drawer .config-drawer-head > strong {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+body.site-admin-standalone .admin-head-actions .admin-head-logout,
+body.site-admin-standalone .admin-head-actions .admin-head-logout.secondary,
+body.site-admin-standalone .admin-head-actions .site-language-globe-btn,
+body.site-admin-standalone .admin-head-actions .ui-close-btn {
+  min-height: 34px;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-head-actions .site-language-globe-btn svg {
+  stroke: currentColor;
+}
+
+body.site-admin-standalone .admin-head-actions .admin-head-logout:hover,
+body.site-admin-standalone .admin-head-actions .admin-head-logout:focus-visible,
+body.site-admin-standalone .admin-head-actions .site-language-globe-btn:hover,
+body.site-admin-standalone .admin-head-actions .site-language-globe-btn:focus-visible,
+body.site-admin-standalone .admin-head-actions .ui-close-btn:hover,
+body.site-admin-standalone .admin-head-actions .ui-close-btn:focus-visible {
+  border-color: rgba(255, 255, 255, 0.48);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+body.site-admin-standalone .admin-drawer .site-language-menu {
+  border-color: #d9e2ef;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+}
+
+body.site-admin-standalone .admin-drawer .admin-drawer-note {
+  display: none;
+}
+
+body.site-admin-standalone .admin-drawer .search-row-basic.admin-mode-strip {
+  margin: 14px 0 14px !important;
+  padding: 10px 14px;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-console-path {
+  margin: 16px 0 8px calc(var(--admin-sidebar-width) + 28px);
+  font-size: 12px;
+}
+
+body.site-admin-standalone .admin-console-hero {
+  margin: 0 0 0 calc(var(--admin-sidebar-width) + 28px);
+  padding: 18px 20px;
+  border-color: #dfe4ec;
+  border-radius: 4px 4px 0 0;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-console-kicker {
+  min-height: 22px;
+  margin-bottom: 6px;
+  border-radius: 3px;
+  background: #eef5ff;
+  font-size: 12px;
+}
+
+body.site-admin-standalone .admin-console-hero h2 {
+  font-size: 22px;
+}
+
+body.site-admin-standalone .admin-console-hero p {
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+body.site-admin-standalone .admin-console-status {
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+  min-width: min(390px, 38%);
+  gap: 8px;
+}
+
+body.site-admin-standalone .admin-console-status button,
+body.site-admin-standalone .admin-drawer .admin-console-status button:not(.secondary):not(.ui-close-btn):not(.site-language-globe-btn):not(.admin-tab-btn):not(.danger):not(.admin-btn-danger) {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+body.site-admin-standalone .admin-console-toolbar {
+  margin: 0 0 0 calc(var(--admin-sidebar-width) + 28px);
+  padding: 10px 14px;
+  border-top: 0;
+  border-color: #dfe4ec;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-console-toolbar button {
+  min-height: 32px;
+  border-radius: 3px;
+}
+
+body.site-admin-standalone .admin-console-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px calc(var(--admin-sidebar-width) + 28px);
+  padding: 10px 14px;
+  border: 1px solid #cfe0f7;
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+  background: #edf6ff;
+  color: #395876;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+body.site-admin-standalone .admin-console-notice span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 3px;
+  background: #1d63d8;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body.site-admin-standalone .admin-console-notice p {
+  margin: 0;
+}
+
+body.site-admin-standalone .admin-quick-map {
+  display: none;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-bar {
+  position: fixed;
+  top: 128px;
+  left: 22px;
+  width: var(--admin-sidebar-width);
+  max-height: calc(100vh - 144px);
+  margin-right: 28px;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: #1e232c;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-bar--grouped {
+  gap: 4px;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group {
+  gap: 2px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group:last-child {
+  border-bottom: 0;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group-label {
+  padding: 7px 18px 6px;
+  color: #8e98a8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn {
+  min-height: 38px;
+  justify-content: flex-start;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 850;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn::before {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  border-radius: 0;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn:hover,
+body.site-admin-standalone .admin-drawer .admin-tab-btn:focus-visible {
+  border-color: transparent;
+  background: #262d39;
+  color: #ffffff;
+  transform: none;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn.is-active {
+  border-color: transparent;
+  background: #2a3445;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn.is-active::before {
+  background: #2f7cf6;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel {
+  margin-left: calc(var(--admin-sidebar-width) + 28px);
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel > .panel,
+body.site-admin-standalone .admin-drawer .admin-tab-panel > details.panel,
+body.site-admin-standalone .admin-drawer .admin-management-section,
+body.site-admin-standalone .admin-drawer .support-bot-status-panel {
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  border-color: #dfe4ec;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-drawer .config-subhead {
+  font-size: 18px;
+}
+
+body.site-admin-standalone .admin-panel-title-row,
+body.site-admin-standalone .admin-panel-title-row--compact,
+body.site-admin-standalone .admin-home-hero-panel-head,
+body.site-admin-standalone .home-intro-video-head,
+body.site-admin-standalone .admin-home-carousel-manager-head {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom-color: #e7ebf2;
+}
+
+body.site-admin-standalone .admin-drawer .panel > p.muted,
+body.site-admin-standalone .admin-drawer .admin-management-section > p.muted,
+body.site-admin-standalone .admin-drawer details.admin-management-section > summary + p.muted {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+body.site-admin-standalone .admin-drawer details.admin-management-section > summary,
+body.site-admin-standalone #admin-tab-cases .admin-case-settings-details > summary {
+  min-height: 46px;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-filters {
+  gap: 12px !important;
+  padding: 14px;
+  border-radius: 4px;
+}
+
+body.site-admin-standalone .admin-drawer input,
+body.site-admin-standalone .admin-drawer select,
+body.site-admin-standalone .admin-drawer textarea {
+  border-radius: 4px;
+}
+
+@media (max-width: 1180px) {
+  body.site-admin-standalone .admin-console-path,
+  body.site-admin-standalone .admin-console-hero,
+  body.site-admin-standalone .admin-console-toolbar,
+  body.site-admin-standalone .admin-console-notice,
+  body.site-admin-standalone .admin-drawer .admin-tab-panel {
+    margin-left: 0;
+  }
+
+  body.site-admin-standalone .admin-drawer .admin-tab-bar {
+    position: static;
+    width: auto;
+    max-height: none;
+    margin: 0 0 14px;
+    padding: 10px;
+    border: 1px solid #dfe4ec;
+    border-radius: 4px;
+    background: #ffffff;
+  }
+
+  body.site-admin-standalone .admin-drawer .admin-tab-group {
+    border-bottom: 0;
+  }
+
+  body.site-admin-standalone .admin-drawer .admin-tab-group-label {
+    color: #69788d;
+  }
+
+  body.site-admin-standalone .admin-drawer .admin-tab-btn {
+    justify-content: center;
+    border: 1px solid #d8e3f2;
+    border-radius: 4px;
+    color: #244368;
+  }
+
+  body.site-admin-standalone .admin-drawer .admin-tab-btn:hover,
+  body.site-admin-standalone .admin-drawer .admin-tab-btn:focus-visible,
+  body.site-admin-standalone .admin-drawer .admin-tab-btn.is-active {
+    background: #edf5ff;
+    color: #1746a2;
+  }
+}
+
+/* 2026-06-15: Tencent console pass v2 - structure, density, and motion. */
+body.site-admin-standalone {
+  --tc-topbar: #1f1f1f;
+  --tc-sidebar: #202124;
+  --tc-sidebar-active: #313c52;
+  --tc-page: #f3f5f9;
+  --tc-line: #dfe4ed;
+  --tc-accent: #006eff;
+  --tc-text: #1f2937;
+  --tc-muted: #667085;
+  background: var(--tc-page);
+}
+
+body.site-admin-standalone .config-drawer.admin-drawer,
+body.site-admin-standalone .config-drawer.admin-drawer.open {
+  padding: 0;
+  background: var(--tc-page);
+}
+
+body.site-admin-standalone .admin-drawer {
+  --admin-sidebar-width: 200px;
+}
+
+body.site-admin-standalone .admin-drawer .config-drawer-head {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.78fr) minmax(300px, 1.2fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 50px;
+  margin: 0;
+  padding: 0 18px;
+  background: var(--tc-topbar);
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-head-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+body.site-admin-standalone .admin-head-menu-icon {
+  display: inline-grid;
+  gap: 4px;
+  width: 18px;
+  color: #f4f7fb;
+}
+
+body.site-admin-standalone .admin-head-menu-icon i {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+body.site-admin-standalone .admin-head-brand > strong {
+  font-size: 17px;
+  line-height: 1;
+}
+
+body.site-admin-standalone .admin-head-console {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+body.site-admin-standalone .admin-head-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 2px;
+  background: #292b30;
+  color: #9ba6b6;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+body.site-admin-standalone .admin-head-search:focus-within {
+  border-color: rgba(0, 110, 255, 0.7);
+  background: #252a33;
+  box-shadow: 0 0 0 2px rgba(0, 110, 255, 0.18);
+}
+
+body.site-admin-standalone .admin-head-search input {
+  width: 100%;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f5f7fb;
+  font-size: 13px;
+  outline: 0;
+}
+
+body.site-admin-standalone .admin-head-search input::placeholder {
+  color: #9aa4b2;
+}
+
+body.site-admin-standalone .admin-head-actions {
+  gap: 8px;
+}
+
+body.site-admin-standalone .admin-head-actions .admin-head-logout,
+body.site-admin-standalone .admin-head-actions .admin-head-logout.secondary,
+body.site-admin-standalone .admin-head-actions .site-language-globe-btn,
+body.site-admin-standalone .admin-head-actions .ui-close-btn {
+  min-height: 32px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+body.site-admin-standalone .admin-drawer .search-row-basic.admin-mode-strip {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  z-index: 24;
+  display: flex !important;
+  width: var(--admin-sidebar-width);
+  min-height: 54px;
+  margin: 0 !important;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--tc-sidebar);
+  color: #d9e0ea;
+}
+
+body.site-admin-standalone .admin-mode-switch strong,
+body.site-admin-standalone #admin-simple-mode-meta {
+  color: #d9e0ea;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-bar {
+  top: 104px;
+  left: 0;
+  width: var(--admin-sidebar-width);
+  max-height: calc(100vh - 104px);
+  min-height: calc(100vh - 104px);
+  padding: 8px 0 16px;
+  background: var(--tc-sidebar);
+  overflow-y: auto;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group {
+  padding: 10px 0;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group-label {
+  padding: 7px 18px;
+  color: #88929f;
+  font-size: 12px;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn {
+  min-height: 40px;
+  padding: 0 18px 0 42px;
+  color: #e4e7ec;
+  font-size: 14px;
+  letter-spacing: 0;
+  transition: background 0.15s ease, color 0.15s ease, padding-left 0.15s ease;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.72;
+  transform: translateY(-50%);
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn::before {
+  width: 4px;
+  background: transparent;
+  transform: scaleY(0.2);
+  transition: background 0.15s ease, transform 0.18s ease;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn:hover,
+body.site-admin-standalone .admin-drawer .admin-tab-btn:focus-visible {
+  background: #2a2d33;
+  color: #ffffff;
+  padding-left: 46px;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn.is-active {
+  background: var(--tc-sidebar-active);
+  color: #ffffff;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn.is-active::before {
+  background: var(--tc-accent);
+  transform: scaleY(1);
+}
+
+body.site-admin-standalone .admin-console-path,
+body.site-admin-standalone .admin-console-hero,
+body.site-admin-standalone .admin-console-module-tabs,
+body.site-admin-standalone .admin-console-toolbar,
+body.site-admin-standalone .admin-console-notice,
+body.site-admin-standalone .admin-drawer .admin-tab-panel {
+  margin-left: calc(var(--admin-sidebar-width) + 20px);
+  margin-right: 20px;
+}
+
+body.site-admin-standalone .admin-console-path {
+  display: none;
+}
+
+body.site-admin-standalone .admin-console-hero {
+  min-height: 82px;
+  margin-top: 0;
+  padding: 16px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--tc-line);
+  border-radius: 0;
+  background: #ffffff;
+}
+
+body.site-admin-standalone .admin-console-kicker {
+  display: none;
+}
+
+body.site-admin-standalone .admin-console-hero h2 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  color: var(--tc-text);
+}
+
+body.site-admin-standalone .admin-console-hero h2::before {
+  content: "←";
+  color: var(--tc-accent);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+body.site-admin-standalone .admin-console-hero p {
+  max-width: 760px;
+  color: var(--tc-muted);
+  font-size: 13px;
+}
+
+body.site-admin-standalone .admin-console-module-tabs {
+  position: sticky;
+  top: 50px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  min-height: 42px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--tc-line);
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+body.site-admin-standalone .admin-console-module-tabs button,
+body.site-admin-standalone .admin-drawer .admin-console-module-tabs button:not(.secondary):not(.ui-close-btn):not(.site-language-globe-btn):not(.admin-tab-btn):not(.danger):not(.admin-btn-danger) {
+  position: relative;
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #3f4b5f;
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 800;
+  transform: none;
+}
+
+body.site-admin-standalone .admin-console-module-tabs button::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  background: var(--tc-accent);
+  opacity: 0;
+  transform: scaleX(0.2);
+  transition: opacity 0.16s ease, transform 0.18s ease;
+}
+
+body.site-admin-standalone .admin-console-module-tabs button:hover,
+body.site-admin-standalone .admin-console-module-tabs button:focus-visible {
+  color: var(--tc-accent);
+  box-shadow: none;
+}
+
+body.site-admin-standalone .admin-console-module-tabs button.is-active {
+  color: #111827;
+}
+
+body.site-admin-standalone .admin-console-module-tabs button.is-active::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+body.site-admin-standalone .admin-console-toolbar {
+  min-height: 54px;
+  padding: 10px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--tc-line);
+  background: #ffffff;
+}
+
+body.site-admin-standalone .admin-console-toolbar span {
+  display: none;
+}
+
+body.site-admin-standalone .admin-console-toolbar::before {
+  content: "操作";
+  margin-right: auto;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+body.site-admin-standalone .admin-console-toolbar button,
+body.site-admin-standalone .admin-drawer .admin-console-toolbar button,
+body.site-admin-standalone .admin-drawer .admin-console-toolbar button:not(.secondary):not(.ui-close-btn):not(.site-language-globe-btn):not(.admin-tab-btn):not(.danger):not(.admin-btn-danger) {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid #cfd8e6;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #1f3b66;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: none;
+  transform: none;
+}
+
+body.site-admin-standalone .admin-console-toolbar button:first-of-type,
+body.site-admin-standalone .admin-drawer .admin-console-toolbar button:first-of-type {
+  border-color: var(--tc-accent);
+  background: var(--tc-accent);
+  color: #ffffff;
+}
+
+body.site-admin-standalone .admin-console-toolbar button:hover,
+body.site-admin-standalone .admin-console-toolbar button:focus-visible {
+  border-color: var(--tc-accent);
+  color: var(--tc-accent);
+  box-shadow: 0 2px 8px rgba(0, 110, 255, 0.12);
+}
+
+body.site-admin-standalone .admin-console-toolbar button:first-of-type:hover,
+body.site-admin-standalone .admin-console-toolbar button:first-of-type:focus-visible {
+  color: #ffffff;
+  background: #005bd1;
+}
+
+body.site-admin-standalone .admin-console-notice {
+  min-height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-bottom: 1px solid #d7e4fb;
+  border-radius: 0;
+  background: #eaf2ff;
+}
+
+body.site-admin-standalone .admin-console-notice span {
+  background: transparent;
+  color: var(--tc-accent);
+  padding: 0;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel {
+  padding-top: 16px;
+  animation: adminTencentPanelIn 0.18s ease both;
+}
+
+@keyframes adminTencentPanelIn {
+  from {
+    opacity: 0.78;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel > .panel,
+body.site-admin-standalone .admin-drawer .admin-tab-panel > details.panel,
+body.site-admin-standalone .admin-drawer .admin-management-section,
+body.site-admin-standalone .admin-drawer .support-bot-status-panel {
+  margin-bottom: 12px;
+  padding: 0;
+  border: 1px solid var(--tc-line);
+  border-radius: 0;
+  background: #ffffff;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel > .panel > :not(.admin-cases-filters):not(details),
+body.site-admin-standalone .admin-drawer .admin-management-section-body,
+body.site-admin-standalone .admin-drawer details.panel > :not(summary) {
+  padding-right: 16px;
+  padding-left: 16px;
+}
+
+body.site-admin-standalone .admin-panel-title-row,
+body.site-admin-standalone .admin-panel-title-row--compact,
+body.site-admin-standalone .admin-home-hero-panel-head,
+body.site-admin-standalone .home-intro-video-head,
+body.site-admin-standalone .admin-home-carousel-manager-head {
+  min-height: 48px;
+  margin: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--tc-line);
+  background: #ffffff;
+}
+
+body.site-admin-standalone .admin-drawer .config-subhead {
+  color: #1f2937;
+  font-size: 16px;
+}
+
+body.site-admin-standalone .admin-drawer .panel > p.muted,
+body.site-admin-standalone .admin-drawer .admin-management-section > p.muted,
+body.site-admin-standalone .admin-drawer details.admin-management-section > summary + p.muted {
+  padding-top: 8px;
+  color: #667085;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-filters {
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--tc-line);
+  background: #fbfcfe;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-filters > label:nth-child(1),
+body.site-admin-standalone #admin-tab-cases .admin-cases-filters > label:nth-child(2) {
+  grid-column: span 5;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-filters > label,
+body.site-admin-standalone .admin-drawer .search-row-basic:not(.admin-auth-row):not(.admin-mode-strip):not(.admin-quick-map-grid) > label {
+  min-width: 0;
+  font-size: 13px;
+}
+
+body.site-admin-standalone .admin-drawer input,
+body.site-admin-standalone .admin-drawer select,
+body.site-admin-standalone .admin-drawer textarea {
+  min-height: 34px;
+  border-color: #cfd8e6;
+  border-radius: 2px;
+  font-size: 13px;
+}
+
+body.site-admin-standalone .admin-cases-table--compact,
+body.site-admin-standalone .admin-cases-source-summary-table {
+  border-collapse: collapse;
+}
+
+body.site-admin-standalone .admin-cases-table--compact th,
+body.site-admin-standalone .admin-cases-source-summary-table th {
+  height: 40px;
+  background: #f7f9fc;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+body.site-admin-standalone .admin-cases-table--compact td,
+body.site-admin-standalone .admin-cases-source-summary-table td {
+  border-top: 1px solid #edf0f5;
+  font-size: 13px;
+  transition: background 0.14s ease;
+}
+
+body.site-admin-standalone .admin-cases-table--compact tr:hover td,
+body.site-admin-standalone .admin-cases-source-summary-table tr:hover td {
+  background: #f5f9ff;
+}
+
+body.site-admin-standalone .admin-drawer details.admin-management-section > summary,
+body.site-admin-standalone #admin-tab-cases .admin-case-settings-details > summary {
+  min-height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--tc-line);
+  border-radius: 0;
+  background: #ffffff;
+}
+
+body.site-admin-standalone .admin-drawer details.admin-management-section > summary:hover,
+body.site-admin-standalone #admin-tab-cases .admin-case-settings-details > summary:hover {
+  background: #f7faff;
+}
+
+@media (max-width: 1180px) {
+  body.site-admin-standalone .admin-drawer .config-drawer-head {
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+
+  body.site-admin-standalone .admin-head-search {
+    grid-column: 1 / -1;
+    order: 3;
+    margin-bottom: 8px;
+  }
+
+  body.site-admin-standalone .admin-drawer .search-row-basic.admin-mode-strip {
+    position: static;
+    width: auto;
+    margin: 12px 12px !important;
+    border-radius: 2px;
+    background: #ffffff;
+  }
+
+  body.site-admin-standalone .admin-mode-switch strong,
+  body.site-admin-standalone #admin-simple-mode-meta {
+    color: #334155;
+  }
+
+  body.site-admin-standalone .admin-console-path,
+  body.site-admin-standalone .admin-console-hero,
+  body.site-admin-standalone .admin-console-module-tabs,
+  body.site-admin-standalone .admin-console-toolbar,
+  body.site-admin-standalone .admin-console-notice,
+  body.site-admin-standalone .admin-drawer .admin-tab-panel {
+    margin-right: 12px;
+    margin-left: 12px;
+  }
+}
+
+/* 2026-06-15: Tencent console pass v3 - icon and header fidelity. */
+body.site-admin-standalone .admin-head-brand > strong {
+  color: #ffffff;
+}
+
+body.site-admin-standalone .admin-head-console {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+body.site-admin-standalone .admin-drawer .search-row-basic.admin-mode-strip {
+  align-items: center;
+  gap: 8px;
+  min-height: 58px;
+  padding: 12px 18px;
+}
+
+body.site-admin-standalone .admin-drawer .search-row-basic.admin-mode-strip::before {
+  content: "後台功能";
+  display: block;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+body.site-admin-standalone .admin-mode-switch {
+  margin-left: auto;
+  transform: scale(0.88);
+  transform-origin: right center;
+}
+
+body.site-admin-standalone .admin-mode-switch strong {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+body.site-admin-standalone #admin-simple-mode-meta {
+  position: absolute;
+  left: 18px;
+  bottom: 5px;
+  color: #8f9aaa;
+  font-size: 12px;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-bar {
+  top: 108px;
+  max-height: calc(100vh - 108px);
+  min-height: calc(100vh - 108px);
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn::after {
+  left: 19px;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
+  opacity: 0.86;
+  background:
+    linear-gradient(currentColor, currentColor) 1px 2px / 12px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 1px 6px / 8px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 1px 10px / 12px 2px no-repeat;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group[data-admin-group="support"] .admin-tab-btn::after {
+  background:
+    radial-gradient(circle at 4px 5px, currentColor 0 2px, transparent 2.2px),
+    radial-gradient(circle at 10px 5px, currentColor 0 2px, transparent 2.2px),
+    linear-gradient(currentColor, currentColor) 2px 10px / 10px 2px no-repeat;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group[data-admin-group="maintenance"] .admin-tab-btn::after {
+  background:
+    linear-gradient(currentColor, currentColor) 1px 10px / 12px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 2px 6px / 3px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 6px 3px / 3px 8px no-repeat,
+    linear-gradient(currentColor, currentColor) 10px 1px / 3px 10px no-repeat;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group[data-admin-group="system"] .admin-tab-btn::after {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, currentColor 0 2px, transparent 2.4px);
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn.is-active::after,
+body.site-admin-standalone .admin-drawer .admin-tab-btn:hover::after {
+  opacity: 1;
+}
+
+body.site-admin-standalone .admin-console-hero h2::after {
+  content: "IPv4";
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid #cfd8e6;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+body.site-admin-standalone .admin-console-toolbar::after {
+  content: "↻  ⇩";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  min-height: 30px;
+  margin-left: 4px;
+  color: #526071;
+  font-size: 17px;
+  letter-spacing: 7px;
+}
+
+body.site-admin-standalone .admin-cases-table--friendly {
+  box-shadow: inset 0 1px 0 #edf0f5;
+}
+
+body.site-admin-standalone .admin-cases-table--friendly tbody tr {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+body.site-admin-standalone .admin-cases-table--friendly tbody tr:hover {
+  transform: translateX(2px);
+  box-shadow: inset 3px 0 0 var(--tc-accent);
+}
