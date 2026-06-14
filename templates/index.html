@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260612-admin-organized-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260614-nav-keywords-e">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -45,14 +45,87 @@
           <small>{{ seo_phrase_entry }}</small>
         </span>
       </a>
-      <div class="bh-site-nav-links">
-        <a href="#jp-map-hub">找房工作台</a>
-        <a href="#query-dialog">智慧查詢</a>
-        <a href="#figure-results">案件輪播</a>
-        <a href="#bh-service-flow">購屋流程</a>
+      <div class="bh-site-nav-links bh-nav-keywords" aria-label="導航關鍵詞">
+      <div class="bh-nav-keyword-tabs" role="tablist" aria-label="關鍵詞分組">
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region">地區找房</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-buyer" data-bh-nav-keyword-tab="buyer">買家需求</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-property" data-bh-nav-keyword-tab="property">房源條件</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-process" data-bh-nav-keyword-tab="process">流程知識</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-source" data-bh-nav-keyword-tab="source">平台來源</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-help" data-bh-nav-keyword-tab="help">服務幫助</button>
+      </div>
+      <div class="bh-nav-keyword-panels">
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-region" role="tabpanel" aria-label="地區找房關鍵詞" data-bh-nav-keyword-panel="region" data-bh-panel-title="地區找房" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="#query-dialog" data-geo-keyword="東京不動產">東京不動產</a>
+          <a href="#query-dialog" data-geo-keyword="大阪不動產">大阪不動產</a>
+          <a href="#query-dialog" data-geo-keyword="京都不動產">京都不動產</a>
+          <a href="#query-dialog" data-geo-keyword="福岡不動產">福岡不動產</a>
+          <a href="#query-dialog" data-geo-keyword="北海道不動產">北海道不動產</a>
+          <a href="#query-dialog" data-geo-keyword="沖繩不動產">沖繩不動產</a>
+          <a href="#query-dialog" data-geo-keyword="名古屋不動產">名古屋不動產</a>
+          <a href="#query-dialog" data-geo-keyword="橫濱不動產">橫濱不動產</a>
+          <a href="#query-dialog" data-geo-keyword="札幌不動產">札幌不動產</a>
+          <a href="#query-dialog" data-geo-keyword="神戶不動產">神戶不動產</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-buyer" role="tabpanel" aria-label="買家需求關鍵詞" data-bh-nav-keyword-panel="buyer" data-bh-panel-title="買家需求" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="#query-dialog" data-geo-keyword="海外買家日本不動產">海外買家日本房</a>
+          <a href="#query-dialog" data-geo-keyword="台灣人買日本房">台灣人買日本房</a>
+          <a href="#query-dialog" data-geo-keyword="香港人買日本房">香港人買日本房</a>
+          <a href="#query-dialog" data-geo-keyword="外國人日本買房">外國人日本買房</a>
+          <a href="#query-dialog" data-geo-keyword="日本投資房產">日本投資房產</a>
+          <a href="#query-dialog" data-geo-keyword="日本自住房產">日本自住房產</a>
+          <a href="#query-dialog" data-geo-keyword="日本收租物件">日本收租物件</a>
+          <a href="#query-dialog" data-geo-keyword="日本遠端看房">日本遠端看房</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-property" role="tabpanel" aria-label="房源條件關鍵詞" data-bh-nav-keyword-panel="property" data-bh-panel-title="房源條件" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="#query-dialog" data-geo-keyword="日本中古マンション">中古マンション</a>
+          <a href="#query-dialog" data-geo-keyword="日本新築マンション">新築マンション</a>
+          <a href="#query-dialog" data-geo-keyword="日本一戶建">日本一戶建</a>
+          <a href="#query-dialog" data-geo-keyword="日本公寓找房">日本公寓找房</a>
+          <a href="#query-dialog" data-geo-keyword="日本房源比較">日本房源比較</a>
+          <a href="#query-dialog" data-geo-keyword="車站周邊物件">車站周邊物件</a>
+          <a href="#query-dialog" data-geo-keyword="徒步可達物件">徒步可達物件</a>
+          <a href="#query-dialog" data-geo-keyword="價格篩選找房">價格篩選找房</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-process" role="tabpanel" aria-label="流程知識關鍵詞" data-bh-nav-keyword-panel="process" data-bh-panel-title="流程知識" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="/guide/tw-buy-japan-property" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">日本買房流程</a>
+          <a href="#query-dialog" data-geo-keyword="日本買房費用">日本買房費用</a>
+          <a href="#query-dialog" data-geo-keyword="日本買房稅務">日本買房稅務</a>
+          <a href="#query-dialog" data-geo-keyword="日本房貸外國人">日本房貸外國人</a>
+          <a href="#query-dialog" data-geo-keyword="日本投資報酬">日本投資報酬</a>
+          <a href="#query-dialog" data-geo-keyword="日本租賃管理">日本租賃管理</a>
+          <a href="#query-dialog" data-geo-keyword="日本不動產法規">日本不動產法規</a>
+          <a href="#query-dialog" data-geo-keyword="日本房產顧問">日本房產顧問</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-source" role="tabpanel" aria-label="平台來源關鍵詞" data-bh-nav-keyword-panel="source" data-bh-panel-title="平台來源" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="#query-dialog" data-geo-keyword="SUUMO 房源查詢">SUUMO 房源查詢</a>
+          <a href="#query-dialog" data-geo-keyword="LIFULL HOME'S 房源查詢">LIFULL HOME'S</a>
+          <a href="#query-dialog" data-geo-keyword="at home 房源查詢">at home 房源查詢</a>
+          <a href="#query-dialog" data-geo-keyword="Yahoo! 不動產案件">Yahoo! 不動產</a>
+          <a href="#query-dialog" data-geo-keyword="樂天不動產案件">樂天不動產案件</a>
+          <a href="#query-dialog" data-geo-keyword="Yes! 房源查詢">Yes! 房源查詢</a>
+          <a href="#query-dialog" data-geo-keyword="OHEYASU 房源查詢">OHEYASU</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-help" role="tabpanel" aria-label="服務幫助關鍵詞" data-bh-nav-keyword-panel="help" data-bh-panel-title="服務幫助" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="#jp-map-hub">日本找房工作台</a>
+          <a href="#query-dialog">智慧查詢</a>
+          <a href="/company" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">公司背景</a>
+          </div>
+        </nav>
+      </div>
       </div>
       <div class="bh-site-titlebar-actions" aria-label="首頁工具列">
-        <button type="button" class="home-hero-sound-toggle" data-home-hero-sound-toggle aria-pressed="false">開啟聲音輪播</button>
         {% include 'partials/site_language_switch.html' %}
       </div>
     </nav>
@@ -15986,7 +16059,7 @@
     }
 
     function renderPortalCaseCards(items) {
-      let html = '';
+      const htmlParts = [];
       for (const it of items) {
         const compactTitle = String(it.title_zh_hant || it.title_original || '案件')
           .replace(/^日本房產案源[:：]\s*/u, '')
@@ -16012,7 +16085,6 @@
         const addr = esc(String(it.address_line_jp || '').trim());
         const acc = esc(String(it.access_line_jp || '').trim());
         const accessLine = acc || (it.transit_line_zh ? esc(String(it.transit_line_zh)) : '');
-        const timeLabel = portalCaseTimeLabel(it);
         const buyBadge =
           String(it.transaction_label_zh || '').includes('買') || String(it.transaction_label_zh || '').includes('購')
             ? '<span class="portal-suumo-card-badge">購屋</span>'
@@ -16028,29 +16100,6 @@
           })
           .filter(Boolean)
           .join('');
-        const specCell = (v) => {
-          const s = String(v || '').trim();
-          return s ? esc(s) : dashFig;
-        };
-        const accessForSpec = String(it.access_line_jp || '').trim() || String(it.transit_line_zh || '').trim();
-        const builtForSpec = String(it.built_ym_jp || '').trim() || String(it.age_text_hant || '').trim();
-        const priceTdFig = it.price_text_hant
-          ? `<strong>${esc(it.price_text_hant)}</strong>${it.price_fx_hant ? `<br><span class="portal-suumo-fx muted">${esc(String(it.price_fx_hant))}</span>` : ''}`
-          : `<span class="muted">${dashFig}（原頁未擷取到明示價格）</span>`;
-        const specRowsFig = [
-          `<tr><th>物件名</th><td class="portal-suumo-cell-jp">${specCell(it.building_name_jp)}</td></tr>`,
-          `<tr><th>販賣價格</th><td class="portal-suumo-price-cell">${priceTdFig}</td></tr>`,
-          `<tr><th>時間</th><td class="portal-suumo-time-cell">${timeLabel ? esc(timeLabel) : dashFig}</td></tr>`,
-          `<tr><th>所在地</th><td class="portal-suumo-cell-jp">${specCell(it.address_line_jp)}</td></tr>`,
-          `<tr><th>沿線・站</th><td class="portal-suumo-cell-jp">${specCell(accessForSpec)}</td></tr>`,
-          `<tr><th>專有面積</th><td>${specCell(it.area_text_hant)}</td></tr>`,
-          `<tr><th>格局</th><td>${specCell(it.layout_text_hant)}</td></tr>`,
-          `<tr><th>陽台</th><td class="portal-suumo-cell-jp">${specCell(it.balcony_line_jp)}</td></tr>`,
-          `<tr><th>築年月</th><td class="portal-suumo-cell-jp">${specCell(builtForSpec)}</td></tr>`,
-          `<tr><th>樓層</th><td>${specCell(it.floor_text_hant)}</td></tr>`,
-          `<tr><th>類型</th><td>${specCell(it.building_type_zh)}</td></tr>`,
-        ];
-        const specTable = `<div class="portal-suumo-specwrap"><table class="portal-suumo-spec-table portal-suumo-spec-table--card portal-suumo-spec-table--fixed"><tbody>${specRowsFig.join('')}</tbody></table></div>`;
         const candUrls =
           galsProp.length > 0
             ? galsProp.map((u) => portalListingThumbDisplayUrl(String(u).trim(), 240, 160)).filter(Boolean)
@@ -16062,7 +16111,7 @@
         const mediaBlock = mainSrc
           ? `<div class="figure-case-thumb portal-suumo-card-media${mediaFallbackClass}">
               <a href="${esc(mainFullSrc || mainSrc)}" class="portal-suumo-lightbox-link" rel="nofollow">
-                <img class="portal-suumo-card-heroimg zoomable-image" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onerror="portalCaseHeroImgOnError(this)">
+                <img class="portal-suumo-card-heroimg zoomable-image" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" alt="" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onerror="portalCaseHeroImgOnError(this)">
               </a>
               <div class="portal-suumo-no-img portal-suumo-no-img--hero-replace" hidden></div>
               <div class="portal-suumo-card-media-badges">
@@ -16079,7 +16128,7 @@
         const emptyMediaBlock = sid
           ? `<a class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty portal-suumo-no-img-link" href="${esc(internal)}" target="_blank" rel="noopener noreferrer" aria-label="暫無縮圖，開啟站內明細"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">請至站內明細或原站查看相簿</span></span></a>`
           : `<div class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty" role="img" aria-label="暫無物件縮圖"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">資料庫未擷取到可用相簿網址</span></span></div>`;
-        html += `
+        htmlParts.push(`
           <article class="market-item-card figure-case-card portal-suumo-card">
             <div class="portal-suumo-compact-card">
               <div class="portal-suumo-card-media-col">
@@ -16117,9 +16166,9 @@
               </div>
             </div>
           </article>
-        `;
+        `);
       }
-      return html || '<div class="panel muted">目前沒有符合條件的站內案件；請調整來源／區域／關鍵字／日期，或確認後台案件管理已入庫 7 個日本來源資料。</div>';
+      return htmlParts.length ? htmlParts.join('') : '<div class="panel muted">目前沒有符合條件的站內案件；請調整來源／區域／關鍵字／日期，或確認後台案件管理已入庫 7 個日本來源資料。</div>';
     }
 
     function portalCaseResultCountText(count, appliedLimit, truncNote) {
@@ -20635,6 +20684,77 @@
       selectVideo(0, true);
     }
 
+    function initHeaderKeywordTabs() {
+      const root = document.querySelector('.bh-nav-keywords');
+      if (!root || root.dataset.bound === '1') return;
+      root.dataset.bound = '1';
+      const tabs = Array.from(root.querySelectorAll('[data-bh-nav-keyword-tab]'));
+      const panels = Array.from(root.querySelectorAll('[data-bh-nav-keyword-panel]'));
+      let closeTimer = 0;
+      const clearCloseTimer = () => {
+        if (closeTimer) {
+          window.clearTimeout(closeTimer);
+          closeTimer = 0;
+        }
+      };
+      const setActive = (key, allowCollapse = false) => {
+        const current = tabs.find((tab) => tab.classList.contains('is-active'));
+        const currentKey = current ? String(current.getAttribute('data-bh-nav-keyword-tab') || '') : '';
+        const shouldCollapse = allowCollapse && currentKey === key;
+        root.classList.toggle('is-open', !shouldCollapse);
+        tabs.forEach((tab) => {
+          const on = !shouldCollapse && String(tab.getAttribute('data-bh-nav-keyword-tab') || '') === key;
+          tab.classList.toggle('is-active', on);
+          tab.setAttribute('aria-selected', on ? 'true' : 'false');
+          tab.setAttribute('aria-expanded', on ? 'true' : 'false');
+        });
+        panels.forEach((panel) => {
+          const on = !shouldCollapse && String(panel.getAttribute('data-bh-nav-keyword-panel') || '') === key;
+          panel.classList.toggle('is-active', on);
+          panel.hidden = !on;
+        });
+      };
+      const closeMenu = () => {
+        root.classList.remove('is-open');
+        tabs.forEach((tab) => {
+          tab.classList.remove('is-active');
+          tab.setAttribute('aria-selected', 'false');
+          tab.setAttribute('aria-expanded', 'false');
+        });
+        panels.forEach((panel) => {
+          panel.classList.remove('is-active');
+          panel.hidden = true;
+        });
+      };
+      tabs.forEach((tab) => {
+        tab.addEventListener('mouseenter', () => {
+          clearCloseTimer();
+          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+          if (key) setActive(key, false);
+        });
+        tab.addEventListener('focus', () => {
+          clearCloseTimer();
+          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+          if (key) setActive(key, false);
+        });
+        tab.addEventListener('click', () => {
+          clearCloseTimer();
+          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+          if (key) setActive(key, false);
+        });
+      });
+      root.addEventListener('mouseenter', clearCloseTimer);
+      root.addEventListener('mouseleave', () => {
+        clearCloseTimer();
+        closeTimer = window.setTimeout(closeMenu, 180);
+      });
+      root.addEventListener('click', (evt) => {
+        const link = evt.target instanceof Element ? evt.target.closest('.bh-nav-keyword-panel a') : null;
+        if (!link || !root.contains(link)) return;
+        window.setTimeout(closeMenu, 160);
+      });
+    }
+
     function runSclawStartupChecks() {
       if (isAdminStandalonePage()) {
         setStandaloneAdminLocked(true);
@@ -20650,6 +20770,7 @@
       installSupportChatHistoryApplyDelegation();
       installHomeHeroSoundToggle();
       installGeoKeywordEntrances();
+      initHeaderKeywordTabs();
       initHomeHeroCarousel();
       initHomeVideoCarousel();
       initBhomelandSeoMotion();

@@ -17273,9 +17273,9 @@ body.site-home .bh-site-header-contact {
 
 body.site-home .bh-site-nav {
   display: grid;
-  grid-template-columns: minmax(250px, 0.82fr) minmax(310px, 0.9fr) minmax(520px, auto);
+  grid-template-columns: minmax(300px, 0.82fr) minmax(620px, 1fr) minmax(56px, max-content);
   align-items: center;
-  gap: clamp(18px, 2vw, 34px);
+  gap: clamp(14px, 1.35vw, 24px);
   min-height: 78px;
   padding: 10px 32px 12px;
 }
@@ -17312,6 +17312,175 @@ body.site-home .bh-site-titlebar-actions {
   justify-content: flex-end;
   gap: 10px;
   min-width: 0;
+}
+
+body.site-home .bh-site-header {
+  z-index: 180;
+}
+
+body.site-home .bh-nav-keywords {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+body.site-home .bh-nav-keyword-tabs {
+  display: flex;
+  justify-content: center;
+  gap: clamp(18px, 2.25vw, 36px);
+  align-items: center;
+  min-height: 40px;
+  overflow: visible;
+  padding: 0;
+  scrollbar-width: none;
+}
+
+body.site-home .bh-nav-keyword-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+body.site-home .bh-nav-keyword-tab {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+body.site-home .bh-nav-keyword-tab::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #1184d8;
+  transform: translateX(-50%);
+  transition: width 180ms ease;
+}
+
+body.site-home .bh-nav-keyword-tab:hover,
+body.site-home .bh-nav-keyword-tab:focus-visible {
+  color: #fff;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+body.site-home .bh-nav-keyword-tab.is-active {
+  color: #fff;
+}
+
+body.site-home .bh-nav-keyword-tab.is-active::after {
+  width: 100%;
+}
+
+body.site-home .bh-nav-keyword-panels {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 89px;
+  z-index: 181;
+  pointer-events: none;
+}
+
+body.site-home .bh-nav-keyword-panel {
+  display: grid;
+  grid-template-columns: minmax(142px, 0.22fr) minmax(0, 1fr);
+  gap: 0 clamp(24px, 3vw, 44px);
+  align-items: start;
+  width: 100%;
+  min-height: 0;
+  padding: 18px max(40px, calc((100vw - 980px) / 2)) 20px;
+  border-top: 1px solid #dbe1e6;
+  background: #f4f7f9;
+  color: #212529;
+  box-shadow: 0 14px 22px rgba(14, 28, 42, 0.18);
+  pointer-events: auto;
+  animation: bhNavKeywordPanelIn 180ms ease both;
+}
+
+body.site-home .bh-nav-keyword-panel::before {
+  content: attr(data-bh-panel-title);
+  align-self: stretch;
+  padding: 0 28px 0 0;
+  border-right: 1px solid #d5dde4;
+  color: #212529;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+body.site-home .bh-nav-keyword-panel[hidden] {
+  display: none !important;
+}
+
+body.site-home .bh-nav-keyword-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 9px clamp(18px, 2.2vw, 34px);
+  align-items: start;
+  justify-content: stretch;
+  min-width: 0;
+}
+
+body.site-home .bh-nav-keyword-panel a {
+  display: block;
+  min-width: 0;
+  min-height: 23px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #687076;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.35;
+  text-decoration: none;
+  white-space: normal;
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+body.site-home .bh-nav-keyword-panel a:hover,
+body.site-home .bh-nav-keyword-panel a:focus-visible,
+body.site-home .bh-nav-keyword-panel a.is-geo-keyword-pressed {
+  color: #212529;
+  outline: none;
+  transform: translateX(3px);
+}
+
+@keyframes bhNavKeywordPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle,
@@ -17495,6 +17664,58 @@ body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-compac
   body.site-home .bh-site-titlebar-actions {
     grid-area: actions;
   }
+
+  body.site-home .bh-nav-keywords {
+    width: auto;
+    margin-bottom: 0;
+    padding-inline: 0;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  body.site-home .bh-site-nav {
+    grid-template-columns: minmax(260px, 0.8fr) minmax(374px, max-content) minmax(54px, max-content);
+    grid-template-areas: "brand links actions";
+    gap: 12px;
+  }
+
+  body.site-home .bh-site-brand > img {
+    width: 44px;
+    height: 44px;
+  }
+
+  body.site-home .bh-site-brand span {
+    max-width: 210px;
+  }
+
+  body.site-home .bh-site-brand strong {
+    font-size: 1rem;
+    line-height: 1.08;
+  }
+
+  body.site-home .bh-site-brand small {
+    font-size: 0.68rem;
+  }
+
+  body.site-home .bh-site-nav-links.bh-nav-keywords {
+    justify-content: center;
+    overflow: visible;
+  }
+
+  body.site-home .bh-nav-keyword-tabs {
+    gap: clamp(12px, 1.5vw, 18px);
+  }
+
+  body.site-home .bh-nav-keyword-tab {
+    font-size: 14px;
+  }
+
+  body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle {
+    width: 132px;
+    min-width: 132px;
+    padding-inline: 14px;
+    font-size: 0.84rem;
+  }
 }
 
 @media (max-width: 760px) {
@@ -17503,11 +17724,16 @@ body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-compac
     display: none;
   }
 
+  body.site-home .bh-site-nav-links.bh-nav-keywords {
+    display: flex !important;
+  }
+
   body.site-home .bh-site-nav {
     grid-template-columns: 1fr;
     grid-template-areas:
       "brand"
-      "actions";
+      "actions"
+      "links";
     gap: 10px;
   }
 
@@ -17518,6 +17744,56 @@ body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-compac
 
   body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle {
     min-width: 128px;
+  }
+
+  body.site-home .bh-nav-keywords {
+    width: auto;
+    padding-inline: 0;
+  }
+
+  body.site-home .bh-nav-keyword-tab {
+    min-height: 46px;
+    padding-inline: 2px;
+    font-size: 14px;
+  }
+
+  body.site-home .bh-nav-keyword-tabs {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    overflow: visible;
+  }
+
+  body.site-home .bh-nav-keyword-panels {
+    position: absolute;
+    top: 100%;
+  }
+
+  body.site-home .bh-nav-keyword-panel {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 18px;
+    min-height: 0;
+    max-height: min(62vh, 420px);
+    overflow-y: auto;
+    padding: 20px 18px 22px;
+  }
+
+  body.site-home .bh-nav-keyword-panel::before {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    padding: 0 0 10px;
+    border-right: 0;
+    border-bottom: 1px solid #d5dde4;
+    font-size: 17px;
+  }
+
+  body.site-home .bh-nav-keyword-panel a {
+    min-height: 28px;
+    font-size: 14px;
+  }
+
+  body.site-home .bh-nav-keyword-list {
+    display: contents;
   }
 
   body.site-home .bh-site-titlebar-actions .bh-site-nav-cta {
@@ -18480,6 +18756,13 @@ body.site-home #figure-results.figure-results-static .market-item-card.figure-ca
   overflow: hidden;
 }
 
+body.site-home #figure-results .market-item-card.figure-case-card,
+body.site-home #figure-results .figure-results-carousel-page {
+  content-visibility: auto;
+  contain: layout paint style;
+  contain-intrinsic-size: 380px 446px;
+}
+
 body.site-home #figure-results.figure-results-static .market-item-card.figure-case-card.portal-suumo-card:hover,
 body.site-home #figure-results.figure-results-static .market-item-card.figure-case-card.portal-suumo-card:focus-within {
   transform: translateY(-7px) scale(1.012) !important;
@@ -18796,7 +19079,32 @@ body.site-home .bh-site-brand strong {
 }
 
 body.site-home .bh-site-nav {
-  grid-template-columns: minmax(310px, 0.92fr) minmax(300px, 0.86fr) minmax(520px, auto) !important;
+  grid-template-columns: minmax(300px, 0.82fr) minmax(620px, 1fr) minmax(56px, max-content) !important;
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  body.site-home .bh-site-nav {
+    grid-template-columns: minmax(252px, 0.72fr) minmax(374px, max-content) minmax(54px, max-content) !important;
+  }
+
+  body.site-home .bh-site-brand {
+    gap: 10px !important;
+  }
+
+  body.site-home .bh-site-brand > img,
+  body.site-home .bh-site-brand-logo {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  body.site-home .bh-site-brand strong {
+    font-size: 1rem !important;
+    line-height: 1.08;
+  }
+
+  body.site-home .bh-site-brand small {
+    font-size: 0.68rem !important;
+  }
 }
 
 body.site-home .jp-map-selected-pref-panel {
