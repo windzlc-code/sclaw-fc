@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260615-admin-tencent-c">
+  <link rel="stylesheet" href="/static/site.css?v=20260615-admin-integrity-b">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -793,23 +793,24 @@
       </div>
       <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
         <div class="admin-tab-group" data-admin-group="daily">
-          <span class="admin-tab-group-label">日常運營</span>
+          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="daily" aria-expanded="true">日常運營</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">案件</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">留單</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
         </div>
         <div class="admin-tab-group" data-admin-group="support">
-          <span class="admin-tab-group-label">客服 AI</span>
+          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="support" aria-expanded="true">客服 AI</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="support-hub">客服訓練</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">通知</button>
         </div>
         <div class="admin-tab-group" data-admin-group="maintenance">
-          <span class="admin-tab-group-label">數據維護</span>
+          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="maintenance" aria-expanded="true">數據維護</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="home-content">首頁內容</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">首頁報表</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="leads">社群雷達</button>
         </div>
         <div class="admin-tab-group" data-admin-group="system">
-          <span class="admin-tab-group-label">系統設定</span>
+          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="system" aria-expanded="true">系統設定</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="llm">AI 供應商</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼</button>
         </div>
@@ -830,12 +831,13 @@
         <button type="button" id="admin-console-primary" data-admin-console-anchor="0" class="is-active">案件資料</button>
         <button type="button" id="admin-console-secondary" data-admin-console-anchor="1">條件查詢</button>
         <button type="button" id="admin-console-tertiary" data-admin-console-anchor="2">列表管理</button>
+        <button type="button" id="admin-console-quaternary" data-admin-console-anchor="3" hidden></button>
+        <button type="button" id="admin-console-quinary" data-admin-console-anchor="4" hidden></button>
       </nav>
       <div class="admin-console-toolbar" role="toolbar" aria-label="目前模組操作">
         <span>目前頁面操作</span>
         <button type="button" class="secondary" data-admin-console-command="refresh">刷新</button>
-        <button type="button" class="secondary" data-admin-console-command="expand">展開配置</button>
-        <button type="button" class="secondary" data-admin-console-command="collapse">收合配置</button>
+        <button type="button" class="secondary admin-console-toggle" data-admin-console-command="toggle-details" aria-pressed="false">展開配置</button>
       </div>
       <div class="admin-console-notice" role="note">
         <span>提示</span>
@@ -852,18 +854,23 @@
           <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">03</span><span><strong>客服 AI</strong><small>訓練與提示詞</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">04</span><span><strong>知識庫</strong><small>問答素材</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>通知</strong><small>LINE / TG</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">06</span><span><strong>數據維護</strong><small>首頁與報表</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('home-content')"><span class="admin-flow-index">06</span><span><strong>首頁內容</strong><small>輪播與口播</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">07</span><span><strong>首頁報表</strong><small>七站數據</small></span></button>
         </div>
         <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
       </div>
 
-      <div id="admin-tab-portal-matrix" class="admin-tab-panel" role="tabpanel">
+      <div id="admin-tab-home-content" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
-        <details class="admin-home-hero-panel admin-management-section">
-          <summary>
-            <strong>首頁內容管理</strong>
-            <span class="muted">影片輪播、口播介紹、首頁主視覺</span>
-          </summary>
+        <div class="admin-home-hero-panel admin-management-section">
+          <div class="admin-panel-title-row admin-panel-title-row--compact">
+            <h3 class="config-subhead">首頁內容管理</h3>
+            <div class="admin-ui-chipline" aria-label="首頁內容摘要">
+              <span>影片輪播</span>
+              <span>口播介紹</span>
+              <span>首頁主視覺</span>
+            </div>
+          </div>
           <div class="admin-management-section-body">
           <div class="admin-home-hero-panel-head">
             <div>
@@ -893,6 +900,8 @@
                 <button type="button" onclick="uploadAdminHomeHero()">上傳影片</button>
                 <button type="button" class="secondary" onclick="useUploadedHomeHero()">套用目前第一支影片</button>
               </div>
+            </div>
+          </div>
               <div class="admin-home-carousel-manager">
                 <div class="admin-home-carousel-manager-head">
                   <div>
@@ -917,8 +926,6 @@
                 </div>
                 <p id="admin-home-carousel-msg" class="muted" style="margin:0.45rem 0 0;font-size:0.85rem;"></p>
               </div>
-            </div>
-          </div>
           <p id="admin-home-hero-msg" class="muted" style="margin:0.55rem 0 0;font-size:0.85rem;"></p>
           <div class="home-intro-video-panel">
             <div class="home-intro-video-head">
@@ -956,7 +963,12 @@
             <p id="home-intro-video-msg" class="muted" style="margin:0.45rem 0 0;font-size:0.85rem;"></p>
           </div>
           </div>
-        </details>
+        </div>
+      </div>
+      </div>
+
+      <div id="admin-tab-portal-matrix" class="admin-tab-panel" role="tabpanel">
+      <div class="panel">
         <h3 class="config-subhead">七大站 × 全地區案件數統計</h3>
         <p class="muted" style="margin:0 0 0.65rem;line-height:1.55;">查看七大站各地區案件量；資料不足時先執行下方補齊流程。</p>
         <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;margin-bottom:0.5rem;">
@@ -981,7 +993,7 @@
         </div>
         <p id="admin-portal-matrix-msg" class="muted" style="font-size:13px;"></p>
         <div id="admin-portal-matrix-summary" class="muted" style="font-size:13px;margin:0.35rem 0;line-height:1.55;"></div>
-        <div class="panel support-bot-status-panel" style="margin:0.55rem 0;padding:0.7rem 0.8rem;">
+        <div class="panel support-bot-status-panel admin-data-completion-bot-panel" style="margin:0.55rem 0;padding:0.7rem 0.8rem;">
           <h3 class="config-subhead" style="margin-top:0;">資料補全自我優化 BOT</h3>
           <p class="muted" style="margin:0 0 0.55rem;line-height:1.5;">自動檢查缺圖、缺文字與 0 格資料。</p>
           <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.45rem;">
@@ -1004,9 +1016,8 @@
       <div class="panel support-bot-status-panel">
         <h3 class="config-subhead">智能客服自我評估 BOT 狀態</h3>
         <p class="muted">查看客服回覆品質與留單引導狀態。</p>
-        <div class="search-row-basic" style="grid-template-columns:auto auto;justify-content:start;gap:0.5rem;">
+        <div class="search-row-basic" style="grid-template-columns:auto;justify-content:start;gap:0.5rem;">
           <button type="button" class="secondary" onclick="loadAdminSupportBotStatus()">重新載入 BOT 狀態</button>
-          <button type="button" class="secondary" onclick="switchAdminTab('leads')">查看線索報表</button>
         </div>
         <div id="admin-support-bot-status" class="muted">請先登入後台載入智能客服自評狀態。</div>
       </div>
@@ -1303,22 +1314,74 @@
           <input type="hidden" id="home_hero_key" value="{{ home_hero.key }}">
           <input type="hidden" id="home_hero_custom_url" value="{{ home_hero.custom_url or '' }}">
           <input type="hidden" id="home_carousel_items" value='{{ (crawl_settings.home_carousel_items or [])|tojson|forceescape }}'>
-          <input type="text" id="source_name" tabindex="-1" autocomplete="off" value="">
-          <input type="text" id="source_category" tabindex="-1" value="自訂來源">
-          <input type="url" id="source_url" tabindex="-1" value="https://example.com">
-          <input type="text" id="source_note" tabindex="-1" value="">
-          <input id="per_source_limit" type="number" min="1" max="10000" value="20" tabindex="-1">
-          <input id="interval_hours" type="number" min="1" max="48" value="2" tabindex="-1">
-          <input id="market_interval_hours" type="number" min="1" max="24" value="1" tabindex="-1">
-          <input id="market_max_records" type="number" min="100" max="100000" value="10000" tabindex="-1">
-          <input id="market_retention_days" type="number" min="1" max="365" value="15" tabindex="-1">
-          <input id="portal_query_max_records" type="number" min="10" max="100000" value="100000" tabindex="-1">
-          <input id="portal_query_max_age_days" type="number" min="1" max="366" value="180" tabindex="-1">
-          <input id="smart_query_show_sell" type="checkbox" tabindex="-1">
-          <input id="smart_query_show_rent" type="checkbox" tabindex="-1">
         </div>
 
         <div id="admin-cases-subtab-general" class="admin-cases-subtab-panel is-active">
+        <details class="admin-case-settings-details admin-case-settings-details--sources" open>
+          <summary>
+            <strong>來源管理</strong>
+            <span class="muted">新增來源、排程、啟停與立即爬取</span>
+          </summary>
+          <div class="admin-source-console">
+            <div class="admin-source-console__form">
+              <div class="search-row-basic" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:0.65rem;">
+                <label class="muted">來源名稱
+                  <input type="text" id="source_name" autocomplete="off" placeholder="例：SUUMO 東京">
+                </label>
+                <label class="muted">來源類別
+                  <input type="text" id="source_category" value="自訂來源" placeholder="例：主流找房">
+                </label>
+              </div>
+              <label class="muted" style="display:block;margin-top:0.55rem;">來源網址
+                <input type="url" id="source_url" value="https://example.com" placeholder="https://..." style="width:100%;">
+              </label>
+              <label class="muted" style="display:block;margin-top:0.55rem;">備註
+                <input type="text" id="source_note" placeholder="來源用途、地區或抓取說明" style="width:100%;">
+              </label>
+              <div class="search-row-basic" style="margin-top:0.65rem;gap:0.5rem;">
+                <button type="button" onclick="addSource()">新增來源</button>
+                <button type="button" class="secondary" onclick="loadSourceList()">重新載入來源</button>
+              </div>
+              <p id="source-add-msg" class="muted" style="margin:0.4rem 0 0;"></p>
+            </div>
+            <div class="admin-source-console__settings">
+              <div class="admin-setting-grid">
+                <label class="muted">每來源上限
+                  <input id="per_source_limit" type="number" min="1" max="10000" value="20">
+                </label>
+                <label class="muted">爬取間隔（小時）
+                  <input id="interval_hours" type="number" min="1" max="48" value="2">
+                </label>
+                <label class="muted">圖頁籤間隔
+                  <input id="market_interval_hours" type="number" min="1" max="24" value="1">
+                </label>
+                <label class="muted">市場資料上限
+                  <input id="market_max_records" type="number" min="100" max="100000" value="10000">
+                </label>
+                <label class="muted">保留天數
+                  <input id="market_retention_days" type="number" min="1" max="365" value="15">
+                </label>
+                <label class="muted">智慧查詢上限
+                  <input id="portal_query_max_records" type="number" min="10" max="100000" value="100000">
+                </label>
+                <label class="muted">新鮮度天數
+                  <input id="portal_query_max_age_days" type="number" min="1" max="366" value="180">
+                </label>
+              </div>
+              <div class="quick-chips" style="margin-top:0.65rem;">
+                <label class="chip"><input id="smart_query_show_sell" type="checkbox"> 顯示買屋</label>
+                <label class="chip"><input id="smart_query_show_rent" type="checkbox"> 顯示租屋</label>
+                <button type="button" class="chip" onclick="applySourceGroupPreset('mainstream')">主流找房模式</button>
+                <button type="button" class="chip" onclick="applySourceGroupPreset('research_all')">研究全開模式</button>
+              </div>
+              <div class="search-row-basic" style="margin-top:0.65rem;">
+                <button type="button" onclick="saveCrawlSettings()">儲存來源與排程設定</button>
+              </div>
+            </div>
+          </div>
+          <div id="source-list" class="source-list-wrap"><p class="muted">尚未載入來源清單。</p></div>
+          <div id="source-health" class="muted"></div>
+        </details>
         <details class="admin-case-settings-details admin-case-settings-details--filters" open>
           <summary>
             <strong>案件篩選</strong>
@@ -1551,8 +1614,8 @@
           </label>
           <button type="button" class="secondary" onclick="loadConfigKnowledgePreview()">載入列表</button>
         </div>
-        <div id="config-knowledge-preview" class="config-knowledge-preview muted">尚未載入。切換至本頁籤時可載入列表。</div>
       </div>
+      <div id="config-knowledge-preview" class="config-knowledge-preview muted">尚未載入。切換至本頁籤時可載入列表。</div>
       </div>
 
       <div id="admin-tab-password" class="admin-tab-panel" role="tabpanel">
@@ -1583,7 +1646,7 @@
           <span id="admin-tg-config-line">Telegram 本機設定：—</span><br>
           <span id="admin-line-config-line">LINE 本機設定：—</span>
         </div>
-        <div class="panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
+        <div class="panel admin-telegram-line-panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
           <h4 class="config-subhead" style="margin-top:0;">LINE 官方帳號</h4>
           <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">填入 LINE 設定後，可接收人工通知並回覆客戶。</p>
           <div class="search-row-basic" style="align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.55rem;">
@@ -1622,7 +1685,7 @@
           <p id="admin-line-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
           <pre id="admin-line-webhook-status" class="muted" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
         </div>
-        <div class="panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
+        <div class="panel admin-telegram-accounts-panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
           <h4 class="config-subhead" style="margin-top:0;">多顧問／多 Bot</h4>
           <p class="muted" style="margin:0 0 0.5rem;line-height:1.5;">每列是一個 Bot／顧問收件帳號；預設通知只發給「使用中」帳號。</p>
           <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;font-size:13px;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;">
@@ -1639,7 +1702,7 @@
             <button type="button" onclick="saveAdminTelegramAccounts()">儲存帳號列表</button>
           </div>
         </div>
-        <div class="panel" style="margin:0 0 0.8rem;padding:10px 12px;border:1px solid #dbeafe;background:#f8fbff;">
+        <div class="panel admin-telegram-quick-panel" style="margin:0 0 0.8rem;padding:10px 12px;border:1px solid #dbeafe;background:#f8fbff;">
           <h4 class="config-subhead" style="margin-top:0;">一鍵通知（推薦）</h4>
           <p class="muted" style="margin:0.25rem 0 0.45rem;">同步目前 Session，填入訊息，一鍵通知顧問。</p>
           <div class="search-row-basic" style="grid-template-columns:auto 1fr;align-items:center;margin-top:0.2rem;">
@@ -3560,6 +3623,7 @@
     let adminHandoffCurrentId = 0;
     let adminCasesCrawlTaskId = '';
     let adminCasesCrawlPollTimer = 0;
+    let adminCasesLoadTimer = 0;
     let latestSocialRadarItems = [];
     let latestSalesLeadBoardItems = [];
     let latestSalesLeadBoardRawCount = 0;
@@ -3567,14 +3631,18 @@
     const SALES_LEAD_BOARD_PAGE_SIZE = 12;
     let adminSimpleMode = true;
     const ADMIN_SIMPLE_MODE_CACHE_KEY = 'sclaw.admin.simple_mode.v2';
-    const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'portal-matrix']);
+    const ADMIN_SIDEBAR_COLLAPSE_CACHE_KEY = 'sclaw.admin.sidebar_collapsed.v1';
+    let adminCollapsedSidebarGroups = new Set();
+    let adminConsoleSectionIndex = 0;
+    const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'home-content', 'portal-matrix', 'leads', 'llm', 'password']);
     const ADMIN_TAB_LABEL_MAP = {
       cases: '案件管理',
       handoffs: '客戶留單',
       'support-hub': '客服 AI 訓練',
       knowledge: '知識庫',
       telegram: 'LINE/TG 通知',
-      'portal-matrix': '首頁內容／數據報表',
+      'home-content': '首頁內容管理',
+      'portal-matrix': '首頁報表',
       leads: '社群雷達',
       llm: 'AI 供應商設定',
       password: '密碼管理',
@@ -3600,9 +3668,13 @@
         desc: '設定 LINE／Telegram 通知與人工回覆通道。',
         chips: ['通知通道', 'Webhook', '人工接手'],
       },
+      'home-content': {
+        desc: '管理首頁影片輪播、主視覺素材與 16:9 口播介紹影片。',
+        chips: ['影片輪播', '口播介紹', '首頁套用'],
+      },
       'portal-matrix': {
-        desc: '管理首頁內容、七大門戶報表與資料補齊流程。',
-        chips: ['首頁內容', '七站報表', '資料補齊'],
+        desc: '查看七大門戶案件數、資料缺口與補齊流程。',
+        chips: ['七站報表', '資料補齊', 'BOT 巡檢'],
       },
       leads: {
         desc: '整理社群互動名單，辨識高意願客戶。',
@@ -3617,10 +3689,64 @@
         chips: ['登入安全', '密碼更新', '權限管理'],
       },
     };
+    const ADMIN_TAB_SECTION_MAP = {
+      cases: [
+        { label: '來源管理', selector: '#admin-cases-subtab-general .admin-case-settings-details--sources' },
+        { label: '條件查詢', selector: '#admin-cases-subtab-general .admin-case-settings-details--filters' },
+        { label: '批量工具', selector: '#admin-cases-subtab-general .admin-case-settings-details--tools' },
+        { label: '案件列表', selector: '#admin-cases-list-wrap' },
+      ],
+      handoffs: [
+        { label: '留單列表', selector: '#admin-tab-handoffs > .panel' },
+        { label: '留單詳情', selector: '#admin-handoff-detail' },
+      ],
+      'support-hub': [
+        { label: '客服狀態', selector: '#admin-tab-support-hub > .support-bot-status-panel' },
+        { label: '場景管理', selector: '#admin-support-hub-section-scenarios' },
+        { label: 'Q&A / CRM', selector: '#admin-support-hub-section-support-qa' },
+        { label: '提示詞', selector: '#admin-support-hub-section-support-crm' },
+      ],
+      knowledge: [
+        { label: '知識篩選', selector: '#admin-tab-knowledge > .panel' },
+        { label: '內容預覽', selector: '#config-knowledge-preview' },
+      ],
+      telegram: [
+        { label: '連線自檢', selector: '#admin-tg-auto-status' },
+        { label: 'LINE 設定', selector: '.admin-telegram-line-panel' },
+        { label: '顧問 Bot', selector: '.admin-telegram-accounts-panel' },
+        { label: '一鍵通知', selector: '.admin-telegram-quick-panel' },
+        { label: '進階通知', selector: '#admin-tab-telegram details.panel' },
+      ],
+      'home-content': [
+        { label: '首頁影片', selector: '.admin-home-hero-layout' },
+        { label: '口播影片', selector: '.home-intro-video-panel' },
+        { label: '輪播清單', selector: '.admin-home-carousel-manager' },
+      ],
+      'portal-matrix': [
+        { label: '七站報表', selector: '#admin-portal-matrix-wrap' },
+        { label: '資料補齊', selector: '.admin-seven-portal-flow' },
+        { label: 'BOT 巡檢', selector: '.admin-data-completion-bot-panel' },
+      ],
+      leads: [
+        { label: '導入分析', selector: '.social-radar-tools' },
+        { label: '分析結果', selector: '#social-radar-results' },
+        { label: '線索看板', selector: '#admin-tab-leads > .panel:nth-of-type(2)' },
+      ],
+      llm: [
+        { label: '供應商設定', selector: '#admin-tab-llm > .panel' },
+      ],
+      password: [
+        { label: '密碼更新', selector: '#admin-tab-password > .panel' },
+      ],
+    };
     try {
       const cached = String(localStorage.getItem(ADMIN_SIMPLE_MODE_CACHE_KEY) || '').trim();
       if (cached === '0' || cached === '1') {
         adminSimpleMode = cached === '1';
+      }
+      const collapsed = JSON.parse(localStorage.getItem(ADMIN_SIDEBAR_COLLAPSE_CACHE_KEY) || '[]');
+      if (Array.isArray(collapsed)) {
+        adminCollapsedSidebarGroups = new Set(collapsed.map((x) => String(x || '')).filter(Boolean));
       }
     } catch (_) {
       // ignore
@@ -10165,6 +10291,7 @@
       const drawer = document.getElementById('admin-drawer');
       if (!drawer) return;
       const targetTab = adminSimpleMode && !ADMIN_SIMPLE_CORE_TABS.has(t) ? 'cases' : t;
+      openAdminSidebarGroupForTab(targetTab);
       drawer.dataset.adminActiveTab = targetTab;
       drawer.querySelectorAll('.admin-tab-btn').forEach((btn) => {
         const isActive = btn.getAttribute('data-admin-tab') === targetTab;
@@ -10175,20 +10302,29 @@
         const id = String(panel.id || '').replace(/^admin-tab-/, '');
         panel.classList.toggle('is-active', id === targetTab);
       });
+      adminConsoleSectionIndex = 0;
+      syncAdminSidebarGroups(targetTab);
       updateAdminFlowHint(targetTab);
       updateAdminConsoleHero(targetTab);
       if (targetTab !== 'cases') {
         stopAdminCasesCrawlPolling();
+        if (adminCasesLoadTimer) {
+          clearTimeout(adminCasesLoadTimer);
+          adminCasesLoadTimer = 0;
+        }
       }
       if (targetTab !== 'telegram') {
         stopAdminTelegramDebugPoll();
       }
-      if ((targetTab === 'cases' || targetTab === 'portal-matrix') && adminPanelPassword) {
+      if ((targetTab === 'cases' || targetTab === 'home-content') && adminPanelPassword) {
         loadCrawlSettings().catch(() => {});
         if (targetTab === 'cases') {
-          loadAdminCasesPage();
           switchAdminCasesSubtab('general');
         }
+      }
+      if (targetTab === 'home-content' && adminPanelPassword) {
+        loadAdminHomeCarousel().catch(() => {});
+        loadHomeIntroSpokespersons(true).catch(() => {});
       }
       if (targetTab === 'telegram') {
         refreshTelegramTabBackendHealthOnly().then(() => {
@@ -10251,18 +10387,126 @@
       const title = document.getElementById('admin-console-title');
       const desc = document.getElementById('admin-console-desc');
       const pathCurrent = document.getElementById('admin-console-path-current');
-      const primary = document.getElementById('admin-console-primary');
-      const secondary = document.getElementById('admin-console-secondary');
-      const tertiary = document.getElementById('admin-console-tertiary');
       const meta = ADMIN_TAB_META_MAP[key] || ADMIN_TAB_META_MAP.cases;
-      const chips = Array.isArray(meta.chips) ? meta.chips : [];
       if (title) title.textContent = ADMIN_TAB_LABEL_MAP[key] || key;
       if (pathCurrent) pathCurrent.textContent = ADMIN_TAB_LABEL_MAP[key] || key;
       if (desc) desc.textContent = meta.desc || '';
-      if (primary) primary.textContent = chips[0] || '管理';
-      if (secondary) secondary.textContent = chips[1] || '查看';
-      if (tertiary) tertiary.textContent = chips[2] || '設定';
-      updateAdminConsoleAnchorState(0);
+      syncAdminConsoleSectionTabs(key);
+      applyAdminConsoleSectionVisibility(key, adminConsoleSectionIndex);
+      syncAdminConsoleDetailsToggle();
+    }
+
+    function getAdminConsoleSections(tab) {
+      const key = String(tab || 'cases');
+      const panel = document.getElementById(`admin-tab-${key}`);
+      if (!panel) return [];
+      const mapped = Array.isArray(ADMIN_TAB_SECTION_MAP[key]) ? ADMIN_TAB_SECTION_MAP[key] : [];
+      const sections = [];
+      mapped.forEach((item) => {
+        const target = panel.querySelector(item.selector);
+        if (!target) return;
+        sections.push({ label: item.label, target });
+      });
+      if (sections.length) return sections;
+      return Array.from(panel.querySelectorAll(':scope > .panel, :scope > details.panel, :scope > .admin-management-section'))
+        .slice(0, 3)
+        .map((target, index) => {
+          const labelNode = target.querySelector('summary strong, h3.config-subhead, h4.config-subhead, strong');
+          const label = String(labelNode?.textContent || '').trim() || `區塊 ${index + 1}`;
+          return { label, target };
+        });
+    }
+
+    function syncAdminConsoleSectionTabs(tab) {
+      const key = String(tab || 'cases');
+      const sections = getAdminConsoleSections(key);
+      const buttons = Array.from(document.querySelectorAll('[data-admin-console-anchor]'));
+      buttons.forEach((btn, index) => {
+        const section = sections[index];
+        btn.hidden = !section;
+        btn.disabled = !section;
+        btn.textContent = section ? section.label : '';
+        btn.setAttribute('aria-hidden', section ? 'false' : 'true');
+      });
+      const nav = document.querySelector('.admin-console-module-tabs');
+      if (nav) {
+        nav.hidden = sections.length <= 1;
+        nav.dataset.sectionCount = String(sections.length);
+      }
+    }
+
+    function applyAdminConsoleSectionVisibility(tab, index) {
+      const key = String(tab || 'cases');
+      const sections = getAdminConsoleSections(key);
+      const max = Math.max(0, sections.length - 1);
+      const current = Math.min(max, Math.max(0, Number(index) || 0));
+      adminConsoleSectionIndex = current;
+      updateAdminConsoleAnchorState(current);
+      const sectionTargets = new Set(sections.map((section) => section.target));
+      sections.forEach((section, i) => {
+        section.target.classList.toggle('admin-console-section-page', true);
+        section.target.classList.toggle('is-admin-section-active', i === current);
+      });
+      const activeSection = sections[current];
+      if (key === 'cases' && activeSection && activeSection.target && activeSection.target.id === 'admin-cases-list-wrap') {
+        scheduleAdminCasesPageLoad(60);
+      } else if (key === 'cases' && adminCasesLoadTimer) {
+        clearTimeout(adminCasesLoadTimer);
+        adminCasesLoadTimer = 0;
+      }
+      const panel = document.getElementById(`admin-tab-${key}`);
+      if (!panel) return;
+      panel.querySelectorAll('.admin-console-section-page').forEach((node) => {
+        if (!sectionTargets.has(node)) {
+          node.classList.remove('admin-console-section-page', 'is-admin-section-active');
+        }
+      });
+    }
+
+    function persistAdminSidebarGroups() {
+      try {
+        localStorage.setItem(ADMIN_SIDEBAR_COLLAPSE_CACHE_KEY, JSON.stringify(Array.from(adminCollapsedSidebarGroups)));
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    function syncAdminSidebarGroups(activeTab) {
+      const drawer = document.getElementById('admin-drawer');
+      if (!drawer) return;
+      drawer.querySelectorAll('.admin-tab-group').forEach((group) => {
+        const key = String(group.getAttribute('data-admin-group') || '');
+        const toggle = group.querySelector('[data-admin-group-toggle]');
+        const collapsed = adminCollapsedSidebarGroups.has(key);
+        group.classList.toggle('is-collapsed', collapsed);
+        if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      });
+      persistAdminSidebarGroups();
+    }
+
+    function openAdminSidebarGroupForTab(tab) {
+      const drawer = document.getElementById('admin-drawer');
+      if (!drawer) return;
+      const activeBtn = drawer.querySelector(`.admin-tab-btn[data-admin-tab="${CSS.escape(String(tab || ''))}"]`);
+      const group = activeBtn ? activeBtn.closest('.admin-tab-group') : null;
+      const key = String(group?.getAttribute('data-admin-group') || '');
+      if (key) adminCollapsedSidebarGroups.delete(key);
+    }
+
+    function syncAdminConsoleDetailsToggle() {
+      const drawer = document.getElementById('admin-drawer');
+      const btn = document.querySelector('[data-admin-console-command="toggle-details"]');
+      if (!drawer || !btn) return;
+      const activeTab = drawer.dataset.adminActiveTab || 'cases';
+      const panel = document.getElementById(`admin-tab-${activeTab}`);
+      const details = panel ? Array.from(panel.querySelectorAll('details')) : [];
+      const hasDetails = details.length > 0;
+      const allOpen = hasDetails && details.every((node) => node.open);
+      btn.hidden = !hasDetails;
+      btn.disabled = !hasDetails;
+      btn.textContent = allOpen ? '收合配置' : '展開配置';
+      btn.setAttribute('aria-pressed', allOpen ? 'true' : 'false');
+      btn.setAttribute('aria-expanded', allOpen ? 'true' : 'false');
     }
 
     function updateAdminConsoleAnchorState(index) {
@@ -10278,14 +10522,7 @@
       const drawer = document.getElementById('admin-drawer');
       if (!drawer) return;
       const activeTab = drawer.dataset.adminActiveTab || 'cases';
-      const panel = document.getElementById(`admin-tab-${activeTab}`);
-      if (!panel) return;
-      const targets = Array.from(panel.querySelectorAll(':scope > .panel, :scope > details.panel, :scope > .admin-management-section, :scope > p + .panel'));
-      const target = targets[Math.max(0, Number(index) || 0)] || panel;
-      if (target && typeof target.scrollIntoView === 'function') {
-        updateAdminConsoleAnchorState(index);
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      applyAdminConsoleSectionVisibility(activeTab, index);
     }
 
     function runAdminGlobalSearch() {
@@ -10330,11 +10567,14 @@
       if (!panel) return;
       const details = Array.from(panel.querySelectorAll('details'));
       if (!details.length) return;
-      const shouldOpen = cmd === 'expand';
-      if (cmd === 'expand' || cmd === 'collapse') {
+      const shouldOpen = cmd === 'toggle-details'
+        ? !details.every((node) => node.open)
+        : cmd === 'expand';
+      if (cmd === 'toggle-details' || cmd === 'expand' || cmd === 'collapse') {
         details.forEach((node) => {
           node.open = shouldOpen;
         });
+        syncAdminConsoleDetailsToggle();
         const first = details[0];
         if (first && typeof first.scrollIntoView === 'function') {
           first.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -10383,6 +10623,7 @@
       } else if (!activeTab) {
         switchAdminTab('cases');
       } else {
+        syncAdminSidebarGroups(activeTab);
         updateAdminFlowHint(activeTab);
         updateAdminConsoleHero(activeTab);
       }
@@ -10403,6 +10644,19 @@
       if (!bar || bar.dataset.bound === '1') return;
       bar.dataset.bound = '1';
       bar.addEventListener('click', (ev) => {
+        const groupToggle = ev.target && ev.target.closest ? ev.target.closest('[data-admin-group-toggle]') : null;
+        if (groupToggle && bar.contains(groupToggle)) {
+          const group = groupToggle.closest('.admin-tab-group');
+          const key = String(group?.getAttribute('data-admin-group') || groupToggle.getAttribute('data-admin-group-toggle') || '');
+          if (!key) return;
+          if (adminCollapsedSidebarGroups.has(key)) {
+            adminCollapsedSidebarGroups.delete(key);
+          } else {
+            adminCollapsedSidebarGroups.add(key);
+          }
+          syncAdminSidebarGroups(document.getElementById('admin-drawer')?.dataset.adminActiveTab || 'cases');
+          return;
+        }
         const btn = ev.target && ev.target.closest ? ev.target.closest('.admin-tab-btn') : null;
         if (!btn || !bar.contains(btn)) return;
         const tab = btn.getAttribute('data-admin-tab');
@@ -12433,6 +12687,17 @@
         window.__adminCasesLastItems = [];
         wrap.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
       }
+    }
+
+    function scheduleAdminCasesPageLoad(delayMs = 80) {
+      if (adminCasesLoadTimer) {
+        clearTimeout(adminCasesLoadTimer);
+        adminCasesLoadTimer = 0;
+      }
+      adminCasesLoadTimer = setTimeout(() => {
+        adminCasesLoadTimer = 0;
+        loadAdminCasesPage().catch(() => {});
+      }, Math.max(0, Number(delayMs) || 0));
     }
 
     /** 依該筆來源 item_url 重爬物件頁並 pipeline 回寫（圖片網址、原文、站內摘要）。 */
@@ -15715,6 +15980,10 @@
 
     function clearAdminAuth() {
       stopAdminCasesCrawlPolling();
+      if (adminCasesLoadTimer) {
+        clearTimeout(adminCasesLoadTimer);
+        adminCasesLoadTimer = 0;
+      }
       setAdminCasesProgressVisible(false);
       adminCasesSubtab = 'general';
       adminMainstreamCrawlHistory = [];
@@ -16762,7 +17031,7 @@
         ),
         portal_backfill_persist: document.getElementById('portal_backfill_persist')?.checked ?? true,
       };
-      msg.textContent = '儲存中...';
+      if (msg) msg.textContent = '儲存中...';
       if (heroMsg) heroMsg.textContent = '主圖設定儲存中…';
       try {
         const res = await fetch('/api/config/crawl-settings', {
@@ -16779,14 +17048,14 @@
         const thumbOn = s.portal_backfill_empty_thumbs !== false;
         const thumbMax = s.portal_backfill_max ?? 3;
         const thumbPersist = s.portal_backfill_persist !== false;
-        msg.textContent = `已更新：爬文每 ${s.interval_hours} 小時；圖頁籤每 ${s.market_interval_hours} 小時；保留 ${s.market_max_records} 筆/${s.market_retention_days} 天；智慧查詢單次上限 ${s.portal_query_max_records} 筆／預設 ${s.portal_query_max_age_days} 天內；首頁主圖=${s.home_hero_key || 'brand-tokyo-night'}。首頁無縮圖自動補抓：${thumbOn ? '開' : '關'}（每請求≤${thumbMax} 筆${thumbPersist ? '，寫回 DB' : ''}）。`;
+        if (msg) msg.textContent = `已更新：爬文每 ${s.interval_hours} 小時；圖頁籤每 ${s.market_interval_hours} 小時；保留 ${s.market_max_records} 筆/${s.market_retention_days} 天；智慧查詢單次上限 ${s.portal_query_max_records} 筆／預設 ${s.portal_query_max_age_days} 天內；首頁主圖=${s.home_hero_key || 'brand-tokyo-night'}。首頁無縮圖自動補抓：${thumbOn ? '開' : '關'}（每請求≤${thumbMax} 筆${thumbPersist ? '，寫回 DB' : ''}）。`;
         if (heroMsg) heroMsg.textContent = `首頁主圖已套用：${s.home_hero_key || 'brand-tokyo-night'}`;
         syncAdminHomeHeroCards();
         previewSelectedHomeHero({ auto: true });
         applySmartQueryTransactionVisibility(data.settings || {});
         refreshCaseInventoryStats();
       } catch (err) {
-        msg.textContent = `儲存失敗：${formatApiError(err)}`;
+        if (msg) msg.textContent = `儲存失敗：${formatApiError(err)}`;
         if (heroMsg) heroMsg.textContent = `首頁主圖儲存失敗：${formatApiError(err)}`;
       }
     }
@@ -18086,14 +18355,14 @@
       const conv = String(row.conversation_preview || '');
       const rowId = esc(String(row.id != null ? row.id : ''));
       const createdAt = esc(String(row.created_at || '-'));
-      const sessionBtn = sid
-        ? `<button type="button" class="secondary" onclick="fillSessionFromLeadBoard('${esc(sid)}')">${esc(sid).slice(0, 18)}</button>`
+      const sessionCell = sid
+        ? `<span class="sales-lead-session-chip" title="${esc(sid)}">${esc(sid).slice(0, 18)}</span>`
         : '<span class="muted">無 Session</span>';
       return `<article class="sales-lead-row" role="listitem">
         <div class="sales-lead-row-id"><strong>#${rowId}</strong><span>${createdAt}</span></div>
         <div class="sales-lead-row-state"><span>${esc(stageText)}</span><strong>${Number(row.intent_score || 0)}</strong></div>
         <div class="sales-lead-row-copy"><strong>${esc(userMsg).slice(0, 54) || '—'}</strong><span>${esc(reply).slice(0, 70) || '尚無回覆摘要'}</span></div>
-        <div class="sales-lead-row-session">${sessionBtn}</div>
+        <div class="sales-lead-row-session">${sessionCell}</div>
         <button type="button" class="secondary sales-lead-detail-btn" onclick="toggleSalesLeadDetails(this)">詳情</button>
         <div class="sales-lead-row-detail" hidden>
           <p><strong>BOT 自評</strong>：${esc(botScore)}｜${esc(botStatus)}　<strong>通知</strong>：${Number(row.notify_count || 0)}</p>
