@@ -1253,6 +1253,8 @@ def _is_non_listing_asset_url(text: str) -> bool:
     s = str(text or "").strip().lower()
     if not s:
         return False
+    if _is_yahoo_listing_image_url(s):
+        return False
     try:
         decoded = unquote(s)
     except Exception:
@@ -1335,6 +1337,34 @@ def _is_non_listing_asset_url(text: str) -> bool:
     return False
 
 
+def _is_yahoo_listing_image_url(text: str) -> bool:
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path
+
+
+def _is_truncated_listing_image_url(text: str) -> bool:
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    query = (parsed.query or "").lower()
+    if host.endswith("realestate-pctr.c.yimg.jp") and re.search(r"(?:^|&)nf_(?:$|&)", query):
+        return True
+    return False
+
+
 _LM_URL_KEYS = (
     "url",
     "src",
@@ -1410,6 +1440,8 @@ def _score_listing_image_url(u: str) -> int:
         return -999
     if not _is_percent_encoding_valid(lu):
         return -999
+    if _is_truncated_listing_image_url(lu):
+        return -999
     if is_non_image_portal_page_url(u):
         return -999
     if _is_non_listing_asset_url(lu):
@@ -1448,6 +1480,8 @@ def _score_listing_image_url(u: str) -> int:
     if "suumo." in lu and "/jj/" in lu and "kaisha" not in lu and "tantou" not in lu:
         score += 48
     if ("homes.jp" in lu or "homes.co.jp" in lu) and any(k in lu for k in ("/smallimg/", "image.php")):
+        score += 86
+    if _is_yahoo_listing_image_url(lu):
         score += 86
     if "%2fsale%2f" in lu or "/sale/" in lu:
         score += 32
@@ -1547,6 +1581,8 @@ def _listing_image_candidates_scored(
         if not s.startswith("http"):
             return
         if not _is_percent_encoding_valid(s):
+            return
+        if _is_truncated_listing_image_url(s):
             return
         if _is_non_listing_asset_url(s):
             return
@@ -3632,9 +3668,9 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
     listing_media_json_s = str(d.get("listing_media_json") or "")
     body_original_s = str(d.get("body_original") or "")
     item_url_s = str(d.get("item_url") or "")
-    gallery = ordered_listing_image_urls(image_urls_s, "", listing_media_json_s, item_url=item_url_s, limit=4)
+    gallery = ordered_listing_image_urls(image_urls_s, "", listing_media_json_s, item_url=item_url_s, limit=6)
     if not gallery and body_original_s:
-        gallery = ordered_listing_image_urls("", body_original_s, "", item_url=item_url_s, limit=4)
+        gallery = ordered_listing_image_urls("", body_original_s, "", item_url=item_url_s, limit=6)
     thumb = gallery[0] if gallery else ""
     title_original_clean = _clean_translation_noise(str(d.get("title_original") or ""))
     title_hant_clean = _clean_translation_noise(str(d.get("title_zh_hant") or "")) or title_original_clean
@@ -3674,6 +3710,57 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
         "jp_station_id": int(d.get("jp_station_id") or 0),
         "walk_min": int(d.get("walk_min") or 0),
         "portal_host": host,
+        **_case_time_fields(d, listing_fields),
+        **listing_fields,
+    }
+
+
+def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
+    """Fast enough for search pagination counts: keep detail-filter fields, skip expensive gallery scoring."""
+    d = dict(r)
+    meta = infer_case_metadata(d)
+    listing_fields = _extract_listing_fields(d, meta=meta)
+    listing_media_json_s = str(d.get("listing_media_json") or "")
+    image_urls_s = str(d.get("image_urls") or "")
+    thumb = _fast_first_media_url(listing_media_json_s) or _fast_first_image_url(image_urls_s)
+    title_original_clean = _clean_translation_noise(str(d.get("title_original") or ""))
+    title_hant_clean = _clean_translation_noise(str(d.get("title_zh_hant") or "")) or title_original_clean
+    title_hans_clean = _clean_translation_noise(str(d.get("title_zh_hans") or "")) or title_hant_clean
+    body_hant_preview = _clean_translation_noise(str(d.get("body_zh_hant") or ""))[:320]
+    body_hans_preview = _clean_translation_noise(str(d.get("body_zh_hans") or ""))[:320]
+    gallery = [thumb] if thumb else []
+    return {
+        "content_id": d.get("id"),
+        "source_item_id": d.get("source_item_id"),
+        "seo_slug": d.get("seo_slug") or "",
+        "title_zh_hant": title_hant_clean,
+        "title_zh_hans": title_hans_clean,
+        "region_code": d.get("region_code") or "",
+        "keyword_type": d.get("keyword_type") or "",
+        "topic_category": d.get("topic_category") or "",
+        "case_transaction_override": str(d.get("case_transaction_override") or ""),
+        "case_jp_region_override": str(d.get("case_jp_region_override") or ""),
+        "case_transit_override": str(d.get("case_transit_override") or ""),
+        "featured_weight": int(d.get("featured_weight") or 0),
+        "source_name": d.get("source_name") or "",
+        "item_url": d.get("item_url") or "",
+        "title_original": title_original_clean,
+        "snippet_jp": _clean_snippet_text(str(d.get("body_original") or ""))[:260],
+        "body_zh_hant_preview": body_hant_preview,
+        "body_zh_hans_preview": body_hans_preview,
+        "updated_at": str(d.get("updated_at") or ""),
+        "published_at": str(d.get("published_at") or ""),
+        "crawled_at": str(d.get("crawled_at") or ""),
+        "last_checked_at": str(d.get("last_checked_at") or ""),
+        "thumb_url": thumb,
+        "gallery_urls": gallery,
+        "thumb_kind": _thumb_kind_label(thumb) if thumb else "",
+        "transaction_side": meta.get("transaction_side"),
+        "transaction_label_zh": meta.get("transaction_label_zh"),
+        "jp_region_display_zh": meta.get("jp_region_display_zh") or "",
+        "transit_line_zh": meta.get("transit_line_zh") or "",
+        "jp_station_id": int(d.get("jp_station_id") or 0),
+        "walk_min": int(d.get("walk_min") or 0),
         **_case_time_fields(d, listing_fields),
         **listing_fields,
     }
@@ -3777,6 +3864,46 @@ def _row_to_portal_case_item_matrix_fast(r: Any) -> dict[str, Any]:
 def _row_dicts_to_portal_case_items(rows: list[Any]) -> list[dict[str, Any]]:
     """將 SQL 查回之列轉成智慧查詢案源 item（與 search_portal_cases 欄位一致）。"""
     return [_row_to_portal_case_item(r) for r in rows]
+
+
+def _paged_portal_case_items_from_rows_fast(
+    rows: list[Any],
+    *,
+    lim: int,
+    offset: int = 0,
+    page_size: int = 0,
+    multi_portal: bool = False,
+) -> tuple[list[dict[str, Any]], int]:
+    """Interactive fast path: rank/filter all rows cheaply, then fully hydrate only the requested page."""
+    if not rows:
+        return [], 0
+    fast_items = [_row_to_portal_case_item_filter_fast(r) for r in rows]
+    fast_items = _prefer_complete_items_for_display(fast_items, lim=lim)
+    fast_items = [it for it in fast_items if _is_probably_listing_detail_result(it)]
+    if multi_portal:
+        ranked_items = _merge_multi_portal_items(fast_items, lim=lim)
+    else:
+        ranked_items = _dedupe_portal_case_items(fast_items, lim=lim)
+    total_count = len(ranked_items)
+    if page_size > 0:
+        start = max(0, int(offset or 0))
+        page_items = ranked_items[start : start + max(1, int(page_size or 1))]
+    else:
+        page_items = ranked_items
+    row_by_sid: dict[int, Any] = {}
+    for row in rows:
+        try:
+            sid = int(dict(row).get("source_item_id") or 0)
+        except Exception:
+            sid = 0
+        if sid > 0 and sid not in row_by_sid:
+            row_by_sid[sid] = row
+    hydrated: list[dict[str, Any]] = []
+    for item in page_items:
+        sid = int(item.get("source_item_id") or 0)
+        row = row_by_sid.get(sid)
+        hydrated.append(_row_to_portal_case_item(row) if row is not None else item)
+    return hydrated, total_count
 
 
 _COVERAGE_HOST_SOURCE_NAME_ALIASES: dict[str, tuple[str, ...]] = {
@@ -4086,6 +4213,8 @@ def search_portal_cases(
     keyword: str,
     max_age_days: int,
     limit: int,
+    offset: int = 0,
+    page_size: int = 0,
     property_types: list[str] | None = None,
     price_min_man: int = 0,
     price_max_man: int = 0,
@@ -4102,6 +4231,8 @@ def search_portal_cases(
     jp_line_id / jp_station_id：與 jp_trans_* 種子表對應，用於查詢關鍵字加權（並保留徒步上限篩選）。
     """
     lim = max(1, min(int(limit or 60), 100000))
+    page_offset = max(0, int(offset or 0))
+    requested_page_size = max(0, min(int(page_size or 0), 240))
     tx_sql, tx_params = _transaction_clause(transaction)
     tx_key = (transaction or "").strip().lower() or "buy"
     if tx_key not in ("buy", "sell", "rent"):
@@ -4756,8 +4887,20 @@ def search_portal_cases(
     if tx_out not in ("buy", "sell", "rent"):
         tx_out = "buy"
 
+    used_paged_fast_path = False
+    total_count_override: int | None = None
     if streamed_items is None:
-        items: list[dict[str, Any]] = _row_dicts_to_portal_case_items(rows)
+        if requested_page_size > 0 and not has_smart_structured_filters:
+            items, total_count_override = _paged_portal_case_items_from_rows_fast(
+                rows,
+                lim=lim,
+                offset=page_offset,
+                page_size=requested_page_size,
+                multi_portal=multi_portal,
+            )
+            used_paged_fast_path = True
+        else:
+            items = _row_dicts_to_portal_case_items(rows)
     else:
         items = streamed_items
     items = _prefer_complete_items_for_display(items, lim=lim)
@@ -4786,7 +4929,7 @@ def search_portal_cases(
         or ((kw_base or "").strip() in _region_inventory_terms)
         or broad_inventory_browse
     )
-    if streamed_items is None:
+    if streamed_items is None and not used_paged_fast_path:
         items = [it for it in items if _is_probably_listing_detail_result(it)]
         items, smart_filter_meta = _apply_smart_structured_filters(
             items,
@@ -4797,12 +4940,21 @@ def search_portal_cases(
             layout_max_rooms=smart_layout_max,
             layout_exact_zero=smart_layout_exact_zero,
         )
+    elif streamed_items is None:
+        smart_filter_meta = {
+            "property_types": smart_property_types,
+            "price_min_man": smart_price_min,
+            "price_max_man": smart_price_max,
+            "layout_min_rooms": smart_layout_min,
+            "layout_max_rooms": smart_layout_max,
+            "layout_exact_zero": smart_layout_exact_zero,
+        }
     else:
         smart_filter_meta = dict(streamed_filter_meta or {})
 
-    if multi_portal:
+    if not used_paged_fast_path and multi_portal:
         items = _merge_multi_portal_items(items, lim=lim)
-    else:
+    elif not used_paged_fast_path:
         items = _dedupe_portal_case_items(items, lim=lim)
 
     scope_note_zh = ""
@@ -4845,9 +4997,11 @@ def search_portal_cases(
             "keyword_relaxed": bool(transit_keyword_relaxed),
             "keyword_before_relax": transit_keyword_before_relax if transit_keyword_relaxed else "",
         },
-        "count": len(items),
+        "count": int(total_count_override if total_count_override is not None else len(items)),
         "truncation_note": row_fetch_count >= fetch_lim,
         "search_scope_note_zh": scope_note_zh,
         "broad_inventory_browse": bool(broad_inventory_browse),
+        "page_offset": page_offset if requested_page_size > 0 else 0,
+        "page_size": requested_page_size if requested_page_size > 0 else 0,
         "items": items,
     }

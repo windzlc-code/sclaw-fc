@@ -103,6 +103,18 @@ def _title_fallback(page) -> str:
     return title[:400]
 
 
+def _launch_homes_browser(playwright, launch_kw: dict[str, Any]):
+    try:
+        return playwright.chromium.launch(**launch_kw)
+    except Exception as exc:
+        msg = str(exc or "")
+        if launch_kw.get("channel") or "Executable doesn't exist" not in msg:
+            raise
+        retry_kw = dict(launch_kw)
+        retry_kw["channel"] = "chrome"
+        return playwright.chromium.launch(**retry_kw)
+
+
 def fetch_homes_detail_playwright(
     item_url: str,
     *,
@@ -139,7 +151,7 @@ def fetch_homes_detail_playwright(
         }
         if str(channel or "").strip():
             launch_kw["channel"] = str(channel).strip()
-        browser = p.chromium.launch(**launch_kw)
+        browser = _launch_homes_browser(p, launch_kw)
         try:
             ctx_kw: dict[str, Any] = {
                 "user_agent": ua,

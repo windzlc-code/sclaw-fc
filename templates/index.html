@@ -768,7 +768,7 @@
               <button type="button" role="menuitemradio" data-site-lang-choice="hans" aria-checked="false">簡體中文</button>
             </div>
           </section>
-          <button id="admin-header-logout" class="secondary admin-head-logout" type="button" onclick="clearAdminAuth()" hidden>退出登入</button>
+          <button id="admin-header-logout" class="secondary admin-head-logout" type="button" onclick="clearAdminAuth()" hidden>登出</button>
           <button class="ui-close-btn" type="button" onclick="toggleAdminDrawer(false)" aria-label="關閉後台管理" title="關閉">×</button>
         </div>
       </div>
@@ -947,7 +947,7 @@
                 <button type="button" class="secondary" onclick="loadHomeIntroSpokespersons(true)">刷新形象</button>
               </div>
             </div>
-            <div class="home-intro-case-picker" aria-label="選擇案件生成影片">
+            <div class="home-intro-case-picker" aria-label="選擇案件產生影片">
               <div class="home-intro-case-picker-head">
                 <label>
                   <span>選擇案件</span>
@@ -2174,6 +2174,7 @@
       <button id="image-lightbox-prev" class="image-lightbox-nav image-lightbox-prev" type="button" aria-label="上一張">‹</button>
       <button id="image-lightbox-next" class="image-lightbox-nav image-lightbox-next" type="button" aria-label="下一張">›</button>
       <button id="image-lightbox-close" class="image-lightbox-close" type="button" aria-label="關閉圖片預覽">×</button>
+      <div id="image-lightbox-status" class="image-lightbox-status" aria-live="polite">1 / 1</div>
       <img id="image-lightbox-img" class="image-lightbox-img" alt="" referrerpolicy="no-referrer">
       <div class="image-lightbox-toolbar-note">滾輪縮放｜拖曳平移｜←/→ 切換</div>
     </div>
@@ -2268,6 +2269,30 @@
         }
       });
     }
+
+    (function bindSmartQueryRunButtonsOnce() {
+      if (document.documentElement.dataset.smartQueryRunButtonsBound === '1') return;
+      document.documentElement.dataset.smartQueryRunButtonsBound = '1';
+      document.addEventListener('click', (ev) => {
+        const raw = ev.target;
+        const el = raw instanceof Element ? raw : raw && raw.parentElement;
+        if (!(el instanceof Element) || typeof el.closest !== 'function') return;
+        const btn = el.closest('[data-query-action="smart-query-run"]');
+        if (!btn) return;
+        ev.preventDefault();
+        if (typeof runDialogQuery === 'function') void runDialogQuery();
+      });
+      document.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        const raw = ev.target;
+        const el = raw instanceof Element ? raw : raw && raw.parentElement;
+        if (!(el instanceof Element) || typeof el.closest !== 'function') return;
+        const btn = el.closest('[data-query-action="smart-query-run"]');
+        if (!btn) return;
+        ev.preventDefault();
+        if (typeof runDialogQuery === 'function') void runDialogQuery();
+      });
+    })();
 
     /** 日本不動產案件區：#query-dialog 委派（①②③ 分頁、單一主查詢按鈕），不依賴行內 onclick */
     (function bindSmartQueryTabsOnDialog() {
@@ -3713,7 +3738,7 @@
       password: {
         desc: '更新後台登入密碼與管理權限。',
         chips: ['登入安全', '密碼更新', '權限管理'],
-        notice: '密碼更新後會影響後台登入，請確認新密碼已妥善保存再退出登入。',
+        notice: '密碼更新後會影響後台登入，請確認新密碼已妥善儲存再登出。',
       },
     };
     const ADMIN_TAB_SECTION_MAP = {
@@ -3801,7 +3826,7 @@
 
     const DIALOG_KEYWORD_GROUPS = {
       google_seo: {
-        label: '谷歌SEO高轉化',
+        label: 'Google SEO 高轉換',
         keywords: [
           '日本買房', '日本房產', '日本不動產', '日本投資房產', '東京買房', '大阪買房', '日本房產投資', '海外買房日本', '日本購屋', '日本置產',
           '日本買房流程', '日本買房條件', '外國人日本買房資格', '日本買房需要簽證嗎', '日本買房可以貸款嗎', '日本買房過戶流程', '日本買房所需文件',
@@ -3856,7 +3881,7 @@
         ],
       },
       google_questions: {
-        label: '谷歌搜索問句',
+        label: 'Google 搜尋問句',
         keywords: [
           '華人在日本買房需要什麼條件？', '台灣人去日本買房要準備多少錢？', '香港人在日本買房可以貸款嗎？',
           '新加坡人日本買房稅費怎麼算？', '日本買房永久產權有什麼好處？', '日本買房經營管理簽證怎麼辦理？',
@@ -4446,11 +4471,21 @@
 
     function initImageLightbox() {
       const box = document.getElementById('image-lightbox');
+      const inner = box ? box.querySelector('.image-lightbox-inner') : null;
       const img = document.getElementById('image-lightbox-img');
       const closeBtn = document.getElementById('image-lightbox-close');
       const prevBtn = document.getElementById('image-lightbox-prev');
       const nextBtn = document.getElementById('image-lightbox-next');
-      if (!box || !img || !closeBtn || !prevBtn || !nextBtn) return;
+      let statusEl = document.getElementById('image-lightbox-status');
+      if (!statusEl && inner) {
+        statusEl = document.createElement('div');
+        statusEl.id = 'image-lightbox-status';
+        statusEl.className = 'image-lightbox-status';
+        statusEl.setAttribute('aria-live', 'polite');
+        statusEl.textContent = '1 / 1';
+        inner.insertBefore(statusEl, img || null);
+      }
+      if (!box || !inner || !img || !closeBtn || !prevBtn || !nextBtn || !statusEl) return;
       let gallery = [];
       let cur = -1;
       let scale = 1;
@@ -4459,6 +4494,8 @@
       let dragging = false;
       let lastX = 0;
       let lastY = 0;
+      let galleryFetchSeq = 0;
+      const remoteGalleryCache = new Map();
       const resetTransform = () => {
         scale = 1;
         tx = 0;
@@ -4467,6 +4504,12 @@
       };
       const applyTransform = () => {
         img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      };
+      const dedupeGalleryUrls = (urls) => {
+        const seen = new Set();
+        return (Array.isArray(urls) ? urls : [])
+          .map((entry) => normalizeLightboxSource(entry))
+          .filter((entry) => entry && !seen.has(entry) && seen.add(entry));
       };
       const rewriteSuumoResizeUrl = (src, w, h) => {
         const raw = String(src || '').trim();
@@ -4488,21 +4531,8 @@
         const raw = String(src || '').trim();
         if (!raw) return '';
         const original = suumoResizeOriginalSourceUrl(raw);
-        if (original) return portalCaseImageCacheUrl(original);
-        try {
-          const u = new URL(raw, window.location.origin);
-          const host = String(u.hostname || '').toLowerCase();
-          const path = String(u.pathname || '').toLowerCase();
-          if (host.includes('suumo.com') && path.includes('/jj/resizeimage')) {
-            if (u.searchParams.has('src')) {
-              u.searchParams.set('w', '1600');
-              u.searchParams.set('h', '1200');
-            }
-          }
-          return u.toString();
-        } catch (_) {
-          return raw;
-        }
+        if (original) return portalListingFullDisplayUrl(original);
+        return portalListingFullDisplayUrl(raw);
       };
       const buildLightboxCandidates = (src, fallbackSrc) => {
         const rawPrimary = String(src || '').trim();
@@ -4517,9 +4547,59 @@
         ].filter(Boolean);
         return candidates.filter((v, i) => candidates.indexOf(v) === i);
       };
+      const updateControls = (extraNote = '') => {
+        const total = Math.max(0, gallery.length);
+        const current = total > 0 && cur >= 0 ? Math.min(total, cur + 1) : 1;
+        statusEl.textContent = total > 0 ? `${current} / ${total}${extraNote ? ` · ${extraNote}` : ''}` : '1 / 1';
+        const multi = total > 1;
+        prevBtn.hidden = !multi;
+        nextBtn.hidden = !multi;
+        prevBtn.disabled = !multi;
+        nextBtn.disabled = !multi;
+      };
+      const mergeGallery = (urls, focusSrc = '') => {
+        const merged = dedupeGalleryUrls([...(gallery || []), ...(Array.isArray(urls) ? urls : [])]);
+        const focus = normalizeLightboxSource(focusSrc || img.getAttribute('src') || gallery[cur] || '');
+        gallery = merged;
+        if (focus) {
+          const idx = gallery.indexOf(focus);
+          if (idx >= 0) cur = idx;
+        }
+        if (cur < 0 && gallery.length) cur = 0;
+        updateControls();
+      };
+      const caseSidFromScope = (scope) => {
+        if (!(scope instanceof Element)) return 0;
+        const raw = String(
+          scope.getAttribute('data-case-sid')
+          || scope.querySelector('.portal-suumo-card-heroimg')?.getAttribute('data-case-sid')
+          || ''
+        ).trim();
+        return Math.max(0, parseInt(raw, 10) || 0);
+      };
       const collectGallery = (scope) => {
         const srcs = [];
         const root = scope && scope.querySelectorAll ? scope : document;
+        const collectArrayAttr = (node, attr) => {
+          if (!node || !attr) return;
+          const raw = String(node.getAttribute(attr) || '').trim();
+          if (!raw) return;
+          try {
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return;
+            arr.forEach((entry) => {
+              const src = normalizeLightboxSource(entry);
+              if (src && !srcs.includes(src)) srcs.push(src);
+            });
+          } catch (_) {
+            // ignore malformed inline gallery data
+          }
+        };
+        if (scope instanceof Element) {
+          collectArrayAttr(scope, 'data-gallery-full');
+          const hero = scope.querySelector('.portal-suumo-card-heroimg');
+          if (hero) collectArrayAttr(hero, 'data-gallery-full');
+        }
         root.querySelectorAll('.portal-suumo-card-image-dot').forEach((node) => {
           const src = normalizeLightboxSource(node.getAttribute('data-card-img-full') || node.getAttribute('data-card-img-src') || '');
           if (src && !srcs.includes(src)) srcs.push(src);
@@ -4528,12 +4608,43 @@
           const src = normalizeLightboxSource(node.getAttribute('data-full-src') || node.getAttribute('src') || '');
           if (src && !srcs.includes(src)) srcs.push(src);
         });
-        gallery = srcs;
+        gallery = dedupeGalleryUrls(srcs);
+      };
+      const hydrateRemoteGallery = async (scope, preferredSrc = '') => {
+        const sid = caseSidFromScope(scope);
+        if (sid <= 0) {
+          updateControls();
+          return;
+        }
+        box.setAttribute('data-case-sid', String(sid));
+        if (remoteGalleryCache.has(sid)) {
+          mergeGallery(remoteGalleryCache.get(sid) || [], preferredSrc);
+          return;
+        }
+        const reqId = ++galleryFetchSeq;
+        updateControls('載入更多圖片');
+        try {
+          const res = await fetch(`/api/cases/${sid}/gallery?limit=18`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(String(data?.detail || data?.error || `HTTP ${res.status}`));
+          const urls = dedupeGalleryUrls(Array.isArray(data?.urls) ? data.urls : []);
+          remoteGalleryCache.set(sid, urls);
+          if (!box.classList.contains('is-open')) return;
+          if (String(box.getAttribute('data-case-sid') || '') !== String(sid)) return;
+          if (reqId !== galleryFetchSeq) return;
+          mergeGallery(urls, preferredSrc);
+        } catch (_) {
+          if (box.classList.contains('is-open')) updateControls();
+        }
       };
       const close = () => {
         box.classList.remove('is-open');
         box.setAttribute('aria-hidden', 'true');
+        box.removeAttribute('data-case-sid');
         img.src = '';
+        gallery = [];
+        cur = -1;
+        updateControls();
         resetTransform();
       };
       const open = (src, fallbackSrc, scope) => {
@@ -4542,6 +4653,10 @@
         collectGallery(scope);
         cur = Math.max(0, gallery.indexOf(normalizeLightboxSource(src)));
         if (cur < 0) cur = 0;
+        updateControls();
+        gallery.slice(cur, cur + 3).forEach((entry, idx) => {
+          queueFigureCaseMediaPreload(entry, idx);
+        });
         let idx = 0;
         img.onerror = () => {
           idx += 1;
@@ -4555,12 +4670,17 @@
         box.classList.add('is-open');
         box.setAttribute('aria-hidden', 'false');
         resetTransform();
+        hydrateRemoteGallery(scope, src).catch(() => {});
       };
       const openAt = (idx) => {
         if (!gallery.length) return;
         const n = (idx + gallery.length) % gallery.length;
         cur = n;
         img.src = gallery[n];
+        updateControls();
+        gallery.slice(n, n + 2).forEach((entry, offset) => {
+          queueFigureCaseMediaPreload(entry, offset);
+        });
         resetTransform();
       };
       document.addEventListener('click', (e) => {
@@ -6835,6 +6955,108 @@
       return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     }
 
+    const FIGURE_CASE_PRELOAD_CONCURRENCY = 2;
+    const FIGURE_RESULTS_PAGE_SIZE = 6;
+    const figureCasePreloadSeen = new Set();
+    const figureCasePreloadQueue = [];
+    let figureCasePreloadActive = 0;
+    let figureResultsPagedState = null;
+
+    function parseFigureCaseMediaUrls(raw) {
+      const text = String(raw || '').trim();
+      if (!text) return [];
+      try {
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) return [];
+        const seen = new Set();
+        return parsed
+          .map((entry) => String(entry || '').trim())
+          .filter((entry) => entry && !seen.has(entry) && seen.add(entry));
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function drainFigureCasePreloadQueue() {
+      while (figureCasePreloadActive < FIGURE_CASE_PRELOAD_CONCURRENCY && figureCasePreloadQueue.length) {
+        const next = figureCasePreloadQueue.shift();
+        if (!next || !next.url) continue;
+        figureCasePreloadActive += 1;
+        const probe = new Image();
+        const done = () => {
+          figureCasePreloadActive = Math.max(0, figureCasePreloadActive - 1);
+          probe.onload = null;
+          probe.onerror = null;
+          drainFigureCasePreloadQueue();
+        };
+        probe.decoding = 'async';
+        probe.loading = 'eager';
+        probe.referrerPolicy = 'no-referrer';
+        probe.onload = done;
+        probe.onerror = done;
+        probe.src = next.url;
+      }
+    }
+
+    function queueFigureCaseMediaPreload(url, priority = 100) {
+      const src = String(url || '').trim();
+      if (!src || src === LISTING_IMAGE_FALLBACK_URL || figureCasePreloadSeen.has(src)) return;
+      figureCasePreloadSeen.add(src);
+      figureCasePreloadQueue.push({ url: src, priority: Number(priority) || 100 });
+      figureCasePreloadQueue.sort((a, b) => a.priority - b.priority);
+      drainFigureCasePreloadQueue();
+    }
+
+    function warmFigureCaseCards(cards, options = {}) {
+      const rows = Array.isArray(cards) ? cards : [];
+      const thumbPerCard = Math.max(1, Math.min(3, parseInt(String(options.thumbPerCard || 1), 10) || 1));
+      const fullPerCard = Math.max(0, Math.min(2, parseInt(String(options.fullPerCard || 0), 10) || 0));
+      const basePriority = Number(options.priorityBase || 0) || 0;
+      rows.forEach((card, cardIndex) => {
+        if (!(card instanceof Element)) return;
+        const media = card.querySelector('.portal-suumo-card-media');
+        if (!media) return;
+        const thumbs = parseFigureCaseMediaUrls(media.getAttribute('data-gallery-thumb'));
+        const fulls = parseFigureCaseMediaUrls(media.getAttribute('data-gallery-full'));
+        thumbs.slice(0, thumbPerCard).forEach((src, idx) => {
+          queueFigureCaseMediaPreload(src, basePriority + cardIndex * 8 + idx);
+        });
+        fulls.slice(0, fullPerCard).forEach((src, idx) => {
+          queueFigureCaseMediaPreload(src, basePriority + 80 + cardIndex * 8 + idx);
+        });
+      });
+    }
+
+    function warmFigureResultsMedia(root, currentPageIndex = 0) {
+      if (!(root instanceof Element)) return;
+      const shell = root.matches('.figure-results-carousel-shell') ? root : root.querySelector('.figure-results-carousel-shell');
+      if (!shell) {
+        warmFigureCaseCards(
+          Array.from(root.querySelectorAll('.market-item-card.figure-case-card')).slice(0, 6),
+          { thumbPerCard: 2, fullPerCard: 1, priorityBase: 0 }
+        );
+        return;
+      }
+      const pages = Array.from(shell.querySelectorAll('.figure-results-carousel-page:not(.figure-results-carousel-page--clone)'));
+      if (!pages.length) return;
+      const current = pages[Math.max(0, Math.min(pages.length - 1, currentPageIndex))];
+      const next = pages[(Math.max(0, Math.min(pages.length - 1, currentPageIndex)) + 1) % pages.length];
+      if (current) {
+        warmFigureCaseCards(Array.from(current.querySelectorAll('.market-item-card.figure-case-card')), {
+          thumbPerCard: 2,
+          fullPerCard: 1,
+          priorityBase: 0,
+        });
+      }
+      if (next && next !== current) {
+        warmFigureCaseCards(Array.from(next.querySelectorAll('.market-item-card.figure-case-card')), {
+          thumbPerCard: 1,
+          fullPerCard: 0,
+          priorityBase: 200,
+        });
+      }
+    }
+
     function setupFigureResultsCarousel(shell) {
       if (!shell || shell.dataset.figureCarouselBound === '1') return;
       shell.dataset.figureCarouselBound = '1';
@@ -6876,7 +7098,9 @@
         track.style.transform = `translate3d(${-left}px, 0, 0)`;
         if (pageIndex < pageCount) {
           currentPageIndex = Math.max(0, Math.min(pageCount - 1, pageIndex));
+          shell.dataset.figureCarouselCurrent = String(currentPageIndex);
           updateStatus(currentPageIndex);
+          warmFigureResultsMedia(shell, currentPageIndex);
         }
       };
       const scrollByDir = (dir) => {
@@ -6959,6 +7183,7 @@
         if (directCards.length > 0) {
           wrap.dataset.figureResultCount = String(directCards.length);
           wrap.classList.add('figure-results-static', `figure-results-count-${directCards.length}`);
+          warmFigureResultsMedia(wrap, 0);
         }
         return;
       }
@@ -6998,6 +7223,11 @@
         clone.querySelectorAll('a, button, input, select, textarea, summary').forEach((el) => {
           el.setAttribute('tabindex', '-1');
         });
+        clone.querySelectorAll('img').forEach((img) => {
+          img.setAttribute('loading', 'lazy');
+          img.setAttribute('fetchpriority', 'low');
+          img.setAttribute('decoding', 'async');
+        });
         return clone;
       });
       track.appendChild(makePage(cloneCards, pageCount, true));
@@ -7007,6 +7237,283 @@
       wrap.classList.add('figure-results-carousel-wrap', 'figure-results-count-many');
       wrap.appendChild(shell);
       setupFigureResultsCarousel(shell);
+      warmFigureResultsMedia(shell, 0);
+    }
+
+    function resetFigureResultsWrapLayout(wrap) {
+      if (!(wrap instanceof Element)) return;
+      wrap.classList.remove(
+        'figure-results-carousel-wrap',
+        'figure-results-static',
+        'figure-results-count-1',
+        'figure-results-count-2',
+        'figure-results-count-3',
+        'figure-results-count-4',
+        'figure-results-count-5',
+        'figure-results-count-6',
+        'figure-results-count-many'
+      );
+      wrap.removeAttribute('data-figure-result-count');
+    }
+
+    function buildPagedFigureResultsRequest(baseBody, pageIndex, pageSize = FIGURE_RESULTS_PAGE_SIZE) {
+      const safeIndex = Math.max(0, parseInt(String(pageIndex || 0), 10) || 0);
+      const safePageSize = Math.max(1, Math.min(24, parseInt(String(pageSize || FIGURE_RESULTS_PAGE_SIZE), 10) || FIGURE_RESULTS_PAGE_SIZE));
+      return {
+        ...(baseBody || {}),
+        offset: safeIndex * safePageSize,
+        page_size: safePageSize,
+      };
+    }
+
+    function buildFigureResultsPagerTokens(pageCount, currentPage) {
+      const total = Math.max(1, parseInt(String(pageCount || 1), 10) || 1);
+      const current = Math.max(0, Math.min(total - 1, parseInt(String(currentPage || 0), 10) || 0));
+      if (total <= 9) {
+        return Array.from({ length: total }, (_, idx) => ({ type: 'page', index: idx }));
+      }
+      const anchors = new Set([0, total - 1, current - 1, current, current + 1]);
+      if (current <= 2) [1, 2, 3].forEach((idx) => anchors.add(idx));
+      if (current >= total - 3) [total - 4, total - 3, total - 2].forEach((idx) => anchors.add(idx));
+      const pages = Array.from(anchors)
+        .map((idx) => Math.max(0, Math.min(total - 1, idx)))
+        .filter((idx, pos, arr) => arr.indexOf(idx) === pos)
+        .sort((a, b) => a - b);
+      const tokens = [];
+      pages.forEach((idx, pos) => {
+        if (pos > 0 && idx - pages[pos - 1] > 1) tokens.push({ type: 'ellipsis', key: `gap-${pages[pos - 1]}-${idx}` });
+        tokens.push({ type: 'page', index: idx });
+      });
+      return tokens;
+    }
+
+    function renderFigureResultsPagerDots(pageCount, currentPage) {
+      return buildFigureResultsPagerTokens(pageCount, currentPage)
+        .map((token) => {
+          if (token.type !== 'page') {
+            return '<span class="figure-results-carousel-dot figure-results-carousel-dot--ellipsis" aria-hidden="true">…</span>';
+          }
+          const idx = Math.max(0, parseInt(String(token.index || 0), 10) || 0);
+          const active = idx === currentPage;
+          return `<button type="button" data-figure-carousel-dot="${idx}" class="figure-results-carousel-dot${active ? ' is-active' : ''}" aria-label="查看第 ${idx + 1} 組案件" aria-selected="${active ? 'true' : 'false'}"></button>`;
+        })
+        .join('');
+    }
+
+    function createFigureResultsPagedShell(pageCount) {
+      const shell = document.createElement('div');
+      shell.className = 'figure-results-carousel-shell';
+      shell.innerHTML = `
+        <div class="figure-results-carousel-controls">
+          <button type="button" class="figure-results-carousel-btn" data-figure-carousel="prev" aria-label="上一組案件">${figureCarouselArrowSvg('prev')}</button>
+          <span class="figure-results-carousel-indicator">
+            <span class="figure-results-carousel-status" data-figure-carousel-status aria-live="polite">1 / ${pageCount}</span>
+            <span class="figure-results-carousel-dots" data-figure-carousel-dots role="tablist" aria-label="案件輪播頁碼">
+              ${renderFigureResultsPagerDots(pageCount, 0)}
+            </span>
+          </span>
+          <button type="button" class="figure-results-carousel-btn" data-figure-carousel="next" aria-label="下一組案件">${figureCarouselArrowSvg('next')}</button>
+        </div>
+        <div class="figure-results-carousel-track" data-figure-carousel-track aria-live="polite"></div>
+      `;
+      return shell;
+    }
+
+    function syncPagedFigureResultsControls(state) {
+      if (!state || !state.shell) return;
+      const totalPages = Math.max(1, Number(state.pageCount || 1) || 1);
+      const current = Math.max(0, Math.min(totalPages - 1, Number(state.currentPage || 0) || 0));
+      const loading = !!state.loading;
+      const status = state.shell.querySelector('[data-figure-carousel-status]');
+      const dotsWrap = state.shell.querySelector('[data-figure-carousel-dots]');
+      const prev = state.shell.querySelector('[data-figure-carousel="prev"]');
+      const next = state.shell.querySelector('[data-figure-carousel="next"]');
+      if (status) status.textContent = loading ? `載入中 ${current + 1} / ${totalPages}` : `${current + 1} / ${totalPages}`;
+      if (dotsWrap) dotsWrap.innerHTML = renderFigureResultsPagerDots(totalPages, current);
+      if (prev) {
+        prev.disabled = loading;
+        prev.setAttribute('aria-label', `上一組案件，目前第 ${current + 1} / ${totalPages} 頁`);
+      }
+      if (next) {
+        next.disabled = loading;
+        next.setAttribute('aria-label', `下一組案件，目前第 ${current + 1} / ${totalPages} 頁`);
+      }
+    }
+
+    function renderPagedFigureResultsCards(state, items, direction = 0) {
+      if (!state || !state.track) return;
+      const page = document.createElement('div');
+      page.className = 'figure-results-carousel-page';
+      page.setAttribute('data-figure-carousel-page', String(state.currentPage || 0));
+      page.innerHTML = renderPortalCaseCards(Array.isArray(items) ? items : []);
+      state.track.textContent = '';
+      state.track.appendChild(page);
+      state.track.style.transition = 'none';
+      state.track.style.transform = 'translate3d(0, 0, 0)';
+      if (typeof state.track.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const shift = direction > 0 ? 22 : direction < 0 ? -22 : 0;
+        state.track.animate(
+          [
+            { opacity: 0.62, transform: `translate3d(${shift}px, 0, 0)` },
+            { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+          ],
+          { duration: 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        );
+      }
+      latestFigureCaseItems = Array.isArray(items) ? items : [];
+      syncFigureCaseFavoriteButtons();
+      if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
+      warmFigureCaseCards(Array.from(page.querySelectorAll('.market-item-card.figure-case-card')), {
+        thumbPerCard: 2,
+        fullPerCard: 1,
+        priorityBase: 0,
+      });
+    }
+
+    function getPagedFigureResultsPage(state, pageIndex) {
+      if (!state) return Promise.resolve({ items: [] });
+      const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
+      if (state.pageCache.has(target)) return Promise.resolve(state.pageCache.get(target));
+      if (Array.isArray(state.localItems)) {
+        const start = target * state.pageSize;
+        const pageData = {
+          items: state.localItems.slice(start, start + state.pageSize),
+          payload: { count: state.totalCount, page_offset: start, page_size: state.pageSize },
+        };
+        state.pageCache.set(target, pageData);
+        return Promise.resolve(pageData);
+      }
+      if (state.pagePromises.has(target)) return state.pagePromises.get(target);
+      const requestBody = buildPagedFigureResultsRequest(state.baseBody, target, state.pageSize);
+      const job = fetchPortalCaseSearch(requestBody)
+        .then(async (res) => {
+          const payload = await res.json();
+          if (!res.ok) {
+            const detailRaw = payload?.detail || payload?.error || payload?.message || '查詢失敗，請稍後再試。';
+            throw new Error(dedupeRepeatedFailureMessage(detailRaw));
+          }
+          const pageData = {
+            items: Array.isArray(payload?.items) ? payload.items : [],
+            payload: payload || {},
+          };
+          state.pageCache.set(target, pageData);
+          const totalCount = Number(payload?.count);
+          if (Number.isFinite(totalCount) && totalCount >= 0) {
+            state.totalCount = totalCount;
+            state.pageCount = Math.max(1, Math.ceil(totalCount / state.pageSize));
+          }
+          state.pagePromises.delete(target);
+          return pageData;
+        })
+        .catch((err) => {
+          state.pagePromises.delete(target);
+          throw err;
+        });
+      state.pagePromises.set(target, job);
+      return job;
+    }
+
+    function prefetchPagedFigureResultsPage(state, pageIndex) {
+      if (!state) return;
+      const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
+      if (target === state.currentPage || state.pageCache.has(target) || state.pagePromises.has(target)) return;
+      getPagedFigureResultsPage(state, target).catch(() => {});
+    }
+
+    async function setPagedFigureResultsPage(state, pageIndex, options = {}) {
+      if (!state || state.disposed) return;
+      const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
+      const direction = Number.isFinite(options.direction) ? Number(options.direction) : target === state.currentPage ? 0 : (target > state.currentPage ? 1 : -1);
+      const requestId = (state.requestId || 0) + 1;
+      state.requestId = requestId;
+      state.loading = true;
+      syncPagedFigureResultsControls(state);
+      try {
+        const pageData = await getPagedFigureResultsPage(state, target);
+        if (state.disposed || state.requestId !== requestId || figureResultsPagedState !== state) return;
+        state.currentPage = target;
+        state.loading = false;
+        syncPagedFigureResultsControls(state);
+        renderPagedFigureResultsCards(state, pageData?.items || [], direction);
+        prefetchPagedFigureResultsPage(state, target + 1);
+      } catch (err) {
+        if (state.disposed || state.requestId !== requestId || figureResultsPagedState !== state) return;
+        state.loading = false;
+        syncPagedFigureResultsControls(state);
+        const msg = dedupeRepeatedFailureMessage(formatApiError(err) || '查詢失敗，請稍後再試。');
+        if (!state.pageCache.size) {
+          state.track.innerHTML = `<div class="figure-results-carousel-page"><div class="panel">${esc(msg)}</div></div>`;
+        }
+      }
+    }
+
+    async function renderPortalCaseResultsPaged(resultWrap, items, baseBody, data = {}, options = {}) {
+      if (!(resultWrap instanceof Element)) return;
+      if (figureResultsPagedState) figureResultsPagedState.disposed = true;
+      figureResultsPagedState = null;
+      resetFigureResultsWrapLayout(resultWrap);
+      const initialItems = Array.isArray(items) ? items : [];
+      const fullItems = Array.isArray(options.fullItems) ? options.fullItems : null;
+      const totalCountRaw = Number(data && data.count != null ? data.count : (fullItems ? fullItems.length : initialItems.length));
+      const totalCount = Number.isFinite(totalCountRaw) && totalCountRaw >= 0 ? totalCountRaw : initialItems.length;
+      const pageSizeRaw = Number(data && data.page_size != null ? data.page_size : FIGURE_RESULTS_PAGE_SIZE);
+      const pageSize = Math.max(1, Math.min(24, Number.isFinite(pageSizeRaw) ? pageSizeRaw : FIGURE_RESULTS_PAGE_SIZE));
+      if (totalCount <= pageSize) {
+        latestFigureCaseItems = initialItems;
+        resultWrap.innerHTML = renderPortalCaseCards(initialItems);
+        syncFigureCaseFavoriteButtons();
+        if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
+        enhanceFigureResultsCarousel();
+        return;
+      }
+      const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+      const shell = createFigureResultsPagedShell(pageCount);
+      const track = shell.querySelector('[data-figure-carousel-track]');
+      resultWrap.textContent = '';
+      resultWrap.dataset.figureResultCount = String(totalCount);
+      resultWrap.classList.add('figure-results-carousel-wrap', 'figure-results-count-many');
+      resultWrap.appendChild(shell);
+      const state = {
+        wrap: resultWrap,
+        shell,
+        track,
+        baseBody: { ...(baseBody || {}) },
+        pageSize,
+        totalCount,
+        pageCount,
+        localItems: fullItems,
+        currentPage: 0,
+        loading: false,
+        requestId: 0,
+        disposed: false,
+        pageCache: new Map(),
+        pagePromises: new Map(),
+      };
+      state.pageCache.set(0, { items: initialItems, payload: data || {} });
+      figureResultsPagedState = state;
+      syncPagedFigureResultsControls(state);
+      renderPagedFigureResultsCards(state, initialItems, 0);
+      prefetchPagedFigureResultsPage(state, 1);
+      shell.addEventListener('click', (evt) => {
+        const target = evt.target instanceof Element ? evt.target.closest('[data-figure-carousel], [data-figure-carousel-dot]') : null;
+        if (!target || state.disposed || figureResultsPagedState !== state) return;
+        evt.preventDefault();
+        if (target.hasAttribute('data-figure-carousel-dot')) {
+          const idx = Math.max(0, parseInt(String(target.getAttribute('data-figure-carousel-dot') || '0'), 10) || 0);
+          setPagedFigureResultsPage(state, idx, { direction: idx > state.currentPage ? 1 : idx < state.currentPage ? -1 : 0 }).catch(() => {});
+          return;
+        }
+        const role = String(target.getAttribute('data-figure-carousel') || '').trim();
+        if (role === 'prev') {
+          const nextPage = state.currentPage <= 0 ? state.pageCount - 1 : state.currentPage - 1;
+          setPagedFigureResultsPage(state, nextPage, { direction: -1 }).catch(() => {});
+          return;
+        }
+        if (role === 'next') {
+          const nextPage = state.currentPage >= state.pageCount - 1 ? 0 : state.currentPage + 1;
+          setPagedFigureResultsPage(state, nextPage, { direction: 1 }).catch(() => {});
+        }
+      });
     }
 
     function initBhomelandSeoMotion() {
@@ -10282,15 +10789,15 @@
         if (clearing) {
           status.textContent = `${label} Key：已勾選清除，按「儲存 AI 設定」後會刪除。`;
         } else if (saved) {
-          status.textContent = `${label} Key：已保存${mask ? `（${mask}）` : ''}，留空再儲存不會覆蓋。`;
+          status.textContent = `${label} Key：已儲存${mask ? `（${mask}）` : ''}，留空再儲存不會覆蓋。`;
         } else {
-          status.textContent = `${label} Key：尚未保存，請貼上 API Key 後儲存。`;
+          status.textContent = `${label} Key：尚未儲存，請貼上 API Key 後儲存。`;
         }
       }
       if (input) {
         const nextPlaceholder = saved
-          ? `已保存${mask ? `：${mask}` : ''}；重新貼上可覆蓋`
-          : '尚未保存，請貼上 API Key';
+          ? `已儲存${mask ? `：${mask}` : ''}；重新貼上可覆蓋`
+          : '尚未儲存，請貼上 API Key';
         input.sclawHantAttr_placeholder = nextPlaceholder;
         input.setAttribute('placeholder', nextPlaceholder);
       }
@@ -12673,12 +13180,49 @@
       return `/api/case-image-cache?u=${encodeURIComponent(s)}`;
     }
 
+    function unwrapPortalCaseCachedUrl(src) {
+      let raw = String(src || '').trim();
+      if (!raw) return '';
+      for (let pass = 0; pass < 2; pass += 1) {
+        try {
+          const u = new URL(raw, window.location.origin);
+          if (u.pathname.includes('/api/case-image-cache') && u.searchParams.has('u')) {
+            raw = String(u.searchParams.get('u') || '').trim() || raw;
+            continue;
+          }
+        } catch (_) {
+          break;
+        }
+        break;
+      }
+      return raw;
+    }
+
+    function rewriteYahooListingImageUrl(src, w, h) {
+      const raw = unwrapPortalCaseCachedUrl(src);
+      if (!raw) return '';
+      try {
+        const u = new URL(raw, window.location.origin);
+        const host = String(u.hostname || '').toLowerCase();
+        const path = String(u.pathname || '').toLowerCase();
+        if (!host.endsWith('yimg.jp') || !path.includes('/realestate-buy-image/')) return raw;
+        if (!/\.(?:jpg|jpeg|png|webp)$/i.test(path)) return raw;
+        const ww = Math.max(1, parseInt(String(w || 0), 10) || 0);
+        const hh = Math.max(1, parseInt(String(h || 0), 10) || 0);
+        if (ww > 0) u.searchParams.set('w', String(ww));
+        if (hh > 0) u.searchParams.set('h', String(hh));
+        return u.toString();
+      } catch (_) {
+        return raw;
+      }
+    }
+
     /**
      * 列表／卡片顯示用：SUUMO /jj/resizeImage 依目標像素補齊 w/h，避免小圖被 CSS 拉滿後模糊。
      * 非 SUUMO 或無 src= 參數則原樣回傳。
      */
     function portalListingThumbDisplayUrl(u, w, h) {
-      const s = String(u || '').trim();
+      const s = unwrapPortalCaseCachedUrl(u);
       if (!s) return '';
       const low = s.toLowerCase();
       if (low.includes('suumo.') && low.includes('resizeimage') && low.includes('src=')) {
@@ -12688,14 +13232,23 @@
         const rh = Number.isFinite(hh) && hh > 0 ? hh : 420;
         return portalCaseImageCacheUrl(upscaleSuumoResizeUrl(s, rw, rh) || s);
       }
+      if (low.includes('yimg.jp') && low.includes('/realestate-buy-image/')) {
+        const ww = Number(w);
+        const hh = Number(h);
+        const rw = Number.isFinite(ww) && ww > 0 ? ww : 360;
+        const rh = Number.isFinite(hh) && hh > 0 ? hh : 240;
+        return portalCaseImageCacheUrl(rewriteYahooListingImageUrl(s, rw, rh) || s);
+      }
       return portalCaseImageCacheUrl(s);
     }
 
     function portalListingFullDisplayUrl(u) {
-      const s = String(u || '').trim();
+      const s = unwrapPortalCaseCachedUrl(u);
       if (!s) return '';
       const original = suumoResizeOriginalSourceUrl(s);
-      return portalCaseImageCacheUrl(original || s);
+      const base = original || s;
+      const yahooFull = rewriteYahooListingImageUrl(base, 1280, 960);
+      return portalCaseImageCacheUrl(yahooFull || base);
     }
 
     /** 與後端 is_likely_agent_portrait_image_url 對齊：剔除 SUUMO 業者／担当人像縮圖。 */
@@ -12754,6 +13307,14 @@
 
     const LISTING_IMAGE_FALLBACK_URL = '/static/img/listing-image-fallback.svg';
 
+    function portalCaseNoImageCopyHtml(mode = 'missing_reference') {
+      const title = '暫未提取到參考圖';
+      const hint = mode === 'fetch_failed'
+        ? '原站暫未回傳可用房屋圖片，這不是載入中。'
+        : '目前只有案件文字資料，這不是載入中。';
+      return `<span class="portal-suumo-no-img-title">${title}</span><span class="portal-suumo-no-img-hint">${hint}</span>`;
+    }
+
     /** 智慧查詢卡片主圖載入失敗時：改用相簿下一張網址，皆失敗則落到本機備援圖。 */
     function portalCaseHeroImgOnError(img) {
       if (!img) return;
@@ -12771,9 +13332,12 @@
       }
       const wrap = img.closest('.portal-suumo-card-media');
       if (wrap) {
-        wrap.classList.add('portal-suumo-card-media--fallback');
+        wrap.classList.add('portal-suumo-card-media--fallback', 'portal-suumo-card-media--hero-failed');
         const fb = wrap.querySelector('.portal-suumo-no-img--hero-replace');
-        if (fb) fb.setAttribute('hidden', '');
+        if (fb) {
+          fb.innerHTML = portalCaseNoImageCopyHtml('fetch_failed');
+          fb.removeAttribute('hidden');
+        }
       }
       if (img.src !== LISTING_IMAGE_FALLBACK_URL) {
         img.onerror = null;
@@ -16173,13 +16737,13 @@
     async function loadHomeIntroCases() {
       const msg = document.getElementById('home-intro-video-msg');
       const q = String(document.getElementById('home-intro-case-search')?.value || '').trim();
-      if (msg) msg.textContent = q ? '正在搜尋可生成影片的案件...' : '正在載入最新案件...';
+      if (msg) msg.textContent = q ? '正在搜尋可產生影片的案件...' : '正在載入最新案件...';
       try {
         const qs = new URLSearchParams({ limit: '12' });
         if (q) qs.set('q', q);
         const data = await fetchHomeIntroJson(`/cases?${qs.toString()}`);
         renderHomeIntroCases(data.items || []);
-        if (msg) msg.textContent = `已載入 ${Number((data.items || []).length || 0)} 筆案件；選取後可直接生成影片。`;
+        if (msg) msg.textContent = `已載入 ${Number((data.items || []).length || 0)} 筆案件；選取後可直接產生影片。`;
         return data.items || [];
       } catch (err) {
         renderHomeIntroCases([]);
@@ -16405,7 +16969,7 @@
         setHomeHeroMedia(url, 'custom-upload');
         if (msg) msg.textContent = `影片已完成：${Number(data.duration_seconds || 0).toFixed(1)} 秒；預覽會先靜音播放，按「播放有聲預覽」即可聽到口播。`;
       } catch (err) {
-        if (msg) msg.textContent = `生成影片失敗：${formatApiError(err)}`;
+        if (msg) msg.textContent = `產生影片失敗：${formatApiError(err)}`;
       }
     }
 
@@ -17115,7 +17679,7 @@
 
     function renderPortalCaseCards(items) {
       const htmlParts = [];
-      for (const it of items) {
+      for (const [index, it] of items.entries()) {
         const compactTitle = String(it.title_zh_hant || it.title_original || '案件')
           .replace(/^日本房產案源[:：]\s*/u, '')
           .replace(/^日本不動產案件[:：]\s*/u, '')
@@ -17133,6 +17697,14 @@
         const mainRaw = galsProp.length ? String(galsProp[0]).trim() : '';
         const mainSrc = mainRaw ? portalListingThumbDisplayUrl(mainRaw, 240, 160) : LISTING_IMAGE_FALLBACK_URL;
         const mainFullSrc = mainRaw ? portalListingFullDisplayUrl(mainRaw) : mainSrc;
+        const galleryThumbUrls = galsProp
+          .map((u) => portalListingThumbDisplayUrl(String(u || '').trim(), 240, 160))
+          .filter(Boolean);
+        const galleryFullUrls = galsProp
+          .map((u) => portalListingFullDisplayUrl(String(u || '').trim()))
+          .filter(Boolean);
+        const galleryThumbAttr = esc(JSON.stringify(galleryThumbUrls));
+        const galleryFullAttr = esc(JSON.stringify(galleryFullUrls));
         const thumbKind = esc(String(it.thumb_kind || '').trim());
         const caseKey = supportCaseKeyFromItem(it);
         const caseKeyJs = JSON.stringify(caseKey);
@@ -17148,27 +17720,32 @@
           .slice(0, 6)
           .map((u, ix) => {
             const raw = String(u || '').trim();
-            const su = portalListingThumbDisplayUrl(raw, 240, 160);
-            const fu = portalListingFullDisplayUrl(raw) || su;
+            const su = galleryThumbUrls[ix] || portalListingThumbDisplayUrl(raw, 240, 160);
+            const fu = galleryFullUrls[ix] || portalListingFullDisplayUrl(raw) || su;
             if (!su) return '';
             return `<button type="button" class="portal-suumo-card-image-dot${ix === 0 ? ' is-active' : ''}" data-card-img-src="${esc(su)}" data-card-img-full="${esc(fu)}" aria-label="查看第 ${ix + 1} 張圖片" aria-selected="${ix === 0 ? 'true' : 'false'}"></button>`;
           })
           .filter(Boolean)
           .join('');
         const candUrls =
-          galsProp.length > 0
-            ? galsProp.map((u) => portalListingThumbDisplayUrl(String(u).trim(), 240, 160)).filter(Boolean)
+          galleryThumbUrls.length > 0
+            ? galleryThumbUrls.slice()
             : [mainSrc];
         if (!candUrls.includes(LISTING_IMAGE_FALLBACK_URL)) candUrls.push(LISTING_IMAGE_FALLBACK_URL);
         const candAttr = esc(JSON.stringify(candUrls));
-        const mediaFallbackClass = mainRaw ? '' : ' portal-suumo-card-media--fallback';
+        const hasReferenceImage = Boolean(mainRaw);
+        const mediaFallbackClass = hasReferenceImage ? '' : ' portal-suumo-card-media--fallback portal-suumo-card-media--no-reference';
+        const noImageCopyHtml = portalCaseNoImageCopyHtml(hasReferenceImage ? 'fetch_failed' : 'missing_reference');
         const imageMetaText = esc([it.area_text_hant, it.layout_text_hant].map((x) => String(x || '').trim()).filter(Boolean).join(' ｜ ') || sub || '日本不動產');
+        const imageLoading = index < 6 ? 'eager' : 'lazy';
+        const imageFetchPriority = index < 3 ? 'high' : 'low';
+        const caseSidAttr = sid > 0 ? ` data-case-sid="${sid}"` : '';
         const mediaBlock = mainSrc
-          ? `<div class="figure-case-thumb portal-suumo-card-media${mediaFallbackClass}">
+          ? `<div class="figure-case-thumb portal-suumo-card-media${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>
               <a href="${esc(mainFullSrc || mainSrc)}" class="portal-suumo-lightbox-link" rel="nofollow">
-                <img class="portal-suumo-card-heroimg zoomable-image" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" alt="" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onerror="portalCaseHeroImgOnError(this)">
+                <img class="portal-suumo-card-heroimg zoomable-image" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" data-gallery-full="${galleryFullAttr}"${caseSidAttr} alt="" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onerror="portalCaseHeroImgOnError(this)">
               </a>
-              <div class="portal-suumo-no-img portal-suumo-no-img--hero-replace" hidden></div>
+              <div class="portal-suumo-no-img portal-suumo-no-img--hero-replace"${hasReferenceImage ? ' hidden' : ''}>${noImageCopyHtml}</div>
               <div class="portal-suumo-card-media-badges">
                 <span>${esc(it.source_name || '來源')}</span>
                 ${thumbKind ? `<span>${thumbKind}</span>` : (!mainRaw ? '<span>備援圖</span>' : '')}
@@ -19585,20 +20162,23 @@
 
       let data = {};
       let fallbackNote = '';
+      const buildLegacyPortalSearchBody = (overrides = {}) => ({
+        transaction: tx,
+        portal: portal,
+        portals: portalKeys,
+        region_hint: regionHint,
+        keyword: keyword,
+        max_age_days: maxAgeDays,
+        limit: limitReq,
+        jp_line_id: jptLine,
+        jp_station_id: jptSta,
+        walk_max: jptWalk,
+        coverage_matrix_aligned: matAligned,
+        page_size: FIGURE_RESULTS_PAGE_SIZE,
+        ...overrides,
+      });
       try {
-        const res = await fetchPortalCaseSearch({
-          transaction: tx,
-          portal: portal,
-          portals: portalKeys,
-          region_hint: regionHint,
-          keyword: keyword,
-          max_age_days: maxAgeDays,
-          limit: limitReq,
-          jp_line_id: jptLine,
-          jp_station_id: jptSta,
-          walk_max: jptWalk,
-          coverage_matrix_aligned: matAligned,
-        });
+        const res = await fetchPortalCaseSearch(buildLegacyPortalSearchBody());
         const payload = await res.json();
         if (!res.ok) {
           const detailRaw = payload?.detail || payload?.error || payload?.message || '查詢失敗，請稍後再試。';
@@ -19608,19 +20188,15 @@
         let probeItems = Array.isArray(data.items) ? data.items : [];
         if (!matAligned && !probeItems.length && regionHint) {
           const relaxKw = `${regionHint} 不動産`.replace(/\s+/g, ' ').trim();
-          const resRelax = await fetchPortalCaseSearch({
-            transaction: tx,
-            portal: portal,
-            portals: portalKeys,
+          const resRelax = await fetchPortalCaseSearch(buildLegacyPortalSearchBody({
             region_hint: regionHint,
             keyword: relaxKw,
             max_age_days: 0,
-            limit: limitReq,
             jp_line_id: 0,
             jp_station_id: 0,
             walk_max: 0,
             coverage_matrix_aligned: false,
-          });
+          }));
           const relaxPayload = await resRelax.json();
           if (resRelax.ok && relaxPayload && Array.isArray(relaxPayload.items) && relaxPayload.items.length) {
             data = relaxPayload;
@@ -19630,19 +20206,15 @@
         }
         // 第二層放寬：若仍 0 筆，移除區域限制但保留原關鍵字，避免「地區誤選」導致案件區完全空白
         if (!matAligned && !probeItems.length && regionHint) {
-          const resRelax2 = await fetchPortalCaseSearch({
-            transaction: tx,
-            portal: portal,
-            portals: portalKeys,
+          const resRelax2 = await fetchPortalCaseSearch(buildLegacyPortalSearchBody({
             region_hint: '',
             keyword: keyword,
             max_age_days: maxAgeDays,
-            limit: limitReq,
             jp_line_id: jptLine,
             jp_station_id: jptSta,
             walk_max: jptWalk,
             coverage_matrix_aligned: false,
-          });
+          }));
           const relaxPayload2 = await resRelax2.json();
           if (resRelax2.ok && relaxPayload2 && Array.isArray(relaxPayload2.items) && relaxPayload2.items.length) {
             data = relaxPayload2;
@@ -19659,7 +20231,7 @@
         stopQueryProgress();
       }
 
-      const items = data.items || [];
+      const items = Array.isArray(data.items) ? data.items : [];
       latestFigureCaseItems = Array.isArray(items) ? items : [];
       applySmartQueryTransactionVisibility(data || {});
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
@@ -19724,9 +20296,20 @@
         ${matNote}
         ${fallbackNote ? `<p class="muted" style="color:#9a6700;">${esc(fallbackNote)}</p>` : ''}
       `;
-      resultWrap.innerHTML = renderPortalCaseCards(items);
-      syncFigureCaseFavoriteButtons();
-      enhanceFigureResultsCarousel();
+      const pagingBody = buildLegacyPortalSearchBody({
+        transaction: String(data.transaction || tx || 'buy').trim().toLowerCase(),
+        portal: String(data.portal || portal || 'all').trim(),
+        portals: Array.isArray(data.portal_keys) && data.portal_keys.length ? data.portal_keys : portalKeys,
+        region_hint: String(data.region_hint != null ? data.region_hint : regionHint || '').trim(),
+        keyword: String(data.keyword != null ? data.keyword : keyword || '').trim(),
+        max_age_days: Number(data.max_age_days != null ? data.max_age_days : maxAgeDays) || 0,
+        limit: Number(data.limit != null ? data.limit : limitReq) || limitReq,
+        jp_line_id: Number(data.jp_line_id != null ? data.jp_line_id : jptLine) || 0,
+        jp_station_id: Number(data.jp_station_id != null ? data.jp_station_id : jptSta) || 0,
+        walk_max: Number(data.walk_max != null ? data.walk_max : jptWalk) || 0,
+        coverage_matrix_aligned: !!(data && data.coverage_matrix_aligned),
+      });
+      await renderPortalCaseResultsPaged(resultWrap, items, pagingBody, data);
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';
@@ -19938,28 +20521,31 @@
       figureResultsHidden = false;
       summary.innerHTML = `<p><strong>條件</strong>：${esc(conditionLine)}</p>`;
 
+      const buildPortalSearchBody = (regionValue, keywordValue, overrides = {}) => ({
+        transaction: botRuntime.transaction,
+        portal: botRuntime.portal,
+        portals: botRuntime.portals,
+        region_hint: String(regionValue || '').trim(),
+        keyword: String(keywordValue || '').trim(),
+        property_types: propertyTypes,
+        price_min_man: priceRange.priceMin,
+        price_max_man: priceRange.priceMax,
+        layout_min_rooms: layoutRange.layoutMin,
+        layout_max_rooms: layoutRange.layoutMax,
+        layout_exact_zero: layoutExactZero,
+        max_age_days: botRuntime.maxAgeDays,
+        limit: limitReq,
+        jp_line_id: geoMode === 'commute' ? jptLine : 0,
+        jp_station_id: geoMode === 'commute' ? jptSta : 0,
+        walk_max: geoMode === 'commute' ? jptWalk : 0,
+        coverage_matrix_aligned: botRuntime.coverageMatrixAligned,
+        page_size: FIGURE_RESULTS_PAGE_SIZE,
+        ...overrides,
+      });
       let data = {};
       let fallbackNote = '';
+      let aggregateSplitBroad = false;
       try {
-        const basePortalSearchBody = (regionValue, keywordValue) => ({
-          transaction: botRuntime.transaction,
-          portal: botRuntime.portal,
-          portals: botRuntime.portals,
-          region_hint: String(regionValue || '').trim(),
-          keyword: String(keywordValue || '').trim(),
-          property_types: propertyTypes,
-          price_min_man: priceRange.priceMin,
-          price_max_man: priceRange.priceMax,
-          layout_min_rooms: layoutRange.layoutMin,
-          layout_max_rooms: layoutRange.layoutMax,
-          layout_exact_zero: layoutExactZero,
-          max_age_days: botRuntime.maxAgeDays,
-          limit: limitReq,
-          jp_line_id: geoMode === 'commute' ? jptLine : 0,
-          jp_station_id: geoMode === 'commute' ? jptSta : 0,
-          walk_max: geoMode === 'commute' ? jptWalk : 0,
-          coverage_matrix_aligned: botRuntime.coverageMatrixAligned,
-        });
         const attempts = [];
         const seenAttempts = new Set();
         const addAttempt = (regionValue, keywordValue, note) => {
@@ -20042,8 +20628,14 @@
         } else {
           addAttempt(regionHint, keyword, '');
         }
-        if (!attempts.length) addAttempt(regionHint, keyword, '');
-        const aggregateSplitBroad =
+        if (!attempts.length) {
+          attempts.push({
+            region: String(regionHint || '').trim(),
+            keyword: String(keyword || '').trim(),
+            note: '',
+          });
+        }
+        aggregateSplitBroad =
           geoMode === 'map'
           && mapSelectionState
           && mapSelectionState.hasSelection
@@ -20052,7 +20644,7 @@
         if (aggregateSplitBroad) {
           const payloads = [];
           for (const attempt of attempts) {
-            const res = await fetchPortalCaseSearch(basePortalSearchBody(attempt.region, attempt.keyword));
+            const res = await fetchPortalCaseSearch(buildPortalSearchBody(attempt.region, attempt.keyword, { page_size: 0 }));
             const payload = await res.json();
             if (!res.ok) {
               const detailRaw = payload?.detail || payload?.error || payload?.message || '查詢失敗，請稍後再試。';
@@ -20063,7 +20655,7 @@
           data = mergePortalCaseSearchPayloads(payloads, attempts.map((attempt) => attempt.region));
         } else {
           for (const attempt of attempts) {
-            const res = await fetchPortalCaseSearch(basePortalSearchBody(attempt.region, attempt.keyword));
+            const res = await fetchPortalCaseSearch(buildPortalSearchBody(attempt.region, attempt.keyword));
             const payload = await res.json();
             if (!res.ok) {
               const detailRaw = payload?.detail || payload?.error || payload?.message || '查詢失敗，請稍後再試。';
@@ -20084,11 +20676,12 @@
         stopQueryProgress();
       }
 
-      const items = Array.isArray(data.items) ? data.items : [];
+      const allItems = Array.isArray(data.items) ? data.items : [];
+      const items = aggregateSplitBroad ? allItems.slice(0, FIGURE_RESULTS_PAGE_SIZE) : allItems;
       latestFigureCaseItems = items;
       applySmartQueryTransactionVisibility(data || {});
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
-      const count = Number(data.count != null ? data.count : items.length);
+      const count = Number(data.count != null ? data.count : allItems.length);
       const resultCountText = portalCaseResultCountText(
         count,
         appliedLimit,
@@ -20114,9 +20707,30 @@
         ${transitNote}
         ${relaxedNote}
       `;
-      resultWrap.innerHTML = renderPortalCaseCards(items);
-      syncFigureCaseFavoriteButtons();
-      enhanceFigureResultsCarousel();
+      const pagingBody = aggregateSplitBroad
+        ? null
+        : buildPortalSearchBody(
+            String(data.region_hint != null ? data.region_hint : regionHint || '').trim(),
+            String(data.keyword != null ? data.keyword : keyword || '').trim(),
+            {
+              transaction: String(data.transaction || botRuntime.transaction || 'buy').trim().toLowerCase(),
+              portal: String(data.portal || botRuntime.portal || 'all').trim(),
+              portals: Array.isArray(data.portal_keys) && data.portal_keys.length ? data.portal_keys : botRuntime.portals,
+              max_age_days: Number(data.max_age_days != null ? data.max_age_days : botRuntime.maxAgeDays) || 0,
+              limit: Number(data.limit != null ? data.limit : limitReq) || limitReq,
+              jp_line_id: Number(data.jp_line_id != null ? data.jp_line_id : (geoMode === 'commute' ? jptLine : 0)) || 0,
+              jp_station_id: Number(data.jp_station_id != null ? data.jp_station_id : (geoMode === 'commute' ? jptSta : 0)) || 0,
+              walk_max: Number(data.walk_max != null ? data.walk_max : (geoMode === 'commute' ? jptWalk : 0)) || 0,
+              coverage_matrix_aligned: !!(data && data.coverage_matrix_aligned),
+            }
+          );
+      await renderPortalCaseResultsPaged(
+        resultWrap,
+        items,
+        pagingBody,
+        { ...data, count, page_size: FIGURE_RESULTS_PAGE_SIZE },
+        aggregateSplitBroad ? { fullItems: allItems } : {}
+      );
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';

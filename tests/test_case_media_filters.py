@@ -9,8 +9,10 @@ from unittest.mock import patch
 from app import (
     _build_portal_listing_panel,
     _case_detail_unavailable_reason,
+    _case_lightbox_gallery_urls_from_row,
     _case_missing_verified_gallery_unavailable_reason,
     _case_image_cache_hash,
+    _normalize_listing_image_url_for_display,
     case_static_image_url,
     _listing_media_entries_from_case_row,
     ordered_listing_image_urls,
@@ -67,6 +69,95 @@ class CaseMediaFilterTests(unittest.TestCase):
         url = "https://image4.homes.jp/smallimg/image.php?width=1600&height=1600"
 
         self.assertFalse(_row_image_url_is_usable(url))
+
+    def test_yahoo_listing_image_with_noimage_fallback_query_is_still_usable(self):
+        url = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2489/3214/0001/8d9cd7377a87728405785ab6d0de2cf4_01_01.jpg"
+            "?pri=l&up=0&nf_src=ds&nf_st=200"
+            "&nf_path=/realestate-buy-image/no_image/noimage_640x640.png&w=1080&h=1080"
+        )
+
+        self.assertTrue(_row_image_url_is_usable(url))
+
+    def test_yahoo_ordered_gallery_keeps_real_images_and_skips_truncated_body_url(self):
+        good = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2489/3214/0001/8d9cd7377a87728405785ab6d0de2cf4_01_01.jpg"
+            "?pri=l&up=0&nf_src=ds&nf_st=200"
+            "&nf_path=/realestate-buy-image/no_image/noimage_640x640.png&w=1080&h=1080"
+        )
+        truncated = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2489/3214/0001/8d9cd7377a87728405785ab6d0de2cf4_01_01.jpg?pri=l&up=0&nf_"
+        )
+
+        gallery = ordered_listing_image_urls(
+            "\n".join([good]),
+            truncated,
+            "[]",
+            item_url="https://realestate.yahoo.co.jp/used/mansion/detail_corp/b0024893214/",
+            limit=4,
+        )
+
+        self.assertEqual(gallery, [good])
+
+    def test_yahoo_display_normalization_rewrites_to_requested_thumb_size(self):
+        url = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2489/3214/0001/8d9cd7377a87728405785ab6d0de2cf4_01_01.jpg"
+            "?pri=l&up=0&nf_src=ds&nf_st=200"
+            "&nf_path=/realestate-buy-image/no_image/noimage_640x640.png&w=1080&h=1080"
+        )
+
+        rendered = _normalize_listing_image_url_for_display(url, suumo_w=240, suumo_h=160)
+
+        self.assertIn("w=240", rendered)
+        self.assertIn("h=160", rendered)
+        self.assertIn("realestate-buy-image", rendered)
+
+    def test_yahoo_display_normalization_rewrites_to_requested_lightbox_size(self):
+        url = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2489/3214/0001/8d9cd7377a87728405785ab6d0de2cf4_01_01.jpg"
+            "?pri=l&up=0&nf_src=ds&nf_st=200"
+            "&nf_path=/realestate-buy-image/no_image/noimage_640x640.png&w=320&h=240"
+        )
+
+        rendered = _normalize_listing_image_url_for_display(url, suumo_w=1280, suumo_h=960)
+
+        self.assertIn("w=1280", rendered)
+        self.assertIn("h=960", rendered)
+        self.assertIn("realestate-buy-image", rendered)
+
+    def test_case_lightbox_gallery_helper_keeps_more_than_card_preview_count(self):
+        media_entries = []
+        for idx in range(1, 10):
+            media_entries.append(
+                {
+                    "type": "image",
+                    "url": (
+                        "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+                        f"00/2489/3214/0001/test_gallery_{idx:02d}.jpg"
+                        "?pri=l&up=0&nf_src=ds&nf_st=200"
+                        "&nf_path=/realestate-buy-image/no_image/noimage_640x640.png&w=1080&h=1080"
+                    ),
+                }
+            )
+
+        gallery, source = _case_lightbox_gallery_urls_from_row(
+            {
+                "item_url": "https://realestate.yahoo.co.jp/used/mansion/detail_corp/b0024893214/",
+                "image_urls": "",
+                "body_original": "",
+                "listing_media_json": json.dumps(media_entries, ensure_ascii=False),
+            },
+            limit=18,
+            allow_live_enrich=False,
+        )
+
+        self.assertEqual(source, "cached")
+        self.assertEqual(len(gallery), 9)
 
     def test_case_static_image_url_uses_local_proxy_for_uncached_remote_images(self):
         url = (

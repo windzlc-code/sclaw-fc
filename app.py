@@ -1132,8 +1132,8 @@ def _case_image_prefetch_enabled() -> bool:
     return str(os.getenv("SCLAW_CASE_IMAGE_PREFETCH", "")).strip().lower() in ("1", "true", "yes")
 
 
-def _case_image_prefetch(urls: list[Any], *, limit: int = 8) -> None:
-    if not _case_image_prefetch_enabled():
+def _case_image_prefetch(urls: list[Any], *, limit: int = 8, force: bool = False) -> None:
+    if not force and not _case_image_prefetch_enabled():
         return
     pending: list[str] = []
     for u in urls:
@@ -2792,6 +2792,8 @@ class PortalCaseSearchRequest(BaseModel):
         description="僅顯示 updated_at 在 N 天內；0＝不限制",
     )
     limit: int = Field(default=60, ge=0, le=100000)
+    offset: int = Field(default=0, ge=0, le=100000, description="結果位移；搭配 page_size 分頁回傳")
+    page_size: int = Field(default=0, ge=0, le=240, description="每頁回傳筆數；0＝回傳完整 items")
     jp_line_id: int = Field(default=0, ge=0, le=9_999_999, description="jp_trans_line.line_id；與關鍵字合併加權")
     jp_station_id: int = Field(default=0, ge=0, le=9_999_999, description="jp_trans_station.station_id；與關鍵字合併加權")
     walk_max: int = Field(default=0, ge=0, le=240, description="徒步分鐘上限；0＝不篩")
@@ -4212,6 +4214,8 @@ def _row_image_url_is_usable(u: str) -> bool:
     lu = (u or "").strip().lower()
     if not lu.startswith("http"):
         return False
+    if _is_truncated_listing_image_url(lu):
+        return False
     if _is_non_listing_asset_url(lu):
         return False
     path_before_q = lu.split("?", 1)[0]
@@ -4237,6 +4241,8 @@ def _is_non_listing_asset_url(lu: str) -> bool:
     """排除站點樣板圖／廣告橫幅／OGP 等非房源圖片。"""
     s = str(lu or "").strip().lower()
     if not s:
+        return False
+    if _is_yahoo_listing_image_url(s):
         return False
     try:
         decoded = unquote(s)
@@ -4321,6 +4327,34 @@ def _is_non_listing_asset_url(lu: str) -> bool:
     return False
 
 
+def _is_yahoo_listing_image_url(text: str) -> bool:
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path
+
+
+def _is_truncated_listing_image_url(text: str) -> bool:
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    query = (parsed.query or "").lower()
+    if host.endswith("realestate-pctr.c.yimg.jp") and re.search(r"(?:^|&)nf_(?:$|&)", query):
+        return True
+    return False
+
+
 def _is_case_property_gallery_image_url(u: str) -> bool:
     """案件主相簿只收室內/室外/建物照片；地圖、交通、站台 UI 與平面碎片不進展示與影片素材。"""
     s = str(u or "").strip()
@@ -4371,6 +4405,22 @@ def _normalize_listing_image_url_for_display(
         return raw
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
+    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path and any(
+        path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")
+    ):
+        try:
+            q_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        except Exception:
+            return raw
+        q_map: dict[str, str] = {str(k): str(v) for k, v in q_pairs}
+        yahoo_w = max(160, min(1600, int(suumo_w or 0) or 360))
+        yahoo_h = max(120, min(1600, int(suumo_h or 0) or 240))
+        q_map["w"] = str(yahoo_w)
+        q_map["h"] = str(yahoo_h)
+        try:
+            return parsed._replace(query=urlencode(list(q_map.items()), doseq=True)).geturl()
+        except Exception:
+            return raw
     if ("homes.jp" in host or "homes.co.jp" in host) and ("image.php" in path or "/smallimg/" in path):
         try:
             q_pairs = parse_qsl(parsed.query, keep_blank_values=True)
@@ -5207,6 +5257,53 @@ def _case_verified_property_gallery_urls(row: dict[str, Any], *, limit: int = 2)
         if len(out) >= max(1, int(limit or 1)):
             break
     return out
+
+
+def _case_lightbox_gallery_urls_from_row(
+    row: dict[str, Any],
+    *,
+    limit: int = 18,
+    allow_live_enrich: bool = True,
+) -> tuple[list[str], str]:
+    """為首頁智慧查詢燈箱補齊單一案件完整相簿，避免卡片首批資料被截短。"""
+    d = dict(row or {})
+    lim = max(1, min(int(limit or 18), 24))
+    item_url = str(d.get("item_url") or "").strip()
+
+    def _collect_urls(src_row: dict[str, Any]) -> list[str]:
+        try:
+            gallery = ordered_listing_image_urls(
+                str(src_row.get("image_urls") or ""),
+                str(src_row.get("body_original") or ""),
+                str(src_row.get("listing_media_json") or "[]"),
+                item_url=str(src_row.get("item_url") or ""),
+                limit=lim,
+            )
+        except Exception:
+            gallery = []
+        out: list[str] = []
+        for raw in gallery:
+            u = str(raw or "").strip()
+            if not u or not _is_case_property_gallery_image_url(u):
+                continue
+            if u not in out:
+                out.append(u)
+            if len(out) >= lim:
+                break
+        return out
+
+    d = _ensure_case_listing_media_json_for_display(d)
+    cached_gallery = _collect_urls(d)
+    if not allow_live_enrich or len(cached_gallery) >= min(8, lim) or not live_enrich_eligible_url(item_url):
+        return cached_gallery, "cached"
+
+    live_d = _enrich_listing_row_from_live_page(d)
+    if not live_d:
+        return cached_gallery, "cached"
+    live_gallery = _collect_urls(live_d)
+    if len(live_gallery) > len(cached_gallery):
+        return live_gallery, "live"
+    return cached_gallery, "cached"
 
 
 def _case_detail_unavailable_reason(row: dict[str, Any]) -> str:
@@ -21919,6 +22016,8 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     if req_lim <= 0:
         req_lim = cap
     lim = max(10, min(req_lim, cap))
+    page_offset = max(0, int(payload.offset or 0))
+    page_size = max(0, min(240, int(payload.page_size or 0)))
     allowed_tx = _allowed_portal_transactions(settings)
 
     tx = (payload.transaction or "").strip().lower()
@@ -21967,6 +22066,8 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
             "jp_station_id": int(payload.jp_station_id or 0),
             "walk_max": int(payload.walk_max or 0),
             "coverage_matrix_aligned": bool(payload.coverage_matrix_aligned),
+            "offset": page_offset if page_size > 0 else 0,
+            "page_size": page_size if page_size > 0 else 0,
         }
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
@@ -21992,6 +22093,8 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
         layout_exact_zero=layout_exact_zero,
         max_age_days=max_age,
         limit=lim,
+        offset=page_offset,
+        page_size=page_size,
         jp_line_id=int(payload.jp_line_id or 0),
         jp_station_id=int(payload.jp_station_id or 0),
         walk_max=int(payload.walk_max or 0),
@@ -22002,22 +22105,24 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
         or int(payload.jp_station_id or 0) > 0
         or int(payload.walk_max or 0) > 0
     )
-    allow_search_live_backfill = (
-        not has_transit_filter
-        and str(os.getenv("SCLAW_PORTAL_SEARCH_LIVE_BACKFILL", "")).strip().lower() in ("1", "true", "yes")
+    allow_search_live_backfill, live_backfill_reason = _portal_search_live_backfill_allowed(
+        has_transit_filter=has_transit_filter,
+        request_limit=lim,
     )
     items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
         list(data.get("items") or []),
         allow_live_fetch=allow_search_live_backfill,
     )
     if not allow_search_live_backfill:
-        bf_meta["skipped_reason"] = "search_fast_mode"
+        bf_meta["skipped_reason"] = live_backfill_reason or "search_fast_mode"
     response_region_hint = (payload.region_hint or "").strip()
     if response_region_hint:
         for item in items_bf:
             if isinstance(item, dict) and not str(item.get("jp_region_display_zh") or "").strip():
                 item["jp_region_display_zh"] = response_region_hint
+    items_bf = _portal_case_prioritize_displayable_media(items_bf)
     data["items"] = items_bf
+    _portal_case_result_prefetch_images(items_bf, limit=12)
     data["portal_thumb_backfill"] = bf_meta
     track_filters = {
         "transaction": tx,
@@ -22962,6 +23067,41 @@ def source_case_page(request: Request, source_item_id: int):
     html = templates.env.get_template("case.html").render(context)
     _case_page_html_cache_set(int(source_item_id), case_page_fp, html)
     return Response(content=html, media_type="text/html")
+
+
+@app.get("/api/cases/{source_item_id}/gallery")
+def api_case_gallery(source_item_id: int, limit: int = Query(default=18, ge=1, le=24)):
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                s.id AS source_item_id,
+                s.item_url,
+                COALESCE(s.title_original, '') AS title_original,
+                COALESCE(s.body_original, '') AS body_original,
+                COALESCE(s.image_urls, '') AS image_urls,
+                COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+                COALESCE(c.listing_media_json, '[]') AS listing_media_json
+            FROM source_items s
+            LEFT JOIN content_items c ON c.source_item_id = s.id
+            WHERE s.id = ?
+            """,
+            (int(source_item_id),),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="case_not_found")
+    gallery, gallery_source = _case_lightbox_gallery_urls_from_row(
+        dict(row),
+        limit=int(limit or 18),
+        allow_live_enrich=True,
+    )
+    return {
+        "ok": True,
+        "source_item_id": int(source_item_id),
+        "count": len(gallery),
+        "gallery_source": gallery_source,
+        "urls": gallery,
+    }
 
 
 @app.get("/zh-hant/{region_slug}")
@@ -24225,10 +24365,93 @@ def _portal_item_thumb_needs_property_backfill(item: dict[str, Any]) -> bool:
     url = str(item.get("item_url") or "").strip()
     if not url or not live_enrich_eligible_url(url):
         return False
+    gallery_urls = [
+        str(u or "").strip()
+        for u in (item.get("gallery_urls") or [])
+        if str(u or "").strip()
+    ]
+    if not any(_is_case_property_gallery_image_url(u) for u in gallery_urls):
+        return True
     tu = str(item.get("thumb_url") or "").strip()
     if not tu:
         return True
-    return bool(is_likely_agent_portrait_image_url(tu))
+    if is_likely_agent_portrait_image_url(tu):
+        return True
+    return not _is_case_property_gallery_image_url(tu)
+
+
+def _portal_search_live_backfill_allowed(
+    *,
+    has_transit_filter: bool,
+    request_limit: int,
+) -> tuple[bool, str]:
+    if has_transit_filter:
+        return False, "transit_filter"
+    raw = os.getenv("SCLAW_PORTAL_SEARCH_LIVE_BACKFILL")
+    if raw is not None and str(raw).strip() != "":
+        enabled = str(raw).strip().lower() not in ("0", "false", "no")
+        return enabled, "" if enabled else "env_disabled"
+    if int(request_limit or 0) > 24:
+        return False, "result_window_too_large"
+    return True, ""
+
+
+def _portal_case_result_prefetch_images(items: list[dict[str, Any]], *, limit: int = 12) -> None:
+    picks: list[str] = []
+    seen: set[str] = set()
+    for item in items[:6]:
+        raw_urls = list(item.get("gallery_urls") or [])
+        thumb = str(item.get("thumb_url") or "").strip()
+        if thumb:
+            raw_urls.append(thumb)
+        for raw in raw_urls:
+            src = _normalize_listing_image_url_for_display(str(raw or "").strip(), suumo_w=240, suumo_h=160)
+            if not src or src in seen or not _is_case_property_gallery_image_url(src):
+                continue
+            seen.add(src)
+            picks.append(src)
+            if len(picks) >= max(1, int(limit or 1)):
+                break
+        if len(picks) >= max(1, int(limit or 1)):
+            break
+    if picks:
+        _case_image_prefetch(picks, limit=limit, force=True)
+
+
+def _portal_case_has_displayable_property_media(item: dict[str, Any]) -> bool:
+    raw_urls = list(item.get("gallery_urls") or [])
+    thumb = str(item.get("thumb_url") or "").strip()
+    if thumb:
+        raw_urls.append(thumb)
+    for raw in raw_urls:
+        src = _normalize_listing_image_url_for_display(str(raw or "").strip(), suumo_w=240, suumo_h=160)
+        if src and _is_case_property_gallery_image_url(src):
+            return True
+    return False
+
+
+def _portal_case_prioritize_displayable_media(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if len(items) <= 1:
+        return items
+    ranked: list[tuple[int, int, dict[str, Any]]] = []
+    for idx, item in enumerate(items):
+        has_media = 1 if _portal_case_has_displayable_property_media(item) else 0
+        ranked.append((-has_media, idx, item))
+    ranked.sort(key=lambda row: (row[0], row[1]))
+    return [item for _score, _idx, item in ranked]
+
+
+def _portal_api_should_skip_live_thumb_fetch(item: dict[str, Any]) -> bool:
+    url = str(item.get("item_url") or "").strip().lower()
+    if "homes.co.jp" not in url and "homes.jp" not in url:
+        return False
+    gallery_urls = [
+        str(u or "").strip()
+        for u in (item.get("gallery_urls") or [])
+        if str(u or "").strip()
+    ]
+    thumb = str(item.get("thumb_url") or "").strip()
+    return not thumb and not any(_is_case_property_gallery_image_url(u) for u in gallery_urls)
 
 
 def _portal_api_backfill_empty_thumbs(
@@ -24259,6 +24482,9 @@ def _portal_api_backfill_empty_thumbs(
             continue
         sid = int(item.get("source_item_id") or 0)
         if not _portal_item_thumb_needs_property_backfill(item):
+            out.append(item)
+            continue
+        if _portal_api_should_skip_live_thumb_fetch(item):
             out.append(item)
             continue
         url = str(item.get("item_url") or "").strip()
