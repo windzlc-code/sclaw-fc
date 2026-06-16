@@ -130,6 +130,46 @@ class CaseMediaFilterTests(unittest.TestCase):
         self.assertIn("h=960", rendered)
         self.assertIn("realestate-buy-image", rendered)
 
+    def test_homes_display_normalization_uses_smaller_card_thumb_size(self):
+        url = (
+            "https://image2.homes.jp/smallimg/image.php?"
+            "file=http%3A%2F%2Fimg.homes.jp%2F134932%2Fsale%2F2947%2F11%2F3%2Fjjfz.jpg"
+            "&width=990&height=990"
+        )
+
+        rendered = _normalize_listing_image_url_for_display(url, suumo_w=240, suumo_h=160)
+
+        self.assertIn("width=480", rendered)
+        self.assertIn("height=480", rendered)
+
+    def test_case_lightbox_gallery_dedupes_equivalent_athome_urls(self):
+        primary_http = (
+            "http://www.athome.co.jp/mansion/shinchiku/cimages/project_detail_slide/2483/"
+            "thm/124193_90730_L.jpg?ts=42b2111df20c47d2c06d4bf206f033bd"
+        )
+        primary_https = (
+            "https://www.athome.co.jp/mansion/shinchiku/images/project_detail_slide/2483/"
+            "thm/124193_90730_L.jpg"
+        )
+        secondary = (
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/guidance/2483/"
+            "thm/124193_11931676_L.jpg?ts=a3f2ab5e3883dd42391c89865c1122f8"
+        )
+
+        gallery, source = _case_lightbox_gallery_urls_from_row(
+            {
+                "item_url": "https://www.athome.co.jp/mansion/2483/",
+                "image_urls": "\n".join([primary_http, primary_https, secondary]),
+                "body_original": "",
+                "listing_media_json": "[]",
+            },
+            limit=18,
+            allow_live_enrich=False,
+        )
+
+        self.assertEqual(source, "cached")
+        self.assertEqual(gallery, [primary_http, secondary])
+
     def test_case_lightbox_gallery_helper_keeps_more_than_card_preview_count(self):
         media_entries = []
         for idx in range(1, 10):

@@ -4560,7 +4560,8 @@ def _normalize_listing_image_url_for_display(
         except Exception:
             return raw
         q_map: dict[str, str] = {str(k): str(v) for k, v in q_pairs}
-        homes_size = max(900, min(1600, max(int(suumo_w or 0), int(suumo_h or 0))))
+        target_edge = max(int(suumo_w or 0), int(suumo_h or 0), 0)
+        homes_size = max(360, min(1280, target_edge * 2 if target_edge > 0 else 480))
         q_map["width"] = str(homes_size)
         q_map["height"] = str(homes_size)
         try:
@@ -4612,6 +4613,74 @@ def _normalize_listing_image_url_for_display(
         return raw
 
 
+def _case_gallery_url_identity_key(
+    u: str, *, suumo_w: int = _SOURCE_IMAGE_HIGH_RES_W, suumo_h: int = _SOURCE_IMAGE_HIGH_RES_H
+) -> str:
+    raw = str(u or "").strip()
+    if not raw:
+        return ""
+    disp = _normalize_listing_image_url_for_display(raw, suumo_w=suumo_w, suumo_h=suumo_h)
+    candidate = disp or raw
+    try:
+        parsed = urlparse(candidate)
+    except Exception:
+        return candidate.lower()
+    host = (parsed.netloc or "").lower()
+    path = parsed.path or ""
+    path_lc = path.lower()
+    try:
+        q_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    except Exception:
+        q_pairs = []
+    q_map = {str(k): str(v) for k, v in q_pairs}
+
+    def _decode_twice(text: str) -> str:
+        out = str(text or "")
+        for _ in range(2):
+            try:
+                dec = unquote(out)
+            except Exception:
+                break
+            if dec == out:
+                break
+            out = dec
+        return out
+
+    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path_lc:
+        return f"yahoo:{host}{path_lc}"
+
+    if ("homes.jp" in host or "homes.co.jp" in host) and ("image.php" in path_lc or "/smallimg/" in path_lc):
+        inner = _decode_twice(q_map.get("file") or "")
+        if inner:
+            try:
+                inner_parsed = urlparse(inner)
+                inner_host = (inner_parsed.netloc or "").lower()
+                inner_path = (inner_parsed.path or "").lower()
+                if inner_path:
+                    return f"homes:{inner_host}{inner_path}"
+            except Exception:
+                pass
+            return f"homes:{inner.lower()}"
+        return f"homes:{host}{path_lc}"
+
+    if "athome.co.jp" in host:
+        norm_path = path_lc.replace("/cimages/", "/images/")
+        keep_pairs = [
+            (str(k).lower(), str(v))
+            for k, v in q_pairs
+            if str(k).lower() not in {"ts", "width", "height", "margin", "w", "h"}
+        ]
+        q = urlencode(keep_pairs, doseq=True)
+        return f"athome:{norm_path}?{q}" if q else f"athome:{norm_path}"
+
+    if "suumo." in host and "resizeimage" in path_lc:
+        src = _decode_twice(q_map.get("src") or "").lower()
+        if src:
+            return f"suumo:{src}"
+
+    return candidate.lower()
+
+
 def _dedupe_case_gallery_urls(
     urls: list[str], *, suumo_w: int = _SOURCE_IMAGE_HIGH_RES_W, suumo_h: int = _SOURCE_IMAGE_HIGH_RES_H
 ) -> list[str]:
@@ -4623,7 +4692,7 @@ def _dedupe_case_gallery_urls(
         if not s:
             continue
         disp = _normalize_listing_image_url_for_display(s, suumo_w=suumo_w, suumo_h=suumo_h)
-        key = disp or s
+        key = _case_gallery_url_identity_key(s, suumo_w=suumo_w, suumo_h=suumo_h) or disp or s
         if key in seen:
             continue
         seen.add(key)
@@ -5415,12 +5484,20 @@ def _case_lightbox_gallery_urls_from_row(
         except Exception:
             gallery = []
         out: list[str] = []
+        seen_keys: set[str] = set()
         for raw in gallery:
             u = str(raw or "").strip()
             if not u or not _is_case_property_gallery_image_url(u):
                 continue
-            if u not in out:
-                out.append(u)
+            key = _case_gallery_url_identity_key(
+                u,
+                suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+            ) or u
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            out.append(u)
             if len(out) >= lim:
                 break
         return out

@@ -3121,10 +3121,88 @@
       if (clearBtn) clearBtn.hidden = !hasSelection;
     }
 
-    function getFigureMapSelectionState() {
+    function inferPendingFigureMapSelectionState() {
+      const empty = { hasSelection: false, region: '', prefLabel: '', queryRegion: '', keyword: '' };
+      const activeChip = document.querySelector('.jp-map-selected-pref-chip.is-active');
+      const selectedLive = document.getElementById('jp-map-hub-selected-label');
+      const panelTitle = document.getElementById('jp-map-selected-pref-title');
+      const liveText = String(selectedLive?.textContent || '').trim();
+      const titleText = String(panelTitle?.textContent || '').trim();
+      if (activeChip) {
+        const selectionKind = String(activeChip.getAttribute('data-jp-selection-kind') || '').trim();
+        const rawLabel = String(
+          activeChip.getAttribute('data-jp-pref-label') ||
+            activeChip.textContent ||
+            ''
+        )
+          .replace(/^大區[:：]\s*/u, '')
+          .trim();
+        const queryRegion = String(activeChip.getAttribute('data-jp-pref-region') || '').trim();
+        const keyword = String(activeChip.getAttribute('data-jp-pref-kw') || '').trim();
+        if (selectionKind === 'broad') {
+          const broadRegion = rawLabel || titleText || liveText || queryRegion;
+          if (!broadRegion) return empty;
+          return {
+            hasSelection: true,
+            region: broadRegion,
+            prefLabel: '',
+            queryRegion: queryRegion || broadRegion,
+            keyword,
+          };
+        }
+        const prefLabel = rawLabel;
+        const broadRegion = titleText || liveText || queryRegion;
+        if (!prefLabel && !queryRegion && !broadRegion) return empty;
+        return {
+          hasSelection: true,
+          region: broadRegion || queryRegion || prefLabel,
+          prefLabel,
+          queryRegion: queryRegion || prefLabel || broadRegion,
+          keyword,
+        };
+      }
+      const activeRegion = document.querySelector('.jp-map-region-label.is-active');
+      if (activeRegion) {
+        const region = String(
+          activeRegion.getAttribute('data-jp-pref-region') ||
+            activeRegion.getAttribute('data-jp-pref-label') ||
+            activeRegion.textContent ||
+            ''
+        ).trim();
+        if (!region) return empty;
+        return {
+          hasSelection: true,
+          region,
+          prefLabel: '',
+          queryRegion: region,
+          keyword: '',
+        };
+      }
+      return empty;
+    }
+
+    function getFigureMapSelectionState(options = {}) {
       const summary = document.getElementById('figure-map-selection-summary');
       if (!summary || summary.hidden || summary.dataset.hasSelection !== '1') {
-        return { hasSelection: false, region: '', prefLabel: '', queryRegion: '', keyword: '' };
+        const includePending = !!(options && options.includePending);
+        if (!includePending) {
+          return { hasSelection: false, region: '', prefLabel: '', queryRegion: '', keyword: '' };
+        }
+        const pending = inferPendingFigureMapSelectionState();
+        if (pending.hasSelection && options && options.persistPending) {
+          setFigureMapSelectionSummary(pending);
+          const regionSel = document.getElementById('figure_region');
+          if (regionSel && pending.queryRegion && [...regionSel.options].some((opt) => String(opt.value) === pending.queryRegion)) {
+            const changed = regionSel.value !== pending.queryRegion;
+            regionSel.value = pending.queryRegion;
+            if (changed) _dispatchChange(regionSel);
+          }
+          const input = document.getElementById('figure_keyword');
+          if (input && pending.keyword && !String(input.value || '').trim()) {
+            input.value = pending.keyword;
+          }
+        }
+        return pending;
       }
       return {
         hasSelection: true,
@@ -4511,7 +4589,13 @@
         const seen = new Set();
         return (Array.isArray(urls) ? urls : [])
           .map((entry) => normalizeLightboxSource(entry))
-          .filter((entry) => entry && !seen.has(entry) && seen.add(entry));
+          .filter((entry) => {
+            if (!entry) return false;
+            const key = portalCaseGalleryIdentityKey(entry) || entry;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
       };
       const rewriteSuumoResizeUrl = (src, w, h) => {
         const raw = String(src || '').trim();
@@ -4570,6 +4654,16 @@
         if (cur < 0 && gallery.length) cur = 0;
         updateControls();
       };
+      const queueLightboxWindowPreload = (centerIdx) => {
+        if (!gallery.length) return;
+        const total = gallery.length;
+        const base = Number.isFinite(centerIdx) ? centerIdx : cur;
+        [0, 1, -1, 2, -2].forEach((offset, priority) => {
+          const idx = ((base + offset) % total + total) % total;
+          const entry = gallery[idx];
+          if (entry) queueFigureCaseMediaPreload(entry, priority);
+        });
+      };
       const caseSidFromScope = (scope) => {
         if (!(scope instanceof Element)) return 0;
         const raw = String(
@@ -4621,6 +4715,7 @@
         box.setAttribute('data-case-sid', String(sid));
         if (remoteGalleryCache.has(sid)) {
           mergeGallery(remoteGalleryCache.get(sid) || [], preferredSrc);
+          queueLightboxWindowPreload(cur);
           return;
         }
         const reqId = ++galleryFetchSeq;
@@ -4635,6 +4730,7 @@
           if (String(box.getAttribute('data-case-sid') || '') !== String(sid)) return;
           if (reqId !== galleryFetchSeq) return;
           mergeGallery(urls, preferredSrc);
+          queueLightboxWindowPreload(cur);
         } catch (_) {
           if (box.classList.contains('is-open')) updateControls();
         }
@@ -4656,9 +4752,7 @@
         cur = Math.max(0, gallery.indexOf(normalizeLightboxSource(src)));
         if (cur < 0) cur = 0;
         updateControls();
-        gallery.slice(cur, cur + 3).forEach((entry, idx) => {
-          queueFigureCaseMediaPreload(entry, idx);
-        });
+        queueLightboxWindowPreload(cur);
         let idx = 0;
         img.onerror = () => {
           idx += 1;
@@ -4680,9 +4774,7 @@
         cur = n;
         img.src = gallery[n];
         updateControls();
-        gallery.slice(n, n + 2).forEach((entry, offset) => {
-          queueFigureCaseMediaPreload(entry, offset);
-        });
+        queueLightboxWindowPreload(n);
         resetTransform();
       };
       document.addEventListener('click', (e) => {
@@ -6957,7 +7049,7 @@
       return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     }
 
-    const FIGURE_CASE_PRELOAD_CONCURRENCY = 2;
+    const FIGURE_CASE_PRELOAD_CONCURRENCY = 3;
     const FIGURE_RESULTS_PAGE_SIZE = 6;
     const figureCasePreloadSeen = new Set();
     const figureCasePreloadQueue = [];
@@ -7035,7 +7127,7 @@
       if (!shell) {
         warmFigureCaseCards(
           Array.from(root.querySelectorAll('.market-item-card.figure-case-card')).slice(0, 6),
-          { thumbPerCard: 2, fullPerCard: 1, priorityBase: 0 }
+          { thumbPerCard: 1, fullPerCard: 0, priorityBase: 0 }
         );
         return;
       }
@@ -7045,8 +7137,8 @@
       const next = pages[(Math.max(0, Math.min(pages.length - 1, currentPageIndex)) + 1) % pages.length];
       if (current) {
         warmFigureCaseCards(Array.from(current.querySelectorAll('.market-item-card.figure-case-card')), {
-          thumbPerCard: 2,
-          fullPerCard: 1,
+          thumbPerCard: 1,
+          fullPerCard: 0,
           priorityBase: 0,
         });
       }
@@ -7054,7 +7146,7 @@
         warmFigureCaseCards(Array.from(next.querySelectorAll('.market-item-card.figure-case-card')), {
           thumbPerCard: 1,
           fullPerCard: 0,
-          priorityBase: 200,
+          priorityBase: 120,
         });
       }
     }
@@ -13226,6 +13318,81 @@
       }
     }
 
+    function rewriteHomesListingImageUrl(src, w, h) {
+      const raw = unwrapPortalCaseCachedUrl(src);
+      if (!raw) return '';
+      try {
+        const u = new URL(raw, window.location.origin);
+        const host = String(u.hostname || '').toLowerCase();
+        const path = String(u.pathname || '').toLowerCase();
+        if (!(host.includes('homes.jp') || host.includes('homes.co.jp'))) return raw;
+        if (!(path.includes('image.php') || path.includes('/smallimg/'))) return raw;
+        const ww = Math.max(1, parseInt(String(w || 0), 10) || 0);
+        const hh = Math.max(1, parseInt(String(h || 0), 10) || 0);
+        const edge = Math.max(ww, hh, 0);
+        const target = Math.max(360, Math.min(1280, edge > 0 ? edge * 2 : 480));
+        u.searchParams.set('width', String(target));
+        u.searchParams.set('height', String(target));
+        return u.toString();
+      } catch (_) {
+        return raw;
+      }
+    }
+
+    function portalCaseGalleryIdentityKey(src) {
+      const raw = unwrapPortalCaseCachedUrl(src);
+      if (!raw) return '';
+      try {
+        const u = new URL(raw, window.location.origin);
+        const host = String(u.hostname || '').toLowerCase();
+        const path = String(u.pathname || '').toLowerCase();
+        const decodeTwice = (value) => {
+          let out = String(value || '');
+          for (let i = 0; i < 2; i += 1) {
+            try {
+              const dec = decodeURIComponent(out);
+              if (dec === out) break;
+              out = dec;
+            } catch (_) {
+              break;
+            }
+          }
+          return out;
+        };
+        if (host.endsWith('realestate-pctr.c.yimg.jp') && path.includes('/realestate-buy-image/')) {
+          return `yahoo:${host}${path}`;
+        }
+        if ((host.includes('homes.jp') || host.includes('homes.co.jp')) && (path.includes('image.php') || path.includes('/smallimg/'))) {
+          const file = decodeTwice(u.searchParams.get('file') || '');
+          if (file) {
+            try {
+              const inner = new URL(file, window.location.origin);
+              return `homes:${String(inner.hostname || '').toLowerCase()}${String(inner.pathname || '').toLowerCase()}`;
+            } catch (_) {
+              return `homes:${file.toLowerCase()}`;
+            }
+          }
+          return `homes:${host}${path}`;
+        }
+        if (host.includes('athome.co.jp')) {
+          const normPath = path.replace('/cimages/', '/images/');
+          const kept = [];
+          u.searchParams.forEach((value, key) => {
+            const k = String(key || '').toLowerCase();
+            if (['ts', 'width', 'height', 'margin', 'w', 'h'].includes(k)) return;
+            kept.push(`${k}=${value}`);
+          });
+          return kept.length ? `athome:${normPath}?${kept.join('&')}` : `athome:${normPath}`;
+        }
+        if (host.includes('suumo.') && path.includes('resizeimage') && u.searchParams.has('src')) {
+          return `suumo:${decodeTwice(u.searchParams.get('src') || '').toLowerCase()}`;
+        }
+        return `${host}${path}${u.search ? `?${u.searchParams.toString()}` : ''}`.toLowerCase();
+      } catch (_) {
+        return raw.toLowerCase();
+      }
+    }
+
     /**
      * 列表／卡片顯示用：SUUMO /jj/resizeImage 依目標像素補齊 w/h，避免小圖被 CSS 拉滿後模糊。
      * 非 SUUMO 或無 src= 參數則原樣回傳。
@@ -13247,6 +13414,13 @@
         const rw = Number.isFinite(ww) && ww > 0 ? ww : 360;
         const rh = Number.isFinite(hh) && hh > 0 ? hh : 240;
         return portalCaseImageCacheUrl(rewriteYahooListingImageUrl(s, rw, rh) || s);
+      }
+      if ((low.includes('homes.jp') || low.includes('homes.co.jp')) && (low.includes('image.php') || low.includes('/smallimg/'))) {
+        const ww = Number(w);
+        const hh = Number(h);
+        const rw = Number.isFinite(ww) && ww > 0 ? ww : 240;
+        const rh = Number.isFinite(hh) && hh > 0 ? hh : 160;
+        return portalCaseImageCacheUrl(rewriteHomesListingImageUrl(s, rw, rh) || s);
       }
       return portalCaseImageCacheUrl(s);
     }
@@ -13309,7 +13483,15 @@
         ? it.gallery_urls.map((x) => String(x || '').trim()).filter(Boolean)
         : [];
       const thumb = String(it.thumb_url || '').trim();
-      let out = raw.filter((u) => !portalCaseUrlLooksLikeNonPropertyImage(u));
+      const seen = new Set();
+      let out = raw
+        .filter((u) => !portalCaseUrlLooksLikeNonPropertyImage(u))
+        .filter((u) => {
+          const key = portalCaseGalleryIdentityKey(u) || u;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
       if (!out.length && thumb && !portalCaseUrlLooksLikeNonPropertyImage(thumb)) out = [thumb];
       return out;
     }
@@ -20589,7 +20771,10 @@
         jpTransitUiLabel = bits.join(' › ');
       } else {
         // map 模式：優先使用地圖確認後保存的狀態；hidden keyword 只作為備援。
-        mapSelectionState = typeof getFigureMapSelectionState === 'function' ? getFigureMapSelectionState() : null;
+        mapSelectionState =
+          typeof getFigureMapSelectionState === 'function'
+            ? getFigureMapSelectionState({ includePending: true, persistPending: true })
+            : null;
         keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim() || String(mapSelectionState?.keyword || '').trim();
         if (hiddenKeyword && keyword) hiddenKeyword.value = keyword;
       }
