@@ -2175,6 +2175,10 @@
       <button id="image-lightbox-next" class="image-lightbox-nav image-lightbox-next" type="button" aria-label="下一張">›</button>
       <button id="image-lightbox-close" class="image-lightbox-close" type="button" aria-label="關閉圖片預覽">×</button>
       <div id="image-lightbox-status" class="image-lightbox-status" aria-live="polite">1 / 1</div>
+      <div id="image-lightbox-loader" class="image-lightbox-loader" aria-live="polite" hidden>
+        <strong id="image-lightbox-loader-title">圖片載入中</strong>
+        <span id="image-lightbox-loader-hint">正在取得完整原圖，請稍候。</span>
+      </div>
       <img id="image-lightbox-img" class="image-lightbox-img" alt="" referrerpolicy="no-referrer">
       <div class="image-lightbox-toolbar-note">滾輪縮放｜拖曳平移｜←/→ 切換</div>
     </div>
@@ -4557,6 +4561,9 @@
       const prevBtn = document.getElementById('image-lightbox-prev');
       const nextBtn = document.getElementById('image-lightbox-next');
       let statusEl = document.getElementById('image-lightbox-status');
+      let loaderEl = document.getElementById('image-lightbox-loader');
+      let loaderTitleEl = document.getElementById('image-lightbox-loader-title');
+      let loaderHintEl = document.getElementById('image-lightbox-loader-hint');
       if (!statusEl && inner) {
         statusEl = document.createElement('div');
         statusEl.id = 'image-lightbox-status';
@@ -4564,6 +4571,22 @@
         statusEl.setAttribute('aria-live', 'polite');
         statusEl.textContent = '1 / 1';
         inner.insertBefore(statusEl, img || null);
+      }
+      if ((!loaderEl || !loaderTitleEl || !loaderHintEl) && inner) {
+        loaderEl = document.createElement('div');
+        loaderEl.id = 'image-lightbox-loader';
+        loaderEl.className = 'image-lightbox-loader';
+        loaderEl.setAttribute('aria-live', 'polite');
+        loaderEl.hidden = true;
+        loaderTitleEl = document.createElement('strong');
+        loaderTitleEl.id = 'image-lightbox-loader-title';
+        loaderTitleEl.textContent = '圖片載入中';
+        loaderHintEl = document.createElement('span');
+        loaderHintEl.id = 'image-lightbox-loader-hint';
+        loaderHintEl.textContent = '正在取得完整原圖，請稍候。';
+        loaderEl.appendChild(loaderTitleEl);
+        loaderEl.appendChild(loaderHintEl);
+        inner.insertBefore(loaderEl, img || null);
       }
       if (!box || !inner || !img || !closeBtn || !prevBtn || !nextBtn || !statusEl) return;
       let gallery = [];
@@ -4575,6 +4598,7 @@
       let lastX = 0;
       let lastY = 0;
       let galleryFetchSeq = 0;
+      let lightboxImageLoadSeq = 0;
       const remoteGalleryCache = new Map();
       const resetTransform = () => {
         scale = 1;
@@ -4642,6 +4666,22 @@
         nextBtn.hidden = !multi;
         prevBtn.disabled = !multi;
         nextBtn.disabled = !multi;
+      };
+      const setLightboxLoaderState = (active, options = {}) => {
+        const title = String(options.title || '圖片載入中').trim() || '圖片載入中';
+        const hint = String(options.hint || '正在取得完整原圖，請稍候。').trim() || '正在取得完整原圖，請稍候。';
+        const failed = !!options.failed;
+        box.classList.toggle('is-lightbox-loading', !!active);
+        box.classList.toggle('is-lightbox-load-failed', !!active && failed);
+        if (img) img.classList.toggle('is-loading', !!active);
+        if (!loaderEl) return;
+        if (!active) {
+          loaderEl.hidden = true;
+          return;
+        }
+        if (loaderTitleEl) loaderTitleEl.textContent = title;
+        if (loaderHintEl) loaderHintEl.textContent = hint;
+        loaderEl.hidden = false;
       };
       const mergeGallery = (urls, focusSrc = '') => {
         const merged = dedupeGalleryUrls([...(gallery || []), ...(Array.isArray(urls) ? urls : [])]);
@@ -4736,46 +4776,78 @@
         }
       };
       const close = () => {
+        lightboxImageLoadSeq += 1;
         box.classList.remove('is-open');
         box.setAttribute('aria-hidden', 'true');
         box.removeAttribute('data-case-sid');
+        setLightboxLoaderState(false);
         img.src = '';
         gallery = [];
         cur = -1;
         updateControls();
         resetTransform();
       };
-      const open = (src, fallbackSrc, scope) => {
+      const loadLightboxImage = (src, fallbackSrc, options = {}) => {
         const tries = buildLightboxCandidates(src, fallbackSrc);
         if (!tries.length) return;
+        const targetIndex = Math.max(0, Number.isFinite(Number(options.index)) ? Number(options.index) : cur);
+        const total = Math.max(0, gallery.length);
+        const requestId = ++lightboxImageLoadSeq;
+        resetTransform();
+        updateControls(total > 1 ? '圖片載入中' : '載入圖片中');
+        setLightboxLoaderState(true, {
+          title: total > 1 ? `正在切換第 ${Math.min(total, targetIndex + 1)} 張圖片` : '正在載入完整圖片',
+          hint: '若原圖較大或原站回應較慢，會先顯示此提示後再更新圖片。',
+        });
+        const tryLoadAt = (candidateIndex) => {
+          if (requestId !== lightboxImageLoadSeq) return;
+          if (candidateIndex >= tries.length) {
+            img.removeAttribute('src');
+            updateControls('圖片暫時不可用');
+            setLightboxLoaderState(true, {
+              title: '圖片暫時無法顯示',
+              hint: '原站尚未回傳可用圖片；可切換下一張，或稍後再試。',
+              failed: true,
+            });
+            return;
+          }
+          const probe = new Image();
+          probe.decoding = 'async';
+          probe.referrerPolicy = 'no-referrer';
+          probe.onload = () => {
+            if (requestId !== lightboxImageLoadSeq) return;
+            img.src = tries[candidateIndex];
+            setLightboxLoaderState(false);
+            updateControls();
+            queueLightboxWindowPreload(targetIndex);
+          };
+          probe.onerror = () => {
+            if (requestId !== lightboxImageLoadSeq) return;
+            setLightboxLoaderState(true, {
+              title: candidateIndex === tries.length - 1 ? '正在嘗試最後一張備援圖' : '原圖回應較慢，正在改用備援圖',
+              hint: '狀態角標已切換到新圖片，畫面會在可用圖源載入後更新。',
+            });
+            tryLoadAt(candidateIndex + 1);
+          };
+          probe.src = tries[candidateIndex];
+        };
+        tryLoadAt(0);
+      };
+      const open = (src, fallbackSrc, scope) => {
         collectGallery(scope);
         cur = Math.max(0, gallery.indexOf(normalizeLightboxSource(src)));
         if (cur < 0) cur = 0;
-        updateControls();
-        queueLightboxWindowPreload(cur);
-        let idx = 0;
-        img.onerror = () => {
-          idx += 1;
-          if (idx < tries.length) {
-            img.src = tries[idx];
-            return;
-          }
-          img.onerror = null;
-        };
-        img.src = tries[0];
+        updateControls('圖片載入中');
         box.classList.add('is-open');
         box.setAttribute('aria-hidden', 'false');
-        resetTransform();
+        loadLightboxImage(src, fallbackSrc, { index: cur });
         hydrateRemoteGallery(scope, src).catch(() => {});
       };
       const openAt = (idx) => {
         if (!gallery.length) return;
         const n = (idx + gallery.length) % gallery.length;
         cur = n;
-        img.src = gallery[n];
-        updateControls();
-        queueLightboxWindowPreload(n);
-        resetTransform();
+        loadLightboxImage(gallery[n], gallery[n], { index: n });
       };
       document.addEventListener('click', (e) => {
         const t = e.target;
@@ -4869,7 +4941,11 @@
         const src = String(dot.getAttribute('data-card-img-src') || '').trim();
         const full = String(dot.getAttribute('data-card-img-full') || src).trim();
         if (!img || !src) return;
-        img.src = src;
+        const sameSource = String(img.getAttribute('src') || '').trim() === src;
+        if (!sameSource) {
+          portalCaseHeroImgBeginLoad(img, '正在切換案件圖片，請稍候。');
+          img.src = src;
+        }
         img.setAttribute('data-full-src', full || src);
         if (link) link.setAttribute('href', full || src);
         media.querySelectorAll('.portal-suumo-card-image-dot.is-active').forEach((node) => {
@@ -4878,6 +4954,7 @@
         });
         dot.classList.add('is-active');
         dot.setAttribute('aria-selected', 'true');
+        if (sameSource) portalCaseHeroImgOnLoad(img);
       });
     }
 
@@ -7457,6 +7534,7 @@
       latestFigureCaseItems = Array.isArray(items) ? items : [];
       syncFigureCaseFavoriteButtons();
       if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
+      if (typeof syncPortalCaseCardImageLoadStates === 'function') syncPortalCaseCardImageLoadStates(page);
       warmFigureCaseCards(Array.from(page.querySelectorAll('.market-item-card.figure-case-card')), {
         thumbPerCard: 2,
         fullPerCard: 1,
@@ -7558,6 +7636,7 @@
         resultWrap.innerHTML = renderPortalCaseCards(initialItems);
         syncFigureCaseFavoriteButtons();
         if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
+        if (typeof syncPortalCaseCardImageLoadStates === 'function') syncPortalCaseCardImageLoadStates(resultWrap);
         enhanceFigureResultsCarousel();
         return;
       }
@@ -13506,6 +13585,58 @@
       return `<span class="portal-suumo-no-img-title">${title}</span><span class="portal-suumo-no-img-hint">${hint}</span>`;
     }
 
+    function portalCaseLoadingCopyHtml(detail = '正在取得房屋縮圖，若原圖較大會稍晚顯示。') {
+      return `<span class="portal-suumo-no-img-title">圖片載入中</span><span class="portal-suumo-no-img-hint">${esc(String(detail || '正在取得房屋縮圖，若原圖較大會稍晚顯示。'))}</span>`;
+    }
+
+    function setPortalCaseMediaLoadingState(media, loading, detail) {
+      if (!(media instanceof Element)) return;
+      if (media.classList.contains('portal-suumo-card-media--no-reference')) return;
+      const loader = media.querySelector('.portal-suumo-media-loading');
+      media.classList.toggle('portal-suumo-card-media--loading', !!loading);
+      if (loader) {
+        if (loading) {
+          loader.innerHTML = portalCaseLoadingCopyHtml(detail);
+          loader.removeAttribute('hidden');
+        } else {
+          loader.setAttribute('hidden', 'hidden');
+        }
+      }
+    }
+
+    function portalCaseHeroImgBeginLoad(img, detail = '正在取得房屋縮圖，若原圖較大會稍晚顯示。') {
+      if (!img) return;
+      const wrap = img.closest('.portal-suumo-card-media');
+      if (!wrap) return;
+      wrap.classList.remove('portal-suumo-card-media--hero-failed');
+      setPortalCaseMediaLoadingState(wrap, true, detail);
+      const fallback = wrap.querySelector('.portal-suumo-no-img--hero-replace');
+      if (fallback && !wrap.classList.contains('portal-suumo-card-media--no-reference')) {
+        fallback.setAttribute('hidden', 'hidden');
+      }
+    }
+
+    function portalCaseHeroImgOnLoad(img) {
+      if (!img) return;
+      const wrap = img.closest('.portal-suumo-card-media');
+      if (!wrap || wrap.classList.contains('portal-suumo-card-media--no-reference')) return;
+      wrap.classList.remove('portal-suumo-card-media--hero-failed');
+      setPortalCaseMediaLoadingState(wrap, false);
+    }
+
+    function syncPortalCaseCardImageLoadStates(root = document) {
+      const scope = root && root.querySelectorAll ? root : document;
+      scope.querySelectorAll('.portal-suumo-card-heroimg').forEach((img) => {
+        const wrap = img.closest('.portal-suumo-card-media');
+        if (!wrap || wrap.classList.contains('portal-suumo-card-media--no-reference')) return;
+        if (img.complete && Number(img.naturalWidth || 0) > 0) {
+          portalCaseHeroImgOnLoad(img);
+        } else {
+          portalCaseHeroImgBeginLoad(img);
+        }
+      });
+    }
+
     /** 智慧查詢卡片主圖載入失敗時：改用相簿下一張網址，皆失敗則落到本機備援圖。 */
     function portalCaseHeroImgOnError(img) {
       if (!img) return;
@@ -13515,6 +13646,7 @@
         let i = parseInt(img.getAttribute('data-portal-hero-i') || '0', 10) + 1;
         img.setAttribute('data-portal-hero-i', String(i));
         if (i < arr.length && arr[i]) {
+          portalCaseHeroImgBeginLoad(img, i === arr.length - 1 ? '正在改用最後一張備援縮圖。' : '原圖回應較慢，正在改用備援縮圖。');
           img.src = arr[i];
           return;
         }
@@ -13524,6 +13656,7 @@
       const wrap = img.closest('.portal-suumo-card-media');
       if (wrap) {
         wrap.classList.add('portal-suumo-card-media--fallback', 'portal-suumo-card-media--hero-failed');
+        setPortalCaseMediaLoadingState(wrap, false);
         const fb = wrap.querySelector('.portal-suumo-no-img--hero-replace');
         if (fb) {
           fb.innerHTML = portalCaseNoImageCopyHtml('fetch_failed');
@@ -17932,10 +18065,11 @@
         const imageFetchPriority = index < 3 ? 'high' : 'low';
         const caseSidAttr = sid > 0 ? ` data-case-sid="${sid}"` : '';
         const mediaBlock = mainSrc
-          ? `<div class="figure-case-thumb portal-suumo-card-media${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>
+          ? `<div class="figure-case-thumb portal-suumo-card-media${hasReferenceImage ? ' portal-suumo-card-media--loading' : ''}${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>
               <a href="${esc(mainFullSrc || mainSrc)}" class="portal-suumo-lightbox-link" rel="nofollow">
-                <img class="portal-suumo-card-heroimg zoomable-image" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" data-gallery-full="${galleryFullAttr}"${caseSidAttr} alt="" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onerror="portalCaseHeroImgOnError(this)">
+                <img class="portal-suumo-card-heroimg zoomable-image" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" data-gallery-full="${galleryFullAttr}"${caseSidAttr} alt="" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onload="portalCaseHeroImgOnLoad(this)" onerror="portalCaseHeroImgOnError(this)">
               </a>
+              <div class="portal-suumo-media-loading"${hasReferenceImage ? '' : ' hidden'}>${portalCaseLoadingCopyHtml(index < 3 ? '正在優先載入本頁主圖，請稍候。' : '正在取得房屋縮圖，若原圖較大會稍晚顯示。')}</div>
               <div class="portal-suumo-no-img portal-suumo-no-img--hero-replace"${hasReferenceImage ? ' hidden' : ''}>${noImageCopyHtml}</div>
               <div class="portal-suumo-card-media-badges">
                 <span>${esc(it.source_name || '來源')}</span>
@@ -21186,6 +21320,7 @@
       .forEach((img) => img.classList.add('zoomable-image'));
     initImageLightbox();
     bindPortalCaseCardImageDots();
+    syncPortalCaseCardImageLoadStates(document);
     loadDialogTopCasesAndFaq();
     toggleQueryDialog(true);
     supportSelectedCasesCollapsed = loadSupportSelectedCasesCollapsedLocal();
