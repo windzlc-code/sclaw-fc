@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260615-admin-integrity-b">
+  <link rel="stylesheet" href="/static/site.css?v=20260616-home-carousel-no-drag-a">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -843,6 +843,15 @@
         <span>提示</span>
         <p id="admin-console-notice-text">目前操作只作用於選中的後台模組；刷新、展開與收合不會影響其他模組資料。</p>
       </div>
+      <div id="admin-detail-lightbox" class="admin-detail-lightbox" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;" onclick="if(event.target===this) closeAdminDetailLightbox()">
+        <div class="admin-detail-lightbox-inner panel">
+          <div class="admin-detail-lightbox-head">
+            <h3 id="admin-detail-lightbox-title" class="config-subhead">詳情</h3>
+            <button type="button" class="ui-close-btn" onclick="closeAdminDetailLightbox()" aria-label="關閉詳情">×</button>
+          </div>
+          <div id="admin-detail-lightbox-body" class="admin-detail-lightbox-body"></div>
+        </div>
+      </div>
       <div class="panel admin-quick-map">
         <div class="admin-quick-map-head">
           <h3 class="config-subhead">常用入口</h3>
@@ -1021,7 +1030,7 @@
         </div>
         <div id="admin-support-bot-status" class="muted">請先登入後台載入智能客服自評狀態。</div>
       </div>
-      <div class="panel">
+      <div id="admin-support-avatar-panel" class="panel">
         <h3 class="config-subhead">智能客服頭像（全站）</h3>
         <p class="muted">上傳正方形 PNG／JPG／WEBP，會同步套用全站客服頭像。</p>
         <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;">
@@ -1254,7 +1263,8 @@
             <span>列表精簡</span>
           </div>
         </div>
-        <details class="panel slim admin-case-settings-details" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f0f5ff 0%,#fff 100%);border:1px solid #d1ddf5;border-radius:10px;">
+        <div id="admin-cases-maintenance-panel" class="admin-case-maintenance-panel">
+        <details class="panel slim admin-case-settings-details" open style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f0f5ff 0%,#fff 100%);border:1px solid #d1ddf5;border-radius:10px;">
           <summary>
             <strong>七大站分段補全（固定順序）</strong>
             <span class="muted">前四站連跑、後三站補齊</span>
@@ -1271,7 +1281,7 @@
             </button>
           </div>
         </details>
-        <details class="panel slim admin-case-settings-details" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f5f0ff 0%,#fff 100%);border:1px solid #e0d5f5;border-radius:10px;">
+        <details class="panel slim admin-case-settings-details" open style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f5f0ff 0%,#fff 100%);border:1px solid #e0d5f5;border-radius:10px;">
           <summary>
             <strong>首頁智慧查詢：缺圖／人像自動補物件照</strong>
             <span class="muted">縮圖補齊、每日品質批次</span>
@@ -1309,6 +1319,7 @@
           </div>
           <p id="admin-case-quality-batch-status" class="muted" style="margin:0.45rem 0 0;font-size:0.85rem;line-height:1.55;" aria-live="polite"></p>
         </details>
+        </div>
         <p id="crawl-setting-msg" class="muted" style="font-size:0.85rem;" aria-live="polite"></p>
         <div id="admin-crawl-settings-legacy" class="visually-hidden" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
           <input type="hidden" id="home_hero_key" value="{{ home_hero.key }}">
@@ -1573,7 +1584,8 @@
       </div>
 
       <div id="admin-tab-knowledge" class="admin-tab-panel" role="tabpanel">
-      <div class="panel">
+      <div class="admin-knowledge-stack">
+      <div class="panel admin-knowledge-filter-panel">
         <h3 class="config-subhead">知識庫（專屬篩選）</h3>
         <p class="muted">按來源、主題、意圖快速查看知識庫資料。</p>
         <div class="search-row-basic" style="flex-wrap: wrap; gap: 0.5rem; align-items: center;">
@@ -1615,7 +1627,12 @@
           <button type="button" class="secondary" onclick="loadConfigKnowledgePreview()">載入列表</button>
         </div>
       </div>
-      <div id="config-knowledge-preview" class="config-knowledge-preview muted">尚未載入。切換至本頁籤時可載入列表。</div>
+      <div class="panel admin-knowledge-preview-panel">
+        <h3 class="config-subhead">內容預覽</h3>
+        <p class="muted">下方列表按目前篩選條件顯示，表格使用翻頁查看；完整內容請點「詳情」。</p>
+        <div id="config-knowledge-preview" class="config-knowledge-preview muted">尚未載入。切換至本頁籤時可載入列表。</div>
+      </div>
+      </div>
       </div>
 
       <div id="admin-tab-password" class="admin-tab-panel" role="tabpanel">
@@ -1846,20 +1863,10 @@
         <p id="admin-handoff-msg" class="muted"></p>
         <div id="admin-handoff-list-wrap" class="muted">請先登入。</div>
         <div class="search-row-basic" style="margin-top:0.5rem;">
-          <button type="button" class="secondary" onclick="adminHandoffPage=Math.max(1,(adminHandoffPage||1)-1);loadAdminHandoffRequests();">上一頁</button>
+          <button id="admin-handoff-prev-btn" type="button" class="secondary" onclick="adminHandoffPage=Math.max(1,(adminHandoffPage||1)-1);loadAdminHandoffRequests();">上一頁</button>
           <span id="admin-handoff-page-label" class="muted">第 1 頁</span>
-          <button type="button" class="secondary" onclick="adminHandoffPage=(adminHandoffPage||1)+1;loadAdminHandoffRequests();">下一頁</button>
+          <button id="admin-handoff-next-btn" type="button" class="secondary" onclick="adminHandoffPage=(adminHandoffPage||1)+1;loadAdminHandoffRequests();">下一頁</button>
         </div>
-      </div>
-      <div id="admin-handoff-detail" class="panel" style="display:none;margin-top:0.5rem;">
-        <div class="search-row-basic" style="justify-content:space-between;align-items:center;">
-          <strong id="admin-handoff-detail-title">留單詳情</strong>
-          <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end;">
-            <button id="admin-handoff-detail-delete-btn" type="button" class="admin-btn-danger" style="display:none;" onclick="deleteAdminHandoffRequest(adminHandoffCurrentId, true)">刪除</button>
-            <button type="button" class="secondary" onclick="closeAdminHandoffDetail()">返回列表</button>
-          </div>
-        </div>
-        <div id="admin-handoff-detail-body" class="admin-handoff-detail-pre muted" style="white-space:normal;font-size:13px;margin-top:0.5rem;"></div>
       </div>
       </div>
     </aside>
@@ -3629,11 +3636,21 @@
     let latestSalesLeadBoardRawCount = 0;
     let salesLeadBoardPage = 1;
     const SALES_LEAD_BOARD_PAGE_SIZE = 12;
+    let adminKnowledgePreviewItems = [];
+    let adminKnowledgePreviewRawCount = 0;
+    let adminKnowledgePreviewPage = 1;
+    const ADMIN_KNOWLEDGE_PREVIEW_PAGE_SIZE = 12;
+    let adminScenarioListPage = 1;
+    const ADMIN_SCENARIO_PAGE_SIZE = 8;
+    let adminSupportQaListPage = 1;
+    const ADMIN_SUPPORT_QA_PAGE_SIZE = 8;
     let adminSimpleMode = true;
     const ADMIN_SIMPLE_MODE_CACHE_KEY = 'sclaw.admin.simple_mode.v2';
     const ADMIN_SIDEBAR_COLLAPSE_CACHE_KEY = 'sclaw.admin.sidebar_collapsed.v1';
     let adminCollapsedSidebarGroups = new Set();
     let adminConsoleSectionIndex = 0;
+    const adminDeferredLoadState = new Set();
+    const ADMIN_PANEL_TRANSITION_MS = 320;
     const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'home-content', 'portal-matrix', 'leads', 'llm', 'password']);
     const ADMIN_TAB_LABEL_MAP = {
       cases: '案件管理',
@@ -3651,64 +3668,74 @@
       cases: {
         desc: '查詢、篩選與維護日本不動產案件資料。',
         chips: ['案件資料', '條件查詢', '列表管理'],
+        notice: '案件資料量較大，請先用來源、地區、價格等條件縮小範圍；批量補圖與補全工具只影響案件資料。',
       },
       handoffs: {
         desc: '查看客戶留單、對話摘要與人工跟進狀態。',
         chips: ['客戶需求', '顧問跟進', '對話紀錄'],
+        notice: '留單詳情會以燈箱開啟；可在列表勾選清理測試資料，刪除前請確認不是有效客戶需求。',
       },
       'support-hub': {
         desc: '維護客服頭像、場景問答與 CRM 提示詞。',
         chips: ['客服訓練', 'Q&A', '提示詞'],
+        notice: '客服訓練會影響前台智能客服回覆，新增場景或 Q&A 後請用測試訊息確認命中效果。',
       },
       knowledge: {
         desc: '按來源、主題與意圖快速檢視知識庫內容。',
         chips: ['知識庫', '主題篩選', '內容預覽'],
+        notice: '知識庫用於客服與查詢輔助；可先篩選來源、主題與意圖，再點詳情查看完整片段。',
       },
       telegram: {
         desc: '設定 LINE／Telegram 通知與人工回覆通道。',
         chips: ['通知通道', 'Webhook', '人工接手'],
+        notice: '通知通道設定會影響人工接手與顧問提醒；測試發送前請先確認 Bot Token、Chat ID 與 Webhook 狀態。',
       },
       'home-content': {
         desc: '管理首頁影片輪播、主視覺素材與 16:9 口播介紹影片。',
         chips: ['影片輪播', '口播介紹', '首頁套用'],
+        notice: '首頁素材會直接影響前台展示；更換影片或輪播前，請先預覽縮圖與標題是否完整。',
       },
       'portal-matrix': {
         desc: '查看七大門戶案件數、資料缺口與補齊流程。',
         chips: ['七站報表', '資料補齊', 'BOT 巡檢'],
+        notice: '報表用來判斷七大站資料缺口；補齊任務可能耗時，建議先看缺口再執行批次。',
       },
       leads: {
         desc: '整理社群互動名單，辨識高意願客戶。',
         chips: ['社群名單', '意願分級', '顧問跟進'],
+        notice: '社群雷達適合先貼入公開互動名單做分析；建立留單後會進入客戶跟進流程。',
       },
       llm: {
         desc: '設定 AI 供應商、模型、Base URL 與金鑰狀態。',
         chips: ['AI 供應商', '模型設定', '金鑰狀態'],
+        notice: 'AI 供應商設定會影響客服與後台分析；儲存後請確認金鑰狀態已顯示為已設定。',
       },
       password: {
         desc: '更新後台登入密碼與管理權限。',
         chips: ['登入安全', '密碼更新', '權限管理'],
+        notice: '密碼更新後會影響後台登入，請確認新密碼已妥善保存再退出登入。',
       },
     };
     const ADMIN_TAB_SECTION_MAP = {
       cases: [
+        { label: '資料維護', selector: '#admin-cases-maintenance-panel' },
         { label: '來源管理', selector: '#admin-cases-subtab-general .admin-case-settings-details--sources' },
         { label: '條件查詢', selector: '#admin-cases-subtab-general .admin-case-settings-details--filters' },
         { label: '批量工具', selector: '#admin-cases-subtab-general .admin-case-settings-details--tools' },
         { label: '案件列表', selector: '#admin-cases-list-wrap' },
       ],
       handoffs: [
-        { label: '留單列表', selector: '#admin-tab-handoffs > .panel' },
-        { label: '留單詳情', selector: '#admin-handoff-detail' },
+        { label: '客戶留單', selector: '#admin-tab-handoffs > .panel' },
       ],
       'support-hub': [
         { label: '客服狀態', selector: '#admin-tab-support-hub > .support-bot-status-panel' },
+        { label: '客服頭像', selector: '#admin-support-avatar-panel' },
         { label: '場景管理', selector: '#admin-support-hub-section-scenarios' },
         { label: 'Q&A / CRM', selector: '#admin-support-hub-section-support-qa' },
         { label: '提示詞', selector: '#admin-support-hub-section-support-crm' },
       ],
       knowledge: [
-        { label: '知識篩選', selector: '#admin-tab-knowledge > .panel' },
-        { label: '內容預覽', selector: '#config-knowledge-preview' },
+        { label: '知識庫', selector: '.admin-knowledge-stack' },
       ],
       telegram: [
         { label: '連線自檢', selector: '#admin-tg-auto-status' },
@@ -9900,29 +9927,67 @@
           if (intentFilter && String(it.intent_target || '') !== intentFilter) return false;
           return true;
         });
-        if (!items.length) {
-          wrap.innerHTML = '<p class="muted">目前條件下無知識資料，請放寬篩選條件。</p>';
-          return;
-        }
-        let html =
-          `<p class="muted">知識資料共 ${Number(data.count || 0)} 筆；目前篩選顯示 ${items.length} 筆。</p>` +
-          '<table class="data-table"><tr><th>來源</th><th>主題</th><th>意圖</th><th>日文標題</th><th>中文標題</th><th>時間</th><th>連結</th></tr>';
-        for (const it of items) {
-          html += `<tr>
-            <td>${esc(String(it.source_name || '-'))}</td>
-            <td>${esc(String(it.topic_category || '-'))}</td>
-            <td>${esc(String(it.intent_target || '-'))}</td>
-            <td style="max-width:16rem;">${esc(String(it.title_ja || '')).slice(0, 120)}</td>
-            <td class="muted" style="max-width:16rem;">${esc(formatKnowledgeSnippetTitle(it)).slice(0, 140)}</td>
-            <td>${esc(String(it.crawled_at || it.updated_at || '-'))}</td>
-            <td>${it.item_url ? `<a href="${esc(String(it.item_url))}" target="_blank" rel="nofollow noopener">查看來源</a>` : '<span class="muted">-</span>'}</td>
-          </tr>`;
-        }
-        html += '</div>';
-        wrap.innerHTML = html;
+        adminKnowledgePreviewItems = items;
+        adminKnowledgePreviewRawCount = Number(data.count || rawItems.length || 0);
+        adminKnowledgePreviewPage = 1;
+        renderAdminKnowledgePreviewPage();
       } catch (err) {
         wrap.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
       }
+    }
+
+    function renderAdminKnowledgePreviewPage() {
+      const wrap = document.getElementById('config-knowledge-preview');
+      if (!wrap) return;
+      const items = Array.isArray(adminKnowledgePreviewItems) ? adminKnowledgePreviewItems : [];
+      if (!items.length) {
+        wrap.innerHTML = '<p class="muted">目前條件下無知識資料，請放寬篩選條件。</p>';
+        return;
+      }
+      const totalPages = Math.max(1, Math.ceil(items.length / ADMIN_KNOWLEDGE_PREVIEW_PAGE_SIZE));
+      adminKnowledgePreviewPage = Math.max(1, Math.min(totalPages, Number(adminKnowledgePreviewPage || 1)));
+      const start = (adminKnowledgePreviewPage - 1) * ADMIN_KNOWLEDGE_PREVIEW_PAGE_SIZE;
+      const pageItems = items.slice(start, start + ADMIN_KNOWLEDGE_PREVIEW_PAGE_SIZE);
+      let html =
+        `<p class="muted">知識資料共 ${adminKnowledgePreviewRawCount} 筆；目前篩選 ${items.length} 筆；每頁 ${ADMIN_KNOWLEDGE_PREVIEW_PAGE_SIZE} 筆。</p>` +
+        adminPagerHtml(adminKnowledgePreviewPage, totalPages, 'setAdminKnowledgePreviewPage') +
+        '<table class="data-table admin-paged-table"><tr><th>來源</th><th>主題</th><th>意圖</th><th>標題預覽</th><th>時間</th><th>操作</th></tr>';
+      pageItems.forEach((it, offset) => {
+        const idx = start + offset;
+        const title = formatKnowledgeSnippetTitle(it);
+        html += `<tr>
+          <td>${esc(String(it.source_name || '-'))}</td>
+          <td>${esc(String(it.topic_category || '-'))}</td>
+          <td>${esc(String(it.intent_target || '-'))}</td>
+          <td>${esc(title).slice(0, 90)}${String(title || '').length > 90 ? '…' : ''}</td>
+          <td>${esc(String(it.crawled_at || it.updated_at || '-'))}</td>
+          <td>
+            <button type="button" class="secondary" onclick="openAdminKnowledgeDetail(${idx})">詳情</button>
+            ${it.item_url ? `<a class="secondary admin-table-link-btn" href="${esc(String(it.item_url))}" target="_blank" rel="nofollow noopener">來源</a>` : ''}
+          </td>
+        </tr>`;
+      });
+      html += '</table>' + adminPagerHtml(adminKnowledgePreviewPage, totalPages, 'setAdminKnowledgePreviewPage');
+      wrap.innerHTML = html;
+    }
+
+    function setAdminKnowledgePreviewPage(page) {
+      adminKnowledgePreviewPage = Number(page || 1);
+      renderAdminKnowledgePreviewPage();
+    }
+
+    function openAdminKnowledgeDetail(index) {
+      const it = (adminKnowledgePreviewItems || [])[Number(index)];
+      if (!it) return;
+      const url = String(it.item_url || '').trim();
+      const html =
+        adminDetailBlock('來源', it.source_name) +
+        adminDetailBlock('主題 / 意圖', `${String(it.topic_category || '-')}\n${String(it.intent_target || '-')}`) +
+        adminDetailBlock('日文標題', it.title_ja || it.title_original || '') +
+        adminDetailBlock('中文標題', formatKnowledgeSnippetTitle(it)) +
+        adminDetailBlock('時間', it.crawled_at || it.updated_at || '-') +
+        (url ? `<p><a href="${esc(url)}" target="_blank" rel="nofollow noopener">開啟原始來源</a></p>` : '');
+      openAdminDetailLightbox('知識庫詳情', html);
     }
 
     function adminApiHeaders(withJson = false) {
@@ -9930,6 +9995,68 @@
       if (withJson) headers['Content-Type'] = 'application/json';
       if (adminPanelPassword) headers['X-Admin-Password'] = adminPanelPassword;
       return headers;
+    }
+
+    function adminPagerHtml(page, total, fnName) {
+      const current = Math.max(1, Number(page || 1));
+      const max = Math.max(1, Number(total || 1));
+      const fn = String(fnName || '');
+      return `<div class="admin-table-pager">
+        <button type="button" class="secondary" ${current <= 1 ? 'disabled' : ''} onclick="${fn}(${current - 1})">上一頁</button>
+        <span class="muted">第 ${current} / ${max} 頁</span>
+        <button type="button" class="secondary" ${current >= max ? 'disabled' : ''} onclick="${fn}(${current + 1})">下一頁</button>
+      </div>`;
+    }
+
+    let _adminDetailLightboxEsc = null;
+
+    function openAdminDetailLightbox(title, html) {
+      const box = document.getElementById('admin-detail-lightbox');
+      const titleEl = document.getElementById('admin-detail-lightbox-title');
+      const body = document.getElementById('admin-detail-lightbox-body');
+      if (!box || !body) return;
+      if (titleEl) titleEl.textContent = String(title || '詳情');
+      body.innerHTML = html || '<p class="muted">沒有詳情。</p>';
+      box.style.display = 'flex';
+      box.setAttribute('aria-hidden', 'false');
+      if (_adminDetailLightboxEsc) document.removeEventListener('keydown', _adminDetailLightboxEsc);
+      _adminDetailLightboxEsc = (ev) => {
+        if (ev.key === 'Escape') closeAdminDetailLightbox();
+      };
+      document.addEventListener('keydown', _adminDetailLightboxEsc);
+    }
+
+    function closeAdminDetailLightbox() {
+      const box = document.getElementById('admin-detail-lightbox');
+      const body = document.getElementById('admin-detail-lightbox-body');
+      if (_adminDetailLightboxEsc) {
+        document.removeEventListener('keydown', _adminDetailLightboxEsc);
+        _adminDetailLightboxEsc = null;
+      }
+      if (box) {
+        box.style.display = 'none';
+        box.setAttribute('aria-hidden', 'true');
+      }
+      if (body) body.innerHTML = '';
+      const titleEl = document.getElementById('admin-detail-lightbox-title');
+      if (titleEl) titleEl.textContent = '詳情';
+      try {
+        if (typeof adminHandoffCurrentId !== 'undefined' && Number(adminHandoffCurrentId || 0) > 0) {
+          adminHandoffCurrentId = 0;
+          const params = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+          if (params.has('handoff')) {
+            params.delete('handoff');
+            const next = params.toString();
+            window.location.hash = next ? `#${next}` : '';
+          }
+        }
+      } catch (_) {}
+    }
+
+    function adminDetailBlock(label, value) {
+      const text = String(value == null ? '' : value).trim();
+      if (!text) return '';
+      return `<section class="admin-detail-block"><strong>${esc(label)}</strong><pre>${esc(text)}</pre></section>`;
     }
 
     function ensureAdminPanelPasswordForUpload() {
@@ -10290,6 +10417,7 @@
       const t = String(tab || 'cases');
       const drawer = document.getElementById('admin-drawer');
       if (!drawer) return;
+      const previousTab = String(drawer.dataset.adminActiveTab || drawer.querySelector('.admin-tab-btn.is-active')?.getAttribute('data-admin-tab') || 'cases');
       const targetTab = adminSimpleMode && !ADMIN_SIMPLE_CORE_TABS.has(t) ? 'cases' : t;
       openAdminSidebarGroupForTab(targetTab);
       drawer.dataset.adminActiveTab = targetTab;
@@ -10298,14 +10426,19 @@
         btn.classList.toggle('is-active', isActive);
         btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
       });
+      clearAdminPanelEnterState(drawer);
+      clearAdminConsoleChromeEnterState();
       drawer.querySelectorAll('.admin-tab-panel').forEach((panel) => {
         const id = String(panel.id || '').replace(/^admin-tab-/, '');
+        panel.classList.remove('admin-console-section-page', 'is-admin-section-active');
         panel.classList.toggle('is-active', id === targetTab);
       });
       adminConsoleSectionIndex = 0;
       syncAdminSidebarGroups(targetTab);
       updateAdminFlowHint(targetTab);
       updateAdminConsoleHero(targetTab);
+      triggerAdminPanelEnter(targetTab, previousTab);
+      triggerAdminConsoleChromeEnter(targetTab, previousTab);
       if (targetTab !== 'cases') {
         stopAdminCasesCrawlPolling();
         if (adminCasesLoadTimer) {
@@ -10317,61 +10450,75 @@
         stopAdminTelegramDebugPoll();
       }
       if ((targetTab === 'cases' || targetTab === 'home-content') && adminPanelPassword) {
-        loadCrawlSettings().catch(() => {});
         if (targetTab === 'cases') {
           switchAdminCasesSubtab('general');
         }
       }
-      if (targetTab === 'home-content' && adminPanelPassword) {
-        loadAdminHomeCarousel().catch(() => {});
-        loadHomeIntroSpokespersons(true).catch(() => {});
-      }
-      if (targetTab === 'telegram') {
-        refreshTelegramTabBackendHealthOnly().then(() => {
-          if (adminPanelPassword) {
-            loadAdminTelegramSettings();
-            loadAdminTelegramWebhookInfo(true);
-            loadAdminLineSettings();
-            loadAdminLineWebhookInfo(true);
-            loadAdminTelegramSessions();
-            loadAdminTelegramDebugRecent(true);
-            startAdminTelegramDebugPoll();
-          }
-        });
-      }
-      if (targetTab === 'handoffs' && adminPanelPassword) {
-        adminHandoffPage = 1;
-        const deepId = readAdminHandoffIdFromHash();
-        loadAdminHandoffRequests()
-          .then(() => {
-            if (deepId) openAdminHandoffDetail(deepId);
-          })
-          .catch(() => {});
-      }
-      if (targetTab === 'support-hub' && adminPanelPassword) {
-        loadAdminOfflineScenarios();
-        loadAdminSupportQaTraining();
-        loadAdminSupportCrmPrompt();
-        loadAdminSupportBotStatus();
-      }
-      if (targetTab === 'llm') {
-        refreshLlmUiFromStatus();
-        if (adminPanelPassword) {
-          loadAdminLlmSettings();
+    }
+
+    function getAdminTabDirectionClass(targetTab, previousTab) {
+      const previousIndex = getAdminTabVisualIndex(previousTab);
+      const targetIndex = getAdminTabVisualIndex(targetTab);
+      return targetIndex >= previousIndex ? 'is-admin-panel-from-right' : 'is-admin-panel-from-left';
+    }
+
+    function clearAdminPanelEnterState(drawer) {
+      const root = drawer || document.getElementById('admin-drawer');
+      if (!root) return;
+      root.querySelectorAll('.admin-tab-panel').forEach((panel) => {
+        panel.classList.remove('is-admin-panel-entering', 'is-admin-panel-from-left', 'is-admin-panel-from-right');
+        if (panel._adminPanelEnterTimer) {
+          window.clearTimeout(panel._adminPanelEnterTimer);
+          panel._adminPanelEnterTimer = 0;
         }
-      }
-      if (targetTab === 'leads') {
-        if (adminPanelPassword) {
-          loadSocialRadarLeads();
+      });
+    }
+
+    function clearAdminConsoleChromeEnterState() {
+      document.querySelectorAll('.is-admin-chrome-entering').forEach((node) => {
+        node.classList.remove('is-admin-chrome-entering', 'is-admin-panel-from-left', 'is-admin-panel-from-right');
+        if (node._adminChromeEnterTimer) {
+          window.clearTimeout(node._adminChromeEnterTimer);
+          node._adminChromeEnterTimer = 0;
         }
-        loadSalesMcpLeadBoard();
-      }
-      if (targetTab === 'knowledge') {
-        loadConfigKnowledgePreview();
-      }
-      if (targetTab === 'portal-matrix') {
-        loadAdminPortalMatrixReport();
-      }
+      });
+    }
+
+    function getAdminTabVisualIndex(tab) {
+      const key = String(tab || '');
+      const buttons = Array.from(document.querySelectorAll('#admin-tab-bar .admin-tab-btn'))
+        .filter((btn) => btn.style.display !== 'none');
+      const index = buttons.findIndex((btn) => String(btn.getAttribute('data-admin-tab') || '') === key);
+      return index >= 0 ? index : 0;
+    }
+
+    function triggerAdminPanelEnter(targetTab, previousTab) {
+      const panel = document.getElementById(`admin-tab-${String(targetTab || '')}`);
+      if (!panel) return;
+      const directionClass = getAdminTabDirectionClass(targetTab, previousTab);
+      panel.classList.add('is-admin-panel-entering', directionClass);
+      panel._adminPanelEnterTimer = window.setTimeout(() => {
+        panel.classList.remove('is-admin-panel-entering', 'is-admin-panel-from-left', 'is-admin-panel-from-right');
+        panel._adminPanelEnterTimer = 0;
+      }, ADMIN_PANEL_TRANSITION_MS);
+    }
+
+    function triggerAdminConsoleChromeEnter(targetTab, previousTab) {
+      const directionClass = getAdminTabDirectionClass(targetTab, previousTab);
+      const nodes = Array.from(document.querySelectorAll([
+        '.admin-console-path',
+        '.admin-console-hero',
+        '.admin-console-module-tabs:not([hidden])',
+        '.admin-console-toolbar',
+        '.admin-console-notice',
+      ].join(',')));
+      nodes.forEach((node) => {
+        node.classList.add('is-admin-chrome-entering', directionClass);
+        node._adminChromeEnterTimer = window.setTimeout(() => {
+          node.classList.remove('is-admin-chrome-entering', 'is-admin-panel-from-left', 'is-admin-panel-from-right');
+          node._adminChromeEnterTimer = 0;
+        }, ADMIN_PANEL_TRANSITION_MS);
+      });
     }
 
     function updateAdminFlowHint(tab) {
@@ -10384,16 +10531,64 @@
 
     function updateAdminConsoleHero(tab) {
       const key = String(tab || 'cases');
-      const title = document.getElementById('admin-console-title');
-      const desc = document.getElementById('admin-console-desc');
-      const pathCurrent = document.getElementById('admin-console-path-current');
       const meta = ADMIN_TAB_META_MAP[key] || ADMIN_TAB_META_MAP.cases;
-      if (title) title.textContent = ADMIN_TAB_LABEL_MAP[key] || key;
-      if (pathCurrent) pathCurrent.textContent = ADMIN_TAB_LABEL_MAP[key] || key;
-      if (desc) desc.textContent = meta.desc || '';
+      refreshAdminConsoleTitleText(key, meta);
       syncAdminConsoleSectionTabs(key);
       applyAdminConsoleSectionVisibility(key, adminConsoleSectionIndex);
       syncAdminConsoleDetailsToggle();
+    }
+
+    function refreshAdminConsoleTitleText(tab, meta) {
+      const key = String(tab || 'cases');
+      const titleText = ADMIN_TAB_LABEL_MAP[key] || key;
+      const descText = meta.desc || '';
+      const noticeText = meta.notice || '目前操作只作用於選中的後台模組；刷新、展開與收合不會影響其他模組資料。';
+      const hero = document.querySelector('.admin-console-hero');
+      const path = document.querySelector('.admin-console-path');
+      const noticeBox = document.querySelector('.admin-console-notice');
+      const title = document.getElementById('admin-console-title');
+      const desc = document.getElementById('admin-console-desc');
+      const pathCurrent = document.getElementById('admin-console-path-current');
+      const notice = document.getElementById('admin-console-notice-text');
+      const clearTitleRefreshState = () => {
+        hero.classList.remove('is-admin-title-refreshing');
+        if (path) path.classList.remove('is-admin-title-refreshing');
+        if (noticeBox) noticeBox.classList.remove('is-admin-title-refreshing');
+        hero._adminTitleRefreshTimer = 0;
+      };
+      if (!hero || !title) {
+        if (title) title.textContent = titleText;
+        if (pathCurrent) pathCurrent.textContent = titleText;
+        if (desc) desc.textContent = descText;
+        if (notice) notice.textContent = noticeText;
+        return;
+      }
+      const sameText =
+        title.textContent === titleText &&
+        (!desc || desc.textContent === descText) &&
+        (!pathCurrent || pathCurrent.textContent === titleText) &&
+        (!notice || notice.textContent === noticeText);
+      if (sameText) {
+        clearTitleRefreshState();
+        return;
+      }
+      const token = Number(hero._adminTitleRefreshToken || 0) + 1;
+      hero._adminTitleRefreshToken = token;
+      if (hero._adminTitleRefreshTimer) {
+        window.clearTimeout(hero._adminTitleRefreshTimer);
+        hero._adminTitleRefreshTimer = 0;
+      }
+      const replaceTextCleanly = (el, value) => {
+        if (!el) return;
+        el.textContent = '';
+        void el.offsetWidth;
+        el.textContent = value;
+      };
+      replaceTextCleanly(title, titleText);
+      replaceTextCleanly(pathCurrent, titleText);
+      replaceTextCleanly(desc, descText);
+      replaceTextCleanly(notice, noticeText);
+      if (hero._adminTitleRefreshToken === token) clearTitleRefreshState();
     }
 
     function getAdminConsoleSections(tab) {
@@ -10446,6 +10641,9 @@
       sections.forEach((section, i) => {
         section.target.classList.toggle('admin-console-section-page', true);
         section.target.classList.toggle('is-admin-section-active', i === current);
+        if (i === current && section.target.tagName === 'DETAILS') {
+          section.target.open = true;
+        }
       });
       const activeSection = sections[current];
       if (key === 'cases' && activeSection && activeSection.target && activeSection.target.id === 'admin-cases-list-wrap') {
@@ -10461,6 +10659,114 @@
           node.classList.remove('admin-console-section-page', 'is-admin-section-active');
         }
       });
+      scheduleAdminSectionLazyLoad(key, current);
+    }
+
+    function adminDeferredLoadKey(tab, index) {
+      return `${String(tab || '')}:${Number(index) || 0}`;
+    }
+
+    function resetAdminDeferredLoads(tab) {
+      const prefix = `${String(tab || '')}:`;
+      Array.from(adminDeferredLoadState).forEach((key) => {
+        if (key.startsWith(prefix)) adminDeferredLoadState.delete(key);
+      });
+    }
+
+    function scheduleAdminSectionLazyLoad(tab, index) {
+      const key = String(tab || 'cases');
+      const idx = Number(index) || 0;
+      const loadKey = adminDeferredLoadKey(key, idx);
+      if (adminDeferredLoadState.has(loadKey)) return;
+      adminDeferredLoadState.add(loadKey);
+      window.setTimeout(() => runAdminSectionLazyLoad(key, idx).catch(() => {
+        adminDeferredLoadState.delete(loadKey);
+      }), 40);
+    }
+
+    async function runAdminSectionLazyLoad(tab, index) {
+      const key = String(tab || 'cases');
+      const idx = Number(index) || 0;
+      if (key === 'cases') {
+        if (!adminPanelPassword) return;
+        if (idx === 0 || idx === 1) await loadCrawlSettings();
+        return;
+      }
+      if (key === 'handoffs') {
+        if (!adminPanelPassword || idx !== 0) return;
+        adminHandoffPage = 1;
+        const deepId = readAdminHandoffIdFromHash();
+        await loadAdminHandoffRequests();
+        if (deepId) openAdminHandoffDetail(deepId);
+        return;
+      }
+      if (key === 'knowledge') {
+        if (idx === 0) await loadConfigKnowledgePreview();
+        return;
+      }
+      if (key === 'support-hub') {
+        if (!adminPanelPassword) return;
+        if (idx === 0) await loadAdminSupportBotStatus();
+        else if (idx === 2) await loadAdminOfflineScenarios();
+        else if (idx === 3) await loadAdminSupportQaTraining();
+        else if (idx === 4) await loadAdminSupportCrmPrompt();
+        return;
+      }
+      if (key === 'telegram') {
+        if (idx === 0) {
+          const apiOk = await refreshTelegramTabBackendHealthOnly();
+          if (apiOk && adminPanelPassword) {
+            await Promise.all([
+              loadAdminTelegramSettings().catch(() => {}),
+              loadAdminLineSettings().catch(() => {}),
+            ]);
+          }
+          return;
+        }
+        if (!adminPanelPassword) return;
+        if (idx === 1) {
+          await loadAdminLineSettings();
+          await loadAdminLineWebhookInfo(true);
+        } else if (idx === 2) {
+          await loadAdminTelegramSettings();
+          await loadAdminTelegramSessions();
+        } else if (idx === 3) {
+          await loadAdminTelegramSettings();
+        } else if (idx === 4) {
+          await loadAdminTelegramWebhookInfo(true);
+          await loadAdminTelegramDebugRecent(true);
+          startAdminTelegramDebugPoll();
+        }
+        return;
+      }
+      if (key === 'home-content') {
+        if (!adminPanelPassword) return;
+        if (idx === 0) {
+          await loadCrawlSettings();
+          await loadAdminHomeCarousel();
+        } else if (idx === 1) {
+          await loadCrawlSettings();
+          await loadHomeIntroSpokespersons(true);
+        } else if (idx === 2) {
+          await loadAdminHomeCarousel();
+        }
+        return;
+      }
+      if (key === 'portal-matrix') {
+        if (idx === 0) await loadAdminPortalMatrixReport();
+        else if (idx === 2 && adminPanelPassword) await loadDataCompletionBotStatus();
+        return;
+      }
+      if (key === 'leads') {
+        if (idx !== 2) return;
+        if (adminPanelPassword) await loadSocialRadarLeads();
+        await loadSalesMcpLeadBoard();
+        return;
+      }
+      if (key === 'llm') {
+        await refreshLlmUiFromStatus();
+        if (adminPanelPassword) await loadAdminLlmSettings();
+      }
     }
 
     function persistAdminSidebarGroups() {
@@ -10561,6 +10867,7 @@
       const panel = document.getElementById(`admin-tab-${activeTab}`);
       const cmd = String(command || '').trim();
       if (cmd === 'refresh') {
+        resetAdminDeferredLoads(activeTab);
         switchAdminTab(activeTab);
         return;
       }
@@ -12894,6 +13201,7 @@
       const d = document.getElementById('admin-handoff-detail');
       const list = document.getElementById('admin-handoff-list-wrap');
       const del = document.getElementById('admin-handoff-detail-delete-btn');
+      closeAdminDetailLightbox();
       if (d) d.style.display = 'none';
       if (list) list.style.display = '';
       if (del) {
@@ -12932,6 +13240,15 @@
         btn.textContent = n > 0 ? `清除勾選（${n}）` : '清除勾選';
       }
       if (cnt) cnt.textContent = n > 0 ? `已勾選 ${n} 筆` : '';
+    }
+
+    function updateAdminHandoffPagerControls(page = 1, totalPages = 1) {
+      const prev = document.getElementById('admin-handoff-prev-btn');
+      const next = document.getElementById('admin-handoff-next-btn');
+      const current = Math.max(1, Number(page || 1));
+      const total = Math.max(1, Number(totalPages || 1));
+      if (prev) prev.disabled = !adminPanelPassword || current <= 1;
+      if (next) next.disabled = !adminPanelPassword || current >= total;
     }
 
     function currentAdminHandoffRowIds() {
@@ -13040,6 +13357,7 @@
     function openAdminTelegramForSession(sessionId) {
       const sid = String(sessionId || '').trim();
       if (!sid) return;
+      closeAdminDetailLightbox();
       goAdminFlow('telegram');
       try {
         runAdminTelegramTraceQuickAction('apply-session', sid);
@@ -13051,32 +13369,21 @@
     async function openAdminHandoffDetail(handoffId) {
       const id = Number(handoffId);
       if (!id || !adminPanelPassword) return;
-      const d = document.getElementById('admin-handoff-detail');
-      const list = document.getElementById('admin-handoff-list-wrap');
-      const body = document.getElementById('admin-handoff-detail-body');
-      const title = document.getElementById('admin-handoff-detail-title');
-      const del = document.getElementById('admin-handoff-detail-delete-btn');
       adminHandoffCurrentId = id;
       try {
         const params = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
         params.set('handoff', String(id));
         window.location.hash = `#${params.toString()}`;
       } catch (_) {}
-      if (body) body.innerHTML = '<p class="muted">載入中…</p>';
-      if (d) d.style.display = 'block';
-      if (list) list.style.display = 'none';
-      if (del) {
-        del.style.display = '';
-        del.disabled = false;
-        del.textContent = '刪除';
-      }
+      openAdminDetailLightbox(`留單 #${id}`, '<p class="muted">載入中…</p>');
       try {
         const res = await fetchSclawApiFirstOk([`/api/handoff-requests/${id}`, `/api/admin/handoff-requests/${id}`], {
           headers: adminApiHeaders(false),
         });
         const data = await parseApiResponseSafe(res);
         const it = data.item || {};
-        if (title) title.textContent = `留單 #${it.id || id}`;
+        const lbTitle = document.getElementById('admin-detail-lightbox-title');
+        if (lbTitle) lbTitle.textContent = `留單 #${it.id || id}`;
         const origin =
           typeof window !== 'undefined' && window.location && window.location.origin
             ? String(window.location.origin).replace(/\/$/, '')
@@ -13095,7 +13402,7 @@
         };
 
         let h = '';
-        h += '<div class="search-row-basic" style="flex-wrap:wrap;gap:0.35rem;align-items:center;margin:0 0 0.5rem;">';
+        h += '<div class="search-row-basic admin-handoff-detail-actions" style="flex-wrap:wrap;gap:0.35rem;align-items:center;margin:0 0 0.5rem;">';
         if (sessionId) {
           h += `<button type="button" class="secondary" onclick='copyTextWithFallback(${JSON.stringify(sessionId)})'>複製 Session</button>`;
           h += `<button type="button" class="secondary" onclick='openAdminTelegramForSession(${JSON.stringify(sessionId)})'>跳到 Telegram</button>`;
@@ -13103,6 +13410,7 @@
         if (shareUrl) {
           h += `<button type="button" class="secondary" onclick='copyTextWithFallback(${JSON.stringify(shareUrl)})'>複製連結</button>`;
         }
+        h += `<button id="admin-handoff-detail-delete-btn" type="button" class="admin-btn-danger" onclick="deleteAdminHandoffRequest(${id}, true)">刪除</button>`;
         h += '</div>';
 
         h += '<div class="admin-handoff-edit-form">';
@@ -13194,7 +13502,7 @@
         if (!conv.length) {
           h += '<p class="muted" style="margin:0;">（無附帶對話摘要）</p>';
         } else {
-          h += '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fafafa;max-height:18rem;overflow:auto;line-height:1.55;">';
+          h += '<div class="admin-handoff-detail-log">';
           for (const row of conv) {
             const role = String(row.role || '').trim().toLowerCase();
             const who = role === 'user' ? '使用者' : role === 'assistant' ? '顧問' : role || 'unknown';
@@ -13209,7 +13517,7 @@
         if (!staffInbox.length) {
           h += '<p class="muted" style="margin:0;">（尚無人工回覆紀錄）</p>';
         } else {
-          h += '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fafafa;max-height:18rem;overflow:auto;line-height:1.55;">';
+          h += '<div class="admin-handoff-detail-log">';
           for (const row of staffInbox.slice(-120)) {
             const ch = String(row.source_channel || '').trim() || 'advisor';
             const from = String(row.source_from_id || '').trim();
@@ -13221,9 +13529,12 @@
           h += '</div>';
         }
 
-        if (body) body.innerHTML = h || '<p class="muted">（無內容）</p>';
+        const finalHtml = h || '<p class="muted">（無內容）</p>';
+        const lbBody = document.getElementById('admin-detail-lightbox-body');
+        if (lbBody) lbBody.innerHTML = finalHtml;
       } catch (err) {
-        if (body) body.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
+        const lbBody = document.getElementById('admin-detail-lightbox-body');
+        if (lbBody) lbBody.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
       }
     }
 
@@ -13392,9 +13703,6 @@
         if (msg) {
           msg.textContent = `已載入 ${regions.length} 個地區列；低於門檻格數 ${Number(data.low_cell_count || 0)}（門檻 ${Number(data.threshold_per_cell || 15)}／格）。`;
         }
-        if (adminPanelPassword) {
-          loadDataCompletionBotStatus().catch(() => {});
-        }
       } catch (err) {
         wrap.innerHTML = '<p class="muted">載入失敗。</p>';
         if (msg) msg.textContent = formatApiError(err);
@@ -13410,6 +13718,7 @@
       if (!adminPanelPassword) {
         wrap.innerHTML = '<p class="muted">請先登入。</p>';
         if (lab) lab.textContent = '第 1 頁';
+        updateAdminHandoffPagerControls(1, 1);
         updateAdminHandoffBulkControls();
         return;
       }
@@ -13439,9 +13748,11 @@
         }
         adminHandoffPage = page;
         if (lab) lab.textContent = `第 ${page} / ${totalPages} 頁（共 ${total} 筆）${q ? `｜查詢：${q}` : ''}`;
+        updateAdminHandoffPagerControls(page, totalPages);
         const items = Array.isArray(data.items) ? data.items : [];
         if (!items.length) {
           wrap.innerHTML = `<p class="muted">${q ? '查無符合條件的留單。' : '尚無留單紀錄。'}</p>`;
+          updateAdminHandoffPagerControls(page, totalPages);
           syncAdminHandoffSelectAllCheckbox();
           updateAdminHandoffBulkControls();
           return;
@@ -13465,6 +13776,7 @@
         if (msg) msg.textContent = '';
       } catch (err) {
         wrap.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
+        updateAdminHandoffPagerControls(1, 1);
         syncAdminHandoffSelectAllCheckbox();
         updateAdminHandoffBulkControls();
       }
@@ -14398,8 +14710,14 @@
         populateAdminSupportQaGenerateScenes();
         return;
       }
+      const items = adminOfflineScenarios;
+      const totalPages = Math.max(1, Math.ceil(items.length / ADMIN_SCENARIO_PAGE_SIZE));
+      adminScenarioListPage = Math.max(1, Math.min(totalPages, Number(adminScenarioListPage || 1)));
+      const start = (adminScenarioListPage - 1) * ADMIN_SCENARIO_PAGE_SIZE;
+      const pageItems = items.slice(start, start + ADMIN_SCENARIO_PAGE_SIZE);
       let html = '<table class="data-table"><tr><th>場景</th><th>狀態</th><th>關鍵字</th><th>操作</th></tr>';
-      for (const row of adminOfflineScenarios) {
+      pageItems.forEach((row, offset) => {
+        const idx = start + offset;
         const sid = String(row.id || '');
         const label = String(row.label || '');
         const keywords = Array.isArray(row.keywords) ? row.keywords.join(' / ') : '';
@@ -14407,17 +14725,38 @@
         html += `<tr>
           <td><strong>${esc(label || sid)}</strong><br><span class="muted">${esc(sid)}</span><br><span class="muted">優先序：${Number(row.priority || 0)}</span></td>
           <td>${esc(status)}</td>
-          <td>${esc(keywords)}</td>
+          <td>${esc(keywords).slice(0, 70)}${keywords.length > 70 ? '…' : ''}</td>
           <td>
+            <button type="button" class="secondary" onclick="openAdminScenarioDetail(${idx})">詳情</button>
             <button type="button" class="secondary" onclick='editAdminScenario(${JSON.stringify(sid)})'>編輯</button>
             <button type="button" class="secondary" onclick='prefillSupportFromScenario(${JSON.stringify(sid)})'>交給智能客服</button>
             <button type="button" class="secondary" onclick='deleteAdminScenario(${JSON.stringify(sid)})'>刪除</button>
           </td>
         </tr>`;
-      }
-      html += '</table>';
+      });
+      html += '</table>' + adminPagerHtml(adminScenarioListPage, totalPages, 'setAdminScenarioListPage');
       wrap.innerHTML = html;
       populateAdminSupportQaGenerateScenes();
+    }
+
+    function setAdminScenarioListPage(page) {
+      adminScenarioListPage = Number(page || 1);
+      renderAdminScenarioList();
+    }
+
+    function openAdminScenarioDetail(index) {
+      const row = (adminOfflineScenarios || [])[Number(index)];
+      if (!row) return;
+      const keywords = Array.isArray(row.keywords) ? row.keywords.join(' / ') : '';
+      const bullets = Array.isArray(row.bullets) ? row.bullets.join('\n') : String(row.bullets || '');
+      const html =
+        adminDetailBlock('場景 ID', row.id) +
+        adminDetailBlock('顯示名稱', row.label) +
+        adminDetailBlock('狀態 / 優先序', `${row.enabled ? '啟用' : '停用'}\n${Number(row.priority || 0)}`) +
+        adminDetailBlock('關鍵字', keywords) +
+        adminDetailBlock('結論', row.conclusion) +
+        adminDetailBlock('重點條列', bullets);
+      openAdminDetailLightbox('離線場景詳情', html);
     }
 
     function populateAdminSupportQaGenerateScenes() {
@@ -14461,6 +14800,7 @@
         const res = await fetch('/api/admin/offline-scenarios', { headers: adminApiHeaders(false) });
         const data = await parseApiResponseSafe(res);
         adminOfflineScenarios = Array.isArray(data.items) ? data.items : [];
+        adminScenarioListPage = 1;
         renderAdminScenarioList();
         if (authMsg) authMsg.textContent = `已登入，載入 ${adminOfflineScenarios.length} 個場景。`;
       } catch (err) {
@@ -14494,8 +14834,14 @@
         wrap.innerHTML = '<p class="muted">尚無 Q&A，請新增；首次部署會帶入一則示範條目。</p>';
         return;
       }
+      const items = adminSupportQaTraining;
+      const totalPages = Math.max(1, Math.ceil(items.length / ADMIN_SUPPORT_QA_PAGE_SIZE));
+      adminSupportQaListPage = Math.max(1, Math.min(totalPages, Number(adminSupportQaListPage || 1)));
+      const start = (adminSupportQaListPage - 1) * ADMIN_SUPPORT_QA_PAGE_SIZE;
+      const pageItems = items.slice(start, start + ADMIN_SUPPORT_QA_PAGE_SIZE);
       let html = '<table class="data-table"><tr><th>條目</th><th>狀態</th><th>關鍵字</th><th>操作</th></tr>';
-      for (const row of adminSupportQaTraining) {
+      pageItems.forEach((row, offset) => {
+        const idx = start + offset;
         const qid = String(row.id || '');
         const label = String(row.label || '');
         const keywords = Array.isArray(row.keywords) ? row.keywords.join(' / ') : '';
@@ -14504,15 +14850,34 @@
         html += `<tr>
           <td><strong>${esc(label || qid)}</strong><br><span class="muted">${esc(qid)}</span><br><span class="muted">優先序：${Number(row.priority || 0)}</span><br><span class="muted">${esc(prev)}${(row.answer_body || '').length > 80 ? '…' : ''}</span></td>
           <td>${esc(status)}</td>
-          <td>${esc(keywords)}</td>
+          <td>${esc(keywords).slice(0, 70)}${keywords.length > 70 ? '…' : ''}</td>
           <td>
+            <button type="button" class="secondary" onclick="openAdminSupportQaDetail(${idx})">詳情</button>
             <button type="button" class="secondary" onclick='editAdminSupportQa(${JSON.stringify(qid)})'>編輯</button>
             <button type="button" class="secondary" onclick='deleteAdminSupportQa(${JSON.stringify(qid)})'>刪除</button>
           </td>
         </tr>`;
-      }
-      html += '</table>';
+      });
+      html += '</table>' + adminPagerHtml(adminSupportQaListPage, totalPages, 'setAdminSupportQaListPage');
       wrap.innerHTML = html;
+    }
+
+    function setAdminSupportQaListPage(page) {
+      adminSupportQaListPage = Number(page || 1);
+      renderAdminSupportQaList();
+    }
+
+    function openAdminSupportQaDetail(index) {
+      const row = (adminSupportQaTraining || [])[Number(index)];
+      if (!row) return;
+      const keywords = Array.isArray(row.keywords) ? row.keywords.join(' / ') : '';
+      const html =
+        adminDetailBlock('Q&A ID', row.id) +
+        adminDetailBlock('顯示名稱', row.label) +
+        adminDetailBlock('狀態 / 優先序', `${row.enabled ? '啟用' : '停用'}\n${Number(row.priority || 0)}`) +
+        adminDetailBlock('觸發關鍵字', keywords) +
+        adminDetailBlock('回覆本文', row.answer_body);
+      openAdminDetailLightbox('Q&A 詳情', html);
     }
 
     async function loadAdminSupportQaTraining() {
@@ -14527,6 +14892,7 @@
         const res = await fetch('/api/admin/support-qa', { headers: adminApiHeaders(false) });
         const data = await parseApiResponseSafe(res);
         adminSupportQaTraining = Array.isArray(data.items) ? data.items : [];
+        adminSupportQaListPage = 1;
         renderAdminSupportQaList();
       } catch (err) {
         adminSupportQaTraining = [];
@@ -15031,21 +15397,49 @@
     }
 
     let adminHomeCarouselCandidates = [];
+    let adminHomeCarouselItems = null;
+    const adminHomeCarouselPosterCache = new Map();
+    const adminHomeCarouselThumbQueue = [];
+    let adminHomeCarouselThumbActive = 0;
+    let adminHomeCarouselThumbObserver = null;
 
     function readAdminHomeCarouselItemsFromInput() {
+      if (Array.isArray(adminHomeCarouselItems)) {
+        return normalizeAdminHomeCarouselItems(adminHomeCarouselItems);
+      }
       const el = document.getElementById('home_carousel_items');
       try {
         const raw = JSON.parse(String(el?.value || '[]'));
-        return normalizeAdminHomeCarouselItems(raw);
+        adminHomeCarouselItems = normalizeAdminHomeCarouselItems(raw);
+        return normalizeAdminHomeCarouselItems(adminHomeCarouselItems);
       } catch (_) {
+        adminHomeCarouselItems = [];
         return [];
       }
     }
 
+    function readAdminHomeCarouselItemsForSave() {
+      const current = readAdminHomeCarouselItemsFromInput();
+      const byUrl = new Map(current.map((item) => [item.url, item]));
+      const domUrls = Array.from(document.querySelectorAll('#admin-home-carousel-published .admin-home-carousel-item'))
+        .map((node) => String(node.getAttribute('data-home-carousel-url') || '').trim())
+        .filter(Boolean);
+      if (!domUrls.length) return current;
+      return normalizeAdminHomeCarouselItems(domUrls.map((url, idx) => {
+        const item = byUrl.get(url) || (adminHomeCarouselCandidates || []).find((row) => String(row && row.url || '') === url) || { url };
+        return { ...item, url, sort_order: idx + 1 };
+      }));
+    }
+
     function writeAdminHomeCarouselItems(items) {
       const normalized = normalizeAdminHomeCarouselItems(items);
+      adminHomeCarouselItems = normalized;
       const el = document.getElementById('home_carousel_items');
-      if (el) el.value = JSON.stringify(normalized);
+      const raw = JSON.stringify(normalized);
+      if (el) {
+        el.value = raw;
+        el.setAttribute('value', raw);
+      }
       return normalized;
     }
 
@@ -15057,9 +15451,12 @@
           const mediaType = homeCarouselMediaType(url, item && item.media_type);
           if (!url || mediaType !== 'video' || seen.has(url)) return null;
           seen.add(url);
+          const posterUrl = String(item && item.poster_url ? item.poster_url : '').trim();
+          if (posterUrl) adminHomeCarouselPosterCache.set(url, posterUrl);
           return {
             url,
             source_url: String(item && item.source_url ? item.source_url : url),
+            poster_url: posterUrl,
             title: String(item && item.title ? item.title : '首頁影片').slice(0, 160),
             kind_label: String(item && item.kind_label ? item.kind_label : '發布影片').slice(0, 80),
             media_type: 'video',
@@ -15074,32 +15471,44 @@
     function adminHomeCarouselCard(item, idx, mode) {
       const mediaType = homeCarouselMediaType(item.url, item.media_type);
       if (mediaType !== 'video') return '';
-      const media = `<video src="${esc(item.url)}" muted playsinline preload="metadata"></video>`;
+      const title = String(item.title || '首頁影片');
+      const posterUrl = String(item.poster_url || adminHomeCarouselPosterCache.get(item.url) || '').trim();
+      if (posterUrl) adminHomeCarouselPosterCache.set(item.url, posterUrl);
+      const media = `<span class="admin-home-carousel-thumb-poster" aria-hidden="true">${posterUrl ? '' : '待載入'}</span><img alt="${esc(title)} 縮略圖" src="${esc(posterUrl)}"${posterUrl ? '' : ' hidden'}><video data-src="${esc(item.url)}" muted playsinline preload="metadata" hidden></video>`;
       const badge = '影片｜原音軌';
       if (mode === 'published') {
-        return `<div class="admin-home-carousel-item" data-home-carousel-url="${esc(item.url)}">
-          <span class="admin-home-carousel-thumb">${media}</span>
+        const publishedItems = readAdminHomeCarouselItemsFromInput();
+        const isFirst = idx <= 0;
+        const isLast = idx >= publishedItems.length - 1;
+        return `<div class="admin-home-carousel-item" data-home-carousel-url="${esc(item.url)}" data-home-carousel-index="${idx}">
+          <span class="admin-home-carousel-thumb" data-admin-home-carousel-thumb data-home-carousel-thumb-url="${esc(item.url)}">${media}</span>
           <span class="admin-home-carousel-main">
+            <span class="admin-home-carousel-order-label">順序第 ${idx + 1} 位</span>
             <strong>${idx + 1}. ${esc(item.title || badge)}</strong>
             <small>${esc([badge, item.kind_label, item.time_label].filter(Boolean).join('｜'))}</small>
           </span>
           <span class="admin-home-carousel-controls">
-            <button type="button" class="secondary" onclick="moveAdminHomeCarouselItem(${idx}, -1)">↑</button>
-            <button type="button" class="secondary" onclick="moveAdminHomeCarouselItem(${idx}, 1)">↓</button>
-            <button type="button" class="secondary danger" onclick="removeAdminHomeCarouselItem(${idx})">移除</button>
+            <button type="button" class="secondary admin-home-carousel-icon-btn" title="上移一位" aria-label="上移 ${esc(item.title || '影片')}" onclick="moveAdminHomeCarouselItem(${idx}, -1)"${isFirst ? ' disabled' : ''}>↑</button>
+            <button type="button" class="secondary admin-home-carousel-icon-btn" title="下移一位" aria-label="下移 ${esc(item.title || '影片')}" onclick="moveAdminHomeCarouselItem(${idx}, 1)"${isLast ? ' disabled' : ''}>↓</button>
+            <button type="button" class="secondary danger" title="從發布清單移除" onclick="removeAdminHomeCarouselItem(${idx})">移除</button>
           </span>
         </div>`;
       }
       return `<div class="admin-home-carousel-item" data-home-carousel-url="${esc(item.url)}">
-        <span class="admin-home-carousel-thumb">${media}</span>
+        <span class="admin-home-carousel-thumb" data-admin-home-carousel-thumb data-home-carousel-thumb-url="${esc(item.url)}">${media}</span>
         <span class="admin-home-carousel-main">
           <strong>${esc(item.title || badge)}</strong>
           <small>${esc([badge, item.kind_label, item.time_label].filter(Boolean).join('｜'))}</small>
         </span>
         <span class="admin-home-carousel-controls">
-          <button type="button" class="secondary" onclick="addAdminHomeCarouselItem(${idx})">加入</button>
+          <button type="button" class="secondary" title="加入發布清單" onclick="addAdminHomeCarouselItem(${idx})">加入</button>
         </span>
       </div>`;
+    }
+
+    function setAdminHomeCarouselMessage(text) {
+      const msg = document.getElementById('admin-home-carousel-msg');
+      if (msg) msg.textContent = String(text || '');
     }
 
     function renderAdminHomeCarousel() {
@@ -15115,6 +15524,175 @@
       candidateEl.innerHTML = candidates.length
         ? candidates.map((item, idx) => adminHomeCarouselCard(item, idx, 'candidate')).join('')
         : '<p class="muted admin-home-carousel-empty">沒有其他可上架影片。</p>';
+      hydrateAdminHomeCarouselThumbs(publishedEl);
+      hydrateAdminHomeCarouselThumbs(candidateEl);
+    }
+
+    function hydrateAdminHomeCarouselThumbs(root) {
+      const scope = root || document;
+      const thumbs = Array.from(scope.querySelectorAll('[data-admin-home-carousel-thumb]')).slice(0, 24);
+      const lazy = scope && scope.id === 'admin-home-carousel-candidates';
+      if (lazy && 'IntersectionObserver' in window) {
+        if (!adminHomeCarouselThumbObserver) {
+          adminHomeCarouselThumbObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              adminHomeCarouselThumbObserver.unobserve(entry.target);
+              enqueueAdminHomeCarouselThumb(entry.target);
+            });
+          }, { rootMargin: '120px 0px' });
+        }
+        thumbs.forEach((thumb) => {
+          if (thumb.dataset.posterReady === '1' || thumb.dataset.posterQueued === '1') return;
+          adminHomeCarouselThumbObserver.observe(thumb);
+        });
+        return;
+      }
+      thumbs.forEach((thumb) => enqueueAdminHomeCarouselThumb(thumb));
+    }
+
+    function enqueueAdminHomeCarouselThumb(thumb) {
+      if (!thumb || thumb.dataset.posterReady === '1' || thumb.dataset.posterQueued === '1') return;
+      const url = String(thumb.getAttribute('data-home-carousel-thumb-url') || '').trim();
+      const cached = url ? adminHomeCarouselPosterCache.get(url) : '';
+      if (cached && applyAdminHomeCarouselThumbPoster(thumb, cached)) return;
+      thumb.dataset.posterQueued = '1';
+      adminHomeCarouselThumbQueue.push(thumb);
+      pumpAdminHomeCarouselThumbQueue();
+    }
+
+    function pumpAdminHomeCarouselThumbQueue() {
+      if (adminHomeCarouselThumbActive >= 1) return;
+      const thumb = adminHomeCarouselThumbQueue.shift();
+      if (!thumb) return;
+      thumb.dataset.posterQueued = '';
+      adminHomeCarouselThumbActive += 1;
+      hydrateAdminHomeCarouselThumb(thumb, () => {
+        adminHomeCarouselThumbActive = Math.max(0, adminHomeCarouselThumbActive - 1);
+        pumpAdminHomeCarouselThumbQueue();
+      });
+    }
+
+    function applyAdminHomeCarouselThumbPoster(thumb, poster) {
+      if (!thumb || !poster) return false;
+      const img = thumb.querySelector('img');
+      const video = thumb.querySelector('video');
+      const label = thumb.querySelector('.admin-home-carousel-thumb-poster');
+      if (!img || !video) return false;
+      img.src = poster;
+      img.hidden = false;
+      video.hidden = true;
+      video.removeAttribute('src');
+      try { video.load(); } catch (_) {}
+      thumb.classList.add('has-poster');
+      thumb.dataset.posterReady = '1';
+      if (label) label.textContent = '';
+      return true;
+    }
+
+    function hydrateAdminHomeCarouselThumb(thumb, onDone) {
+      if (!thumb || thumb.dataset.posterReady === '1') {
+        if (typeof onDone === 'function') onDone();
+        return;
+      }
+      const video = thumb.querySelector('video');
+      const img = thumb.querySelector('img');
+      const label = thumb.querySelector('.admin-home-carousel-thumb-poster');
+      const url = String(thumb.getAttribute('data-home-carousel-thumb-url') || video?.dataset.src || '').trim();
+      const cached = url ? adminHomeCarouselPosterCache.get(url) : '';
+      if (cached && applyAdminHomeCarouselThumbPoster(thumb, cached)) {
+        if (typeof onDone === 'function') onDone();
+        return;
+      }
+      if (!video || !img || !url) {
+        if (typeof onDone === 'function') onDone();
+        return;
+      }
+      thumb.dataset.posterReady = '1';
+      if (img.getAttribute('src')) {
+        adminHomeCarouselPosterCache.set(url, img.getAttribute('src'));
+        applyAdminHomeCarouselThumbPoster(thumb, img.getAttribute('src'));
+        if (typeof onDone === 'function') onDone();
+        return;
+      }
+      let done = false;
+      let attempts = 0;
+      let durationHint = 0;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        thumb.classList.toggle('has-poster', !!ok);
+        if (label) label.textContent = ok ? '' : '影片';
+        video.hidden = !!ok;
+        img.hidden = !ok;
+        if (!ok) {
+          video.removeAttribute('src');
+          try { video.load(); } catch (_) {}
+        }
+        if (typeof onDone === 'function') onDone();
+      };
+      const fallback = () => {
+        if (done) return;
+        finish(false);
+      };
+      const capture = () => {
+        if (done) return;
+        try {
+          const sourceW = Math.max(1, Math.floor(video.videoWidth || 160));
+          const sourceH = Math.max(1, Math.floor(video.videoHeight || 90));
+          const w = 192;
+          const h = Math.max(90, Math.round(w * (sourceH / sourceW)));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return fallback();
+          ctx.drawImage(video, 0, 0, w, h);
+          const sample = ctx.getImageData(0, 0, Math.min(24, w), Math.min(24, h)).data;
+          let light = 0;
+          for (let i = 0; i < sample.length; i += 4) {
+            light += sample[i] + sample[i + 1] + sample[i + 2];
+          }
+          const avgLight = light / Math.max(1, sample.length / 4);
+          if (avgLight < 28 && attempts < 5) {
+            attempts += 1;
+            const steps = [0.18, 0.35, 0.52, 0.68, 0.82];
+            const ratio = steps[Math.min(attempts - 1, steps.length - 1)];
+            const nextTime = durationHint > 0 ? Math.min(Math.max(durationHint * ratio, 0.6), Math.max(0.1, durationHint - 0.15)) : 0.6 + attempts * 0.6;
+            try {
+              video.currentTime = nextTime;
+              return;
+            } catch (_) {
+              return fallback();
+            }
+          }
+          const poster = canvas.toDataURL('image/jpeg', 0.78);
+          if (!poster || poster.length < 128) return fallback();
+          adminHomeCarouselPosterCache.set(url, poster);
+          applyAdminHomeCarouselThumbPoster(thumb, poster);
+          finish(true);
+        } catch (_) {
+          fallback();
+        }
+      };
+      video.addEventListener('seeked', capture);
+      video.addEventListener('error', fallback, { once: true });
+      video.addEventListener('loadedmetadata', () => {
+        try {
+          durationHint = Number(video.duration || 0);
+          const target = durationHint > 0 ? Math.min(Math.max(durationHint * 0.18, 0.8), Math.max(0.1, durationHint - 0.2), 3) : 0.8;
+          video.currentTime = target;
+        } catch (_) {
+          fallback();
+        }
+      }, { once: true });
+      window.setTimeout(fallback, 5200);
+      try {
+        video.src = url;
+        video.load();
+      } catch (_) {
+        fallback();
+      }
     }
 
     function addAdminHomeCarouselItem(candidateIdx) {
@@ -15122,7 +15700,10 @@
       const currentUrls = new Set(current.map((x) => x.url));
       const available = (adminHomeCarouselCandidates || []).filter((x) => x && x.url && homeCarouselMediaType(x.url, x.media_type) === 'video' && !currentUrls.has(x.url));
       const item = available[candidateIdx];
-      if (!item) return;
+      if (!item) {
+        setAdminHomeCarouselMessage('沒有找到可加入的影片，請先重新載入素材。');
+        return;
+      }
       current.push(item);
       const next = writeAdminHomeCarouselItems(current);
       const customUrlEl = document.getElementById('home_hero_custom_url');
@@ -15130,24 +15711,30 @@
       setAdminHomeHeroChoice('custom-upload');
       addHomeVideoToCarousel(item, { message: '已加入首頁輪播預覽；按「儲存輪播順序」正式發布。', play: true });
       renderAdminHomeCarousel();
+      setAdminHomeCarouselMessage(`已加入「${item.title || '首頁影片'}」，目前發布清單 ${next.length} 支。`);
     }
 
     function moveAdminHomeCarouselItem(idx, dir) {
       const items = readAdminHomeCarouselItemsFromInput();
       const nextIdx = idx + dir;
-      if (nextIdx < 0 || nextIdx >= items.length) return;
+      if (nextIdx < 0 || nextIdx >= items.length) {
+        setAdminHomeCarouselMessage('已在清單邊界，無法再移動。');
+        return;
+      }
       const tmp = items[idx];
       items[idx] = items[nextIdx];
       items[nextIdx] = tmp;
       writeAdminHomeCarouselItems(items);
       renderAdminHomeCarousel();
+      setAdminHomeCarouselMessage(`已將「${tmp.title || '首頁影片'}」${dir < 0 ? '上移' : '下移'}一位，記得儲存輪播順序。`);
     }
 
     function removeAdminHomeCarouselItem(idx) {
       const items = readAdminHomeCarouselItemsFromInput();
-      items.splice(idx, 1);
-      writeAdminHomeCarouselItems(items);
+      const removed = items.splice(idx, 1)[0];
+      const next = writeAdminHomeCarouselItems(items);
       renderAdminHomeCarousel();
+      setAdminHomeCarouselMessage(`已移除「${removed?.title || '首頁影片'}」，目前發布清單 ${next.length} 支。`);
     }
 
     async function loadAdminHomeCarousel() {
@@ -15169,7 +15756,8 @@
     async function saveAdminHomeCarousel() {
       const msg = document.getElementById('admin-home-carousel-msg');
       if (!ensureAdminPanelPasswordForUpload()) return;
-      const items = readAdminHomeCarouselItemsFromInput();
+      const items = readAdminHomeCarouselItemsForSave();
+      writeAdminHomeCarouselItems(items);
       if (msg) msg.textContent = '儲存首頁輪播順序中…';
       try {
         const res = await fetch('/api/admin/home-carousel', {
@@ -15220,11 +15808,19 @@
       const card = document.querySelector(`[data-home-hero-card="${key}"]`);
       const media = card ? (card.querySelector('video:not([hidden])') || card.querySelector('img:not([hidden])') || card.querySelector('img,video')) : null;
       const hero = document.querySelector('.hero-media');
-      if (!hero || !media) return;
+      const msg = document.getElementById('admin-home-hero-msg');
+      if (!hero || !media) {
+        if (msg && !(options && options.auto)) msg.textContent = '目前沒有可預覽的首頁影片，請先加入或上傳影片。';
+        return;
+      }
       if (options && options.auto && hero.querySelector(':scope > .home-hero-generated-video')) return;
       const src = String(media.getAttribute('src') || '').trim();
-      if (!src) return;
+      if (!src) {
+        if (msg && !(options && options.auto)) msg.textContent = '目前選擇沒有影片網址，請先加入或上傳影片。';
+        return;
+      }
       setHomeHeroMedia(src, key);
+      if (msg && !(options && options.auto)) msg.textContent = '已在首頁主視覺區更新預覽，儲存後正式套用。';
     }
 
     function previewAdminHomeHeroFile() {
@@ -15288,6 +15884,7 @@
             current.unshift({
               url,
               source_url: String(data.source_url || url),
+              poster_url: String(data.poster_url || ''),
               title: `${file.name || '上傳影片'}｜${stamp}`,
               kind_label: '上傳影片',
               media_type: 'video',
@@ -15800,6 +16397,7 @@
         }
         addHomeVideoToCarousel({
           url,
+          poster_url: String(data.poster_url || ''),
           title: selectedTitle ? `案件影片｜${selectedTitle}` : '首頁 16:9 口播影片',
           kind_label: selectedTitle ? '案件影片' : '口播影片',
           time_label: new Date().toLocaleString('zh-TW', { hour12: false }),
@@ -15829,6 +16427,7 @@
       if (!current.some((x) => x.url === url)) {
         current.unshift({
           url,
+          poster_url: '',
           title: selectedTitle ? `案件影片｜${selectedTitle}` : '首頁 16:9 口播影片',
           kind_label: selectedTitle ? '案件影片' : '口播影片',
           media_type: 'video',
@@ -17021,7 +17620,7 @@
         portal_query_max_age_days: Number(document.getElementById('portal_query_max_age_days')?.value || 180),
         home_hero_key: String(document.getElementById('home_hero_key')?.value || 'brand-tokyo-night'),
         home_hero_custom_url: String(document.getElementById('home_hero_custom_url')?.value || ''),
-        home_carousel_items: readAdminHomeCarouselItemsFromInput(),
+        home_carousel_items: readAdminHomeCarouselItemsForSave(),
         smart_query_show_sell: !!document.getElementById('smart_query_show_sell')?.checked,
         smart_query_show_rent: !!document.getElementById('smart_query_show_rent')?.checked,
         portal_backfill_empty_thumbs: document.getElementById('portal_backfill_empty_thumbs')?.checked ?? true,
@@ -17527,7 +18126,7 @@
       setVal('portal_query_max_age_days', data.portal_query_max_age_days ?? 180);
       setVal('home_hero_key', data.home_hero_key ?? 'brand-tokyo-night');
       setVal('home_hero_custom_url', data.home_hero_custom_url ?? '');
-      setVal('home_carousel_items', JSON.stringify(data.home_carousel_items || []));
+      writeAdminHomeCarouselItems(data.home_carousel_items || []);
       const sellEl = document.getElementById('smart_query_show_sell');
       const rentEl = document.getElementById('smart_query_show_rent');
       if (sellEl) sellEl.checked = !!data.smart_query_show_sell;
@@ -18346,13 +18945,10 @@
       }
     }
 
-    function renderSalesLeadBoardRow(row, stageText) {
+    function renderSalesLeadBoardRow(row, stageText, index) {
       const sid = String(row.session_id || '');
-      const botScore = row.bot_eval_score == null ? '-' : `${Number(row.bot_eval_score || 0)} / ${esc(String(row.bot_optimization_level || ''))}`;
-      const botStatus = supportBotStatusLabel(row.bot_status || '');
       const userMsg = String(row.user_message || '');
       const reply = String(row.assistant_reply_preview || '');
-      const conv = String(row.conversation_preview || '');
       const rowId = esc(String(row.id != null ? row.id : ''));
       const createdAt = esc(String(row.created_at || '-'));
       const sessionCell = sid
@@ -18363,24 +18959,24 @@
         <div class="sales-lead-row-state"><span>${esc(stageText)}</span><strong>${Number(row.intent_score || 0)}</strong></div>
         <div class="sales-lead-row-copy"><strong>${esc(userMsg).slice(0, 54) || '—'}</strong><span>${esc(reply).slice(0, 70) || '尚無回覆摘要'}</span></div>
         <div class="sales-lead-row-session">${sessionCell}</div>
-        <button type="button" class="secondary sales-lead-detail-btn" onclick="toggleSalesLeadDetails(this)">詳情</button>
-        <div class="sales-lead-row-detail" hidden>
-          <p><strong>BOT 自評</strong>：${esc(botScore)}｜${esc(botStatus)}　<strong>通知</strong>：${Number(row.notify_count || 0)}</p>
-          <p><strong>Session</strong>：${esc(sid || '-')}</p>
-          <p><strong>客戶訊息</strong>：${esc(userMsg || '-')}</p>
-          <p><strong>回覆摘要</strong>：${esc(reply || '-')}</p>
-          <p><strong>對話摘要</strong>：${esc(conv || '-')}</p>
-        </div>
+        <button type="button" class="secondary sales-lead-detail-btn" onclick="openSalesLeadDetail(${Number(index) || 0})">詳情</button>
         </article>`;
     }
 
-    function toggleSalesLeadDetails(btn) {
-      const row = btn && btn.closest ? btn.closest('.sales-lead-row') : null;
-      const detail = row ? row.querySelector('.sales-lead-row-detail') : null;
-      if (!detail) return;
-      const nextOpen = detail.hasAttribute('hidden');
-      detail.toggleAttribute('hidden', !nextOpen);
-      btn.textContent = nextOpen ? '收合' : '詳情';
+    function openSalesLeadDetail(index) {
+      const row = (latestSalesLeadBoardItems || [])[Number(index)];
+      if (!row) return;
+      const botScore = row.bot_eval_score == null ? '-' : `${Number(row.bot_eval_score || 0)} / ${String(row.bot_optimization_level || '')}`;
+      const botStatus = supportBotStatusLabel(row.bot_status || '');
+      const html =
+        adminDetailBlock('ID / 時間', `#${String(row.id != null ? row.id : '')}\n${String(row.created_at || '-')}`) +
+        adminDetailBlock('階段 / 意願', `${salesLeadStageLabel(row.stage)}\n${Number(row.intent_score || 0)}`) +
+        adminDetailBlock('BOT 自評 / 通知', `${botScore}\n${botStatus}\n通知 ${Number(row.notify_count || 0)} 次`) +
+        adminDetailBlock('Session', row.session_id || '-') +
+        adminDetailBlock('客戶訊息', row.user_message || '-') +
+        adminDetailBlock('回覆摘要', row.assistant_reply_preview || '-') +
+        adminDetailBlock('對話摘要', row.conversation_preview || '-');
+      openAdminDetailLightbox('顧問線索詳情', html);
     }
 
     function salesLeadStageLabel(s) {
@@ -18408,9 +19004,9 @@
         `<div class="sales-lead-board-meta"><span>原始 ${latestSalesLeadBoardRawCount} 筆</span><span>符合 ${items.length} 筆</span><span>第 ${salesLeadBoardPage} / ${totalPages} 頁</span></div>` +
         '<div class="sales-lead-board-head"><span>ID / 時間</span><span>階段 / 意願</span><span>客戶訊息 / 回覆摘要</span><span>Session</span><span>操作</span></div>' +
         '<div class="sales-lead-board-list" role="list">';
-      for (const row of pageItems) {
-        html += renderSalesLeadBoardRow(row, salesLeadStageLabel(row.stage));
-      }
+      pageItems.forEach((row, offset) => {
+        html += renderSalesLeadBoardRow(row, salesLeadStageLabel(row.stage), start + offset);
+      });
       html += '</div>';
       html += `<div class="sales-lead-board-pager"><button type="button" class="secondary" ${salesLeadBoardPage <= 1 ? 'disabled' : ''} onclick="setSalesLeadBoardPage(${salesLeadBoardPage - 1})">上一頁</button><span class="muted">${start + 1} - ${Math.min(start + pageItems.length, items.length)} / ${items.length}</span><button type="button" class="secondary" ${salesLeadBoardPage >= totalPages ? 'disabled' : ''} onclick="setSalesLeadBoardPage(${salesLeadBoardPage + 1})">下一頁</button></div>`;
       wrap.innerHTML = html;

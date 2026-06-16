@@ -295,5 +295,14 @@
     "enabled": true,
     "priority": 122,
     "source_group": "mainstream_portal"
+  },
+  {
+    "name": "example.com",
+    "category": "自訂来源",
+    "url": "https://example.com",
+    "note": "",
+    "enabled": true,
+    "priority": 123,
+    "source_group": "other"
   }
 ]

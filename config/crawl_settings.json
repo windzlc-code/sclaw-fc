@@ -7,8 +7,18 @@
   "portal_query_max_records": 100000,
   "portal_query_max_age_days": 180,
   "home_hero_key": "custom-upload",
-  "home_hero_custom_url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4",
+  "home_hero_custom_url": "/static/uploads/home-intro-videos/home_intro_20260602_094119_212ae6/home_intro_16x9.mp4",
   "home_carousel_items": [
+    {
+      "url": "/static/uploads/home-intro-videos/home_intro_20260602_094119_212ae6/home_intro_16x9.mp4",
+      "source_url": "/static/uploads/home-intro-videos/home_intro_20260602_094119_212ae6/home_intro_16x9.mp4",
+      "title": "影片｜home_intro_16x9",
+      "kind_label": "口播影片",
+      "media_type": "video",
+      "time_label": "2026/06/02 17:41",
+      "enabled": true,
+      "sort_order": 1
+    },
     {
       "url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4",
       "source_url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4",
@@ -17,7 +27,7 @@
       "media_type": "video",
       "time_label": "順序 1",
       "enabled": true,
-      "sort_order": 1
+      "sort_order": 2
     },
     {
       "url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_02_h264.mp4",
@@ -27,7 +37,7 @@
       "media_type": "video",
       "time_label": "順序 2",
       "enabled": true,
-      "sort_order": 2
+      "sort_order": 3
     },
     {
       "url": "/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_03_h264.mp4",
@@ -37,7 +47,7 @@
       "media_type": "video",
       "time_label": "順序 3",
       "enabled": true,
-      "sort_order": 3
+      "sort_order": 4
     }
   ],
   "smart_query_show_sell": false,

@@ -707,6 +707,51 @@ def _home_static_url_from_path(path: Path) -> str:
         return ""
 
 
+def _home_carousel_video_poster_url(raw_ref: Any) -> str:
+    path = _url_to_local_static_path(raw_ref) if isinstance(raw_ref, str) else raw_ref
+    if not isinstance(path, Path) or not path.is_file():
+        return ""
+    try:
+        cache_dir = Path("static/cache/home-carousel-posters")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        key = hashlib.sha1(str(path.resolve()).encode("utf-8")).hexdigest()
+        poster = cache_dir / f"{key}.jpg"
+        if poster.is_file() and poster.stat().st_size > 1024:
+            return _home_static_url_from_path(poster)
+        ffmpeg = ""
+        try:
+            ffmpeg = _home_intro_ffmpeg_exe()
+        except Exception:
+            ffmpeg = shutil.which("ffmpeg") or ""
+        if not ffmpeg:
+            return ""
+        for seek in ("1.2", "0.6", "2.0"):
+            completed = subprocess.run(
+                [
+                    ffmpeg,
+                    "-y",
+                    "-ss",
+                    seek,
+                    "-i",
+                    str(path),
+                    "-frames:v",
+                    "1",
+                    "-q:v",
+                    "3",
+                    str(poster),
+                ],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=25,
+            )
+            if int(completed.returncode or 0) == 0 and poster.is_file() and poster.stat().st_size > 1024:
+                return _home_static_url_from_path(poster)
+    except Exception:
+        return ""
+    return ""
+
+
 def _home_default_carousel_video_items() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for idx, (raw_path, title) in enumerate(HOME_DEFAULT_CAROUSEL_VIDEOS, start=1):
@@ -722,6 +767,7 @@ def _home_default_carousel_video_items() -> list[dict[str, Any]]:
             {
                 "url": url,
                 "source_url": source_url or url,
+                "poster_url": _home_carousel_video_poster_url(playback_path) or _home_carousel_video_poster_url(path),
                 "title": title,
                 "kind_label": "預設首頁影片",
                 "time_label": f"順序 {idx}",
@@ -760,6 +806,7 @@ def _home_generated_video_carousel(
                 {
                     "url": url,
                     "source_url": str(item.get("source_url") or url).strip(),
+                    "poster_url": str(item.get("poster_url") or _home_carousel_video_poster_url(url)).strip(),
                     "title": str(item.get("title") or "首頁影片").strip(),
                     "kind_label": str(item.get("kind_label") or "發布影片").strip(),
                     "time_label": str(item.get("time_label") or "").strip(),
@@ -801,6 +848,7 @@ def _home_generated_video_carousel(
             {
                 "url": preferred,
                 "source_url": source_url,
+                "poster_url": _home_carousel_video_poster_url(preferred) or _home_carousel_video_poster_url(source_url),
                 "title": preferred_title or "首頁上傳影片",
                 "kind_label": preferred_kind_label or "首頁影片",
                 "time_label": now.strftime("%Y/%m/%d %H:%M"),
@@ -834,6 +882,7 @@ def _home_generated_video_carousel(
                     {
                         "url": url,
                         "source_url": source_url,
+                        "poster_url": _home_carousel_video_poster_url(playback_path) or _home_carousel_video_poster_url(path),
                         "title": f"{display_kind} {created.strftime('%m/%d %H:%M')}",
                         "kind_label": display_kind,
                         "time_label": created.strftime("%Y/%m/%d %H:%M"),
@@ -893,6 +942,7 @@ def _home_carousel_candidate_rows(limit: int = 80) -> list[dict[str, Any]]:
                     {
                         "url": url,
                         "source_url": source_url or url,
+                        "poster_url": _home_carousel_video_poster_url(playback_path) or _home_carousel_video_poster_url(path),
                         "title": f"影片｜{path.stem[:48]}",
                         "kind_label": kind_label,
                         "time_label": created.strftime("%Y/%m/%d %H:%M"),
@@ -928,6 +978,7 @@ def _normalize_home_carousel_for_app(items: Any) -> list[dict[str, Any]]:
             {
                 "url": url,
                 "source_url": str(item.get("source_url") or url).strip()[:1000],
+                "poster_url": str(item.get("poster_url") or _home_carousel_video_poster_url(url)).strip()[:1000],
                 "title": str(item.get("title") or "首頁影片").strip()[:160],
                 "kind_label": str(item.get("kind_label") or "發布影片").strip()[:80],
                 "media_type": "video",
