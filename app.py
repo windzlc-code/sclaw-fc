@@ -193,6 +193,10 @@ async def _api_exception_json_handler(request: Request, exc: Exception):
 _PORTAL_CASE_SEARCH_CACHE_LOCK = threading.Lock()
 _PORTAL_CASE_SEARCH_CACHE: dict[str, tuple[float, str]] = {}
 _PORTAL_CASE_SEARCH_CACHE_MAX = 96
+_PORTAL_CASE_SEARCH_EXACT_COUNT_LOCK = threading.Lock()
+_PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_PORTAL_CASE_SEARCH_EXACT_COUNT_JOBS: set[str] = set()
+_PORTAL_CASE_SEARCH_EXACT_COUNT_MAX = 160
 _SITE_SEARCH_CACHE_LOCK = threading.Lock()
 _SITE_SEARCH_CACHE: dict[str, tuple[float, bytes]] = {}
 _SITE_SEARCH_CACHE_MAX = 160
@@ -217,6 +221,9 @@ def _invalidate_case_data_caches() -> None:
         _COVERAGE_MATRIX_CACHE.clear()
     with _PORTAL_CASE_SEARCH_CACHE_LOCK:
         _PORTAL_CASE_SEARCH_CACHE.clear()
+    with _PORTAL_CASE_SEARCH_EXACT_COUNT_LOCK:
+        _PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE.clear()
+        _PORTAL_CASE_SEARCH_EXACT_COUNT_JOBS.clear()
     with _CASE_PAGE_HTML_CACHE_LOCK:
         _CASE_PAGE_HTML_CACHE.clear()
 _COVERAGE_MATRIX_CACHE_MAX = 32
@@ -523,6 +530,132 @@ def _portal_case_search_cache_set(key: str, body: str) -> None:
         while len(_PORTAL_CASE_SEARCH_CACHE) > _PORTAL_CASE_SEARCH_CACHE_MAX:
             oldest = min(_PORTAL_CASE_SEARCH_CACHE.items(), key=lambda kv: kv[1][0])[0]
             _PORTAL_CASE_SEARCH_CACHE.pop(oldest, None)
+
+
+def _portal_case_search_exact_count_ttl() -> float:
+    try:
+        base = max(1800.0, _portal_case_search_cache_ttl())
+        return max(
+            300.0,
+            min(21600.0, float(os.getenv("SCLAW_PORTAL_SEARCH_EXACT_COUNT_TTL", str(base)) or base)),
+        )
+    except Exception:
+        return 1800.0
+
+
+def _portal_case_search_exact_count_key(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _portal_case_search_exact_count_get_with_status(key: str) -> tuple[dict[str, Any] | None, str]:
+    ttl = _portal_case_search_exact_count_ttl()
+    now = time.monotonic()
+    with _PORTAL_CASE_SEARCH_EXACT_COUNT_LOCK:
+        hit = _PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE.get(key)
+        if not hit:
+            return None, "miss"
+        ts, data = hit
+        if now - ts <= ttl:
+            return dict(data), "ready"
+        _PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE.pop(key, None)
+        return None, "expired"
+
+
+def _portal_case_search_exact_count_set(key: str, data: dict[str, Any]) -> None:
+    with _PORTAL_CASE_SEARCH_EXACT_COUNT_LOCK:
+        _PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE[key] = (time.monotonic(), dict(data))
+        while len(_PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE) > _PORTAL_CASE_SEARCH_EXACT_COUNT_MAX:
+            oldest = min(_PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE.items(), key=lambda kv: kv[1][0])[0]
+            _PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE.pop(oldest, None)
+
+
+def _portal_case_search_exact_count_normalized_payload(
+    *,
+    tx: str,
+    portal: str,
+    region_hint: str,
+    keyword: str,
+    property_types: list[str],
+    price_min_man: int,
+    price_max_man: int,
+    layout_min_rooms: int,
+    layout_max_rooms: int,
+    layout_exact_zero: bool,
+    max_age_days: int,
+    limit: int,
+    jp_line_id: int,
+    jp_station_id: int,
+    walk_max: int,
+    coverage_matrix_aligned: bool,
+) -> dict[str, Any]:
+    return {
+        "tx": str(tx or "").strip().lower() or "buy",
+        "portal": str(portal or "").strip().lower() or "all",
+        "region": str(region_hint or "").strip(),
+        "keyword": str(keyword or "").strip(),
+        "property_types": [str(x or "").strip() for x in (property_types or []) if str(x or "").strip()],
+        "price_min_man": int(price_min_man or 0),
+        "price_max_man": int(price_max_man or 0),
+        "layout_min_rooms": int(layout_min_rooms or 0),
+        "layout_max_rooms": int(layout_max_rooms or 0),
+        "layout_exact_zero": bool(layout_exact_zero),
+        "max_age_days": int(max_age_days or 0),
+        "limit": int(limit or 0),
+        "jp_line_id": int(jp_line_id or 0),
+        "jp_station_id": int(jp_station_id or 0),
+        "walk_max": int(walk_max or 0),
+        "coverage_matrix_aligned": bool(coverage_matrix_aligned),
+    }
+
+
+def _portal_case_search_exact_count_start(payload: dict[str, Any]) -> str:
+    cache_key = _portal_case_search_exact_count_key(payload)
+    cached, status = _portal_case_search_exact_count_get_with_status(cache_key)
+    if cached is not None and status == "ready":
+        return "ready"
+    with _PORTAL_CASE_SEARCH_EXACT_COUNT_LOCK:
+        if cache_key in _PORTAL_CASE_SEARCH_EXACT_COUNT_JOBS:
+            return "pending"
+        _PORTAL_CASE_SEARCH_EXACT_COUNT_JOBS.add(cache_key)
+
+    def _runner() -> None:
+        try:
+            data = search_portal_cases(
+                transaction=str(payload.get("tx") or "buy"),
+                portal=str(payload.get("portal") or "all"),
+                region_hint=str(payload.get("region") or ""),
+                keyword=str(payload.get("keyword") or ""),
+                property_types=list(payload.get("property_types") or []),
+                price_min_man=int(payload.get("price_min_man") or 0),
+                price_max_man=int(payload.get("price_max_man") or 0),
+                layout_min_rooms=int(payload.get("layout_min_rooms") or 0),
+                layout_max_rooms=int(payload.get("layout_max_rooms") or 0),
+                layout_exact_zero=bool(payload.get("layout_exact_zero")),
+                max_age_days=int(payload.get("max_age_days") or 0),
+                limit=int(payload.get("limit") or 0),
+                offset=0,
+                page_size=0,
+                jp_line_id=int(payload.get("jp_line_id") or 0),
+                jp_station_id=int(payload.get("jp_station_id") or 0),
+                walk_max=int(payload.get("walk_max") or 0),
+                coverage_matrix_aligned=bool(payload.get("coverage_matrix_aligned")),
+            )
+            _portal_case_search_exact_count_set(
+                cache_key,
+                {
+                    "count": int(data.get("count") or 0),
+                    "limit": int(payload.get("limit") or 0),
+                    "computed_at": int(time.time()),
+                },
+            )
+        except Exception:
+            pass
+        finally:
+            with _PORTAL_CASE_SEARCH_EXACT_COUNT_LOCK:
+                _PORTAL_CASE_SEARCH_EXACT_COUNT_JOBS.discard(cache_key)
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return "pending"
 
 
 def _site_search_cache_ttl() -> float:
@@ -22047,6 +22180,44 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
         layout_max_rooms = 0
     if layout_min_rooms > 0 and layout_max_rooms > 0 and layout_max_rooms < layout_min_rooms:
         layout_min_rooms, layout_max_rooms = layout_max_rooms, layout_min_rooms
+    exact_count_payload = _portal_case_search_exact_count_normalized_payload(
+        tx=tx,
+        portal=portal,
+        region_hint=(payload.region_hint or "").strip(),
+        keyword=kw,
+        property_types=property_types,
+        price_min_man=price_min_man,
+        price_max_man=price_max_man,
+        layout_min_rooms=layout_min_rooms,
+        layout_max_rooms=layout_max_rooms,
+        layout_exact_zero=layout_exact_zero,
+        max_age_days=max_age,
+        limit=lim,
+        jp_line_id=int(payload.jp_line_id or 0),
+        jp_station_id=int(payload.jp_station_id or 0),
+        walk_max=int(payload.walk_max or 0),
+        coverage_matrix_aligned=bool(payload.coverage_matrix_aligned),
+    )
+    exact_count_data, exact_count_status = _portal_case_search_exact_count_get_with_status(
+        _portal_case_search_exact_count_key(exact_count_payload)
+    )
+    if page_size > 0 and exact_count_data is None:
+        exact_count_status = _portal_case_search_exact_count_start(exact_count_payload)
+
+    def _attach_exact_count_meta(raw: dict[str, Any]) -> dict[str, Any]:
+        out = dict(raw or {})
+        if page_size > 0:
+            if exact_count_data is not None:
+                out["count"] = int(exact_count_data.get("count") or 0)
+                out["count_status"] = "ready"
+                out["count_provisional"] = False
+            else:
+                out["count_status"] = "pending" if exact_count_status == "pending" else "miss"
+                out["count_provisional"] = True
+        else:
+            out["count_status"] = "ready"
+            out["count_provisional"] = False
+        return out
 
     cache_key = _portal_case_search_cache_key(
         {
@@ -22074,6 +22245,15 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     if cached_body is not None:
         if cache_status == "stale":
             threading.Thread(target=_prewarm_portal_case_search_cache, kwargs={"force": True}, daemon=True).start()
+        try:
+            cached_data = json.loads(cached_body)
+            cached_body = json.dumps(
+                _attach_exact_count_meta(cached_data),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        except Exception:
+            pass
         return Response(
             content=cached_body,
             media_type="application/json",
@@ -22154,12 +22334,93 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     data["allowed_transactions"] = allowed_tx
     data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
     data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
+    data = _attach_exact_count_meta(data)
     response_body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     _portal_case_search_cache_set(cache_key, response_body)
     return Response(
         content=response_body,
         media_type="application/json",
         headers={"X-Portal-Case-Search-Cache": "miss"},
+    )
+
+
+@app.post("/api/portal-case-search-count")
+def api_portal_case_search_count(payload: PortalCaseSearchRequest):
+    settings = load_crawl_settings()
+    cap = max(1000, min(100000, int(settings.get("portal_query_max_records", 100000))))
+    req_lim = int(payload.limit) if payload.limit is not None else cap
+    if req_lim <= 0:
+        req_lim = cap
+    lim = max(10, min(req_lim, cap))
+    allowed_tx = _allowed_portal_transactions(settings)
+
+    tx = (payload.transaction or "").strip().lower()
+    if not tx and (payload.deal_side or "").strip():
+        tx = (payload.deal_side or "").strip().lower()
+    if tx not in allowed_tx:
+        tx = "buy"
+
+    portal_keys = _normalize_smart_query_portals(payload.portal, payload.portals)
+    portal = ",".join(portal_keys) if portal_keys else "all"
+    kw = (payload.keyword or "").strip()
+    max_age = int(payload.max_age_days)
+    if max_age < 0:
+        max_age = 0
+    if max_age > 366:
+        max_age = 366
+    property_types = [str(x or "").strip() for x in (payload.property_types or []) if str(x or "").strip()]
+    price_min_man = max(0, min(999_999, int(payload.price_min_man or 0)))
+    price_max_man = max(0, min(999_999, int(payload.price_max_man or 0)))
+    if price_min_man > 0 and price_max_man > 0 and price_max_man < price_min_man:
+        price_min_man, price_max_man = price_max_man, price_min_man
+    layout_min_rooms = max(0, min(99, int(payload.layout_min_rooms or 0)))
+    layout_max_rooms = max(0, min(99, int(payload.layout_max_rooms or 0)))
+    layout_exact_zero = bool(payload.layout_exact_zero)
+    if layout_exact_zero:
+        layout_min_rooms = 0
+        layout_max_rooms = 0
+    if layout_min_rooms > 0 and layout_max_rooms > 0 and layout_max_rooms < layout_min_rooms:
+        layout_min_rooms, layout_max_rooms = layout_max_rooms, layout_min_rooms
+
+    exact_count_payload = _portal_case_search_exact_count_normalized_payload(
+        tx=tx,
+        portal=portal,
+        region_hint=(payload.region_hint or "").strip(),
+        keyword=kw,
+        property_types=property_types,
+        price_min_man=price_min_man,
+        price_max_man=price_max_man,
+        layout_min_rooms=layout_min_rooms,
+        layout_max_rooms=layout_max_rooms,
+        layout_exact_zero=layout_exact_zero,
+        max_age_days=max_age,
+        limit=lim,
+        jp_line_id=int(payload.jp_line_id or 0),
+        jp_station_id=int(payload.jp_station_id or 0),
+        walk_max=int(payload.walk_max or 0),
+        coverage_matrix_aligned=bool(payload.coverage_matrix_aligned),
+    )
+    cache_key = _portal_case_search_exact_count_key(exact_count_payload)
+    cached, status = _portal_case_search_exact_count_get_with_status(cache_key)
+    if cached is not None and status == "ready":
+        return JSONResponse(
+            {
+                "ok": True,
+                "status": "ready",
+                "count": int(cached.get("count") or 0),
+                "limit": lim,
+                "computed_at": int(cached.get("computed_at") or 0),
+            }
+        )
+    started = _portal_case_search_exact_count_start(exact_count_payload)
+    return JSONResponse(
+        {
+            "ok": True,
+            "status": "ready" if started == "ready" else "pending",
+            "count": int((cached or {}).get("count") or 0) if started == "ready" else None,
+            "limit": lim,
+        },
+        status_code=200 if started == "ready" else 202,
     )
 
 

@@ -3523,6 +3523,8 @@
     let supportSelectedCasesDrawerOpen = false;
     let supportTelegramInboxBootstrapped = false;
     let latestFigureCaseItems = [];
+    let latestFigureResultMeta = null;
+    let latestFigureExactCountPollSeq = 0;
     let dialogAutoSpeakEnabled = true;
     let dialogAutoSpeakLastKey = '';
     const SUPPORT_KB_HISTORY_KEY = 'sclaw_support_kb_history_v1';
@@ -17812,6 +17814,75 @@
       return `本次回傳：<strong>${n}</strong> 筆（當前條件已全部列示）`;
     }
 
+    function buildPortalCaseResultCountMarkup(count, appliedLimit, truncNote, exactPending = false) {
+      const text = portalCaseResultCountText(count, appliedLimit, truncNote);
+      const pendingNote = exactPending
+        ? '<span class="muted" data-figure-result-count-note> ｜ 總數精算中...</span>'
+        : '';
+      return `<span data-figure-result-count-text>${text}</span>${pendingNote}`;
+    }
+
+    function syncPortalCaseResultCountDisplay(count, options = {}) {
+      const appliedLimit = Number(options.appliedLimit != null ? options.appliedLimit : latestFigureResultMeta?.appliedLimit || 0);
+      const truncNote = String(options.truncNote != null ? options.truncNote : latestFigureResultMeta?.truncNote || '');
+      const exactPending = !!options.exactPending;
+      const textEl = document.querySelector('[data-figure-result-count-text]');
+      const noteEl = document.querySelector('[data-figure-result-count-note]');
+      if (textEl) textEl.innerHTML = portalCaseResultCountText(count, appliedLimit, truncNote);
+      if (exactPending) {
+        if (!noteEl && textEl && textEl.parentElement) {
+          const span = document.createElement('span');
+          span.className = 'muted';
+          span.setAttribute('data-figure-result-count-note', '');
+          span.textContent = ' ｜ 總數精算中...';
+          textEl.parentElement.appendChild(span);
+        }
+      } else if (noteEl) {
+        noteEl.remove();
+      }
+      latestFigureResultMeta = {
+        ...(latestFigureResultMeta || {}),
+        appliedLimit,
+        truncNote,
+        count: Number(count || 0),
+        exactPending,
+      };
+      if (figureResultsPagedState && Number.isFinite(Number(count))) {
+        figureResultsPagedState.totalCount = Math.max(0, Number(count || 0));
+        figureResultsPagedState.pageCount = Math.max(1, Math.ceil(figureResultsPagedState.totalCount / figureResultsPagedState.pageSize));
+        if (figureResultsPagedState.currentPage > figureResultsPagedState.pageCount - 1) {
+          figureResultsPagedState.currentPage = Math.max(0, figureResultsPagedState.pageCount - 1);
+        }
+        syncPagedFigureResultsControls(figureResultsPagedState);
+      }
+    }
+
+    async function pollPortalCaseExactCount(body, options = {}) {
+      if (!body || typeof body !== 'object') return;
+      const seq = ++latestFigureExactCountPollSeq;
+      const deadline = Date.now() + Math.max(12000, Number(options.timeoutMs || 45000));
+      let waitMs = 1200;
+      while (seq === latestFigureExactCountPollSeq && Date.now() < deadline) {
+        try {
+          const res = await fetchPortalCaseExactCount(body);
+          const data = await res.json().catch(() => ({}));
+          if (seq !== latestFigureExactCountPollSeq) return;
+          if (res.ok && data && data.status === 'ready' && Number.isFinite(Number(data.count))) {
+            syncPortalCaseResultCountDisplay(Number(data.count || 0), {
+              appliedLimit: options.appliedLimit,
+              truncNote: options.truncNote,
+              exactPending: false,
+            });
+            return;
+          }
+        } catch (_) {
+          // ignore transient polling failures
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+        waitMs = Math.min(5000, Math.round(waitMs * 1.45));
+      }
+    }
+
     function bindMarketTabs() {
       const btns = document.querySelectorAll('.market-tab-btn');
       const panels = document.querySelectorAll('.market-tab-panel');
@@ -20098,8 +20169,30 @@
       }
     }
 
+    async function fetchPortalCaseExactCount(body) {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), PORTAL_CASE_SEARCH_TIMEOUT_MS);
+      try {
+        return await fetch('/api/portal-case-search-count', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+      } catch (e) {
+        if (e && e.name === 'AbortError') {
+          throw new Error(`站內案件總數校準逾時（超過 ${Math.round(PORTAL_CASE_SEARCH_TIMEOUT_MS / 1000)} 秒）。`);
+        }
+        throw e;
+      } finally {
+        clearTimeout(tid);
+      }
+    }
+
     async function searchFigureTabLegacy(resetKeyword = false) {
       revealMorePagesSourcesAfterQuery();
+      latestFigureExactCountPollSeq += 1;
+      latestFigureResultMeta = null;
       const input = document.getElementById('figure_keyword');
       const regionSel = document.getElementById('figure_region');
       const ageSel = document.getElementById('figure_bot_legacy_age_disabled');
@@ -20235,10 +20328,14 @@
       latestFigureCaseItems = Array.isArray(items) ? items : [];
       applySmartQueryTransactionVisibility(data || {});
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
-      const resultCountText = portalCaseResultCountText(
-        Number(data.count != null ? data.count : items.length),
+      const count = Number(data.count != null ? data.count : items.length);
+      const truncNote = data.truncation_note ? '（已達單次回傳上限，可調高 crawl 設定之智慧查詢筆數或縮小條件）' : '';
+      const countPending = data.count_status === 'pending';
+      const resultCountMarkup = buildPortalCaseResultCountMarkup(
+        count,
         appliedLimit,
-        data.truncation_note ? '（已達單次回傳上限，可調高 crawl 設定之智慧查詢筆數或縮小條件）' : '',
+        truncNote,
+        countPending,
       );
       const resultPortals = Array.isArray(data.portal_keys) && data.portal_keys.length ? data.portal_keys : portalKeys;
       const isMatAligned = !!(data && data.coverage_matrix_aligned);
@@ -20290,7 +20387,7 @@
           : '';
       summary.innerHTML = `
         <p><strong>條件</strong>：${lineCond} ｜ 來源：${esc(formatFigurePortalLabel(resultPortals))} ｜ 區域：${effRegionHint ? esc(effRegionHint) : '不限'}${regInf} ｜ 最新區間：${Number(data.max_age_days || maxAgeDays) ? `${Number(data.max_age_days || maxAgeDays)} 天內` : '不限制'}</p>
-        <p class="muted">${lineKwJpt} ｜ ${resultCountText}</p>
+        <p class="muted">${lineKwJpt} ｜ ${resultCountMarkup}</p>
         ${scopeNoteHtml}
         ${matCountLine}
         ${matNote}
@@ -20309,7 +20406,16 @@
         walk_max: Number(data.walk_max != null ? data.walk_max : jptWalk) || 0,
         coverage_matrix_aligned: !!(data && data.coverage_matrix_aligned),
       });
+      latestFigureResultMeta = {
+        appliedLimit,
+        truncNote,
+        count,
+        exactPending: countPending,
+      };
       await renderPortalCaseResultsPaged(resultWrap, items, pagingBody, data);
+      if (countPending && pagingBody) {
+        void pollPortalCaseExactCount(pagingBody, { appliedLimit, truncNote });
+      }
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';
@@ -20422,6 +20528,8 @@
 
     async function searchFigureTab(resetKeyword = false) {
       revealMorePagesSourcesAfterQuery();
+      latestFigureExactCountPollSeq += 1;
+      latestFigureResultMeta = null;
       const regionSel = document.getElementById('figure_region');
       const summary = document.getElementById('figure-summary');
       const resultWrap = document.getElementById('figure-results');
@@ -20682,10 +20790,13 @@
       applySmartQueryTransactionVisibility(data || {});
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
       const count = Number(data.count != null ? data.count : allItems.length);
-      const resultCountText = portalCaseResultCountText(
+      const truncNote = data.truncation_note ? '（已達單次回傳上限，可縮小區域／類型／總價／格局條件）' : '';
+      const countPending = !aggregateSplitBroad && data.count_status === 'pending';
+      const resultCountMarkup = buildPortalCaseResultCountMarkup(
         count,
         appliedLimit,
-        data.truncation_note ? '（已達單次回傳上限，可縮小區域／類型／總價／格局條件）' : '',
+        truncNote,
+        countPending,
       );
       const meta = data.structured_filter_meta || {};
       const beforeCount = Number(meta.before_count || 0);
@@ -20702,7 +20813,7 @@
         : '';
       summary.innerHTML = `
         <p><strong>條件</strong>：區域：${esc(geoLabel)} ｜ 類型：${esc(typeLabel)} ｜ 總價：${esc(priceLabel)} ｜ 格局：${esc(layoutLabel)}</p>
-        <p class="muted">${resultCountText}</p>
+        <p class="muted">${resultCountMarkup}</p>
         ${filterNote}
         ${transitNote}
         ${relaxedNote}
@@ -20724,6 +20835,12 @@
               coverage_matrix_aligned: !!(data && data.coverage_matrix_aligned),
             }
           );
+      latestFigureResultMeta = {
+        appliedLimit,
+        truncNote,
+        count,
+        exactPending: countPending,
+      };
       await renderPortalCaseResultsPaged(
         resultWrap,
         items,
@@ -20731,6 +20848,9 @@
         { ...data, count, page_size: FIGURE_RESULTS_PAGE_SIZE },
         aggregateSplitBroad ? { fullItems: allItems } : {}
       );
+      if (countPending && pagingBody) {
+        void pollPortalCaseExactCount(pagingBody, { appliedLimit, truncNote });
+      }
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';
