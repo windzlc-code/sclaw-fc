@@ -22201,8 +22201,9 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     exact_count_data, exact_count_status = _portal_case_search_exact_count_get_with_status(
         _portal_case_search_exact_count_key(exact_count_payload)
     )
-    if page_size > 0 and exact_count_data is None:
-        exact_count_status = _portal_case_search_exact_count_start(exact_count_payload)
+    should_start_exact_count = page_size > 0 and exact_count_data is None and exact_count_status != "pending"
+    if should_start_exact_count:
+        exact_count_status = "pending"
 
     def _attach_exact_count_meta(raw: dict[str, Any]) -> dict[str, Any]:
         out = dict(raw or {})
@@ -22245,6 +22246,8 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     if cached_body is not None:
         if cache_status == "stale":
             threading.Thread(target=_prewarm_portal_case_search_cache, kwargs={"force": True}, daemon=True).start()
+        if should_start_exact_count:
+            _portal_case_search_exact_count_start(exact_count_payload)
         try:
             cached_data = json.loads(cached_body)
             cached_body = json.dumps(
@@ -22337,6 +22340,8 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     data = _attach_exact_count_meta(data)
     response_body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     _portal_case_search_cache_set(cache_key, response_body)
+    if should_start_exact_count:
+        _portal_case_search_exact_count_start(exact_count_payload)
     return Response(
         content=response_body,
         media_type="application/json",

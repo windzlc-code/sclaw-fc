@@ -7456,6 +7456,7 @@
       resetFigureResultsWrapLayout(resultWrap);
       const initialItems = Array.isArray(items) ? items : [];
       const fullItems = Array.isArray(options.fullItems) ? options.fullItems : null;
+      const countSyncOptions = options && typeof options === 'object' ? (options.countSyncOptions || {}) : {};
       const totalCountRaw = Number(data && data.count != null ? data.count : (fullItems ? fullItems.length : initialItems.length));
       const totalCount = Number.isFinite(totalCountRaw) && totalCountRaw >= 0 ? totalCountRaw : initialItems.length;
       const pageSizeRaw = Number(data && data.page_size != null ? data.page_size : FIGURE_RESULTS_PAGE_SIZE);
@@ -7495,6 +7496,12 @@
       figureResultsPagedState = state;
       syncPagedFigureResultsControls(state);
       renderPagedFigureResultsCards(state, initialItems, 0);
+      if (baseBody && data && data.count_status === 'pending') {
+        void pollPortalCaseExactCount(baseBody, {
+          appliedLimit: Number(countSyncOptions.appliedLimit != null ? countSyncOptions.appliedLimit : data.limit || 0),
+          truncNote: String(countSyncOptions.truncNote != null ? countSyncOptions.truncNote : ''),
+        });
+      }
       prefetchPagedFigureResultsPage(state, 1);
       shell.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target.closest('[data-figure-carousel], [data-figure-carousel-dot]') : null;
@@ -20412,10 +20419,9 @@
         count,
         exactPending: countPending,
       };
-      await renderPortalCaseResultsPaged(resultWrap, items, pagingBody, data);
-      if (countPending && pagingBody) {
-        void pollPortalCaseExactCount(pagingBody, { appliedLimit, truncNote });
-      }
+      await renderPortalCaseResultsPaged(resultWrap, items, pagingBody, data, {
+        countSyncOptions: { appliedLimit, truncNote },
+      });
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';
@@ -20846,11 +20852,11 @@
         items,
         pagingBody,
         { ...data, count, page_size: FIGURE_RESULTS_PAGE_SIZE },
-        aggregateSplitBroad ? { fullItems: allItems } : {}
+        {
+          ...(aggregateSplitBroad ? { fullItems: allItems } : {}),
+          countSyncOptions: { appliedLimit, truncNote },
+        }
       );
-      if (countPending && pagingBody) {
-        void pollPortalCaseExactCount(pagingBody, { appliedLimit, truncNote });
-      }
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';

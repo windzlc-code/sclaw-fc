@@ -3716,10 +3716,17 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
 
 
 def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
-    """Fast enough for search pagination counts: keep detail-filter fields, skip expensive gallery scoring."""
+    """Ultra-light conversion for paged search ranking.
+
+    Keep only the fields required by:
+    - `_is_probably_listing_detail_result`
+    - `_item_display_rank`
+    - later page hydration by `source_item_id`
+
+    Avoid `infer_case_metadata()` and `_extract_listing_fields()` here; they are
+    too expensive to run over thousands of rows when the UI only needs one page.
+    """
     d = dict(r)
-    meta = infer_case_metadata(d)
-    listing_fields = _extract_listing_fields(d, meta=meta)
     listing_media_json_s = str(d.get("listing_media_json") or "")
     image_urls_s = str(d.get("image_urls") or "")
     thumb = _fast_first_media_url(listing_media_json_s) or _fast_first_image_url(image_urls_s)
@@ -3755,14 +3762,32 @@ def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
         "thumb_url": thumb,
         "gallery_urls": gallery,
         "thumb_kind": _thumb_kind_label(thumb) if thumb else "",
-        "transaction_side": meta.get("transaction_side"),
-        "transaction_label_zh": meta.get("transaction_label_zh"),
-        "jp_region_display_zh": meta.get("jp_region_display_zh") or "",
-        "transit_line_zh": meta.get("transit_line_zh") or "",
+        "transaction_side": "",
+        "transaction_label_zh": "",
+        "jp_region_display_zh": str(d.get("case_jp_region_override") or ""),
+        "transit_line_zh": str(d.get("case_transit_override") or ""),
         "jp_station_id": int(d.get("jp_station_id") or 0),
         "walk_min": int(d.get("walk_min") or 0),
-        **_case_time_fields(d, listing_fields),
-        **listing_fields,
+        "case_time_at": "",
+        "data_time_at": "",
+        "sort_time_at": (
+            str(d.get("published_at") or "")
+            or str(d.get("last_checked_at") or "")
+            or str(d.get("crawled_at") or "")
+            or str(d.get("updated_at") or "")
+        )[:80],
+        "source_listing_time_jp": "",
+        "case_time_label_hant": "",
+        "price_text_hant": "",
+        "address_line_jp": "",
+        "access_line_jp": "",
+        "area_text_hant": "",
+        "layout_text_hant": "",
+        "built_ym_jp": "",
+        "floor_text_hant": "",
+        "manage_fee_jp": "",
+        "reserve_fee_jp": "",
+        "total_units_jp": "",
     }
 
 
@@ -4368,6 +4393,23 @@ def search_portal_cases(
             fetch_lim = min(6000, max(lim, lim * 4, 1000))
         else:
             fetch_lim = lim
+    if requested_page_size > 0 and not has_smart_structured_filters:
+        # The exact total count is now resolved asynchronously by a background endpoint.
+        # For the interactive first-page response, only fetch a bounded recent window
+        # instead of walking the full region inventory every time.
+        visible_target = max(1, page_offset + requested_page_size)
+        paged_probe_cap = max(
+            720,
+            min(
+                6000,
+                visible_target * (28 if multi_portal else 20),
+            ),
+        )
+        if has_transit_filter:
+            paged_probe_cap = max(paged_probe_cap, 1200)
+        elif region_hint and not kw_base:
+            paged_probe_cap = max(paged_probe_cap, 960)
+        fetch_lim = min(fetch_lim, paged_probe_cap)
     walk_sql = ""
     walk_params: list[Any] = []
     if wmax > 0:
