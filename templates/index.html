@@ -7490,47 +7490,39 @@
       return shell;
     }
 
+    function getPagedFigureResultsDisplayPage(state) {
+      if (!state) return 0;
+      const totalPages = Math.max(1, Number(state.pageCount || 1) || 1);
+      const raw = state.loading && Number.isFinite(Number(state.requestedPage))
+        ? Number(state.requestedPage)
+        : Number(state.currentPage || 0);
+      return Math.max(0, Math.min(totalPages - 1, Number.isFinite(raw) ? raw : 0));
+    }
+
     function syncPagedFigureResultsControls(state) {
       if (!state || !state.shell) return;
       const totalPages = Math.max(1, Number(state.pageCount || 1) || 1);
-      const current = Math.max(0, Math.min(totalPages - 1, Number(state.currentPage || 0) || 0));
+      const current = getPagedFigureResultsDisplayPage(state);
       const loading = !!state.loading;
       const status = state.shell.querySelector('[data-figure-carousel-status]');
       const dotsWrap = state.shell.querySelector('[data-figure-carousel-dots]');
       const prev = state.shell.querySelector('[data-figure-carousel="prev"]');
       const next = state.shell.querySelector('[data-figure-carousel="next"]');
+      state.shell.classList.toggle('is-loading', loading);
       if (status) status.textContent = loading ? `載入中 ${current + 1} / ${totalPages}` : `${current + 1} / ${totalPages}`;
       if (dotsWrap) dotsWrap.innerHTML = renderFigureResultsPagerDots(totalPages, current);
       if (prev) {
-        prev.disabled = loading;
+        prev.disabled = totalPages <= 1;
         prev.setAttribute('aria-label', `上一組案件，目前第 ${current + 1} / ${totalPages} 頁`);
       }
       if (next) {
-        next.disabled = loading;
+        next.disabled = totalPages <= 1;
         next.setAttribute('aria-label', `下一組案件，目前第 ${current + 1} / ${totalPages} 頁`);
       }
     }
 
-    function renderPagedFigureResultsCards(state, items, direction = 0) {
-      if (!state || !state.track) return;
-      const page = document.createElement('div');
-      page.className = 'figure-results-carousel-page';
-      page.setAttribute('data-figure-carousel-page', String(state.currentPage || 0));
-      page.innerHTML = renderPortalCaseCards(Array.isArray(items) ? items : []);
-      state.track.textContent = '';
-      state.track.appendChild(page);
-      state.track.style.transition = 'none';
-      state.track.style.transform = 'translate3d(0, 0, 0)';
-      if (typeof state.track.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        const shift = direction > 0 ? 22 : direction < 0 ? -22 : 0;
-        state.track.animate(
-          [
-            { opacity: 0.62, transform: `translate3d(${shift}px, 0, 0)` },
-            { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-          ],
-          { duration: 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-        );
-      }
+    function preparePagedFigureResultsPage(state, page, items) {
+      if (!state || !(page instanceof Element)) return;
       latestFigureCaseItems = Array.isArray(items) ? items : [];
       syncFigureCaseFavoriteButtons();
       if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
@@ -7542,7 +7534,77 @@
       });
     }
 
-    function getPagedFigureResultsPage(state, pageIndex) {
+    function getOrBuildPagedFigureResultsPage(state, items, pageIndex) {
+      if (!state || !state.track) return null;
+      const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
+      let page = state.pageElements.get(target);
+      if (!page) {
+        page = document.createElement('div');
+        page.className = 'figure-results-carousel-page';
+        page.setAttribute('data-figure-carousel-page', String(target));
+        page.innerHTML = renderPortalCaseCards(Array.isArray(items) ? items : []);
+        state.pageElements.set(target, page);
+      }
+      preparePagedFigureResultsPage(state, page, items);
+      return page;
+    }
+
+    function renderPagedFigureResultsCards(state, items, direction = 0, pageIndex = state.currentPage) {
+      if (!state || !state.track) return;
+      const incoming = getOrBuildPagedFigureResultsPage(state, items, pageIndex);
+      if (!(incoming instanceof Element)) return;
+      Array.from(state.track.children).forEach((node) => {
+        if (node !== state.activePageEl && node !== incoming) node.remove();
+      });
+      const current = state.activePageEl && state.track.contains(state.activePageEl)
+        ? state.activePageEl
+        : state.track.querySelector('.figure-results-carousel-page.is-current');
+      const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const transitionId = (state.transitionId || 0) + 1;
+      state.transitionId = transitionId;
+      state.track.classList.remove('is-transitioning');
+      if (!current || current === incoming || direction === 0 || reduceMotion || typeof incoming.animate !== 'function') {
+        incoming.className = 'figure-results-carousel-page is-current';
+        state.track.replaceChildren(incoming);
+        state.activePageEl = incoming;
+        state.track.style.minHeight = '';
+        return;
+      }
+      current.className = 'figure-results-carousel-page is-current is-leaving';
+      incoming.className = 'figure-results-carousel-page is-entering';
+      state.track.classList.add('is-transitioning');
+      state.track.appendChild(incoming);
+      const nextHeight = Math.max(current.offsetHeight || 0, incoming.offsetHeight || 0);
+      if (nextHeight > 0) state.track.style.minHeight = `${nextHeight}px`;
+      const enterFrom = direction > 0 ? 52 : -52;
+      const leaveTo = -enterFrom;
+      const animations = [
+        current.animate(
+          [
+            { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+            { opacity: 0.12, transform: `translate3d(${leaveTo}px, 0, 0)` },
+          ],
+          { duration: 210, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+        ).finished.catch(() => {}),
+        incoming.animate(
+          [
+            { opacity: 0.18, transform: `translate3d(${enterFrom}px, 0, 0)` },
+            { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+          ],
+          { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+        ).finished.catch(() => {}),
+      ];
+      Promise.all(animations).then(() => {
+        if (state.disposed || state.transitionId !== transitionId) return;
+        current.remove();
+        incoming.className = 'figure-results-carousel-page is-current';
+        state.activePageEl = incoming;
+        state.track.classList.remove('is-transitioning');
+        state.track.style.minHeight = '';
+      });
+    }
+
+    function getPagedFigureResultsPage(state, pageIndex, options = {}) {
       if (!state) return Promise.resolve({ items: [] });
       const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
       if (state.pageCache.has(target)) return Promise.resolve(state.pageCache.get(target));
@@ -7557,7 +7619,7 @@
       }
       if (state.pagePromises.has(target)) return state.pagePromises.get(target);
       const requestBody = buildPagedFigureResultsRequest(state.baseBody, target, state.pageSize);
-      const job = fetchPortalCaseSearch(requestBody)
+      const job = fetchPortalCaseSearch(requestBody, options)
         .then(async (res) => {
           const payload = await res.json();
           if (!res.ok) {
@@ -7596,21 +7658,54 @@
       if (!state || state.disposed) return;
       const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
       const direction = Number.isFinite(options.direction) ? Number(options.direction) : target === state.currentPage ? 0 : (target > state.currentPage ? 1 : -1);
+      state.requestedPage = target;
+      if (state.activeFetchController && state.loadingPage !== target) {
+        try {
+          state.activeFetchController.abort();
+        } catch (_) {}
+      }
+      if (state.pageCache.has(target)) {
+        state.requestId = (state.requestId || 0) + 1;
+        state.loading = false;
+        state.loadingPage = null;
+        state.currentPage = target;
+        syncPagedFigureResultsControls(state);
+        const cachedData = state.pageCache.get(target) || { items: [] };
+        renderPagedFigureResultsCards(state, cachedData?.items || [], direction, target);
+        prefetchPagedFigureResultsPage(state, target + 1);
+        prefetchPagedFigureResultsPage(state, target - 1);
+        return;
+      }
+      if (state.loading && state.loadingPage === target) {
+        syncPagedFigureResultsControls(state);
+        return;
+      }
       const requestId = (state.requestId || 0) + 1;
+      const requestCtrl = new AbortController();
       state.requestId = requestId;
+      state.activeFetchController = requestCtrl;
+      state.loadingPage = target;
       state.loading = true;
       syncPagedFigureResultsControls(state);
       try {
-        const pageData = await getPagedFigureResultsPage(state, target);
+        const pageData = await getPagedFigureResultsPage(state, target, { signal: requestCtrl.signal });
         if (state.disposed || state.requestId !== requestId || figureResultsPagedState !== state) return;
+        if (state.activeFetchController === requestCtrl) state.activeFetchController = null;
         state.currentPage = target;
+        state.requestedPage = target;
+        state.loadingPage = null;
         state.loading = false;
         syncPagedFigureResultsControls(state);
-        renderPagedFigureResultsCards(state, pageData?.items || [], direction);
+        renderPagedFigureResultsCards(state, pageData?.items || [], direction, target);
         prefetchPagedFigureResultsPage(state, target + 1);
+        prefetchPagedFigureResultsPage(state, target - 1);
       } catch (err) {
         if (state.disposed || state.requestId !== requestId || figureResultsPagedState !== state) return;
+        if (state.activeFetchController === requestCtrl) state.activeFetchController = null;
+        if (err && err.__pageRequestAborted) return;
+        state.loadingPage = null;
         state.loading = false;
+        state.requestedPage = state.currentPage;
         syncPagedFigureResultsControls(state);
         const msg = dedupeRepeatedFailureMessage(formatApiError(err) || '查詢失敗，請稍後再試。');
         if (!state.pageCache.size) {
@@ -7621,7 +7716,14 @@
 
     async function renderPortalCaseResultsPaged(resultWrap, items, baseBody, data = {}, options = {}) {
       if (!(resultWrap instanceof Element)) return;
-      if (figureResultsPagedState) figureResultsPagedState.disposed = true;
+      if (figureResultsPagedState) {
+        figureResultsPagedState.disposed = true;
+        if (figureResultsPagedState.activeFetchController) {
+          try {
+            figureResultsPagedState.activeFetchController.abort();
+          } catch (_) {}
+        }
+      }
       figureResultsPagedState = null;
       resetFigureResultsWrapLayout(resultWrap);
       const initialItems = Array.isArray(items) ? items : [];
@@ -7657,16 +7759,22 @@
         pageCount,
         localItems: fullItems,
         currentPage: 0,
+        requestedPage: 0,
         loading: false,
+        loadingPage: null,
         requestId: 0,
         disposed: false,
+        transitionId: 0,
+        activeFetchController: null,
+        activePageEl: null,
         pageCache: new Map(),
+        pageElements: new Map(),
         pagePromises: new Map(),
       };
       state.pageCache.set(0, { items: initialItems, payload: data || {} });
       figureResultsPagedState = state;
       syncPagedFigureResultsControls(state);
-      renderPagedFigureResultsCards(state, initialItems, 0);
+      renderPagedFigureResultsCards(state, initialItems, 0, 0);
       if (baseBody && data && data.count_status === 'pending') {
         void pollPortalCaseExactCount(baseBody, {
           appliedLimit: Number(countSyncOptions.appliedLimit != null ? countSyncOptions.appliedLimit : data.limit || 0),
@@ -7674,23 +7782,25 @@
         });
       }
       prefetchPagedFigureResultsPage(state, 1);
+      prefetchPagedFigureResultsPage(state, 2);
       shell.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target.closest('[data-figure-carousel], [data-figure-carousel-dot]') : null;
         if (!target || state.disposed || figureResultsPagedState !== state) return;
         evt.preventDefault();
+        const basePage = getPagedFigureResultsDisplayPage(state);
         if (target.hasAttribute('data-figure-carousel-dot')) {
           const idx = Math.max(0, parseInt(String(target.getAttribute('data-figure-carousel-dot') || '0'), 10) || 0);
-          setPagedFigureResultsPage(state, idx, { direction: idx > state.currentPage ? 1 : idx < state.currentPage ? -1 : 0 }).catch(() => {});
+          setPagedFigureResultsPage(state, idx, { direction: idx > basePage ? 1 : idx < basePage ? -1 : 0 }).catch(() => {});
           return;
         }
         const role = String(target.getAttribute('data-figure-carousel') || '').trim();
         if (role === 'prev') {
-          const nextPage = state.currentPage <= 0 ? state.pageCount - 1 : state.currentPage - 1;
+          const nextPage = basePage <= 0 ? state.pageCount - 1 : basePage - 1;
           setPagedFigureResultsPage(state, nextPage, { direction: -1 }).catch(() => {});
           return;
         }
         if (role === 'next') {
-          const nextPage = state.currentPage >= state.pageCount - 1 ? 0 : state.currentPage + 1;
+          const nextPage = basePage >= state.pageCount - 1 ? 0 : basePage + 1;
           setPagedFigureResultsPage(state, nextPage, { direction: 1 }).catch(() => {});
         }
       });
@@ -20470,8 +20580,16 @@
     }
 
     const PORTAL_CASE_SEARCH_TIMEOUT_MS = 20000;
-    async function fetchPortalCaseSearch(body) {
+    async function fetchPortalCaseSearch(body, options = {}) {
       const ctrl = new AbortController();
+      let abortRelay = null;
+      if (options && options.signal && typeof options.signal.addEventListener === 'function') {
+        if (options.signal.aborted) ctrl.abort();
+        else {
+          abortRelay = () => ctrl.abort();
+          options.signal.addEventListener('abort', abortRelay, { once: true });
+        }
+      }
       const tid = setTimeout(() => ctrl.abort(), PORTAL_CASE_SEARCH_TIMEOUT_MS);
       try {
         return await fetch('/api/portal-case-search', {
@@ -20481,6 +20599,12 @@
           signal: ctrl.signal,
         });
       } catch (e) {
+        if (e && e.name === 'AbortError' && options && options.signal && options.signal.aborted) {
+          const aborted = new Error('PAGE_REQUEST_ABORTED');
+          aborted.name = 'AbortError';
+          aborted.__pageRequestAborted = true;
+          throw aborted;
+        }
         if (e && e.name === 'AbortError') {
           throw new Error(
             `站內案件查詢逾時（超過 ${Math.round(PORTAL_CASE_SEARCH_TIMEOUT_MS / 1000)} 秒）。BOT 會保留目前條件，請縮小區域、總價或格局後再試。`,
@@ -20488,6 +20612,9 @@
         }
         throw e;
       } finally {
+        if (abortRelay && options && options.signal && typeof options.signal.removeEventListener === 'function') {
+          options.signal.removeEventListener('abort', abortRelay);
+        }
         clearTimeout(tid);
       }
     }
