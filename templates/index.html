@@ -2176,8 +2176,18 @@
       <button id="image-lightbox-close" class="image-lightbox-close" type="button" aria-label="關閉圖片預覽">×</button>
       <div id="image-lightbox-status" class="image-lightbox-status" aria-live="polite">1 / 1</div>
       <div id="image-lightbox-loader" class="image-lightbox-loader" aria-live="polite" hidden>
-        <strong id="image-lightbox-loader-title">圖片載入中</strong>
-        <span id="image-lightbox-loader-hint">正在取得完整原圖，請稍候。</span>
+        <div class="media-loading-placeholder media-loading-placeholder--lightbox">
+          <div class="media-loading-placeholder-visual" aria-hidden="true">
+            <span class="media-loading-placeholder-chip"></span>
+            <span class="media-loading-placeholder-chip media-loading-placeholder-chip--small"></span>
+            <span class="media-loading-placeholder-photo"></span>
+            <span class="media-loading-placeholder-footer"></span>
+          </div>
+          <div class="media-loading-placeholder-copy">
+            <strong id="image-lightbox-loader-title">圖片載入中</strong>
+            <span id="image-lightbox-loader-hint">正在取得完整原圖，請稍候。</span>
+          </div>
+        </div>
       </div>
       <img id="image-lightbox-img" class="image-lightbox-img" alt="" referrerpolicy="no-referrer">
       <div class="image-lightbox-toolbar-note">滾輪縮放｜拖曳平移｜←/→ 切換</div>
@@ -4578,14 +4588,23 @@
         loaderEl.className = 'image-lightbox-loader';
         loaderEl.setAttribute('aria-live', 'polite');
         loaderEl.hidden = true;
-        loaderTitleEl = document.createElement('strong');
-        loaderTitleEl.id = 'image-lightbox-loader-title';
-        loaderTitleEl.textContent = '圖片載入中';
-        loaderHintEl = document.createElement('span');
-        loaderHintEl.id = 'image-lightbox-loader-hint';
-        loaderHintEl.textContent = '正在取得完整原圖，請稍候。';
-        loaderEl.appendChild(loaderTitleEl);
-        loaderEl.appendChild(loaderHintEl);
+        loaderEl.innerHTML = `
+          <div class="media-loading-placeholder media-loading-placeholder--lightbox" role="status" aria-live="polite">
+            <div class="media-loading-placeholder-visual" aria-hidden="true">
+              <span class="media-loading-placeholder-chip"></span>
+              <span class="media-loading-placeholder-chip media-loading-placeholder-chip--small"></span>
+              <span class="media-loading-placeholder-photo"></span>
+              <span class="media-loading-placeholder-footer"></span>
+              <span class="media-loading-placeholder-footer"></span>
+            </div>
+            <div class="media-loading-placeholder-copy">
+              <strong id="image-lightbox-loader-title">圖片載入中</strong>
+              <span id="image-lightbox-loader-hint">正在取得完整原圖，請稍候。</span>
+            </div>
+          </div>
+        `;
+        loaderTitleEl = loaderEl.querySelector('#image-lightbox-loader-title');
+        loaderHintEl = loaderEl.querySelector('#image-lightbox-loader-hint');
         inner.insertBefore(loaderEl, img || null);
       }
       if (!box || !inner || !img || !closeBtn || !prevBtn || !nextBtn || !statusEl) return;
@@ -7553,6 +7572,10 @@
       if (!state || !state.track) return;
       const incoming = getOrBuildPagedFigureResultsPage(state, items, pageIndex);
       if (!(incoming instanceof Element)) return;
+      if (state.transitionTimer) {
+        window.clearTimeout(state.transitionTimer);
+        state.transitionTimer = 0;
+      }
       Array.from(state.track.children).forEach((node) => {
         if (node !== state.activePageEl && node !== incoming) node.remove();
       });
@@ -7562,8 +7585,8 @@
       const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
       const transitionId = (state.transitionId || 0) + 1;
       state.transitionId = transitionId;
-      state.track.classList.remove('is-transitioning');
-      if (!current || current === incoming || direction === 0 || reduceMotion || typeof incoming.animate !== 'function') {
+      state.track.classList.remove('is-transitioning', 'is-direction-forward', 'is-direction-backward');
+      if (!current || current === incoming || direction === 0 || reduceMotion) {
         incoming.className = 'figure-results-carousel-page is-current';
         state.track.replaceChildren(incoming);
         state.activePageEl = incoming;
@@ -7572,36 +7595,28 @@
       }
       current.className = 'figure-results-carousel-page is-current is-leaving';
       incoming.className = 'figure-results-carousel-page is-entering';
-      state.track.classList.add('is-transitioning');
+      state.track.classList.add('is-transitioning', direction > 0 ? 'is-direction-forward' : 'is-direction-backward');
       state.track.appendChild(incoming);
       const nextHeight = Math.max(current.offsetHeight || 0, incoming.offsetHeight || 0);
       if (nextHeight > 0) state.track.style.minHeight = `${nextHeight}px`;
-      const enterFrom = direction > 0 ? 52 : -52;
-      const leaveTo = -enterFrom;
-      const animations = [
-        current.animate(
-          [
-            { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-            { opacity: 0.12, transform: `translate3d(${leaveTo}px, 0, 0)` },
-          ],
-          { duration: 210, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
-        ).finished.catch(() => {}),
-        incoming.animate(
-          [
-            { opacity: 0.18, transform: `translate3d(${enterFrom}px, 0, 0)` },
-            { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-          ],
-          { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
-        ).finished.catch(() => {}),
-      ];
-      Promise.all(animations).then(() => {
+      state.activePageEl = incoming;
+      const finalize = () => {
         if (state.disposed || state.transitionId !== transitionId) return;
         current.remove();
         incoming.className = 'figure-results-carousel-page is-current';
         state.activePageEl = incoming;
-        state.track.classList.remove('is-transitioning');
+        state.track.classList.remove('is-transitioning', 'is-direction-forward', 'is-direction-backward');
         state.track.style.minHeight = '';
+      };
+      window.requestAnimationFrame(() => {
+        if (state.disposed || state.transitionId !== transitionId) return;
+        current.classList.add('is-transition-active');
+        incoming.classList.add('is-transition-active');
       });
+      state.transitionTimer = window.setTimeout(() => {
+        state.transitionTimer = 0;
+        finalize();
+      }, 280);
     }
 
     function getPagedFigureResultsPage(state, pageIndex, options = {}) {
@@ -13695,8 +13710,20 @@
       return `<span class="portal-suumo-no-img-title">${title}</span><span class="portal-suumo-no-img-hint">${hint}</span>`;
     }
 
-    function portalCaseLoadingCopyHtml(detail = '正在取得房屋縮圖，若原圖較大會稍晚顯示。') {
-      return `<span class="portal-suumo-no-img-title">圖片載入中</span><span class="portal-suumo-no-img-hint">${esc(String(detail || '正在取得房屋縮圖，若原圖較大會稍晚顯示。'))}</span>`;
+    function portalCaseLoadingCopyHtml(detail = '正在整理房屋圖片與預覽比例，完成後會直接接續顯示。') {
+      const hint = esc(String(detail || '正在整理房屋圖片與預覽比例，完成後會直接接續顯示。'));
+      return `<div class="media-loading-placeholder media-loading-placeholder--card">
+        <div class="media-loading-placeholder-visual" aria-hidden="true">
+          <span class="media-loading-placeholder-chip"></span>
+          <span class="media-loading-placeholder-chip media-loading-placeholder-chip--small"></span>
+          <span class="media-loading-placeholder-photo"></span>
+          <span class="media-loading-placeholder-footer"></span>
+        </div>
+        <div class="media-loading-placeholder-copy">
+          <span class="portal-suumo-no-img-title">圖片整理中</span>
+          <span class="portal-suumo-no-img-hint">${hint}</span>
+        </div>
+      </div>`;
     }
 
     function setPortalCaseMediaLoadingState(media, loading, detail) {
@@ -13714,7 +13741,7 @@
       }
     }
 
-    function portalCaseHeroImgBeginLoad(img, detail = '正在取得房屋縮圖，若原圖較大會稍晚顯示。') {
+    function portalCaseHeroImgBeginLoad(img, detail = '正在整理房屋圖片與預覽比例，完成後會直接接續顯示。') {
       if (!img) return;
       const wrap = img.closest('.portal-suumo-card-media');
       if (!wrap) return;
