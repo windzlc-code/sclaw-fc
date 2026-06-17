@@ -4618,6 +4618,7 @@
       let lastY = 0;
       let galleryFetchSeq = 0;
       let lightboxImageLoadSeq = 0;
+      let lightboxFrameRatio = 4 / 3;
       const remoteGalleryCache = new Map();
       const resetTransform = () => {
         scale = 1;
@@ -4627,6 +4628,41 @@
       };
       const applyTransform = () => {
         img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      };
+      const syncLightboxLoaderFrame = (options = {}) => {
+        if (!loaderEl || !inner) return;
+        const innerWidth = Math.max(0, inner.clientWidth || 0);
+        const innerHeight = Math.max(0, inner.clientHeight || 0);
+        const maxWidth = Math.max(320, Math.min(innerWidth - 16, 1280));
+        const maxHeight = Math.max(220, Math.min(innerHeight - 18, Math.round(window.innerHeight * 0.84)));
+        let width = 0;
+        let height = 0;
+        if (img) {
+          const rect = img.getBoundingClientRect();
+          if (rect.width > 32 && rect.height > 32) {
+            width = rect.width;
+            height = rect.height;
+          }
+        }
+        const ratioFromOptions = Number(options.width) > 0 && Number(options.height) > 0
+          ? Number(options.width) / Number(options.height)
+          : Number(options.ratio) > 0
+            ? Number(options.ratio)
+            : 0;
+        const ratio = ratioFromOptions || (width > 0 && height > 0 ? width / height : lightboxFrameRatio || (4 / 3));
+        if (!(width > 32 && height > 32)) {
+          width = Math.min(maxWidth, maxHeight * ratio);
+          height = width / ratio;
+          if (height > maxHeight) {
+            height = maxHeight;
+            width = height * ratio;
+          }
+        }
+        width = Math.max(320, Math.min(maxWidth, width || maxWidth));
+        height = Math.max(220, Math.min(maxHeight, height || (width / Math.max(0.8, ratio))));
+        lightboxFrameRatio = ratio > 0 ? ratio : lightboxFrameRatio;
+        loaderEl.style.setProperty('--lightbox-loader-frame-width', `${Math.round(width)}px`);
+        loaderEl.style.setProperty('--lightbox-loader-frame-height', `${Math.round(height)}px`);
       };
       const dedupeGalleryUrls = (urls) => {
         const seen = new Set();
@@ -4701,6 +4737,7 @@
         if (loaderTitleEl) loaderTitleEl.textContent = title;
         if (loaderHintEl) loaderHintEl.textContent = hint;
         loaderEl.hidden = false;
+        syncLightboxLoaderFrame(options);
       };
       const mergeGallery = (urls, focusSrc = '') => {
         const merged = dedupeGalleryUrls([...(gallery || []), ...(Array.isArray(urls) ? urls : [])]);
@@ -4800,6 +4837,10 @@
         box.setAttribute('aria-hidden', 'true');
         box.removeAttribute('data-case-sid');
         setLightboxLoaderState(false);
+        if (loaderEl) {
+          loaderEl.style.removeProperty('--lightbox-loader-frame-width');
+          loaderEl.style.removeProperty('--lightbox-loader-frame-height');
+        }
         img.src = '';
         gallery = [];
         cur = -1;
@@ -4835,6 +4876,10 @@
           probe.referrerPolicy = 'no-referrer';
           probe.onload = () => {
             if (requestId !== lightboxImageLoadSeq) return;
+            syncLightboxLoaderFrame({
+              width: probe.naturalWidth || 0,
+              height: probe.naturalHeight || 0,
+            });
             img.src = tries[candidateIndex];
             setLightboxLoaderState(false);
             updateControls();
@@ -4859,6 +4904,7 @@
         updateControls('圖片載入中');
         box.classList.add('is-open');
         box.setAttribute('aria-hidden', 'false');
+        syncLightboxLoaderFrame();
         loadLightboxImage(src, fallbackSrc, { index: cur });
         hydrateRemoteGallery(scope, src).catch(() => {});
       };
@@ -4943,6 +4989,10 @@
         if (e.key === 'ArrowLeft') openAt(cur - 1);
         if (e.key === 'ArrowRight') openAt(cur + 1);
       });
+      window.addEventListener('resize', () => {
+        if (!box.classList.contains('is-open')) return;
+        syncLightboxLoaderFrame();
+      }, { passive: true });
     }
 
     function bindPortalCaseCardImageDots() {

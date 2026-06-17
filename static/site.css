@@ -12272,7 +12272,7 @@ body.site-home .jp-map-hub--integrated-suite .jp-map-hub-smart-dock.panel {
 .media-loading-placeholder--lightbox {
   position: relative;
   gap: 0;
-  min-height: 100%;
+  min-height: 0;
 }
 
 .media-loading-placeholder--lightbox .media-loading-placeholder-visual {
@@ -19516,10 +19516,10 @@ body.site-home #figure-results.figure-results-carousel-wrap .figure-case-actions
 }
 
 .image-lightbox-loader .media-loading-placeholder {
-  width: min(calc(100% - 12px), 1280px);
-  height: min(calc(100% - 20px), 84vh);
+  width: min(var(--lightbox-loader-frame-width, 820px), calc(100% - 12px));
+  height: min(var(--lightbox-loader-frame-height, 560px), calc(100% - 20px));
   padding: clamp(0.9rem, 1.6vw, 1.2rem);
-  border-radius: 32px;
+  border-radius: 18px;
   background: linear-gradient(180deg, rgba(243, 247, 251, 0.94), rgba(225, 233, 241, 0.88));
   border: 1px solid rgba(187, 199, 213, 0.58);
   box-shadow:
@@ -19544,8 +19544,8 @@ body.site-home #figure-results.figure-results-carousel-wrap .figure-case-actions
   }
 
   .image-lightbox-loader .media-loading-placeholder {
-    width: 100%;
-    height: min(calc(100% - 12px), 72vh);
+    width: min(var(--lightbox-loader-frame-width, 100%), 100%);
+    height: min(var(--lightbox-loader-frame-height, 72vh), calc(100% - 12px));
     padding: 0.78rem;
     border-radius: 22px;
   }
