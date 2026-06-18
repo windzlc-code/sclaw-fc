@@ -159,14 +159,14 @@
         {% endif %}
       {% endfor %}
       {% set initial_hero_media = hero_media_ns.item %}
-      <div class="hero-media{% if home_video_carousel %} hero-media--video-carousel{% endif %}" data-home-hero-theme="{{ home_hero.theme }}" data-home-hero-media-type="{{ initial_hero_media.media_type if initial_hero_media else home_hero.media_type }}" data-home-hero-fallback-image="{{ home_hero.image_url }}" data-home-hero-items='{{ home_video_carousel|tojson|forceescape }}' style="--home-hero-image: url('{{ initial_hero_media.url if initial_hero_media and initial_hero_media.media_type == "image" else home_hero.image_url }}');">
+      <div class="hero-media{% if home_video_carousel %} hero-media--video-carousel{% endif %}" data-home-hero-theme="{{ home_hero.theme }}" data-home-hero-media-type="image" data-home-hero-fallback-image="{{ home_hero.image_url }}" data-home-hero-items='{{ home_video_carousel|tojson|forceescape }}' style="--home-hero-image: none;">
         {% if initial_hero_media and initial_hero_media.media_type == "video" %}
-        <video id="home-hero-video-carousel-player" class="home-hero-video home-hero-generated-video" src="{{ initial_hero_media.url }}" autoplay muted loop playsinline preload="auto"></video>
+        <video id="home-hero-video-carousel-player" class="home-hero-video home-hero-generated-video" data-src="{{ initial_hero_media.url }}" muted loop playsinline preload="none"></video>
         {% elif home_hero.media_type == 'video' and home_hero.media_url %}
-        <video class="home-hero-video" src="{{ home_hero.media_url }}" autoplay muted loop playsinline preload="metadata"></video>
+        <video class="home-hero-video" data-src="{{ home_hero.media_url }}" muted loop playsinline preload="none"></video>
         {% endif %}
         <div class="home-hero-video-placeholder" aria-hidden="true"></div>
-        <audio id="home-hero-audio-carousel-player" class="home-hero-audio" preload="auto"></audio>
+        <audio id="home-hero-audio-carousel-player" class="home-hero-audio" preload="none"></audio>
         <div class="hero-media-overlay">
           <div class="hero-video-chrome" aria-hidden="true"></div>
           <div class="hero-media-overlay-copy">
@@ -897,7 +897,7 @@
                 <input type="radio" name="admin-home-hero-choice" value="custom-upload"{% if home_hero.key == 'custom-upload' %} checked{% endif %} onchange="setAdminHomeHeroChoice('custom-upload')">
                 <span class="admin-home-hero-card-media admin-home-hero-card-media--custom" data-admin-home-hero-preview>
                   <img id="admin-home-hero-custom-preview-img" src="/static/img/home-hero-brand-gold-residence.svg" alt="首頁影片備援預覽" loading="lazy" decoding="async" hidden>
-                  <video id="admin-home-hero-custom-preview-video" src="{{ home_hero.custom_url if home_hero.custom_media_type == 'video' else '' }}" muted loop playsinline preload="metadata"{% if home_hero.custom_media_type != 'video' %} hidden{% endif %}></video>
+                  <video id="admin-home-hero-custom-preview-video"{% if admin_standalone and home_hero.custom_media_type == 'video' %} src="{{ home_hero.custom_url }}"{% elif home_hero.custom_media_type == 'video' %} data-src="{{ home_hero.custom_url }}"{% endif %} muted loop playsinline preload="none"{% if home_hero.custom_media_type != 'video' %} hidden{% endif %}></video>
                 </span>
                 <span class="admin-home-hero-card-meta">
                   <strong>首頁輪播影片</strong>
@@ -2003,7 +2003,7 @@
       </div>
       <div class="bh-feature-card-grid">
         <article class="bh-feature-card">
-          <img src="/static/template-bhomeland/feature_img_1.jpg" alt="日本住宅外觀參考" loading="lazy" decoding="async">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/feature_img_1.jpg" alt="日本住宅外觀參考" loading="lazy" decoding="async" fetchpriority="low">
           <div>
             <span>日本區域圖</span>
             <h3>用地圖先決定查詢範圍</h3>
@@ -2012,7 +2012,7 @@
           </div>
         </article>
         <article class="bh-feature-card">
-          <img src="/static/template-bhomeland/feature_img_2.jpg" alt="日本室內房源參考" loading="lazy" decoding="async">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/feature_img_2.jpg" alt="日本室內房源參考" loading="lazy" decoding="async" fetchpriority="low">
           <div>
             <span>智慧查詢</span>
             <h3>依條件整理可比較的房源結果</h3>
@@ -2021,7 +2021,7 @@
           </div>
         </article>
         <article class="bh-feature-card">
-          <img src="/static/template-bhomeland/feature_img_3.jpg" alt="日本公寓房源參考" loading="lazy" decoding="async">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/feature_img_3.jpg" alt="日本公寓房源參考" loading="lazy" decoding="async" fetchpriority="low">
           <div>
             <span>顧問諮詢</span>
             <h3>收藏與諮詢入口延續原流程</h3>
@@ -2044,7 +2044,7 @@
         </ul>
       </div>
       <figure class="bh-about-media">
-        <img src="/static/template-bhomeland/aboutus_img.jpg" alt="日本不動產顧問服務場景" loading="lazy" decoding="async">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Crect width='16' height='10' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/aboutus_img.jpg" alt="日本不動產顧問服務場景" loading="lazy" decoding="async" fetchpriority="low">
       </figure>
     </section>
 
@@ -2207,7 +2207,8 @@
           .toLowerCase()
           .replace(/^www\./, '');
         if (strip(cur.hostname) === strip(alt.hostname)) {
-          window.__SCLAW_RESOLVED_API_ORIGIN = raw;
+          if (cur.protocol === 'https:' && alt.protocol === 'http:') alt.protocol = 'https:';
+          window.__SCLAW_RESOLVED_API_ORIGIN = alt.toString().replace(/\/$/, '');
         }
       } catch (_) {
         // ignore
@@ -2372,7 +2373,7 @@
       portals: [],
       maxAgeDays: 180,
       limit: 0,
-      coverageMatrixAligned: false,
+      coverageMatrixAligned: true,
     });
 
     function getBotSmartQueryRuntime() {
@@ -2990,7 +2991,7 @@
       setSelectPlaceholder(prefSel, '載入都道府縣中…', true);
       setSelectPlaceholder(citySel, '先選都道府縣', true);
 
-      loadHomesKodateChukoCatalog().then(() => {
+      const loadInitialHomesCatalog = () => loadHomesKodateChukoCatalog().then(() => {
         refillHomesPrefSelectFromFigureRegion(regionSel.value || '', prefSel);
         if (!prefSel.disabled && prefSel.value) {
           Promise.all([loadHomesCityGroups(prefSel.value, citySel), loadHomesTransitLines(prefSel.value)])
@@ -3000,6 +3001,11 @@
             });
         }
       });
+      prefSel.addEventListener('focus', loadInitialHomesCatalog, { once: true });
+      window.setTimeout(() => {
+        if ('requestIdleCallback' in window) window.requestIdleCallback(loadInitialHomesCatalog, { timeout: 5000 });
+        else loadInitialHomesCatalog();
+      }, 32000);
 
       regionSel.addEventListener('change', () => {
         stopHomesCityGroupsPoll(citySel);
@@ -4885,6 +4891,7 @@
       };
       const close = () => {
         lightboxImageLoadSeq += 1;
+        document.body.classList.remove('figure-lightbox-open');
         box.classList.remove('is-open');
         box.setAttribute('aria-hidden', 'true');
         box.removeAttribute('data-case-sid');
@@ -4954,6 +4961,7 @@
         cur = Math.max(0, gallery.indexOf(normalizeLightboxSource(src)));
         if (cur < 0) cur = 0;
         updateControls('圖片載入中');
+        document.body.classList.add('figure-lightbox-open');
         box.classList.add('is-open');
         box.setAttribute('aria-hidden', 'false');
         syncLightboxLoaderFrame();
@@ -5327,6 +5335,7 @@
       const marquee = document.getElementById('query-progress-marquee');
       if (!wrap || !label) return;
       activeQueryCount += 1;
+      if (typeof suspendNonCriticalHomeMediaForQuery === 'function') suspendNonCriticalHomeMediaForQuery(true);
       label.textContent = text;
       if (marquee) {
         marquee.setAttribute('data-text', `${text}　｜　智慧查詢跑馬燈載入中，請稍候...　｜　`);
@@ -5342,6 +5351,7 @@
       if (activeQueryCount === 0) {
         wrap.style.display = 'none';
         if (marquee) marquee.setAttribute('data-text', '資料彙整中，請稍候...');
+        if (typeof suspendNonCriticalHomeMediaForQuery === 'function') suspendNonCriticalHomeMediaForQuery(false);
       }
     }
 
@@ -7247,7 +7257,7 @@
       return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     }
 
-    const FIGURE_CASE_PRELOAD_CONCURRENCY = 3;
+    const FIGURE_CASE_PRELOAD_CONCURRENCY = 2;
     const FIGURE_RESULTS_PAGE_SIZE = 6;
     const figureCasePreloadSeen = new Set();
     const figureCasePreloadQueue = [];
@@ -7313,9 +7323,11 @@
         thumbs.slice(0, thumbPerCard).forEach((src, idx) => {
           queueFigureCaseMediaPreload(src, basePriority + cardIndex * 8 + idx);
         });
-        fulls.slice(0, fullPerCard).forEach((src, idx) => {
-          queueFigureCaseMediaPreload(src, basePriority + 80 + cardIndex * 8 + idx);
-        });
+        if (fullPerCard > 0 && document.body.classList.contains('figure-lightbox-open')) {
+          fulls.slice(0, fullPerCard).forEach((src, idx) => {
+            queueFigureCaseMediaPreload(src, basePriority + 80 + cardIndex * 8 + idx);
+          });
+        }
       });
     }
 
@@ -7787,8 +7799,8 @@
       if (typeof syncPortalCaseCardImageLoadStates === 'function') syncPortalCaseCardImageLoadStates(page);
       bindPagedFigureResultsMediaGuard(state, page);
       warmFigureCaseCards(Array.from(page.querySelectorAll('.market-item-card.figure-case-card')), {
-        thumbPerCard: 2,
-        fullPerCard: 1,
+        thumbPerCard: 1,
+        fullPerCard: 0,
         priorityBase: 0,
       });
     }
@@ -11169,9 +11181,18 @@
     function collectSclawProbeBases() {
       const out = [];
       const push = (b) => {
-        const s = String(b || '')
+        let s = String(b || '')
           .trim()
           .replace(/\/$/, '');
+        try {
+          const cur = new URL(window.location.href);
+          const alt = new URL(s);
+          const strip = (h) => String(h || '').toLowerCase().replace(/^www\./, '');
+          if (cur.protocol === 'https:' && alt.protocol === 'http:' && strip(cur.hostname) === strip(alt.hostname)) {
+            alt.protocol = 'https:';
+            s = alt.toString().replace(/\/$/, '');
+          }
+        } catch (_) {}
         if (s && /^https?:\/\//i.test(s) && out.indexOf(s) < 0) out.push(s);
       };
       try {
@@ -16493,7 +16514,9 @@
 
     function homeHeroFallbackImage() {
       const hero = document.querySelector('.hero-media');
-      return String(hero?.getAttribute('data-home-hero-fallback-image') || '/static/img/home-hero-brand-gold-residence.svg').trim();
+      const raw = String(hero?.getAttribute('data-home-hero-fallback-image') || '').trim();
+      if (raw && !isHomeHeroVideoUrl(raw) && !isHomeCarouselAudioUrl(raw)) return raw;
+      return '/static/img/home-hero-brand-gold-residence.svg';
     }
 
     function setAdminHomeHeroPreview(url, isVideo) {
@@ -16510,7 +16533,7 @@
           video.muted = true;
           video.loop = true;
           video.playsInline = true;
-          video.preload = 'auto';
+          video.preload = 'metadata';
           try { video.load(); } catch (_) {}
           video.play().catch(() => {});
         } else if (!isVideo) {
@@ -16542,6 +16565,16 @@
       return hero.querySelector(':scope > .home-hero-video');
     }
 
+    function restoreDeferredHomeHeroBackdrop() {
+      if (isAdminStandalonePage() || isFigureQueryResourcePriorityActive()) return;
+      const hero = document.querySelector('.hero-media');
+      if (!hero) return;
+      const current = String(hero.style.getPropertyValue('--home-hero-image') || '').trim();
+      if (current && current !== 'none') return;
+      const fallback = homeHeroFallbackImage();
+      if (fallback) hero.style.setProperty('--home-hero-image', `url('${fallback}')`);
+    }
+
     function silenceOtherHomeMedia(activeEl, pauseOthers = true) {
       const active = activeEl || null;
       homeManagedMediaElements().forEach((media) => {
@@ -16552,6 +16585,58 @@
           try { media.pause(); } catch (_) {}
         }
       });
+    }
+
+    let homeMediaQueryRestoreTimer = 0;
+    function isFigureQueryResourcePriorityActive() {
+      return activeQueryCount > 0 || document.body.classList.contains('figure-query-in-flight');
+    }
+
+    function suspendNonCriticalHomeMediaForQuery(active) {
+      if (isAdminStandalonePage()) return;
+      if (homeMediaQueryRestoreTimer) {
+        window.clearTimeout(homeMediaQueryRestoreTimer);
+        homeMediaQueryRestoreTimer = 0;
+      }
+      document.body.classList.toggle('figure-query-in-flight', !!active);
+      const mediaEls = homeManagedMediaElements();
+      if (active) {
+        mediaEls.forEach((media) => {
+          try { media.pause(); } catch (_) {}
+          media.muted = true;
+          media.volume = 0;
+          const src = String(media.getAttribute('src') || '').trim();
+          if (src) {
+            media.dataset.queryPausedSrc = src;
+            media.removeAttribute('src');
+            media.preload = 'none';
+            try { media.load(); } catch (_) {}
+          }
+        });
+        return;
+      }
+      homeMediaQueryRestoreTimer = window.setTimeout(() => {
+        if (isFigureQueryResourcePriorityActive()) return;
+        const hero = document.querySelector('.hero-media');
+        const deferredUrl = String(hero?.dataset.deferredHeroMediaUrl || '').trim();
+        const deferredKey = String(hero?.dataset.deferredHeroMediaKey || 'custom-upload').trim() || 'custom-upload';
+        if (hero && deferredUrl && typeof setHomeHeroMedia === 'function') {
+          delete hero.dataset.deferredHeroMediaUrl;
+          delete hero.dataset.deferredHeroMediaKey;
+          setHomeHeroMedia(deferredUrl, deferredKey, false);
+          return;
+        }
+        mediaEls.forEach((media) => {
+          const pausedSrc = String(media.dataset.queryPausedSrc || '').trim();
+          if (!pausedSrc || media.getAttribute('src')) return;
+          media.setAttribute('src', pausedSrc);
+          media.preload = 'metadata';
+          media.muted = true;
+          media.volume = 0;
+          delete media.dataset.queryPausedSrc;
+          try { media.load(); } catch (_) {}
+        });
+      }, 6500);
     }
 
     function syncHomeHeroSoundControl(shouldPlay = false) {
@@ -16596,6 +16681,13 @@
       const hero = document.querySelector('.hero-media');
       if (!hero || !url) return;
       const isVideo = isHomeHeroVideoUrl(url);
+      if (isVideo && isFigureQueryResourcePriorityActive() && !isAdminStandalonePage()) {
+        hero.dataset.deferredHeroMediaUrl = url;
+        hero.dataset.deferredHeroMediaKey = key || 'custom-upload';
+        hero.setAttribute('data-home-hero-media-type', 'image');
+        hero.style.setProperty('--home-hero-image', `url('${homeHeroFallbackImage()}')`);
+        return;
+      }
       const audio = document.getElementById('home-hero-audio-carousel-player');
       if (audio) {
         try { audio.pause(); } catch (_) {}
@@ -16622,7 +16714,7 @@
         if (!video.id) video.id = 'home-hero-video-carousel-player';
         video.controls = false;
         video.removeAttribute('controls');
-        video.preload = 'auto';
+        video.preload = 'metadata';
         video.muted = !homeHeroSoundEnabled;
         video.volume = homeHeroSoundEnabled ? 1 : 0;
         video.playsInline = true;
@@ -16630,7 +16722,7 @@
         video.src = url;
         if (homeHeroSoundEnabled) silenceOtherHomeMedia(video, true);
         try { video.load(); } catch (_) {}
-        if (shouldPlay) video.play().catch(() => {});
+        if (shouldPlay && !isFigureQueryResourcePriorityActive()) video.play().catch(() => {});
       } else if (video) {
         try { video.pause(); } catch (_) {}
         video.muted = true;
@@ -16658,7 +16750,7 @@
         audio = document.createElement('audio');
         audio.id = 'home-hero-audio-carousel-player';
         audio.className = 'home-hero-audio';
-        audio.preload = 'auto';
+        audio.preload = 'metadata';
         hero.appendChild(audio);
       }
       if (audio.getAttribute('src') !== url) {
@@ -17332,7 +17424,7 @@
           video.muted = !homeHeroSoundEnabled;
           video.volume = homeHeroSoundEnabled ? 1 : 0;
           video.playsInline = true;
-          video.preload = 'auto';
+          video.preload = 'metadata';
           video.ontimeupdate = () => {
             const duration = Number(video.duration || 0);
             const current = Number(video.currentTime || 0);
@@ -17381,7 +17473,13 @@
         playActive(options.play !== false);
         return true;
       };
-      playActive(true);
+      if (isFigureQueryResourcePriorityActive() && !isAdminStandalonePage()) {
+        window.setTimeout(() => {
+          if (!isFigureQueryResourcePriorityActive()) playActive(false);
+        }, 7000);
+      } else {
+        playActive(true);
+      }
     }
 
     function addHomeVideoToCarousel(item, options = {}) {
@@ -17523,7 +17621,14 @@
       const list = document.getElementById('home-intro-case-list');
       if (list && !list.dataset.loaded) {
         list.dataset.loaded = '1';
-        loadHomeIntroCases();
+        if (isAdminStandalonePage()) {
+          loadHomeIntroCases();
+        } else {
+          window.setTimeout(() => {
+            if ('requestIdleCallback' in window) window.requestIdleCallback(() => loadHomeIntroCases(), { timeout: 5000 });
+            else loadHomeIntroCases();
+          }, 36000);
+        }
       }
     }
 
@@ -19478,7 +19583,7 @@
           } catch (_) {
             /* ignore */
           }
-        }, 12000);
+        }, 34000);
         const r = await fetch('/api/cases/inventory-stats?age_days=0', {
           cache: 'no-store',
           signal: invAbort.signal,
@@ -20793,9 +20898,13 @@
         );
       }
 
-      if (cache.cityAreasHtml) {
-        selA.innerHTML = cache.cityAreasHtml;
-      } else {
+      const loadCityAreasOnce = () => {
+        if (cache.cityAreasHtml) {
+          selA.innerHTML = cache.cityAreasHtml;
+          return;
+        }
+        if (selA.dataset.jpTransitAreasLoading === '1') return;
+        selA.dataset.jpTransitAreasLoading = '1';
         fetchJsonWithTimeout('/api/jp-transit/city-areas', FETCH_TIMEOUT_MS, inflight.areas)
           .then((j) => {
             cache.cityAreasHtml = buildOptionHtml(j && j.items, 'id', 'label', '<option value="">（不限）</option>');
@@ -20803,7 +20912,20 @@
           })
           .catch(() => {
             selA.innerHTML = '<option value="">（載入失敗）</option>';
+          })
+          .finally(() => {
+            delete selA.dataset.jpTransitAreasLoading;
           });
+      };
+      if (cache.cityAreasHtml) {
+        selA.innerHTML = cache.cityAreasHtml;
+      } else {
+        selA.innerHTML = '<option value="">（不限）</option>';
+        selA.addEventListener('focus', loadCityAreasOnce, { once: true });
+        window.setTimeout(() => {
+          if ('requestIdleCallback' in window) window.requestIdleCallback(loadCityAreasOnce, { timeout: 5000 });
+          else loadCityAreasOnce();
+        }, 12000);
       }
       const selT = document.getElementById('jp-transit-type');
       const selL = document.getElementById('jp-transit-line');
@@ -20924,7 +21046,7 @@
       }
     }
 
-    const PORTAL_CASE_SEARCH_TIMEOUT_MS = 20000;
+    const PORTAL_CASE_SEARCH_TIMEOUT_MS = 45000;
     async function fetchPortalCaseSearch(body, options = {}) {
       const ctrl = new AbortController();
       let abortRelay = null;
@@ -21689,8 +21811,16 @@
       const aiRunSeq = ++smartQueryAiRunSeq;
       window.setTimeout(() => {
         if (aiRunSeq !== smartQueryAiRunSeq) return;
-        runSmartQueryBotThinking({ conditionLine, items, count, appliedLimit, sampleLinks }).catch(() => {});
-      }, 350);
+        const runAiThinking = () => {
+          if (aiRunSeq !== smartQueryAiRunSeq) return;
+          runSmartQueryBotThinking({ conditionLine, items, count, appliedLimit, sampleLinks }).catch(() => {});
+        };
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(runAiThinking, { timeout: 4500 });
+        } else {
+          window.setTimeout(runAiThinking, 900);
+        }
+      }, 10000);
       if (!smartQueryRunBatch) setSmartQueryMainTab('cases');
       if (!smartQueryRunBatch && typeof scrollToFigureResults === 'function') scrollToFigureResults();
     }
@@ -21823,7 +21953,29 @@
     initImageLightbox();
     bindPortalCaseCardImageDots();
     syncPortalCaseCardImageLoadStates(document);
-    loadDialogTopCasesAndFaq();
+    const scheduleNonCriticalStartup = (fn, delayMs = 8000) => {
+      window.setTimeout(() => {
+        const run = () => {
+          try {
+            const ret = fn();
+            if (ret && typeof ret.catch === 'function') ret.catch(() => {});
+          } catch (_) {}
+        };
+        if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 5000 });
+        else run();
+      }, Math.max(0, Number(delayMs || 0)));
+    };
+    function hydrateDeferredStaticImages() {
+      if (isAdminStandalonePage() || isFigureQueryResourcePriorityActive()) return;
+      document.querySelectorAll('img[data-deferred-src]').forEach((img) => {
+        const src = String(img.getAttribute('data-deferred-src') || '').trim();
+        if (!src || img.getAttribute('src') === src) return;
+        img.setAttribute('src', src);
+        img.removeAttribute('data-deferred-src');
+      });
+    }
+    scheduleNonCriticalStartup(loadDialogTopCasesAndFaq, 30000);
+    scheduleNonCriticalStartup(hydrateDeferredStaticImages, 36000);
     toggleQueryDialog(true);
     supportSelectedCasesCollapsed = loadSupportSelectedCasesCollapsedLocal();
     supportSelectedCases = loadSupportSelectedCasesLocal();
@@ -21836,15 +21988,19 @@
         toggleSupportChat(false);
       }
     });
-    loadGuidance();
-    refreshLlmUiFromStatus();
-    loadCrawlSettings()
-      .then(async () => {
-        await refreshCaseInventoryStats();
-      })
-      .catch(async () => {
-        await refreshCaseInventoryStats();
-      });
+    scheduleNonCriticalStartup(loadGuidance, 32000);
+    scheduleNonCriticalStartup(refreshLlmUiFromStatus, 33000);
+    const scheduleCaseInventoryStatsRefresh = () => {
+      const run = () => refreshCaseInventoryStats().catch(() => {});
+      window.setTimeout(() => {
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(run, { timeout: 6500 });
+        } else {
+          run();
+        }
+      }, 15000);
+    };
+    scheduleNonCriticalStartup(() => loadCrawlSettings().then(scheduleCaseInventoryStatsRefresh), 34000);
 
     function sclawEscHtml(s) {
       return String(s || '')
@@ -23388,16 +23544,16 @@
       installHomeHeroSoundToggle();
       installGeoKeywordEntrances();
       initHeaderKeywordTabs();
-      initHomeHeroCarousel();
-      initHomeVideoCarousel();
+      scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
+      scheduleNonCriticalStartup(initHomeHeroCarousel, 37000);
+      scheduleNonCriticalStartup(initHomeVideoCarousel, 38000);
       initBhomelandSeoMotion();
-      renderAdminHomeCarousel();
       initHomeIntroCasePicker();
       installDialogAutoSpeakControls();
       handleInboundSupportDeepLink();
       refreshSupportChatMicHint();
       initJpMapHub();
-      runSclawBackendConnectivityCheck();
+      window.setTimeout(runSclawBackendConnectivityCheck, 35000);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runSclawStartupChecks);
     else runSclawStartupChecks();
