@@ -4089,14 +4089,21 @@ def _search_portal_cases_coverage_matrix_mode(
     region_hint: str,
     max_age_days: int,
     limit: int,
+    offset: int = 0,
+    page_size: int = 0,
     keyword_input: str = "",
     region_inferred_from_keyword: bool = False,
 ) -> dict[str, Any]:
     """與 /api/cases/coverage-matrix 同口徑：jp_listing、矩陣新鮮度欄位（無日期時不回退 now）、站點 host、區域條件。"""
     lim = max(1, min(int(limit or 60), 100000))
+    page_offset = max(0, int(offset or 0))
+    requested_page_size = max(0, min(int(page_size or 0), 240))
     _, _, portal_keys = _portal_host_clause(portal)
     multi_portal = len(portal_keys) > 1
-    fetch_lim = min(12000, max(lim, lim * 4, 1000)) if multi_portal else lim
+    if requested_page_size > 0:
+        fetch_lim = requested_page_size
+    else:
+        fetch_lim = min(12000, max(lim, lim * 4, 1000)) if multi_portal else lim
     region_st = (region_hint or "").strip()
     host_sql, host_params, resolved_hosts, src_name_to_host = _portal_keys_to_coverage_host_or_clause(list(portal_keys))
     n = int(max_age_days or 0)
@@ -4118,6 +4125,11 @@ def _search_portal_cases_coverage_matrix_mode(
     mk_sql, mk_params, mk_how = _matrix_mode_keyword_sql(keyword_input)
     with get_conn() as conn:
         has_region = bool(region_st)
+        latest_content_join = (
+            "LEFT JOIN content_items c ON c.id = ("
+            "SELECT c2.id FROM content_items c2 INDEXED BY idx_content_source_item "
+            "WHERE c2.source_item_id = s.id ORDER BY c2.id DESC LIMIT 1)"
+        )
         # jp_listing_region_index.sort_time historically可能為空（舊批次僅建立 key，不填時間）。
         # 為避免「全數歸零」，矩陣同口徑查詢一律以 source_items.last_checked_at 作為新鮮度與排序基準。
         fresh_sql = f"s.last_checked_at >= datetime('now', '-{n} days')" if n > 0 else "1=1"
@@ -4125,13 +4137,13 @@ def _search_portal_cases_coverage_matrix_mode(
             from_sql_count = (
                 "FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort\n"
                 "        CROSS JOIN source_items s ON s.id = rix.source_item_id\n"
-                "        CROSS JOIN content_items c ON c.source_item_id = s.id"
+                f"        {latest_content_join}"
             )
             count_region_params: list[Any] = [region_st]
             count_region_where = "rix.region_key = ?"
             from_sql_fetch = (
                 "FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked\n"
-                "        CROSS JOIN content_items c ON c.source_item_id = s.id\n"
+                f"        {latest_content_join}\n"
                 "        CROSS JOIN jp_listing_region_index rix ON rix.source_item_id = s.id AND rix.region_key = ?"
             )
             fetch_region_params: list[Any] = [region_st]
@@ -4140,7 +4152,7 @@ def _search_portal_cases_coverage_matrix_mode(
         else:
             from_sql_count = (
                 "FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked\n"
-                "        CROSS JOIN content_items c ON c.source_item_id = s.id"
+                f"        {latest_content_join}"
             )
             count_region_params = []
             count_region_where = "1=1"
@@ -4153,7 +4165,7 @@ def _search_portal_cases_coverage_matrix_mode(
         for hk in resolved_hosts:
             cell_by_host[hk] = 0
         count_sql = f"""
-        SELECT s.source_name AS source_name, COUNT(1) AS c
+        SELECT s.source_name AS source_name, COUNT(DISTINCT s.id) AS c
         {from_sql_count}
         WHERE ({CASE_INV_JP_LISTING_SQL})
           AND ({fresh_sql})
@@ -4171,15 +4183,16 @@ def _search_portal_cases_coverage_matrix_mode(
                 cell_by_host[hk] = int(cell_by_host.get(hk, 0) or 0) + int(r["c"] or 0)
         coverage_matrix_sql_total = int(sum(int(cell_by_host.get(hk, 0) or 0) for hk in resolved_hosts))
 
+        page_sql = "LIMIT ? OFFSET ?" if requested_page_size > 0 else "LIMIT ?"
         sql = f"""
         SELECT
-          c.id,
-          c.seo_slug,
-          c.title_zh_hant,
-          c.title_zh_hans,
-          c.region_code,
-          c.keyword_type,
-          c.topic_category,
+          COALESCE(c.id, 0) AS id,
+          COALESCE(c.seo_slug, '') AS seo_slug,
+          COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+          COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+          COALESCE(c.region_code, '') AS region_code,
+          COALESCE(c.keyword_type, '') AS keyword_type,
+          COALESCE(c.topic_category, '') AS topic_category,
           COALESCE(c.case_transaction_override, '') AS case_transaction_override,
           COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
           COALESCE(c.case_transit_override, '') AS case_transit_override,
@@ -4187,7 +4200,7 @@ def _search_portal_cases_coverage_matrix_mode(
           COALESCE(c.walk_min, 0) AS walk_min,
           COALESCE(c.featured_weight, 0) AS featured_weight,
           COALESCE(c.listing_media_json, '[]') AS listing_media_json,
-          c.updated_at,
+          COALESCE(c.updated_at, '') AS updated_at,
           s.id AS source_item_id,
           s.source_name,
           s.item_url,
@@ -4204,17 +4217,22 @@ def _search_portal_cases_coverage_matrix_mode(
           AND ({host_sql})
           {mk_sql}
         ORDER BY {order_by_sql}
-        LIMIT ?
+        {page_sql}
         """
         params = [*fetch_region_params, *host_params, *mk_params, fetch_lim]
+        if requested_page_size > 0:
+            params.append(page_offset)
         rows = conn.execute(sql, params).fetchall()
         row_fetch_count = len(rows)
     items = [_row_to_portal_case_item_matrix_fast(r) for r in rows]
-    items = _prefer_complete_items_for_display(items, lim=lim)
-    if multi_portal:
-        items = _merge_multi_portal_items(items, lim=lim)
+    if requested_page_size > 0:
+        items = items[:requested_page_size]
     else:
-        items = sorted(items, key=_item_display_rank, reverse=True)[:lim]
+        items = _prefer_complete_items_for_display(items, lim=lim)
+        if multi_portal:
+            items = _merge_multi_portal_items(items, lim=lim)
+        else:
+            items = sorted(items, key=_item_display_rank, reverse=True)[:lim]
     max_age_out = int(max_age_days) if int(max_age_days or 0) > 0 else 0
     mat_note = (
         "與「庫存巡檢矩陣」同 WHERE：jp_listing ＋ date(新鮮欄位) 區間 ＋ 站點 host ＋ 區域別關鍵；"
@@ -4243,13 +4261,16 @@ def _search_portal_cases_coverage_matrix_mode(
         "fetch_limit": fetch_lim,
         "portal_keys": portal_keys,
         "portal_keys_resolved": portal_keys,
-        "portal_merge_mode": "global_time_desc" if multi_portal else "sql_time_desc",
+        "portal_merge_mode": "sql_time_desc_page" if requested_page_size > 0 else ("global_time_desc" if multi_portal else "sql_time_desc"),
         "coverage_matrix_aligned": True,
         "coverage_matrix_sql_total": int(coverage_matrix_sql_total),
         "coverage_matrix_cell_by_host": cell_by_host,
         "coverage_matrix_note_zh": mat_note,
-        "count": len(items),
-        "truncation_note": row_fetch_count >= fetch_lim,
+        "count": int(coverage_matrix_sql_total) if requested_page_size > 0 else len(items),
+        "count_exact": True if requested_page_size > 0 else bool(row_fetch_count < fetch_lim),
+        "truncation_note": False if requested_page_size > 0 else row_fetch_count >= fetch_lim,
+        "page_offset": page_offset if requested_page_size > 0 else 0,
+        "page_size": requested_page_size if requested_page_size > 0 else 0,
         "items": items,
     }
 
@@ -4493,6 +4514,8 @@ def search_portal_cases(
             region_hint=region_hint,
             max_age_days=max_age_days,
             limit=lim,
+            offset=page_offset,
+            page_size=requested_page_size,
             keyword_input=original_keyword,
             region_inferred_from_keyword=region_inferred_for_matrix,
         )

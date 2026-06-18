@@ -634,7 +634,7 @@ def _portal_case_search_exact_count_start(payload: dict[str, Any]) -> str:
                 max_age_days=int(payload.get("max_age_days") or 0),
                 limit=int(payload.get("limit") or 0),
                 offset=0,
-                page_size=0,
+                page_size=1 if bool(payload.get("coverage_matrix_aligned")) else 0,
                 jp_line_id=int(payload.get("jp_line_id") or 0),
                 jp_station_id=int(payload.get("jp_station_id") or 0),
                 walk_max=int(payload.get("walk_max") or 0),
