@@ -23735,6 +23735,134 @@ body.site-admin-standalone.site-admin-locked .admin-detail-lightbox {
   display: none !important;
 }
 
+/* Figure results pager guard: block page turns until current-page media is ready. */
+body.site-home .figure-results-carousel-hint {
+  max-width: min(54vw, 420px);
+  padding: 0.35rem 0.68rem;
+  border-radius: 999px;
+  background: rgba(245, 248, 251, 0.96);
+  border: 1px solid rgba(196, 208, 221, 0.88);
+  color: #587087;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 8px 18px rgba(82, 107, 128, 0.1);
+}
+
+body.site-home .figure-results-carousel-btn.is-disabled,
+body.site-home .figure-results-carousel-btn:disabled,
+body.site-home .figure-results-carousel-dot:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-shell.is-media-pending .figure-results-carousel-status {
+  border-color: rgba(96, 126, 149, 0.24) !important;
+  background: rgba(245, 248, 251, 0.98) !important;
+  box-shadow: 0 10px 22px rgba(82, 107, 128, 0.14) !important;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card--placeholder {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card--placeholder .portal-suumo-card-media--placeholder {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(239, 244, 248, 0.98), rgba(226, 233, 240, 0.92));
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-head {
+  align-items: center !important;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-avatar,
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-line,
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-pill {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: rgba(224, 231, 239, 0.92);
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-avatar::after,
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-line::after,
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0));
+  animation: portalPlaceholderShimmer 1.18s ease-in-out infinite;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 999px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-stack {
+  display: grid;
+  gap: 0.42rem;
+  width: 100%;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-stack--body {
+  margin-top: 0.4rem;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-line {
+  height: 12px;
+  border-radius: 999px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-line--tiny {
+  width: 28%;
+  min-width: 88px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-line--short {
+  width: 42%;
+  min-width: 116px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-line--mid {
+  width: 64%;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-line--title {
+  width: 86%;
+  height: 16px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-cta-row {
+  margin-top: auto;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-pill {
+  height: 38px;
+  flex: 1 1 0;
+  border-radius: 999px;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-pill--primary {
+  flex: 1.15 1 0;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-placeholder-pill--wide {
+  flex: 1.35 1 0;
+}
+
+@keyframes portalPlaceholderShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* Paged search results: keep page swaps smooth and avoid delayed paints during card flips. */
 body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-shell.is-loading .figure-results-carousel-status {
   border-color: rgba(82, 107, 128, 0.3) !important;

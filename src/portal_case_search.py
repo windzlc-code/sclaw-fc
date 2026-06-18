@@ -21,9 +21,28 @@ from src.coverage_matrix_sql import CASE_INV_JP_LISTING_SQL
 from src.coverage_matrix_sql import coverage_host_where_sql
 from src.coverage_matrix_sql import coverage_region_where_sql
 from src.db import get_conn
+from src.jp_listing_region_index import REGION_INDEX_SEARCH_KEYS, normalize_region_index_search_key
 
 # 與「日本區域」下拉、巡檢矩陣地區列一致，供關鍵字首詞推斷
 _JP_AREA_LABEL_SET: frozenset[str] = frozenset(x for x in JP_AREA_FILTER_LABELS if str(x or "").strip())
+_SMART_QUERY_GENERIC_GEO_KEYWORDS: frozenset[str] = frozenset({"不動産", "不動產", "賃貸", "物件", "住宅"})
+_SMART_QUERY_REGION_ALIASES: dict[str, str] = {
+    "東京都": "東京",
+    "東京市": "東京",
+    "大阪府": "大阪",
+    "福岡県": "福岡",
+    "福岡縣": "福岡",
+    "神奈川県": "神奈川",
+    "神奈川縣": "神奈川",
+    "埼玉県": "埼玉",
+    "埼玉縣": "埼玉",
+    "千葉県": "千葉",
+    "千葉縣": "千葉",
+    "京都府": "京都市",
+    "横浜": "横滨",
+    "横浜市": "横滨",
+    "名古屋市": "名古屋",
+}
 
 # 無標點「都道府県＋…区＋町丁」：細地址查詢不可再擴成 /tokyo/ 等路徑 OR，否則整都道府縣全中
 _JP_PREF_WARD_TAIL = re.compile(r"^(.+?(?:都|道|府|県))(.+?区)(.+)$")
@@ -38,6 +57,69 @@ def _is_jp_address_level_query(kw: str) -> bool:
         return False
     a, b, c = m.group(1), m.group(2), m.group(3)
     return min(len(a), len(b), len(c)) >= 1 and min(len(a), len(b)) >= 2
+
+
+def _normalize_smart_query_geo_label(raw: str) -> str:
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    if s in _SMART_QUERY_REGION_ALIASES:
+        return _SMART_QUERY_REGION_ALIASES[s]
+    stripped = re.sub(r"[都道府県縣市]$", "", s)
+    if stripped in _SMART_QUERY_REGION_ALIASES:
+        return _SMART_QUERY_REGION_ALIASES[stripped]
+    if s in _JP_AREA_LABEL_SET:
+        return s
+    if stripped in _JP_AREA_LABEL_SET:
+        return stripped
+    return stripped or s
+
+
+def _normalize_region_index_focus_key(raw: str) -> str:
+    key = normalize_region_index_search_key(raw)
+    return key if key in REGION_INDEX_SEARCH_KEYS else ""
+
+
+def _extract_simple_geo_focus_keyword(kw: str) -> str:
+    tokens = _portal_keyword_tokens(kw)
+    if not tokens:
+        return ""
+    non_generic = [tok for tok in tokens if tok not in _SMART_QUERY_GENERIC_GEO_KEYWORDS]
+    if len(non_generic) != 1:
+        return ""
+    focus = str(non_generic[0] or "").strip()
+    if not focus:
+        return ""
+    if not all(tok == focus or tok in _SMART_QUERY_GENERIC_GEO_KEYWORDS for tok in tokens):
+        return ""
+    return focus
+
+
+def _simple_geo_focus_like_terms(focus: str) -> list[str]:
+    raw = str(focus or "").strip()
+    if not raw:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _push(term: str) -> None:
+        s = str(term or "").strip()
+        if not s:
+            return
+        key = s.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(s)
+
+    _push(raw)
+    normalized = _normalize_smart_query_geo_label(raw)
+    _push(normalized)
+    if normalized and not re.search(r"[都道府県縣市]$", raw):
+        _push(f"{normalized}県")
+        _push(f"{normalized}縣")
+        _push(f"{normalized}市")
+    return out[:4]
 
 # AtHome：`/mansion/shinchiku/{id}/`、`/mansion/{id}/`、`/mansion/chuko/…/{id}`、`/kodate/{id}`
 _ATHOME_LISTING_DETAIL_URL_RE = re.compile(
@@ -4328,12 +4410,70 @@ def search_portal_cases(
             if rest and all(t in generic for t in rest):
                 region_hint = tok0_norm
                 kw_base = ""
+        if not (region_hint or "").strip() and len(toks) >= 2:
+            generic = {
+                "不動産",
+                "物件",
+                "住宅",
+                "マンション",
+                "一戸建",
+                "賃貸",
+                "売買",
+                "購入",
+            }
+            rest = [t for t in toks[1:] if t]
+            tok0_index = _normalize_region_index_focus_key(tok0_norm)
+            if tok0_index and rest and all(t in generic for t in rest):
+                region_hint = tok0_index
+                kw_base = ""
     # 已選大區（如 關東/首都圏）但 keyword 又是「東京」等更細地區：視為地區精煉，避免再走關鍵字掃描。
-    broad_regions = {"首都圏", "首都圈", "關東", "関東", "關西", "関西", "北海道", "九州", "沖縄", "沖繩"}
+    broad_regions = {
+        "首都圏",
+        "首都圈",
+        "關東",
+        "関東",
+        "關西",
+        "関西",
+        "北海道",
+        "東北",
+        "甲信越",
+        "北陸",
+        "東海",
+        "中國地方",
+        "中国地方",
+        "四國",
+        "四国",
+        "九州",
+        "沖縄",
+        "沖繩",
+    }
     if (region_hint or "").strip() in broad_regions and kw_base and kw_base in _REGION_HINT_URL_PATH_MARKERS:
         if kw_base not in broad_regions and kw_base != region_hint:
             region_hint = kw_base
             kw_base = ""
+
+    region_hint_norm = _normalize_smart_query_geo_label(region_hint)
+    simple_geo_focus = _extract_simple_geo_focus_keyword(kw_base)
+    simple_geo_focus_norm = _normalize_smart_query_geo_label(simple_geo_focus)
+    simple_geo_focus_index_key = _normalize_region_index_focus_key(simple_geo_focus)
+    region_hint_index_key = _normalize_region_index_focus_key(region_hint)
+    if region_hint_norm and simple_geo_focus_norm and simple_geo_focus_norm == region_hint_norm:
+        kw_base = ""
+        simple_geo_focus = ""
+        simple_geo_focus_norm = ""
+        simple_geo_focus_index_key = ""
+    elif (
+        (region_hint or "").strip() in broad_regions
+        and simple_geo_focus_index_key
+        and simple_geo_focus_index_key != region_hint_index_key
+    ):
+        region_hint = simple_geo_focus_index_key
+        region_hint_norm = _normalize_smart_query_geo_label(region_hint)
+        region_hint_index_key = simple_geo_focus_index_key
+        kw_base = ""
+        simple_geo_focus = ""
+        simple_geo_focus_norm = ""
+        simple_geo_focus_index_key = ""
 
     region_hint = (region_hint or "").strip()
     region_inferred_for_matrix = False
@@ -4365,11 +4505,22 @@ def search_portal_cases(
     lid = max(0, int(jp_line_id or 0))
     wmax = max(0, int(walk_max or 0))
     has_transit_filter = sid > 0 or lid > 0 or wmax > 0
-    drive_from_region_index = bool(
+    region_scoped_geo_focus_mode = bool(
         region_hint
-        and not kw_base
+        and simple_geo_focus
         and not has_transit_filter
         and not has_smart_structured_filters
+    )
+    drive_from_region_index = bool(
+        region_hint
+        and not has_transit_filter
+        and not has_smart_structured_filters
+        and (not kw_base or region_scoped_geo_focus_mode)
+    )
+    fine_grained_region_index_probe = bool(
+        drive_from_region_index
+        and region_hint
+        and (region_hint or "").strip() not in broad_regions
     )
     if drive_from_region_index:
         # Rare-region browse queries are fastest when driven by the prebuilt region/time index.
@@ -4393,6 +4544,8 @@ def search_portal_cases(
             fetch_lim = min(6000, max(lim, lim * 4, 1000))
         else:
             fetch_lim = lim
+    if fine_grained_region_index_probe and requested_page_size > 0 and not has_smart_structured_filters:
+        fetch_lim = max(fetch_lim, min(480, max(int(lim) * 3, 240)))
     if requested_page_size > 0 and not has_smart_structured_filters:
         # The exact total count is now resolved asynchronously by a background endpoint.
         # For the interactive first-page response, only fetch a bounded recent window
@@ -4407,7 +4560,9 @@ def search_portal_cases(
         )
         if has_transit_filter:
             paged_probe_cap = max(paged_probe_cap, 1200)
-        elif region_hint and not kw_base:
+        elif fine_grained_region_index_probe:
+            paged_probe_cap = max(paged_probe_cap, 480)
+        elif region_hint and (not kw_base or region_scoped_geo_focus_mode):
             paged_probe_cap = max(paged_probe_cap, 960)
         fetch_lim = min(fetch_lim, paged_probe_cap)
     walk_sql = ""
@@ -4630,7 +4785,204 @@ def search_portal_cases(
             ],
         )
 
+    exact_region_index_page_mode = bool(
+        drive_from_region_index
+        and requested_page_size > 0
+        and not has_smart_structured_filters
+        and not kw_base
+        and not has_transit_filter
+    )
+
+    def _fetch_region_index_page_exact(conn: Any) -> tuple[list[dict[str, Any]], int]:
+        needs_content_recency = int(max_age_days or 0) > 0
+        content_recency_join = (
+            "        LEFT JOIN content_items c ON c.source_item_id = s.id\n"
+            if needs_content_recency
+            else ""
+        )
+        base_where_count = (
+            "FROM jp_listing_region_index rix\n"
+            "        JOIN source_items s ON s.id = rix.source_item_id\n"
+            "{content_recency_join}"
+            "        WHERE ({tx_sql})\n"
+            "          AND ({portal_sql})\n"
+            "          AND ({rec_sql})\n"
+            "          AND ({suumo_guard})\n"
+            "          {region_sql}"
+        ).format(
+            content_recency_join=content_recency_join,
+            tx_sql=tx_sql,
+            portal_sql=portal_sql,
+            rec_sql=rec_sql,
+            suumo_guard=_suumo_ms_guard,
+            region_sql=region_sql,
+        )
+        base_where_page = (
+            "FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort\n"
+            "        JOIN source_items s ON s.id = rix.source_item_id\n"
+            "{content_recency_join}"
+            "        WHERE ({tx_sql})\n"
+            "          AND ({portal_sql})\n"
+            "          AND ({rec_sql})\n"
+            "          AND ({suumo_guard})\n"
+            "          {region_sql}"
+        ).format(
+            content_recency_join=content_recency_join,
+            tx_sql=tx_sql,
+            portal_sql=portal_sql,
+            rec_sql=rec_sql,
+            suumo_guard=_suumo_ms_guard,
+            region_sql=region_sql,
+        )
+        base_params: list[Any] = [
+            *tx_params,
+            *portal_params,
+            *rec_params,
+            *region_params,
+        ]
+        total_sql = (
+            f"SELECT COUNT(DISTINCT rix.source_item_id) {base_where_count}"
+            if needs_content_recency
+            else f"SELECT COUNT(*) {base_where_count}"
+        )
+        total_row = conn.execute(
+            total_sql,
+            base_params,
+        ).fetchone()
+        total_count = int((total_row[0] if total_row else 0) or 0)
+        if total_count <= 0:
+            return [], 0
+        page_sid_sql = (
+            f"""
+            SELECT rix.source_item_id
+            {base_where_page}
+            GROUP BY rix.source_item_id
+            ORDER BY MAX(rix.sort_time) DESC, rix.source_item_id DESC
+            LIMIT ? OFFSET ?
+            """
+            if needs_content_recency
+            else f"""
+            SELECT rix.source_item_id
+            {base_where_page}
+            ORDER BY rix.sort_time DESC, rix.source_item_id DESC
+            LIMIT ? OFFSET ?
+            """
+        )
+        sid_rows = conn.execute(
+            page_sid_sql,
+            [*base_params, requested_page_size, page_offset],
+        ).fetchall()
+        source_ids = [
+            int((row[0] if not isinstance(row, dict) else row.get("source_item_id")) or 0)
+            for row in sid_rows
+        ]
+        source_ids = [sid for sid in source_ids if sid > 0]
+        if not source_ids:
+            return [], total_count
+        sid_placeholders = ",".join("?" for _ in source_ids)
+        order_case = "CASE s.id " + " ".join(
+            f"WHEN ? THEN {idx}" for idx, _ in enumerate(source_ids)
+        ) + " END"
+        rows = conn.execute(
+            f"""
+            SELECT
+              COALESCE(c.id, 0) AS id,
+              COALESCE(c.seo_slug, '') AS seo_slug,
+              substr(COALESCE(c.title_zh_hant,''),1,420) AS title_zh_hant,
+              substr(COALESCE(c.title_zh_hans,''),1,420) AS title_zh_hans,
+              substr(COALESCE(c.body_zh_hant,''),1,420) AS body_zh_hant,
+              substr(COALESCE(c.body_zh_hans,''),1,420) AS body_zh_hans,
+              COALESCE(c.region_code, '') AS region_code,
+              COALESCE(c.keyword_type, '') AS keyword_type,
+              COALESCE(c.topic_category, '') AS topic_category,
+              COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+              COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+              COALESCE(c.case_transit_override, '') AS case_transit_override,
+              COALESCE(c.jp_station_id, 0) AS jp_station_id,
+              COALESCE(c.walk_min, 0) AS walk_min,
+              COALESCE(jst.station_name, '') AS jp_bind_station_name,
+              COALESCE(jln.line_name, '') AS jp_bind_line_name,
+              COALESCE(c.featured_weight, 0) AS featured_weight,
+              COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+              COALESCE(c.updated_at, '') AS updated_at,
+              s.id AS source_item_id,
+              COALESCE(s.source_name, '') AS source_name,
+              COALESCE(s.item_url, '') AS item_url,
+              COALESCE(s.title_original, '') AS title_original,
+              substr(COALESCE(s.body_original,''),1,3200) AS body_original,
+              substr(COALESCE(s.image_urls,''),1,8000) AS image_urls,
+              COALESCE(s.published_at, '') AS published_at,
+              COALESCE(s.crawled_at, '') AS crawled_at,
+              COALESCE(s.last_checked_at, '') AS last_checked_at,
+              COALESCE(s.content_kind, '') AS content_kind
+            FROM source_items s
+            LEFT JOIN content_items c ON c.id = (
+                SELECT c2.id
+                FROM content_items c2
+                WHERE c2.source_item_id = s.id
+                ORDER BY c2.id DESC
+                LIMIT 1
+            )
+            LEFT JOIN jp_trans_station jst ON jst.station_id = COALESCE(c.jp_station_id, 0)
+            LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+            WHERE s.id IN ({sid_placeholders})
+            ORDER BY {order_case}
+            """,
+            [*source_ids, *source_ids],
+        ).fetchall()
+        return [_row_to_portal_case_item(row) for row in rows], total_count
+
     with get_conn() as conn:
+        if exact_region_index_page_mode:
+            items, total_count_override = _fetch_region_index_page_exact(conn)
+            tx_out = (transaction or "").strip().lower()
+            if tx_out not in ("buy", "sell", "rent"):
+                tx_out = "buy"
+            return {
+                "ok": True,
+                "transaction": tx_out,
+                "portal": (portal or "").strip().lower(),
+                "region_hint": region_hint,
+                "keyword": kw_base,
+                "jp_line_id": lid,
+                "jp_station_id": sid,
+                "walk_max": wmax,
+                "property_types": smart_property_types,
+                "price_min_man": smart_price_min,
+                "price_max_man": smart_price_max,
+                "layout_min_rooms": smart_layout_min,
+                "layout_max_rooms": smart_layout_max,
+                "layout_exact_zero": smart_layout_exact_zero,
+                "structured_filter_meta": {
+                    "property_types": smart_property_types,
+                    "price_min_man": smart_price_min,
+                    "price_max_man": smart_price_max,
+                    "layout_min_rooms": smart_layout_min,
+                    "layout_max_rooms": smart_layout_max,
+                    "layout_exact_zero": smart_layout_exact_zero,
+                },
+                "max_age_days": int(max_age_days) if int(max_age_days or 0) > 0 else 0,
+                "limit": lim,
+                "fetch_limit": requested_page_size,
+                "portal_keys": portal_keys,
+                "portal_keys_resolved": portal_keys,
+                "coverage_matrix_aligned": False,
+                "portal_merge_mode": "region_index_exact_page",
+                "transit_filter_meta": {
+                    "strict_bound": False,
+                    "keyword_relaxed": False,
+                    "keyword_before_relax": "",
+                },
+                "count": int(total_count_override or 0),
+                "count_exact": True,
+                "truncation_note": False,
+                "search_scope_note_zh": "目前使用區域索引直接分頁與精確總數；案件頁面會按頁即時載入，不再以截斷窗口估算整區筆數。",
+                "broad_inventory_browse": bool(broad_inventory_browse),
+                "page_offset": page_offset,
+                "page_size": requested_page_size,
+                "items": items,
+            }
+
         from src.jp_transit_model import keyword_boost_for_line, keyword_boost_for_station
 
         # Transit identity filters: prefer strict binding (jp_station_id) when we have any bound inventory.
@@ -4683,6 +5035,29 @@ def search_portal_cases(
             merged_kw = kw_base
 
         kw = merged_kw
+        kw_display = kw
+        kw_sql = ""
+        kw_params: list[Any] = []
+        if region_scoped_geo_focus_mode:
+            kw = ""
+            focus_terms = _simple_geo_focus_like_terms(simple_geo_focus or kw_display)
+            if focus_terms:
+                fields = (
+                    "c.title_zh_hant",
+                    "c.title_zh_hans",
+                    "c.seo_title",
+                    "s.title_original",
+                    "s.body_original",
+                    "s.item_url",
+                )
+                clauses: list[str] = []
+                for term in focus_terms:
+                    like = f"%{term}%"
+                    ors = " OR ".join(f"{field} LIKE ?" for field in fields)
+                    clauses.append(f"({ors})")
+                    kw_params.extend([like] * len(fields))
+                if clauses:
+                    kw_sql = " AND (" + " OR ".join(clauses) + ")"
         fts_content_rowid_floor = 0
         fts_source_rowid_floor = 0
         try:
@@ -4712,8 +5087,6 @@ def search_portal_cases(
         except Exception:
             fts_content_rowid_floor = 0
             fts_source_rowid_floor = 0
-        kw_sql = ""
-        kw_params = []
         if kw:
             fts_candidate_limit = min(20000, max(2400, int(fetch_lim) * 80))
             nmark = _is_jp_address_level_query(kw)
@@ -5016,7 +5389,7 @@ def search_portal_cases(
         "transaction": tx_out,
         "portal": (portal or "").strip().lower(),
         "region_hint": region_hint,
-        "keyword": kw,
+        "keyword": kw_display,
         "jp_line_id": lid,
         "jp_station_id": sid,
         "walk_max": wmax,
@@ -5040,6 +5413,7 @@ def search_portal_cases(
             "keyword_before_relax": transit_keyword_before_relax if transit_keyword_relaxed else "",
         },
         "count": int(total_count_override if total_count_override is not None else len(items)),
+        "count_exact": bool(row_fetch_count < fetch_lim),
         "truncation_note": row_fetch_count >= fetch_lim,
         "search_scope_note_zh": scope_note_zh,
         "broad_inventory_browse": bool(broad_inventory_browse),

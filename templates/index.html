@@ -3234,8 +3234,59 @@
       return [raw];
     }
 
+    const FIGURE_QUERY_REGION_LABEL_SET = new Set({{ jp_area_labels | default([], true) | tojson }});
+    const FIGURE_QUERY_GENERIC_GEO_KEYWORDS = new Set(['不動産', '不動產', '賃貸', '物件', '住宅']);
+    const FIGURE_QUERY_REGION_ALIASES = {
+      '東京都': '東京',
+      '東京市': '東京',
+      '大阪府': '大阪',
+      '福岡県': '福岡',
+      '福岡縣': '福岡',
+      '神奈川県': '神奈川',
+      '神奈川縣': '神奈川',
+      '埼玉県': '埼玉',
+      '埼玉縣': '埼玉',
+      '千葉県': '千葉',
+      '千葉縣': '千葉',
+      '京都府': '京都市',
+      '京都市': '京都市',
+      '横浜': '横滨',
+      '横浜市': '横滨',
+      '名古屋市': '名古屋',
+    };
+
+    function normalizeFigureGeoLabel(label) {
+      const raw = String(label || '').trim();
+      if (!raw) return '';
+      if (FIGURE_QUERY_REGION_ALIASES[raw]) return FIGURE_QUERY_REGION_ALIASES[raw];
+      const stripped = raw.replace(/[都道府県縣市]$/u, '');
+      if (FIGURE_QUERY_REGION_ALIASES[stripped]) return FIGURE_QUERY_REGION_ALIASES[stripped];
+      if (FIGURE_QUERY_REGION_LABEL_SET.has(raw)) return raw;
+      if (FIGURE_QUERY_REGION_LABEL_SET.has(stripped)) return stripped;
+      return stripped || raw;
+    }
+
+    function optimizeFigureMapSelectionKeyword(regionValue, keywordValue) {
+      const rawKeyword = String(keywordValue || '').trim();
+      if (!rawKeyword) return '';
+      const parts = rawKeyword.split(/\s+/).filter(Boolean);
+      if (!parts.length) return '';
+      const nonGeneric = parts.filter((part) => !FIGURE_QUERY_GENERIC_GEO_KEYWORDS.has(part));
+      if (nonGeneric.length !== 1) return rawKeyword;
+      if (!parts.every((part) => part === nonGeneric[0] || FIGURE_QUERY_GENERIC_GEO_KEYWORDS.has(part))) {
+        return rawKeyword;
+      }
+      const rawFocus = String(nonGeneric[0] || '').trim();
+      const focus = normalizeFigureGeoLabel(rawFocus);
+      const region = normalizeFigureGeoLabel(regionValue);
+      if (focus && region && focus === region && FIGURE_QUERY_REGION_LABEL_SET.has(region)) {
+        return '';
+      }
+      return rawFocus || rawKeyword;
+    }
+
     function figureMapKeywordForRegionSearch(keywordValue, displayRegion, searchRegion) {
-      const kw = String(keywordValue || '').trim();
+      const kw = optimizeFigureMapSelectionKeyword(searchRegion || displayRegion, keywordValue);
       const display = String(displayRegion || '').trim();
       const search = String(searchRegion || '').trim();
       if (!kw || !display || !search || display === search) return kw;
@@ -3617,6 +3668,7 @@
     let latestFigureCaseItems = [];
     let latestFigureResultMeta = null;
     let latestFigureExactCountPollSeq = 0;
+    let scheduledFigureExactCountPollTimer = 0;
     let dialogAutoSpeakEnabled = true;
     let dialogAutoSpeakLastKey = '';
     const SUPPORT_KB_HISTORY_KEY = 'sclaw_support_kb_history_v1';
@@ -7527,7 +7579,7 @@
       return tokens;
     }
 
-    function renderFigureResultsPagerDots(pageCount, currentPage) {
+    function renderFigureResultsPagerDots(pageCount, currentPage, options = {}) {
       return buildFigureResultsPagerTokens(pageCount, currentPage)
         .map((token) => {
           if (token.type !== 'page') {
@@ -7548,6 +7600,7 @@
           <button type="button" class="figure-results-carousel-btn" data-figure-carousel="prev" aria-label="上一組案件">${figureCarouselArrowSvg('prev')}</button>
           <span class="figure-results-carousel-indicator">
             <span class="figure-results-carousel-status" data-figure-carousel-status aria-live="polite">1 / ${pageCount}</span>
+            <span class="figure-results-carousel-hint" data-figure-carousel-hint aria-live="polite" hidden></span>
             <span class="figure-results-carousel-dots" data-figure-carousel-dots role="tablist" aria-label="案件輪播頁碼">
               ${renderFigureResultsPagerDots(pageCount, 0)}
             </span>
@@ -7568,34 +7621,162 @@
       return Math.max(0, Math.min(totalPages - 1, Number.isFinite(raw) ? raw : 0));
     }
 
+    function setPagedFigureResultsHint(state, message = '') {
+      if (!state || !state.shell) return;
+      const hintEl = state.shell.querySelector('[data-figure-carousel-hint]');
+      if (!hintEl) return;
+      const text = String(message || '').trim();
+      if (!text) {
+        hintEl.textContent = '';
+        hintEl.setAttribute('hidden', 'hidden');
+        return;
+      }
+      hintEl.textContent = text;
+      hintEl.removeAttribute('hidden');
+    }
+
+    function countPendingPagedFigureResultsMedia(page) {
+      if (!(page instanceof Element)) return 0;
+      let pending = 0;
+      page.querySelectorAll('.portal-suumo-card-media').forEach((wrap) => {
+        if (!(wrap instanceof Element)) return;
+        if (wrap.classList.contains('portal-suumo-card-media--no-reference')) return;
+        if (wrap.classList.contains('portal-suumo-card-media--hero-failed')) return;
+        const img = wrap.querySelector('.portal-suumo-card-heroimg');
+        if (!(img instanceof HTMLImageElement)) return;
+        const loaded = img.complete && Number(img.naturalWidth || 0) > 0;
+        if (!loaded || wrap.classList.contains('portal-suumo-card-media--loading')) pending += 1;
+      });
+      return pending;
+    }
+
+    function updatePagedFigureResultsMediaState(state, pageIndex, pendingCount) {
+      if (!state || state.disposed) return;
+      const idx = Math.max(0, parseInt(String(pageIndex || 0), 10) || 0);
+      const pending = Math.max(0, parseInt(String(pendingCount || 0), 10) || 0);
+      state.pageMediaPending.set(idx, pending);
+      state.pageMediaReady.set(idx, pending <= 0);
+      if (idx === getPagedFigureResultsDisplayPage(state)) {
+        state.pageAssetsReady = pending <= 0;
+        state.pendingMediaCount = pending;
+        syncPagedFigureResultsControls(state);
+      }
+    }
+
+    function bindPagedFigureResultsMediaGuard(state, page) {
+      if (!state || !(page instanceof Element)) return;
+      const pageIndex = Math.max(0, parseInt(String(page.getAttribute('data-figure-carousel-page') || '0'), 10) || 0);
+      const refresh = () => {
+        if (state.disposed) return;
+        updatePagedFigureResultsMediaState(state, pageIndex, countPendingPagedFigureResultsMedia(page));
+      };
+      if (page.dataset.figureMediaGuardBound !== '1') {
+        page.dataset.figureMediaGuardBound = '1';
+        page.addEventListener('load', (evt) => {
+          const target = evt.target;
+          if (!(target instanceof HTMLImageElement) || !target.classList.contains('portal-suumo-card-heroimg')) return;
+          window.requestAnimationFrame(refresh);
+        }, true);
+        page.addEventListener('error', (evt) => {
+          const target = evt.target;
+          if (!(target instanceof HTMLImageElement) || !target.classList.contains('portal-suumo-card-heroimg')) return;
+          window.requestAnimationFrame(refresh);
+        }, true);
+      }
+      window.requestAnimationFrame(refresh);
+      window.setTimeout(refresh, 180);
+    }
+
+    function renderPagedFigureResultsLoadingCards(cardCount = FIGURE_RESULTS_PAGE_SIZE, pageIndex = 0) {
+      const safeCount = Math.max(1, Math.min(12, parseInt(String(cardCount || FIGURE_RESULTS_PAGE_SIZE), 10) || FIGURE_RESULTS_PAGE_SIZE));
+      const safePage = Math.max(0, parseInt(String(pageIndex || 0), 10) || 0) + 1;
+      return Array.from({ length: safeCount }, (_, idx) => `
+        <article class="market-item-card figure-case-card portal-suumo-card portal-suumo-card--placeholder" aria-hidden="true">
+          <div class="portal-suumo-compact-card">
+            <div class="portal-suumo-card-media-col">
+              <div class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--placeholder">
+                <div class="portal-suumo-media-loading">${portalCaseLoadingCopyHtml(`第 ${safePage} 頁案件資料載入中，先顯示占位卡片。`)}</div>
+              </div>
+            </div>
+            <div class="portal-suumo-card-main">
+              <div class="portal-suumo-card-headrow">
+                <div class="market-item-head portal-suumo-card-head portal-suumo-placeholder-head">
+                  <span class="portal-suumo-placeholder-avatar"></span>
+                  <div class="portal-suumo-placeholder-stack">
+                    <span class="portal-suumo-placeholder-line portal-suumo-placeholder-line--short"></span>
+                    <span class="portal-suumo-placeholder-line portal-suumo-placeholder-line--tiny"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="portal-suumo-placeholder-stack portal-suumo-placeholder-stack--body">
+                <span class="portal-suumo-placeholder-line portal-suumo-placeholder-line--title"></span>
+                <span class="portal-suumo-placeholder-line"></span>
+                <span class="portal-suumo-placeholder-line portal-suumo-placeholder-line--mid"></span>
+              </div>
+              <div class="portal-suumo-card-cta-row portal-suumo-placeholder-cta-row">
+                <span class="portal-suumo-placeholder-pill portal-suumo-placeholder-pill--primary"></span>
+                <span class="portal-suumo-placeholder-pill"></span>
+                <span class="portal-suumo-placeholder-pill portal-suumo-placeholder-pill--wide"></span>
+              </div>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
     function syncPagedFigureResultsControls(state) {
       if (!state || !state.shell) return;
       const totalPages = Math.max(1, Number(state.pageCount || 1) || 1);
       const current = getPagedFigureResultsDisplayPage(state);
       const loading = !!state.loading;
+      const assetsReady = state.pageAssetsReady !== false;
+      const pendingMedia = Math.max(0, parseInt(String(state.pendingMediaCount || 0), 10) || 0);
       const status = state.shell.querySelector('[data-figure-carousel-status]');
       const dotsWrap = state.shell.querySelector('[data-figure-carousel-dots]');
       const prev = state.shell.querySelector('[data-figure-carousel="prev"]');
       const next = state.shell.querySelector('[data-figure-carousel="next"]');
       state.shell.classList.toggle('is-loading', loading);
-      if (status) status.textContent = loading ? `載入中 ${current + 1} / ${totalPages}` : `${current + 1} / ${totalPages}`;
+      state.shell.classList.toggle('is-media-pending', !loading && !assetsReady);
+      if (status) {
+        status.textContent = loading
+          ? `載入中 ${current + 1} / ${totalPages}`
+          : !assetsReady
+            ? `圖片載入中 ${current + 1} / ${totalPages}`
+            : `${current + 1} / ${totalPages}`;
+      }
+      setPagedFigureResultsHint(
+        state,
+        loading
+          ? '正在切換案件頁面，先顯示占位卡片。'
+          : !assetsReady
+            ? `本頁尚有 ${Math.max(1, pendingMedia)} 張圖片載入中，可先翻到其他頁繼續查看。`
+            : '',
+      );
       if (dotsWrap) dotsWrap.innerHTML = renderFigureResultsPagerDots(totalPages, current);
       if (prev) {
         prev.disabled = totalPages <= 1;
+        prev.classList.toggle('is-disabled', !!prev.disabled);
         prev.setAttribute('aria-label', `上一組案件，目前第 ${current + 1} / ${totalPages} 頁`);
       }
       if (next) {
         next.disabled = totalPages <= 1;
+        next.classList.toggle('is-disabled', !!next.disabled);
         next.setAttribute('aria-label', `下一組案件，目前第 ${current + 1} / ${totalPages} 頁`);
       }
     }
 
     function preparePagedFigureResultsPage(state, page, items) {
       if (!state || !(page instanceof Element)) return;
+      const pageIndex = Math.max(0, parseInt(String(page.getAttribute('data-figure-carousel-page') || '0'), 10) || 0);
+      if (page.dataset.figureCarouselPlaceholder === '1') {
+        updatePagedFigureResultsMediaState(state, pageIndex, 0);
+        return;
+      }
       latestFigureCaseItems = Array.isArray(items) ? items : [];
       syncFigureCaseFavoriteButtons();
       if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
       if (typeof syncPortalCaseCardImageLoadStates === 'function') syncPortalCaseCardImageLoadStates(page);
+      bindPagedFigureResultsMediaGuard(state, page);
       warmFigureCaseCards(Array.from(page.querySelectorAll('.market-item-card.figure-case-card')), {
         thumbPerCard: 2,
         fullPerCard: 1,
@@ -7613,14 +7794,33 @@
         page.setAttribute('data-figure-carousel-page', String(target));
         page.innerHTML = renderPortalCaseCards(Array.isArray(items) ? items : []);
         state.pageElements.set(target, page);
+      } else if (page.dataset.figureCarouselPlaceholder === '1') {
+        page.innerHTML = renderPortalCaseCards(Array.isArray(items) ? items : []);
       }
+      page.dataset.figureCarouselPlaceholder = '0';
       preparePagedFigureResultsPage(state, page, items);
       return page;
     }
 
-    function renderPagedFigureResultsCards(state, items, direction = 0, pageIndex = state.currentPage) {
-      if (!state || !state.track) return;
-      const incoming = getOrBuildPagedFigureResultsPage(state, items, pageIndex);
+    function getOrBuildPagedFigureResultsLoadingPage(state, pageIndex) {
+      if (!state || !state.track) return null;
+      const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
+      let page = state.pageElements.get(target);
+      if (!page) {
+        page = document.createElement('div');
+        page.className = 'figure-results-carousel-page';
+        page.setAttribute('data-figure-carousel-page', String(target));
+        state.pageElements.set(target, page);
+      }
+      page.dataset.figureCarouselPlaceholder = '1';
+      page.innerHTML = renderPagedFigureResultsLoadingCards(state.pageSize, target);
+      preparePagedFigureResultsPage(state, page, []);
+      return page;
+    }
+
+    function renderPagedFigureResultsPageElement(state, incoming, direction = 0) {
+      if (!state || !state.track || !(incoming instanceof Element)) return;
+      const incomingPageIndex = Math.max(0, parseInt(String(incoming.getAttribute('data-figure-carousel-page') || '0'), 10) || 0);
       if (!(incoming instanceof Element)) return;
       if (state.transitionTimer) {
         window.clearTimeout(state.transitionTimer);
@@ -7641,6 +7841,8 @@
         state.track.replaceChildren(incoming);
         state.activePageEl = incoming;
         state.track.style.minHeight = '';
+        state.currentPage = incomingPageIndex;
+        syncPagedFigureResultsControls(state);
         return;
       }
       current.className = 'figure-results-carousel-page is-current is-leaving';
@@ -7657,6 +7859,8 @@
         state.activePageEl = incoming;
         state.track.classList.remove('is-transitioning', 'is-direction-forward', 'is-direction-backward');
         state.track.style.minHeight = '';
+        state.currentPage = incomingPageIndex;
+        syncPagedFigureResultsControls(state);
       };
       window.requestAnimationFrame(() => {
         if (state.disposed || state.transitionId !== transitionId) return;
@@ -7667,6 +7871,12 @@
         state.transitionTimer = 0;
         finalize();
       }, 280);
+    }
+
+    function renderPagedFigureResultsCards(state, items, direction = 0, pageIndex = state.currentPage) {
+      if (!state || !state.track) return;
+      const incoming = getOrBuildPagedFigureResultsPage(state, items, pageIndex);
+      renderPagedFigureResultsPageElement(state, incoming, direction);
     }
 
     function getPagedFigureResultsPage(state, pageIndex, options = {}) {
@@ -7751,12 +7961,15 @@
       state.activeFetchController = requestCtrl;
       state.loadingPage = target;
       state.loading = true;
+      state.currentPage = target;
+      state.pageAssetsReady = true;
+      state.pendingMediaCount = 0;
+      renderPagedFigureResultsPageElement(state, getOrBuildPagedFigureResultsLoadingPage(state, target), direction);
       syncPagedFigureResultsControls(state);
       try {
         const pageData = await getPagedFigureResultsPage(state, target, { signal: requestCtrl.signal });
         if (state.disposed || state.requestId !== requestId || figureResultsPagedState !== state) return;
         if (state.activeFetchController === requestCtrl) state.activeFetchController = null;
-        state.currentPage = target;
         state.requestedPage = target;
         state.loadingPage = null;
         state.loading = false;
@@ -7770,10 +7983,13 @@
         if (err && err.__pageRequestAborted) return;
         state.loadingPage = null;
         state.loading = false;
-        state.requestedPage = state.currentPage;
+        state.requestedPage = target;
         syncPagedFigureResultsControls(state);
         const msg = dedupeRepeatedFailureMessage(formatApiError(err) || '查詢失敗，請稍後再試。');
-        if (!state.pageCache.size) {
+        if (state.activePageEl && String(state.activePageEl.getAttribute('data-figure-carousel-page') || '') === String(target)) {
+          state.activePageEl.dataset.figureCarouselPlaceholder = '0';
+          state.activePageEl.innerHTML = `<div class="panel">${esc(msg)}</div>`;
+        } else if (!state.pageCache.size) {
           state.track.innerHTML = `<div class="figure-results-carousel-page"><div class="panel">${esc(msg)}</div></div>`;
         }
       }
@@ -7835,19 +8051,15 @@
         pageCache: new Map(),
         pageElements: new Map(),
         pagePromises: new Map(),
+        pageMediaReady: new Map(),
+        pageMediaPending: new Map(),
+        pageAssetsReady: false,
+        pendingMediaCount: 0,
       };
       state.pageCache.set(0, { items: initialItems, payload: data || {} });
       figureResultsPagedState = state;
       syncPagedFigureResultsControls(state);
       renderPagedFigureResultsCards(state, initialItems, 0, 0);
-      if (baseBody && data && data.count_status === 'pending') {
-        void pollPortalCaseExactCount(baseBody, {
-          appliedLimit: Number(countSyncOptions.appliedLimit != null ? countSyncOptions.appliedLimit : data.limit || 0),
-          truncNote: String(countSyncOptions.truncNote != null ? countSyncOptions.truncNote : ''),
-        });
-      }
-      prefetchPagedFigureResultsPage(state, 1);
-      prefetchPagedFigureResultsPage(state, 2);
       shell.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target.closest('[data-figure-carousel], [data-figure-carousel-dot]') : null;
         if (!target || state.disposed || figureResultsPagedState !== state) return;
@@ -18315,17 +18527,27 @@
       return htmlParts.length ? htmlParts.join('') : '<div class="panel muted">目前沒有符合條件的站內案件；請調整來源／區域／關鍵字／日期，或確認後台案件管理已入庫 7 個日本來源資料。</div>';
     }
 
-    function portalCaseResultCountText(count, appliedLimit, truncNote) {
+    function portalCaseResultCountText(count, appliedLimit, truncNote, options = {}) {
       const n = Number(count || 0);
       const lim = Number(appliedLimit || 0);
+      const pageSize = Math.max(0, Number(options.pageSize || 0));
+      const currentPageItems = Math.max(0, Number(options.currentPageItems || 0));
+      const countExact = !!options.countExact;
+      const countProvisional = !!options.countProvisional;
+      if (pageSize > 0 && countExact) {
+        return `符合條件：<strong>${n}</strong> 筆／本頁 ${currentPageItems} 筆`;
+      }
+      if (pageSize > 0 && countProvisional) {
+        return `目前已載入窗口：<strong>${n}</strong> 筆／本頁 ${currentPageItems} 筆${esc(String(truncNote || ''))}`;
+      }
       if (truncNote) {
         return `本次回傳：<strong>${n}</strong> 筆／系統上限 ${lim || '未設定'} 筆${esc(String(truncNote))}`;
       }
       return `本次回傳：<strong>${n}</strong> 筆（當前條件已全部列示）`;
     }
 
-    function buildPortalCaseResultCountMarkup(count, appliedLimit, truncNote, exactPending = false) {
-      const text = portalCaseResultCountText(count, appliedLimit, truncNote);
+    function buildPortalCaseResultCountMarkup(count, appliedLimit, truncNote, exactPending = false, options = {}) {
+      const text = portalCaseResultCountText(count, appliedLimit, truncNote, options);
       const pendingNote = exactPending
         ? '<span class="muted" data-figure-result-count-note> ｜ 總數精算中...</span>'
         : '';
@@ -18336,9 +18558,20 @@
       const appliedLimit = Number(options.appliedLimit != null ? options.appliedLimit : latestFigureResultMeta?.appliedLimit || 0);
       const truncNote = String(options.truncNote != null ? options.truncNote : latestFigureResultMeta?.truncNote || '');
       const exactPending = !!options.exactPending;
+      const pageSize = Math.max(0, Number(options.pageSize != null ? options.pageSize : latestFigureResultMeta?.pageSize || 0));
+      const currentPageItems = Math.max(0, Number(options.currentPageItems != null ? options.currentPageItems : latestFigureResultMeta?.currentPageItems || 0));
+      const countExact = options.countExact != null ? !!options.countExact : !!latestFigureResultMeta?.countExact;
+      const countProvisional = options.countProvisional != null ? !!options.countProvisional : !!latestFigureResultMeta?.countProvisional;
       const textEl = document.querySelector('[data-figure-result-count-text]');
       const noteEl = document.querySelector('[data-figure-result-count-note]');
-      if (textEl) textEl.innerHTML = portalCaseResultCountText(count, appliedLimit, truncNote);
+      if (textEl) {
+        textEl.innerHTML = portalCaseResultCountText(count, appliedLimit, truncNote, {
+          pageSize,
+          currentPageItems,
+          countExact,
+          countProvisional,
+        });
+      }
       if (exactPending) {
         if (!noteEl && textEl && textEl.parentElement) {
           const span = document.createElement('span');
@@ -18356,6 +18589,10 @@
         truncNote,
         count: Number(count || 0),
         exactPending,
+        pageSize,
+        currentPageItems,
+        countExact,
+        countProvisional,
       };
       if (figureResultsPagedState && Number.isFinite(Number(count))) {
         figureResultsPagedState.totalCount = Math.max(0, Number(count || 0));
@@ -18369,7 +18606,8 @@
 
     async function pollPortalCaseExactCount(body, options = {}) {
       if (!body || typeof body !== 'object') return;
-      const seq = ++latestFigureExactCountPollSeq;
+      const seq = Number.isFinite(Number(options.seq)) ? Number(options.seq) : ++latestFigureExactCountPollSeq;
+      if (seq !== latestFigureExactCountPollSeq) return;
       const deadline = Date.now() + Math.max(12000, Number(options.timeoutMs || 45000));
       let waitMs = 1200;
       while (seq === latestFigureExactCountPollSeq && Date.now() < deadline) {
@@ -18391,6 +18629,25 @@
         await new Promise((resolve) => window.setTimeout(resolve, waitMs));
         waitMs = Math.min(5000, Math.round(waitMs * 1.45));
       }
+    }
+
+    function clearScheduledFigureExactCountPoll() {
+      if (scheduledFigureExactCountPollTimer) {
+        window.clearTimeout(scheduledFigureExactCountPollTimer);
+        scheduledFigureExactCountPollTimer = 0;
+      }
+    }
+
+    function schedulePortalCaseExactCountPoll(body, options = {}) {
+      if (!body || typeof body !== 'object') return;
+      clearScheduledFigureExactCountPoll();
+      const seq = latestFigureExactCountPollSeq;
+      const delayMs = Math.max(1800, Number(options.delayMs || 2600));
+      scheduledFigureExactCountPollTimer = window.setTimeout(() => {
+        scheduledFigureExactCountPollTimer = 0;
+        if (seq !== latestFigureExactCountPollSeq) return;
+        void pollPortalCaseExactCount(body, { ...options, seq });
+      }, delayMs);
     }
 
     function bindMarketTabs() {
@@ -20719,6 +20976,7 @@
     async function searchFigureTabLegacy(resetKeyword = false) {
       revealMorePagesSourcesAfterQuery();
       latestFigureExactCountPollSeq += 1;
+      clearScheduledFigureExactCountPoll();
       latestFigureResultMeta = null;
       const input = document.getElementById('figure_keyword');
       const regionSel = document.getElementById('figure_region');
@@ -20857,12 +21115,18 @@
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
       const count = Number(data.count != null ? data.count : items.length);
       const truncNote = data.truncation_note ? '（已達單次回傳上限，可調高 crawl 設定之智慧查詢筆數或縮小條件）' : '';
-      const countPending = data.count_status === 'pending';
+      const countPending = data.count_status !== 'ready';
       const resultCountMarkup = buildPortalCaseResultCountMarkup(
         count,
         appliedLimit,
         truncNote,
         countPending,
+        {
+          pageSize: Number(data.page_size || 0),
+          currentPageItems: items.length,
+          countExact: !!data.count_exact,
+          countProvisional: !!data.count_provisional,
+        },
       );
       const resultPortals = Array.isArray(data.portal_keys) && data.portal_keys.length ? data.portal_keys : portalKeys;
       const isMatAligned = !!(data && data.coverage_matrix_aligned);
@@ -21055,6 +21319,7 @@
     async function searchFigureTab(resetKeyword = false) {
       revealMorePagesSourcesAfterQuery();
       latestFigureExactCountPollSeq += 1;
+      clearScheduledFigureExactCountPoll();
       latestFigureResultMeta = null;
       const regionSel = document.getElementById('figure_region');
       const summary = document.getElementById('figure-summary');
@@ -21067,6 +21332,18 @@
       const geoModeSel = document.getElementById('figure_geo_mode');
       const geoModeRaw = String(geoModeSel ? geoModeSel.value : 'region').trim().toLowerCase();
       const geoMode = geoModeRaw === 'commute' || geoModeRaw === 'map' ? geoModeRaw : 'region';
+      const pendingMapSelection =
+        typeof getFigureMapSelectionState === 'function'
+          ? getFigureMapSelectionState({ includePending: true, persistPending: false })
+          : null;
+      const initialRegionValue = regionSel && regionSel.value ? String(regionSel.value).trim() : '';
+      const initialKeywordValue = String(hiddenKeyword ? hiddenKeyword.value : '').trim();
+      const shouldPromotePendingMapSelection =
+        geoMode === 'region'
+        && !!(pendingMapSelection && pendingMapSelection.hasSelection)
+        && !initialRegionValue
+        && !initialKeywordValue;
+      const effectiveGeoMode = shouldPromotePendingMapSelection ? 'map' : geoMode;
 
       let keyword = '';
       let homesLocLabel = '';
@@ -21076,13 +21353,13 @@
       let jptLine = 0;
       let jptSta = 0;
       let jptWalk = 0;
-      if (geoMode === 'region') {
+      if (effectiveGeoMode === 'region') {
         const homesKw = typeof homesGeoKeywordForSearch === 'function' ? homesGeoKeywordForSearch() : '';
         const presetKeyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim() || String(window.__sclawGeoKeywordOverride || '').trim();
         if (hiddenKeyword) hiddenKeyword.value = homesKw || presetKeyword;
         keyword = homesKw || presetKeyword;
         homesLocLabel = typeof homesGeoLabelForUi === 'function' ? homesGeoLabelForUi() : '';
-      } else if (geoMode === 'commute') {
+      } else if (effectiveGeoMode === 'commute') {
         if (typeof syncFigureKeywordFromJpTransit === 'function') syncFigureKeywordFromJpTransit();
         keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim();
         const jpt = typeof getJpTransitSmartFilterPayload === 'function' ? getJpTransitSmartFilterPayload() : { jp_line_id: 0, jp_station_id: 0, walk_max: 0 };
@@ -21112,25 +21389,29 @@
         mapSelectionState =
           typeof getFigureMapSelectionState === 'function'
             ? getFigureMapSelectionState({ includePending: true, persistPending: true })
-            : null;
+            : (pendingMapSelection || null);
+        if (shouldPromotePendingMapSelection) {
+          if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('map');
+          try { localStorage.setItem('figure_geo_mode', 'map'); } catch (_) {}
+        }
         keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim() || String(mapSelectionState?.keyword || '').trim();
         if (hiddenKeyword && keyword) hiddenKeyword.value = keyword;
       }
       if (resetKeyword && regionSel) regionSel.value = regionSel.value || '';
       const rawRegionHint = regionSel && regionSel.value ? String(regionSel.value).trim() : '';
       const regionHint =
-        geoMode === 'commute'
+        effectiveGeoMode === 'commute'
           ? (commuteRegionHint || '')
-          : geoMode === 'map'
+          : effectiveGeoMode === 'map'
             ? (rawRegionHint || String(mapSelectionState?.queryRegion || '').trim() || String(mapSelectionState?.prefLabel || '').trim() || String(mapSelectionState?.region || '').trim())
             : rawRegionHint;
-      if (geoMode === 'commute' && !jptLine && !jptSta && !jptWalk) {
+      if (effectiveGeoMode === 'commute' && !jptLine && !jptSta && !jptWalk) {
         const msg = '通勤路線模式：請先選擇都市圈→路線（可選駅）或設定徒步上限後再查詢。';
         summary.innerHTML = `<p class="muted">${esc(msg)}</p>`;
         resultWrap.innerHTML = `<div class="panel muted">${esc(msg)}</div>`;
         return;
       }
-      if (geoMode === 'map' && !regionHint) {
+      if (effectiveGeoMode === 'map' && !regionHint) {
         const msg = '地圖點選模式：請先在上方地圖選擇大區／都道府縣後再查詢。';
         summary.innerHTML = `<p class="muted">${esc(msg)}</p>`;
         resultWrap.innerHTML = `<div class="panel muted">${esc(msg)}</div>`;
@@ -21149,7 +21430,7 @@
       const geoBits = [];
       if (regionHint) geoBits.push(regionHint);
       if (homesLocLabel) geoBits.push(homesLocLabel);
-      if (geoMode === 'commute' && jpTransitUiLabel) geoBits.push(`通勤：${jpTransitUiLabel}`);
+      if (effectiveGeoMode === 'commute' && jpTransitUiLabel) geoBits.push(`通勤：${jpTransitUiLabel}`);
       const geoLabel = geoBits.length ? geoBits.join(' › ') : '不限';
       const keywordLabel = keyword ? ` ｜ 關鍵詞：${keyword}` : '';
       const conditionLine = `區域：${geoLabel} ｜ 類型：${typeLabel} ｜ 總價：${priceLabel} ｜ 格局：${layoutLabel}${keywordLabel}`;
@@ -21172,9 +21453,9 @@
         layout_exact_zero: layoutExactZero,
         max_age_days: botRuntime.maxAgeDays,
         limit: limitReq,
-        jp_line_id: geoMode === 'commute' ? jptLine : 0,
-        jp_station_id: geoMode === 'commute' ? jptSta : 0,
-        walk_max: geoMode === 'commute' ? jptWalk : 0,
+        jp_line_id: effectiveGeoMode === 'commute' ? jptLine : 0,
+        jp_station_id: effectiveGeoMode === 'commute' ? jptSta : 0,
+        walk_max: effectiveGeoMode === 'commute' ? jptWalk : 0,
         coverage_matrix_aligned: botRuntime.coverageMatrixAligned,
         page_size: FIGURE_RESULTS_PAGE_SIZE,
         ...overrides,
@@ -21237,7 +21518,7 @@
           }
           return merged;
         };
-        if (geoMode === 'map' && mapSelectionState && mapSelectionState.hasSelection) {
+        if (effectiveGeoMode === 'map' && mapSelectionState && mapSelectionState.hasSelection) {
           const broadRegionHint = String(mapSelectionState.queryRegion || regionHint || mapSelectionState.region || '').trim();
           const prefLabel = String(mapSelectionState.prefLabel || '').trim();
           if (broadRegionHint) {
@@ -21273,7 +21554,7 @@
           });
         }
         aggregateSplitBroad =
-          geoMode === 'map'
+          effectiveGeoMode === 'map'
           && mapSelectionState
           && mapSelectionState.hasSelection
           && !String(mapSelectionState.prefLabel || '').trim()
@@ -21320,12 +21601,18 @@
       const appliedLimit = Number(data.limit != null ? data.limit : limitReq);
       const count = Number(data.count != null ? data.count : allItems.length);
       const truncNote = data.truncation_note ? '（已達單次回傳上限，可縮小區域／類型／總價／格局條件）' : '';
-      const countPending = !aggregateSplitBroad && data.count_status === 'pending';
+      const countPending = !aggregateSplitBroad && data.count_status !== 'ready';
       const resultCountMarkup = buildPortalCaseResultCountMarkup(
         count,
         appliedLimit,
         truncNote,
         countPending,
+        {
+          pageSize: Number(data.page_size || 0),
+          currentPageItems: items.length,
+          countExact: !!data.count_exact,
+          countProvisional: !!data.count_provisional,
+        },
       );
       const meta = data.structured_filter_meta || {};
       const beforeCount = Number(meta.before_count || 0);
@@ -21358,9 +21645,9 @@
               portals: Array.isArray(data.portal_keys) && data.portal_keys.length ? data.portal_keys : botRuntime.portals,
               max_age_days: Number(data.max_age_days != null ? data.max_age_days : botRuntime.maxAgeDays) || 0,
               limit: Number(data.limit != null ? data.limit : limitReq) || limitReq,
-              jp_line_id: Number(data.jp_line_id != null ? data.jp_line_id : (geoMode === 'commute' ? jptLine : 0)) || 0,
-              jp_station_id: Number(data.jp_station_id != null ? data.jp_station_id : (geoMode === 'commute' ? jptSta : 0)) || 0,
-              walk_max: Number(data.walk_max != null ? data.walk_max : (geoMode === 'commute' ? jptWalk : 0)) || 0,
+              jp_line_id: Number(data.jp_line_id != null ? data.jp_line_id : (effectiveGeoMode === 'commute' ? jptLine : 0)) || 0,
+              jp_station_id: Number(data.jp_station_id != null ? data.jp_station_id : (effectiveGeoMode === 'commute' ? jptSta : 0)) || 0,
+              walk_max: Number(data.walk_max != null ? data.walk_max : (effectiveGeoMode === 'commute' ? jptWalk : 0)) || 0,
               coverage_matrix_aligned: !!(data && data.coverage_matrix_aligned),
             }
           );
@@ -22565,6 +22852,7 @@
       } else {
         if (typeof setFigureTransaction === 'function') setFigureTransaction('buy');
       }
+      kwCore = optimizeFigureMapSelectionKeyword(region, kwCore);
 
       const input = document.getElementById('figure_keyword');
       const regionSel = document.getElementById('figure_region');

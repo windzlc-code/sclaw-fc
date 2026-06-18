@@ -27,6 +27,15 @@ _PREF_LABEL_MARKERS: tuple[tuple[str, str, str], ...] = tuple(
     (p.label.casefold(), p.key, p.region) for p in _PREFS if p.label and p.key and p.region
 )
 
+
+def _strip_geo_suffix(label: str) -> str:
+    s = str(label or "").strip()
+    if not s:
+        return ""
+    if s.endswith("京都市"):
+        return "京都市"
+    return s.rstrip("都道府県縣市").strip() or s
+
 # Prefecture/city labels that exist in JP_AREA_FILTER_LABELS.
 _PREF_KEY_TO_AREA_LABEL: dict[str, str] = {
     "tokyo": "東京",
@@ -36,6 +45,19 @@ _PREF_KEY_TO_AREA_LABEL: dict[str, str] = {
     "saitama": "埼玉",
     "chiba": "千葉",
 }
+_PREF_KEY_TO_INDEX_LABEL: dict[str, str] = {
+    "tokyo": "東京",
+    "osaka": "大阪",
+    "fukuoka": "福岡",
+    "kanagawa": "神奈川",
+    "saitama": "埼玉",
+    "chiba": "千葉",
+    "kyoto": "京都市",
+    "aichi": "名古屋",
+}
+for _pref in _PREFS:
+    if _pref.key not in _PREF_KEY_TO_INDEX_LABEL:
+        _PREF_KEY_TO_INDEX_LABEL[_pref.key] = _strip_geo_suffix(_pref.label)
 
 _KANTO_PREF_KEYS: frozenset[str] = frozenset({"ibaraki", "tochigi", "gunma", "saitama", "chiba", "tokyo", "kanagawa"})
 _CAPITAL_PREF_KEYS: frozenset[str] = frozenset(set(_KANTO_PREF_KEYS) | {"yamanashi"})
@@ -62,6 +84,81 @@ _AREA_MARKERS: dict[str, tuple[str, ...]] = {
     "名古屋": ("nagoya", "名古屋"),
     "京都市": ("kyoto", "京都市", "京都府", "sc_kyoto", "sa_kyoto", "kyoto-city"),
 }
+
+_REGION_INDEX_SEARCH_KEYS: frozenset[str] = frozenset(
+    set(_AREA_LABELS) | {str(v or "").strip() for v in _PREF_KEY_TO_INDEX_LABEL.values() if str(v or "").strip()}
+)
+
+_REGION_INDEX_SEARCH_ALIASES: dict[str, str] = {
+    "東京都": "東京",
+    "東京市": "東京",
+    "大阪府": "大阪",
+    "福岡県": "福岡",
+    "福岡縣": "福岡",
+    "神奈川県": "神奈川",
+    "神奈川縣": "神奈川",
+    "埼玉県": "埼玉",
+    "埼玉縣": "埼玉",
+    "千葉県": "千葉",
+    "千葉縣": "千葉",
+    "愛知県": "名古屋",
+    "愛知縣": "名古屋",
+    "愛知": "名古屋",
+    "名古屋市": "名古屋",
+    "京都府": "京都市",
+    "京都": "京都市",
+    "宮城縣": "宮城",
+    "宮城県": "宮城",
+    "仙台": "宮城",
+    "石川縣": "石川",
+    "石川県": "石川",
+    "金澤": "石川",
+    "金沢": "石川",
+    "香川縣": "香川",
+    "香川県": "香川",
+    "高松": "香川",
+    "兵庫縣": "兵庫",
+    "兵庫県": "兵庫",
+    "神戶": "兵庫",
+    "神戸": "兵庫",
+    "靜岡縣": "静岡",
+    "靜岡": "静岡",
+    "廣島縣": "広島",
+    "廣島": "広島",
+    "德島縣": "徳島",
+    "德島": "徳島",
+    "鹿兒島縣": "鹿児島",
+    "鹿兒島": "鹿児島",
+}
+for _pref in _PREFS:
+    _raw = str(_pref.label or "").strip()
+    _norm = _strip_geo_suffix(_raw)
+    _target = str(_PREF_KEY_TO_INDEX_LABEL.get(_pref.key) or _norm).strip()
+    if _raw and _target:
+        _REGION_INDEX_SEARCH_ALIASES.setdefault(_raw, _target)
+    if _norm and _target:
+        _REGION_INDEX_SEARCH_ALIASES.setdefault(_norm, _target)
+
+
+def normalize_region_index_search_key(raw: str) -> str:
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    if s in _REGION_INDEX_SEARCH_KEYS:
+        return s
+    alias = _REGION_INDEX_SEARCH_ALIASES.get(s)
+    if alias:
+        return alias
+    stripped = _strip_geo_suffix(s)
+    if stripped in _REGION_INDEX_SEARCH_KEYS:
+        return stripped
+    alias = _REGION_INDEX_SEARCH_ALIASES.get(stripped)
+    if alias:
+        return alias
+    return stripped or s
+
+
+REGION_INDEX_SEARCH_KEYS: frozenset[str] = _REGION_INDEX_SEARCH_KEYS
 
 
 def _safe_url_path_segments(url: str) -> tuple[str, ...]:
@@ -106,6 +203,9 @@ def infer_region_keys(*, item_url: str, title_original: str = "", body_original:
         area = _PREF_KEY_TO_AREA_LABEL.get(pref_key)
         if area and area in _AREA_LABELS:
             matched.add(area)
+        index_label = _PREF_KEY_TO_INDEX_LABEL.get(pref_key)
+        if index_label:
+            matched.add(index_label)
 
     # 2b) Prefecture labels in text (e.g. 宮城県 / 東京都) -> broad regions.
     # Many portal item URLs don't include the prefecture slug; the page content usually does.
@@ -116,6 +216,9 @@ def infer_region_keys(*, item_url: str, title_original: str = "", body_original:
             area = _PREF_KEY_TO_AREA_LABEL.get(pref_key)
             if area and area in _AREA_LABELS:
                 matched.add(area)
+            index_label = _PREF_KEY_TO_INDEX_LABEL.get(pref_key)
+            if index_label:
+                matched.add(index_label)
             pref_hits.add(pref_key)
 
     # 3) Capital area inference.
@@ -136,7 +239,7 @@ def infer_region_keys(*, item_url: str, title_original: str = "", body_original:
                 break
 
     # Safety: ensure outputs are within the configured filter labels.
-    return {k for k in matched if k in _AREA_LABELS}
+    return {k for k in matched if k in _REGION_INDEX_SEARCH_KEYS}
 
 
 def upsert_jp_listing_region_index(
@@ -147,7 +250,7 @@ def upsert_jp_listing_region_index(
     sort_time: str = "",
 ) -> int:
     keys = [str(k or "").strip() for k in region_keys if str(k or "").strip()]
-    keys = [k for k in keys if k in _AREA_LABELS]
+    keys = [k for k in keys if k in _REGION_INDEX_SEARCH_KEYS]
     if not keys:
         return 0
     sid = int(source_item_id or 0)

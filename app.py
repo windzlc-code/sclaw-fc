@@ -22278,23 +22278,29 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     exact_count_data, exact_count_status = _portal_case_search_exact_count_get_with_status(
         _portal_case_search_exact_count_key(exact_count_payload)
     )
-    should_start_exact_count = page_size > 0 and exact_count_data is None and exact_count_status != "pending"
-    if should_start_exact_count:
-        exact_count_status = "pending"
-
-    def _attach_exact_count_meta(raw: dict[str, Any]) -> dict[str, Any]:
+    def _attach_exact_count_meta(raw: dict[str, Any], *, count_exact_known: bool = False) -> dict[str, Any]:
         out = dict(raw or {})
         if page_size > 0:
-            if exact_count_data is not None:
-                out["count"] = int(exact_count_data.get("count") or 0)
+            if count_exact_known:
                 out["count_status"] = "ready"
                 out["count_provisional"] = False
             else:
-                out["count_status"] = "pending" if exact_count_status == "pending" else "miss"
+                # Keep paged-search `count` on the same "current return window" basis.
+                # If a background exact total exists, expose it separately so UI logic
+                # does not mix provisional page-window counts with exact whole-result totals.
+                if exact_count_data is not None:
+                    out["count_exact_total"] = int(exact_count_data.get("count") or 0)
+                    out["count_exact_total_status"] = "ready"
+                else:
+                    out["count_exact_total"] = None
+                    out["count_exact_total_status"] = "pending" if exact_count_status == "pending" else "miss"
+                out["count_status"] = "ready"
                 out["count_provisional"] = True
         else:
             out["count_status"] = "ready"
             out["count_provisional"] = False
+            out["count_exact_total"] = int(out.get("count") or 0)
+            out["count_exact_total_status"] = "ready"
         return out
 
     cache_key = _portal_case_search_cache_key(
@@ -22321,14 +22327,11 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
     if cached_body is not None:
-        if cache_status == "stale":
-            threading.Thread(target=_prewarm_portal_case_search_cache, kwargs={"force": True}, daemon=True).start()
-        if should_start_exact_count:
-            _portal_case_search_exact_count_start(exact_count_payload)
         try:
             cached_data = json.loads(cached_body)
+            cached_count_exact = bool(cached_data.get("count_exact")) or not bool(cached_data.get("truncation_note"))
             cached_body = json.dumps(
-                _attach_exact_count_meta(cached_data),
+                _attach_exact_count_meta(cached_data, count_exact_known=cached_count_exact),
                 ensure_ascii=False,
                 separators=(",", ":"),
             )
@@ -22414,11 +22417,10 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     data["allowed_transactions"] = allowed_tx
     data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
     data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
-    data = _attach_exact_count_meta(data)
+    result_count_exact = bool(data.get("count_exact")) or not bool(data.get("truncation_note"))
+    data = _attach_exact_count_meta(data, count_exact_known=result_count_exact)
     response_body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     _portal_case_search_cache_set(cache_key, response_body)
-    if should_start_exact_count:
-        _portal_case_search_exact_count_start(exact_count_payload)
     return Response(
         content=response_body,
         media_type="application/json",
