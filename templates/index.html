@@ -3670,6 +3670,8 @@
     let supportSelectedCasesCollapsed = true;
     let supportSelectedCasesHydrated = false;
     let supportSelectedCasesDrawerOpen = false;
+    let supportSelectedCasesDetailEnrichPending = false;
+    let supportSelectedCasesDetailEnrichSig = '';
     let supportTelegramInboxBootstrapped = false;
     let latestFigureCaseItems = [];
     let latestFigureResultMeta = null;
@@ -9444,6 +9446,22 @@
       return title ? `title:${title}` : `tmp:${Date.now()}`;
     }
 
+    function supportSelectedCaseUrlList(value, limit = 8) {
+      const out = [];
+      const push = (v) => {
+        const s = String(v || '').trim();
+        if (!s || /^javascript:/i.test(s)) return;
+        if (!/^https?:\/\//i.test(s) && !s.startsWith('/')) return;
+        if (!out.includes(s)) out.push(s);
+      };
+      if (Array.isArray(value)) {
+        for (const item of value) push(item);
+      } else {
+        for (const item of String(value || '').split(/[\n\r\t,]+/)) push(item);
+      }
+      return out.slice(0, Math.max(1, Number(limit) || 8));
+    }
+
     function normalizeSupportSelectedCase(raw) {
       if (!raw || typeof raw !== 'object') return null;
       const title = String(raw.title || raw.title_zh_hant || raw.title_original || '').trim();
@@ -9465,14 +9483,25 @@
         region,
         transit,
         address_hint_zh,
-        price_text_hant: String(raw.price_text_hant || '').trim(),
-        price_fx_hant: String(raw.price_fx_hant || '').trim(),
+        price_text_hant: String(
+          raw.price_text_hant ||
+            raw.price_hint ||
+            raw.price_text ||
+            raw.price_label ||
+            raw.price ||
+            raw.rent_text ||
+            raw.monthly_rent ||
+            ''
+        ).trim(),
+        price_fx_hant: String(raw.price_fx_hant || raw.price_fx || '').trim(),
         layout_text_hant: String(raw.layout_text_hant || '').trim(),
         area_text_hant: String(raw.area_text_hant || '').trim(),
         age_text_hant: String(raw.age_text_hant || '').trim(),
         transaction_label_zh: String(raw.transaction_label_zh || '').trim(),
         building_type_zh: String(raw.building_type_zh || '').trim(),
         thumb_url: String(raw.thumb_url || '').trim(),
+        gallery_urls: supportSelectedCaseUrlList(raw.gallery_urls || raw.image_urls || [], 8),
+        image_count: Number(raw.image_count || 0),
         case_time_at: String(raw.case_time_at || '').trim(),
         data_time_at: String(raw.data_time_at || '').trim(),
         sort_time_at: String(raw.sort_time_at || '').trim(),
@@ -9489,6 +9518,63 @@
       const article = String((it && it.article_url) || '').trim();
       if (article) return article;
       return String((it && it.item_url) || '').trim();
+    }
+
+    function supportSelectedCaseCurrentSource(it) {
+      const list = Array.isArray(window.latestFigureCaseItems) ? window.latestFigureCaseItems : (Array.isArray(latestFigureCaseItems) ? latestFigureCaseItems : []);
+      if (!list.length || !it) return null;
+      const sid = Number(it.source_item_id || 0);
+      const cid = Number(it.content_id || 0);
+      const key = String(it.case_key || '').trim();
+      return (
+        list.find((x) => sid > 0 && Number(x?.source_item_id || 0) === sid) ||
+        list.find((x) => cid > 0 && Number(x?.content_id || 0) === cid) ||
+        list.find((x) => key && supportCaseKeyFromItem(x) === key) ||
+        null
+      );
+    }
+
+    function supportSelectedCaseThumbUrl(it) {
+      const thumb = String((it && it.thumb_url) || '').trim();
+      if (/^https?:\/\//i.test(thumb) || thumb.startsWith('/')) return thumb;
+      const urls = supportSelectedCaseUrlList(it && (it.gallery_urls || it.image_urls), 8);
+      if (urls[0]) return urls[0];
+      const src = supportSelectedCaseCurrentSource(it);
+      const srcThumb = String(src?.thumb_url || '').trim();
+      if (/^https?:\/\//i.test(srcThumb) || srcThumb.startsWith('/')) return srcThumb;
+      return supportSelectedCaseUrlList(src && (src.gallery_urls || src.image_urls), 8)[0] || '';
+    }
+
+    function supportSelectedCaseMetaText(it) {
+      const src = supportSelectedCaseCurrentSource(it) || {};
+      const layoutArea = [it?.layout_text_hant || src.layout_text_hant, it?.area_text_hant || src.area_text_hant].map((x) => String(x || '').trim()).filter(Boolean).join('｜');
+      const place = [it?.region || src.jp_region_display_zh, it?.transit || src.transit_line_zh].map((x) => String(x || '').trim()).filter(Boolean).join('｜');
+      const type = String(it?.building_type_zh || src.building_type_zh || it?.transaction_label_zh || src.transaction_label_zh || '').trim();
+      return [layoutArea, place, type].filter(Boolean).join('｜') || String(it?.source_name || '案件資料').trim();
+    }
+
+    function supportSelectedCasePriceText(it) {
+      const src = supportSelectedCaseCurrentSource(it) || {};
+      const price = String(
+        it?.price_text_hant ||
+          it?.price_fx_hant ||
+          src.price_text_hant ||
+          src.price_fx_hant ||
+          it?.price_hint ||
+          it?.price_text ||
+          it?.price_label ||
+          it?.price ||
+          it?.rent_text ||
+          it?.monthly_rent ||
+          src.price_hint ||
+          src.price_text ||
+          src.price_label ||
+          src.price ||
+          src.rent_text ||
+          src.monthly_rent ||
+          ''
+      ).trim();
+      return price || '價格待確認';
     }
 
     function getCurrentFigureSmartConditionLabels() {
@@ -9644,6 +9730,107 @@
       } catch (_) {}
     }
 
+    function supportSelectedCaseHasPrice(it) {
+      return Boolean(String(supportSelectedCasePriceText(it) || '').trim() && supportSelectedCasePriceText(it) !== '價格待確認');
+    }
+
+    function supportSelectedCaseNeedsDetailEnrich(it) {
+      if (!it) return false;
+      if (!supportSelectedCaseHasPrice(it)) return true;
+      if (!String(it.layout_text_hant || '').trim() && !String(it.area_text_hant || '').trim()) return true;
+      if (!supportSelectedCaseThumbUrl(it) && Number(it.source_item_id || 0) > 0) return true;
+      return false;
+    }
+
+    function supportSelectedCasesDetailEnrichSignature(items) {
+      return (items || [])
+        .map((it) => [
+          String(it.case_key || ''),
+          Number(it.source_item_id || 0),
+          Number(it.content_id || 0),
+          String(it.item_url || '').slice(0, 160),
+          String(it.title || '').slice(0, 120),
+        ].join('|'))
+        .join('::');
+    }
+
+    function mergeSupportSelectedCaseDetail(base, extra) {
+      const next = { ...(base || {}) };
+      const keys = [
+        'case_key',
+        'source_item_id',
+        'content_id',
+        'title',
+        'source_name',
+        'item_url',
+        'article_url',
+        'transaction_label_zh',
+        'region',
+        'jp_region_display_zh',
+        'transit',
+        'transit_line_zh',
+        'address_hint_zh',
+        'price_text_hant',
+        'price_fx_hant',
+        'layout_text_hant',
+        'area_text_hant',
+        'building_type_zh',
+        'thumb_url',
+        'image_count',
+      ];
+      for (const k of keys) {
+        const oldVal = next[k];
+        const newVal = extra && extra[k];
+        if ((oldVal == null || String(oldVal).trim() === '' || k === 'price_text_hant' || k === 'price_fx_hant') && newVal != null && String(newVal).trim() !== '') {
+          next[k] = newVal;
+        }
+      }
+      return normalizeSupportSelectedCase(next) || next;
+    }
+
+    async function hydrateSupportSelectedCasesDetails(options = {}) {
+      if (supportSelectedCasesDetailEnrichPending) return;
+      const targets = supportSelectedCases.filter((it) => supportSelectedCaseNeedsDetailEnrich(it)).slice(0, 20);
+      if (!targets.length) return;
+      const sig = supportSelectedCasesDetailEnrichSignature(targets);
+      if (!options.force && sig && sig === supportSelectedCasesDetailEnrichSig) return;
+      supportSelectedCasesDetailEnrichSig = sig;
+      supportSelectedCasesDetailEnrichPending = true;
+      try {
+        const res = await fetch('/api/support/selected-cases-enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cases: targets }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !Array.isArray(data.items) || !data.items.length) return;
+        const enrichedByKey = new Map();
+        for (const raw of data.items) {
+          const n = normalizeSupportSelectedCase(raw);
+          const key = supportSelectedCaseStableKey(n);
+          if (key) enrichedByKey.set(key, n);
+        }
+        if (!enrichedByKey.size) return;
+        let changed = false;
+        supportSelectedCases = supportSelectedCases.map((it) => {
+          const key = supportSelectedCaseStableKey(it);
+          const extra = enrichedByKey.get(key);
+          if (!extra) return it;
+          const merged = mergeSupportSelectedCaseDetail(it, extra);
+          changed = true;
+          return merged;
+        });
+        if (changed) {
+          saveSupportSelectedCasesLocal();
+          renderSupportSelectedCasesPanel();
+          renderSupportSelectedCasesDrawerList();
+        }
+      } catch (_) {
+      } finally {
+        supportSelectedCasesDetailEnrichPending = false;
+      }
+    }
+
     function renderSupportSelectedCasesPanel() {
       const panel = document.getElementById('support-selected-cases-panel');
       const wrap = document.getElementById('support-selected-cases-list');
@@ -9783,6 +9970,7 @@
         unlockBodyScrollForSupportSelectedCasesDrawer();
         if (!(options && options.skipExclusive)) closeFloatingPanelsExcept('selected');
         renderSupportSelectedCasesDrawerList();
+        hydrateSupportSelectedCasesDetails();
         try {
           const focusTarget = drawer && drawer.querySelector ? drawer.querySelector('button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])') : null;
           if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();
@@ -9814,27 +10002,44 @@
       if (!wrap) return;
       const total = supportSelectedCases.length;
       if (!total) {
-        wrap.innerHTML = '<span class="muted">尚未加入案件。可在智慧查詢結果點選心型收藏。</span>';
+        wrap.innerHTML = '<div class="support-selected-cases-cart-empty"><strong>尚未加入案件</strong><span>可在智慧查詢結果點選心型收藏，案件會出現在這裡。</span></div>';
         return;
       }
       let html = '<div class="support-selected-cases-cart">';
-      for (const it of supportSelectedCases.slice(0, 20)) {
-        const titleShown = esc(String(it.title || '').slice(0, 80) || '案件');
-        const meta = [String(it.source_name || '').trim(), String(it.region || '').trim(), String(it.transit || '').trim()]
-          .filter(Boolean)
-          .join('｜');
-        const metaText = esc(meta || '案件來源');
+      for (const [idx, it] of supportSelectedCases.slice(0, 20).entries()) {
+        const titleShown = esc(String(it.title || '').slice(0, 96) || '案件');
+        const sourceText = esc(String(it.source_name || '日本房產').trim());
+        const metaText = esc(supportSelectedCaseMetaText(it));
+        const priceText = esc(supportSelectedCasePriceText(it));
         const caseKey = esc(String(it.case_key || ''));
         const primaryRaw = String(supportSelectedCasePrimaryLink(it) || '').trim();
         const safeHref = primaryRaw && !/^javascript:/i.test(primaryRaw) ? primaryRaw : '';
+        const externalAttrs = /^https?:\/\//i.test(safeHref) ? ' target="_blank" rel="nofollow noopener"' : '';
+        const thumb = supportSelectedCaseThumbUrl(it);
+        const imageCount = Number(it.image_count || (Array.isArray(it.gallery_urls) ? it.gallery_urls.length : 0) || 0);
+        const imageLoading = idx < 3 ? 'eager' : 'lazy';
+        const imageFetchPriority = idx < 2 ? 'high' : 'low';
+        const imgHtml = thumb
+          ? `<img src="${esc(thumb)}" alt="${titleShown}" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" onload="this.parentNode.classList.add('is-loaded');" onerror="this.style.display='none';this.parentNode.classList.add('is-empty');">`
+          : '';
+        const placeholderText = thumb ? '圖片載入中' : '暫無配圖';
+        const thumbInner = `${imgHtml}<span class="support-selected-cases-card-source">${sourceText}</span><span class="support-selected-cases-card-placeholder">${placeholderText}</span>`;
+        const thumbHtml = safeHref
+          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}>${thumbInner}</a>`
+          : `<div class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}">${thumbInner}</div>`;
         const titleHtml = safeHref
-          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${/^https?:\/\//i.test(safeHref) ? ' target=\"_blank\" rel=\"nofollow noopener\"' : ''}>${titleShown}</a>`
-          : `<strong>${titleShown}</strong>`;
-        html += '<div class="support-selected-cases-cart-item">';
-        html += `<div class="support-selected-cases-cart-main">${titleHtml}<div class="muted support-selected-cases-cart-meta">${metaText}</div></div>`;
-        html += '<div class="support-selected-cases-cart-actions">';
-        html += `<button type="button" class="secondary" data-case-key="${caseKey}" onclick="removeSupportSelectedCaseByBtn(this)">移除</button>`;
-        html += '</div></div>';
+          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}>${titleShown}</a>`
+          : `<strong class="support-selected-cases-cart-link">${titleShown}</strong>`;
+        html += '<article class="support-selected-cases-cart-item">';
+        html += thumbHtml;
+        html += '<div class="support-selected-cases-cart-main">';
+        html += titleHtml;
+        html += `<div class="support-selected-cases-cart-meta">${metaText}</div>`;
+        html += `<div class="support-selected-cases-cart-price">${priceText}</div>`;
+        if (imageCount > 1) html += `<div class="support-selected-cases-cart-media-count">含 ${esc(String(imageCount))} 張原站圖片</div>`;
+        html += '</div>';
+        html += `<button type="button" class="support-selected-cases-cart-remove" data-case-key="${caseKey}" onclick="removeSupportSelectedCaseByBtn(this)" aria-label="移除 ${titleShown}">移除</button>`;
+        html += '</article>';
       }
       html += '</div>';
       wrap.innerHTML = html;

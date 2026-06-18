@@ -3294,6 +3294,10 @@ class SupportSessionCaseInterestUpsertRequest(BaseModel):
     cases: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class SupportSelectedCaseEnrichRequest(BaseModel):
+    cases: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class SupportSelectedCaseNotifyRequest(BaseModel):
     session_id: str = ""
     selected_cases: list[dict[str, Any]] = Field(default_factory=list)
@@ -6981,7 +6985,16 @@ def _sanitize_support_selected_cases(raw_rows: list[Any], *, max_items: int = 16
             "jp_region_display_zh": region[:120],
             "transit_line_zh": transit[:120],
             "address_hint_zh": address_hint[:220],
-            "price_text_hant": str(raw.get("price_text_hant") or "").strip()[:80],
+            "price_text_hant": str(
+                raw.get("price_text_hant")
+                or raw.get("price_hint")
+                or raw.get("price_text")
+                or raw.get("price_label")
+                or raw.get("price")
+                or raw.get("rent_text")
+                or raw.get("monthly_rent")
+                or ""
+            ).strip()[:80],
             "layout_text_hant": str(raw.get("layout_text_hant") or "").strip()[:80],
             "area_text_hant": str(raw.get("area_text_hant") or "").strip()[:80],
             "building_type_zh": str(raw.get("building_type_zh") or "").strip()[:80],
@@ -7023,6 +7036,127 @@ def _load_support_session_interest_cases(session_id: str, *, limit: int = 16) ->
             (sid[:120], lim),
         ).fetchall()
     return [_interest_case_row_with_derived_article_url(dict(r)) for r in rows]
+
+
+def _support_selected_case_enrich_one(conn: sqlite3.Connection, raw: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    source_item_id = max(0, _safe_int(raw.get("source_item_id")))
+    content_id = max(0, _safe_int(raw.get("content_id")))
+    item_url = _normalize_case_interest_url(raw.get("item_url"))
+    title = re.sub(r"\s+", " ", str(raw.get("title") or "").strip())
+    params: tuple[Any, ...]
+    where = ""
+    if source_item_id > 0:
+        where = "s.id = ?"
+        params = (source_item_id,)
+    elif content_id > 0:
+        where = "c.id = ?"
+        params = (content_id,)
+    elif item_url:
+        where = "s.item_url = ?"
+        params = (item_url,)
+    elif title:
+        title_like = f"%{title[:80]}%"
+        where = "(COALESCE(c.title_zh_hant,'') LIKE ? OR COALESCE(s.title_original,'') LIKE ? OR COALESCE(c.seo_title,'') LIKE ?)"
+        params = (title_like, title_like, title_like)
+    else:
+        return None
+    row = conn.execute(
+        f"""
+        SELECT
+            s.id AS source_item_id,
+            s.source_name,
+            s.item_url,
+            s.title_original,
+            s.body_original,
+            s.published_at,
+            s.crawled_at,
+            s.image_urls,
+            s.content_kind,
+            COALESCE(c.id, 0) AS content_id,
+            COALESCE(c.seo_slug, '') AS seo_slug,
+            COALESCE(c.seo_title, '') AS seo_title,
+            COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+            COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+            COALESCE(c.body_zh_hant, '') AS body_zh_hant,
+            COALESCE(c.body_zh_hans, '') AS body_zh_hans,
+            COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+            COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+            COALESCE(c.case_transit_override, '') AS case_transit_override,
+            COALESCE(c.jp_station_id, 0) AS jp_station_id,
+            COALESCE(c.walk_min, 0) AS walk_min,
+            COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+            COALESCE(c.updated_at, '') AS updated_at
+        FROM source_items s
+        LEFT JOIN content_items c ON c.source_item_id = s.id
+        WHERE {where}
+        ORDER BY c.updated_at DESC, s.id DESC
+        LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        from src.case_metadata import infer_case_metadata
+        from src.portal_case_search import _extract_listing_fields
+
+        meta = infer_case_metadata(d)
+        fields = _extract_listing_fields(d, meta=meta)
+    except Exception:
+        meta = {}
+        fields = {}
+    price = str(fields.get("price_text_hant") or "").strip()
+    if not price:
+        price = _home_intro_case_price_hint(d)
+    gallery = _case_verified_property_gallery_urls(d, limit=1)
+    thumb = gallery[0] if gallery else ""
+    slug = str(d.get("seo_slug") or "").strip()
+    sid = int(d.get("source_item_id") or 0)
+    out = {
+        "case_key": _support_case_key_from_dict({"source_item_id": sid, "item_url": d.get("item_url"), "content_id": d.get("content_id"), "title": d.get("title_zh_hant") or d.get("title_original")}),
+        "source_item_id": sid,
+        "content_id": int(d.get("content_id") or 0),
+        "title": str(d.get("title_zh_hant") or d.get("seo_title") or d.get("title_original") or raw.get("title") or "").strip()[:240],
+        "source_name": str(d.get("source_name") or raw.get("source_name") or "").strip()[:120],
+        "item_url": _normalize_case_interest_url(d.get("item_url")),
+        "article_url": _standard_article_path(slug, sid) if slug else _standard_case_path(sid),
+        "transaction_label_zh": str(meta.get("transaction_label_zh") or raw.get("transaction_label_zh") or "").strip()[:60],
+        "region": str(meta.get("jp_region_display_zh") or raw.get("region") or raw.get("jp_region_display_zh") or "").strip()[:120],
+        "jp_region_display_zh": str(meta.get("jp_region_display_zh") or raw.get("region") or raw.get("jp_region_display_zh") or "").strip()[:120],
+        "transit": str(meta.get("transit_line_zh") or raw.get("transit") or raw.get("transit_line_zh") or "").strip()[:120],
+        "transit_line_zh": str(meta.get("transit_line_zh") or raw.get("transit") or raw.get("transit_line_zh") or "").strip()[:120],
+        "address_hint_zh": str(fields.get("address_hint_zh") or raw.get("address_hint_zh") or "").strip()[:220],
+        "price_text_hant": price[:80],
+        "price_fx_hant": str(fields.get("price_fx_hant") or raw.get("price_fx_hant") or "").strip()[:80],
+        "layout_text_hant": str(fields.get("layout_text_hant") or raw.get("layout_text_hant") or "").strip()[:80],
+        "area_text_hant": str(fields.get("area_text_hant") or raw.get("area_text_hant") or "").strip()[:80],
+        "building_type_zh": str(fields.get("building_type_zh") or raw.get("building_type_zh") or "").strip()[:80],
+        "thumb_url": _normalize_case_interest_url(thumb or raw.get("thumb_url")),
+        "image_count": 1 if thumb else max(0, _safe_int(raw.get("image_count"))),
+    }
+    return _interest_case_row_with_derived_article_url(out)
+
+
+def _enrich_support_selected_cases(raw_rows: list[Any], *, max_items: int = 20) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    with get_conn() as conn:
+        for raw in list(raw_rows or [])[:max_items]:
+            if not isinstance(raw, dict):
+                continue
+            enriched = _support_selected_case_enrich_one(conn, raw)
+            if not enriched:
+                continue
+            key = _support_case_key_from_dict(enriched)
+            if not key or key in seen:
+                continue
+            enriched["case_key"] = key
+            seen.add(key)
+            out.append(enriched)
+    return out
 
 
 def _replace_support_session_interest_cases(
@@ -20649,6 +20783,12 @@ def api_get_support_session_interest_cases(
 def api_put_support_session_interest_cases(payload: SupportSessionCaseInterestUpsertRequest):
     sid, items = _replace_support_session_interest_cases(payload.session_id, payload.cases)
     return JSONResponse({"ok": True, "session_id": sid, "count": len(items), "items": items})
+
+
+@app.post("/api/support/selected-cases-enrich")
+def api_support_selected_cases_enrich(payload: SupportSelectedCaseEnrichRequest):
+    rows = _enrich_support_selected_cases(payload.cases, max_items=20)
+    return JSONResponse({"ok": True, "count": len(rows), "items": rows})
 
 
 def _build_selected_case_notify_body(
