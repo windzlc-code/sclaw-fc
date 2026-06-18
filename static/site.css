@@ -23913,11 +23913,177 @@ body.site-home #figure-results.figure-results-carousel-wrap .figure-results-caro
   position: relative;
   width: 100%;
   min-width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   transition:
     opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
   transform: translate3d(0, 0, 0);
   opacity: 1;
+}
+
+@media (min-width: 1181px) {
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-track,
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-page {
+    min-height: 1020px !important;
+  }
+
+  body.site-home #figure-results.figure-results-static,
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-shell {
+    min-height: 1030px !important;
+  }
+
+  body.site-home #figure-results.figure-results-static {
+    box-sizing: border-box;
+    padding: 16px 78px 84px !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-auto-rows: 448px !important;
+    gap: 24px !important;
+  }
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-results-empty-slot {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 448px;
+  border: 1px solid rgba(82, 107, 128, 0.12);
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgba(248, 251, 252, 0.86), rgba(243, 248, 250, 0.72)),
+    #f7fafb;
+  box-shadow: 0 12px 30px rgba(82, 107, 128, 0.06);
+  opacity: 0.62;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.site-home #figure-results.figure-results-carousel-wrap .figure-results-empty-slot::before {
+  content: "本頁暫無更多案件";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(82, 107, 128, 0.52);
+  font-size: 0.94rem;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+body.site-home #figure-results.figure-results-static {
+  grid-template-columns: repeat(3, minmax(0, 380px)) !important;
+  justify-content: center !important;
+  align-items: start !important;
+}
+
+body.site-home #figure-results.figure-results-static.figure-results-count-1,
+body.site-home #figure-results.figure-results-static.figure-results-count-2 {
+  grid-template-columns: repeat(3, minmax(0, 380px)) !important;
+}
+
+body.site-home #figure-results.figure-results-static .figure-results-empty-slot {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 448px;
+  border: 1px solid rgba(82, 107, 128, 0.12);
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgba(248, 251, 252, 0.86), rgba(243, 248, 250, 0.72)),
+    #f7fafb;
+  box-shadow: 0 12px 30px rgba(82, 107, 128, 0.06);
+  opacity: 0.62;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.site-home #figure-results.figure-results-static .figure-results-empty-slot::before {
+  content: "本頁暫無更多案件";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(82, 107, 128, 0.52);
+  font-size: 0.94rem;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+@media (max-width: 1180px) {
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-track,
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-page {
+    min-height: 1492px !important;
+  }
+
+  body.site-home #figure-results.figure-results-static,
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-shell {
+    min-height: 1502px !important;
+  }
+
+  body.site-home #figure-results.figure-results-static,
+  body.site-home #figure-results.figure-results-static.figure-results-count-1,
+  body.site-home #figure-results.figure-results-static.figure-results-count-2 {
+    grid-template-columns: repeat(2, minmax(0, 380px)) !important;
+    grid-auto-rows: 448px !important;
+    padding: 16px 68px 84px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-shell,
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-track,
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-page,
+  body.site-home #figure-results.figure-results-static {
+    min-height: 0 !important;
+  }
+
+  body.site-home #figure-results.figure-results-static,
+  body.site-home #figure-results.figure-results-static.figure-results-count-1,
+  body.site-home #figure-results.figure-results-static.figure-results-count-2 {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    padding: 0 !important;
+  }
+
+  body.site-home #figure-results.figure-results-static .figure-results-empty-slot,
+  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-empty-slot {
+    display: none;
+  }
+}
+
+@media (min-width: 1181px) {
+  body.site-home #figure-results.figure-results-static,
+  body.site-home #figure-results.figure-results-static.figure-results-count-1,
+  body.site-home #figure-results.figure-results-static.figure-results-count-2,
+  body.site-home #figure-results.figure-results-static.figure-results-count-3,
+  body.site-home #figure-results.figure-results-static.figure-results-count-4,
+  body.site-home #figure-results.figure-results-static.figure-results-count-5,
+  body.site-home #figure-results.figure-results-static.figure-results-count-6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    justify-content: stretch !important;
+  }
+
+  body.site-home #figure-results.figure-results-static .market-item-card.figure-case-card.portal-suumo-card {
+    max-width: none !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  body.site-home #figure-results.figure-results-static,
+  body.site-home #figure-results.figure-results-static.figure-results-count-1,
+  body.site-home #figure-results.figure-results-static.figure-results-count-2,
+  body.site-home #figure-results.figure-results-static.figure-results-count-3,
+  body.site-home #figure-results.figure-results-static.figure-results-count-4,
+  body.site-home #figure-results.figure-results-static.figure-results-count-5,
+  body.site-home #figure-results.figure-results-static.figure-results-count-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    justify-content: stretch !important;
+  }
+
+  body.site-home #figure-results.figure-results-static .market-item-card.figure-case-card.portal-suumo-card {
+    max-width: none !important;
+  }
 }
 
 body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-track.is-transitioning {

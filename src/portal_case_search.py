@@ -4457,6 +4457,9 @@ def search_portal_cases(
     simple_geo_focus_norm = _normalize_smart_query_geo_label(simple_geo_focus)
     simple_geo_focus_index_key = _normalize_region_index_focus_key(simple_geo_focus)
     region_hint_index_key = _normalize_region_index_focus_key(region_hint)
+    if region_hint and region_hint_index_key and region_hint_index_key != region_hint:
+        region_hint = region_hint_index_key
+        region_hint_norm = _normalize_smart_query_geo_label(region_hint)
     if region_hint_norm and simple_geo_focus_norm and simple_geo_focus_norm == region_hint_norm:
         kw_base = ""
         simple_geo_focus = ""

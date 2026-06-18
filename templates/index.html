@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260616-admin-login-panel-c">
+  <link rel="stylesheet" href="/static/site.css?v=20260618-stable-results-stage-b">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -2962,7 +2962,7 @@
       const sel = getHomesGeoSelection();
       // keyword 保持日文原字（對應 HOMES slug / 原文摘要較易命中）
       if (sel.prefLabelJp && sel.prefLabelJp !== '（可選）不限') {
-        if (sel.cityLabelJp && sel.cityLabelJp !== '（可選）不限') return `${sel.prefLabelJp} ${sel.cityLabelJp}`.trim();
+        if (sel.cityId && sel.cityLabelJp && sel.cityLabelJp !== '（可選）不限') return `${sel.prefLabelJp} ${sel.cityLabelJp}`.trim();
         return sel.prefLabelJp.trim();
       }
       return '';
@@ -2973,7 +2973,7 @@
       const prefLabel = sel.prefLabelZh || sel.prefLabelUi || sel.prefLabelJp || '';
       const cityLabel = sel.cityLabelZh || sel.cityLabelUi || sel.cityLabelJp || '';
       if (prefLabel && prefLabel !== '（可選）不限') {
-        if (cityLabel && cityLabel !== '（可選）不限') return `${prefLabel} › ${cityLabel}`.trim();
+        if (sel.cityId && cityLabel && cityLabel !== '（可選）不限') return `${prefLabel} › ${cityLabel}`.trim();
         return prefLabel.trim();
       }
       return '';
@@ -7475,6 +7475,8 @@
         if (directCards.length > 0) {
           wrap.dataset.figureResultCount = String(directCards.length);
           wrap.classList.add('figure-results-static', `figure-results-count-${directCards.length}`);
+          const missingSlots = renderPagedFigureResultsEmptySlots(directCards.length, pageSize);
+          if (missingSlots) wrap.insertAdjacentHTML('beforeend', missingSlots);
           warmFigureResultsMedia(wrap, 0);
         }
         return;
@@ -7724,6 +7726,13 @@
       `).join('');
     }
 
+    function renderPagedFigureResultsEmptySlots(itemCount = 0, pageSize = FIGURE_RESULTS_PAGE_SIZE) {
+      const safePageSize = Math.max(1, Math.min(12, parseInt(String(pageSize || FIGURE_RESULTS_PAGE_SIZE), 10) || FIGURE_RESULTS_PAGE_SIZE));
+      const used = Math.max(0, Math.min(safePageSize, parseInt(String(itemCount || 0), 10) || 0));
+      const missing = Math.max(0, safePageSize - used);
+      return Array.from({ length: missing }, () => '<div class="figure-results-empty-slot" aria-hidden="true"></div>').join('');
+    }
+
     function syncPagedFigureResultsControls(state) {
       if (!state || !state.shell) return;
       const totalPages = Math.max(1, Number(state.pageCount || 1) || 1);
@@ -7792,10 +7801,12 @@
         page = document.createElement('div');
         page.className = 'figure-results-carousel-page';
         page.setAttribute('data-figure-carousel-page', String(target));
-        page.innerHTML = renderPortalCaseCards(Array.isArray(items) ? items : []);
+        const pageItems = Array.isArray(items) ? items : [];
+        page.innerHTML = renderPortalCaseCards(pageItems) + renderPagedFigureResultsEmptySlots(pageItems.length, state.pageSize);
         state.pageElements.set(target, page);
       } else if (page.dataset.figureCarouselPlaceholder === '1') {
-        page.innerHTML = renderPortalCaseCards(Array.isArray(items) ? items : []);
+        const pageItems = Array.isArray(items) ? items : [];
+        page.innerHTML = renderPortalCaseCards(pageItems) + renderPagedFigureResultsEmptySlots(pageItems.length, state.pageSize);
       }
       page.dataset.figureCarouselPlaceholder = '0';
       preparePagedFigureResultsPage(state, page, items);
