@@ -12,6 +12,7 @@ __pycache__/
 logs/
 exports/
 data/
+static/cache/
 server.*.log
 *.stderr.log
 *.stdout.log
