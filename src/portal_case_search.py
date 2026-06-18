@@ -3964,7 +3964,6 @@ def _row_to_portal_case_item_matrix_fast(r: Any) -> dict[str, Any]:
         "sort_time_at": sort_time_at[:80],
         "source_listing_time_jp": case_time_at[:80],
         "case_time_label_hant": "",
-        "listing_media_json": listing_media_json_s,
     }
 
 
@@ -4105,6 +4104,8 @@ def _search_portal_cases_coverage_matrix_mode(
     else:
         fetch_lim = min(12000, max(lim, lim * 4, 1000)) if multi_portal else lim
     region_st = (region_hint or "").strip()
+    region_keys = ["甲信越", "北陸"] if region_st in {"甲信越・北陸", "甲信越/北陸", "甲信越 北陸"} else ([region_st] if region_st else [])
+    region_placeholders = ",".join("?" for _ in region_keys)
     host_sql, host_params, resolved_hosts, src_name_to_host = _portal_keys_to_coverage_host_or_clause(list(portal_keys))
     n = int(max_age_days or 0)
     if n > 0:
@@ -4124,7 +4125,7 @@ def _search_portal_cases_coverage_matrix_mode(
     cell_by_host: dict[str, int] = {}
     mk_sql, mk_params, mk_how = _matrix_mode_keyword_sql(keyword_input)
     with get_conn() as conn:
-        has_region = bool(region_st)
+        has_region = bool(region_keys)
         count_needs_content = bool(mk_sql)
         latest_content_join = (
             "LEFT JOIN content_items c ON c.id = ("
@@ -4141,15 +4142,15 @@ def _search_portal_cases_coverage_matrix_mode(
                 "        CROSS JOIN source_items s ON s.id = rix.source_item_id"
                 f"{count_content_join}"
             )
-            count_region_params: list[Any] = [region_st]
-            count_region_where = "rix.region_key = ?"
+            count_region_params: list[Any] = list(region_keys)
+            count_region_where = f"rix.region_key IN ({region_placeholders})"
             from_sql_fetch = (
                 "FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort\n"
                 "        CROSS JOIN source_items s ON s.id = rix.source_item_id\n"
                 f"        {latest_content_join}"
             )
-            fetch_region_params: list[Any] = [region_st]
-            fetch_region_where = "rix.region_key = ?"
+            fetch_region_params: list[Any] = list(region_keys)
+            fetch_region_where = f"rix.region_key IN ({region_placeholders})"
             order_by_sql = "rix.sort_time DESC, rix.source_item_id DESC"
         else:
             from_sql_count = (
@@ -4201,7 +4202,7 @@ def _search_portal_cases_coverage_matrix_mode(
           COALESCE(c.jp_station_id, 0) AS jp_station_id,
           COALESCE(c.walk_min, 0) AS walk_min,
           COALESCE(c.featured_weight, 0) AS featured_weight,
-          COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+          substr(COALESCE(c.listing_media_json, '[]'),1,3500) AS listing_media_json,
           COALESCE(c.updated_at, '') AS updated_at,
           s.id AS source_item_id,
           s.source_name,
