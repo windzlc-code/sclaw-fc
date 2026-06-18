@@ -4144,13 +4144,13 @@ def _search_portal_cases_coverage_matrix_mode(
             count_region_params: list[Any] = [region_st]
             count_region_where = "rix.region_key = ?"
             from_sql_fetch = (
-                "FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked\n"
-                f"        {latest_content_join}\n"
-                "        CROSS JOIN jp_listing_region_index rix ON rix.source_item_id = s.id AND rix.region_key = ?"
+                "FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort\n"
+                "        CROSS JOIN source_items s ON s.id = rix.source_item_id\n"
+                f"        {latest_content_join}"
             )
             fetch_region_params: list[Any] = [region_st]
-            fetch_region_where = "1=1"
-            order_by_sql = "s.last_checked_at DESC, s.id DESC"
+            fetch_region_where = "rix.region_key = ?"
+            order_by_sql = "rix.sort_time DESC, rix.source_item_id DESC"
         else:
             from_sql_count = (
                 "FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked"
