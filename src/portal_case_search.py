@@ -4125,19 +4125,21 @@ def _search_portal_cases_coverage_matrix_mode(
     mk_sql, mk_params, mk_how = _matrix_mode_keyword_sql(keyword_input)
     with get_conn() as conn:
         has_region = bool(region_st)
+        count_needs_content = bool(mk_sql)
         latest_content_join = (
             "LEFT JOIN content_items c ON c.id = ("
             "SELECT c2.id FROM content_items c2 INDEXED BY idx_content_source_item "
             "WHERE c2.source_item_id = s.id ORDER BY c2.id DESC LIMIT 1)"
         )
+        count_content_join = f"\n        {latest_content_join}" if count_needs_content else ""
         # jp_listing_region_index.sort_time historically可能為空（舊批次僅建立 key，不填時間）。
         # 為避免「全數歸零」，矩陣同口徑查詢一律以 source_items.last_checked_at 作為新鮮度與排序基準。
         fresh_sql = f"s.last_checked_at >= datetime('now', '-{n} days')" if n > 0 else "1=1"
         if has_region:
             from_sql_count = (
                 "FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort\n"
-                "        CROSS JOIN source_items s ON s.id = rix.source_item_id\n"
-                f"        {latest_content_join}"
+                "        CROSS JOIN source_items s ON s.id = rix.source_item_id"
+                f"{count_content_join}"
             )
             count_region_params: list[Any] = [region_st]
             count_region_where = "rix.region_key = ?"
@@ -4151,8 +4153,8 @@ def _search_portal_cases_coverage_matrix_mode(
             order_by_sql = "s.last_checked_at DESC, s.id DESC"
         else:
             from_sql_count = (
-                "FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked\n"
-                f"        {latest_content_join}"
+                "FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked"
+                f"{count_content_join}"
             )
             count_region_params = []
             count_region_where = "1=1"
