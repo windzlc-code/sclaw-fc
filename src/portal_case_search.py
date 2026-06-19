@@ -27,6 +27,10 @@ from src.jp_listing_region_index import REGION_INDEX_SEARCH_KEYS, normalize_regi
 _JP_AREA_LABEL_SET: frozenset[str] = frozenset(x for x in JP_AREA_FILTER_LABELS if str(x or "").strip())
 _SMART_QUERY_GENERIC_GEO_KEYWORDS: frozenset[str] = frozenset({"不動産", "不動產", "賃貸", "物件", "住宅"})
 _SMART_QUERY_REGION_ALIASES: dict[str, str] = {
+    "中國": "中國地方",
+    "中国": "中國地方",
+    "中國地區": "中國地方",
+    "中国地区": "中國地方",
     "東京都": "東京",
     "東京市": "東京",
     "大阪府": "大阪",
@@ -4164,27 +4168,49 @@ def _search_portal_cases_coverage_matrix_mode(
             fetch_region_where = "1=1"
             order_by_sql = "s.last_checked_at DESC, s.id DESC"
 
-        # 與 coverage-matrix 同口徑 COUNT：以 source_name 分組，再映射回 host_key（避免 N+1 COUNT）
-        for hk in resolved_hosts:
-            cell_by_host[hk] = 0
-        count_sql = f"""
-        SELECT s.source_name AS source_name, COUNT(DISTINCT s.id) AS c
-        {from_sql_count}
-        WHERE ({CASE_INV_JP_LISTING_SQL})
-          AND ({fresh_sql})
-          AND ({count_region_where})
-          AND ({host_sql})
-          {mk_sql}
-        GROUP BY s.source_name
-        """
-        count_params = [*count_region_params, *host_params, *mk_params]
-        count_rows = conn.execute(count_sql, count_params).fetchall()
-        for r in count_rows:
-            sn = str(r["source_name"] or "")
-            hk = src_name_to_host.get(sn)
-            if hk:
-                cell_by_host[hk] = int(cell_by_host.get(hk, 0) or 0) + int(r["c"] or 0)
-        coverage_matrix_sql_total = int(sum(int(cell_by_host.get(hk, 0) or 0) for hk in resolved_hosts))
+        # 首屏分页只需要一个总数来稳定分页。默认全来源、无关键词的大区/县查询
+        # 走快速 COUNT，避免按来源分组扫描把地图点击卡住。
+        can_fast_count_page = bool(
+            requested_page_size > 0
+            and has_region
+            and not mk_sql
+            and len(resolved_hosts) >= len(_PORTAL_BUCKET_ORDER) - 1
+        )
+        if can_fast_count_page:
+            count_sql = f"""
+            SELECT COUNT(DISTINCT rix.source_item_id) AS c
+            FROM jp_listing_region_index rix
+            JOIN source_items s ON s.id = rix.source_item_id
+            WHERE ({CASE_INV_JP_LISTING_SQL})
+              AND ({fresh_sql})
+              AND ({count_region_where})
+            """
+            count_row = conn.execute(count_sql, count_region_params).fetchone()
+            coverage_matrix_sql_total = int((count_row["c"] if count_row else 0) or 0)
+            for hk in resolved_hosts:
+                cell_by_host[hk] = 0
+        else:
+            # 與 coverage-matrix 同口徑 COUNT：以 source_name 分組，再映射回 host_key（避免 N+1 COUNT）
+            for hk in resolved_hosts:
+                cell_by_host[hk] = 0
+            count_sql = f"""
+            SELECT s.source_name AS source_name, COUNT(DISTINCT s.id) AS c
+            {from_sql_count}
+            WHERE ({CASE_INV_JP_LISTING_SQL})
+              AND ({fresh_sql})
+              AND ({count_region_where})
+              AND ({host_sql})
+              {mk_sql}
+            GROUP BY s.source_name
+            """
+            count_params = [*count_region_params, *host_params, *mk_params]
+            count_rows = conn.execute(count_sql, count_params).fetchall()
+            for r in count_rows:
+                sn = str(r["source_name"] or "")
+                hk = src_name_to_host.get(sn)
+                if hk:
+                    cell_by_host[hk] = int(cell_by_host.get(hk, 0) or 0) + int(r["c"] or 0)
+            coverage_matrix_sql_total = int(sum(int(cell_by_host.get(hk, 0) or 0) for hk in resolved_hosts))
 
         page_sql = "LIMIT ? OFFSET ?" if requested_page_size > 0 else "LIMIT ?"
         sql = f"""
@@ -4481,6 +4507,15 @@ def search_portal_cases(
     simple_geo_focus_norm = _normalize_smart_query_geo_label(simple_geo_focus)
     simple_geo_focus_index_key = _normalize_region_index_focus_key(simple_geo_focus)
     region_hint_index_key = _normalize_region_index_focus_key(region_hint)
+    if (
+        region_hint
+        and region_hint_norm
+        and region_hint_norm != region_hint
+        and (region_hint_norm in REGION_INDEX_SEARCH_KEYS or region_hint_norm in _JP_AREA_LABEL_SET)
+    ):
+        region_hint = region_hint_norm
+        region_hint_index_key = _normalize_region_index_focus_key(region_hint)
+        region_hint_norm = _normalize_smart_query_geo_label(region_hint)
     if region_hint and region_hint_index_key and region_hint_index_key != region_hint:
         region_hint = region_hint_index_key
         region_hint_norm = _normalize_smart_query_geo_label(region_hint)
@@ -4519,7 +4554,7 @@ def search_portal_cases(
             limit=lim,
             offset=page_offset,
             page_size=requested_page_size,
-            keyword_input=original_keyword,
+            keyword_input=kw_base,
             region_inferred_from_keyword=region_inferred_for_matrix,
         )
     region_join_sql = ""
@@ -4822,7 +4857,7 @@ def search_portal_cases(
         and not has_transit_filter
     )
 
-    def _fetch_region_index_page_exact(conn: Any) -> tuple[list[dict[str, Any]], int]:
+    def _fetch_region_index_page_exact(conn: Any) -> tuple[list[dict[str, Any]], int, bool]:
         needs_content_recency = int(max_age_days or 0) > 0
         content_recency_join = (
             "        LEFT JOIN content_items c ON c.source_item_id = s.id\n"
@@ -4836,14 +4871,12 @@ def search_portal_cases(
             "        WHERE ({tx_sql})\n"
             "          AND ({portal_sql})\n"
             "          AND ({rec_sql})\n"
-            "          AND ({suumo_guard})\n"
             "          {region_sql}"
         ).format(
             content_recency_join=content_recency_join,
             tx_sql=tx_sql,
             portal_sql=portal_sql,
             rec_sql=rec_sql,
-            suumo_guard=_suumo_ms_guard,
             region_sql=region_sql,
         )
         base_where_page = (
@@ -4880,7 +4913,7 @@ def search_portal_cases(
         ).fetchone()
         total_count = int((total_row[0] if total_row else 0) or 0)
         if total_count <= 0:
-            return [], 0
+            return [], 0, True
         page_sid_sql = (
             f"""
             SELECT rix.source_item_id
@@ -4907,7 +4940,7 @@ def search_portal_cases(
         ]
         source_ids = [sid for sid in source_ids if sid > 0]
         if not source_ids:
-            return [], total_count
+            return [], total_count, False
         sid_placeholders = ",".join("?" for _ in source_ids)
         order_case = "CASE s.id " + " ".join(
             f"WHEN ? THEN {idx}" for idx, _ in enumerate(source_ids)
@@ -4959,11 +4992,11 @@ def search_portal_cases(
             """,
             [*source_ids, *source_ids],
         ).fetchall()
-        return [_row_to_portal_case_item(row) for row in rows], total_count
+        return [_row_to_portal_case_item(row) for row in rows], total_count, False
 
     with get_conn() as conn:
         if exact_region_index_page_mode:
-            items, total_count_override = _fetch_region_index_page_exact(conn)
+            items, total_count_override, total_count_exact = _fetch_region_index_page_exact(conn)
             tx_out = (transaction or "").strip().lower()
             if tx_out not in ("buy", "sell", "rent"):
                 tx_out = "buy"
@@ -5003,7 +5036,8 @@ def search_portal_cases(
                     "keyword_before_relax": "",
                 },
                 "count": int(total_count_override or 0),
-                "count_exact": True,
+                "count_exact": bool(total_count_exact),
+                "count_provisional": not bool(total_count_exact),
                 "truncation_note": False,
                 "search_scope_note_zh": "目前使用區域索引直接分頁與精確總數；案件頁面會按頁即時載入，不再以截斷窗口估算整區筆數。",
                 "broad_inventory_browse": bool(broad_inventory_browse),

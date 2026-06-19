@@ -351,18 +351,26 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
         return
     raw_regions = os.getenv(
         "SCLAW_PORTAL_SEARCH_PREWARM_REGIONS",
-        "東京,神奈川,大阪,北海道,四國,沖繩,甲信越",
+        "北海道,東北,關東,甲信越,北陸,東海,關西,中國地方,四國,九州,沖繩,東京,神奈川,大阪,福岡",
     )
     regions = [x.strip() for x in str(raw_regions or "").split(",") if x.strip()]
     if not os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_REGIONS"):
         regions = [
-            "\u6771\u4eac",
-            "\u795e\u5948\u5ddd",
-            "\u5927\u962a",
-            "\u5317\u6d77\u9053",
-            "\u56db\u570b",
-            "\u6c96\u7e69",
-            "\u7532\u4fe1\u8d8a",
+            "北海道",
+            "東北",
+            "關東",
+            "甲信越",
+            "北陸",
+            "東海",
+            "關西",
+            "中國地方",
+            "四國",
+            "九州",
+            "沖繩",
+            "東京",
+            "神奈川",
+            "大阪",
+            "福岡",
         ]
     if not regions:
         return
@@ -370,6 +378,10 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
         limit = max(10, min(60, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_LIMIT", "60") or 60)))
     except Exception:
         limit = 60
+    try:
+        page_size = max(1, min(24, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_PAGE_SIZE", "6") or 6)))
+    except Exception:
+        page_size = 6
     try:
         max_age = max(0, min(366, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_AGE", "180") or 180)))
     except Exception:
@@ -408,7 +420,9 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                     "jp_line_id": 0,
                     "jp_station_id": 0,
                     "walk_max": 0,
-                    "coverage_matrix_aligned": False,
+                    "coverage_matrix_aligned": True,
+                    "offset": 0,
+                    "page_size": page_size,
                 }
                 cache_key = _portal_case_search_cache_key(cache_payload)
                 if not force and _portal_case_search_cache_get(cache_key) is not None:
@@ -426,10 +440,12 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                     layout_exact_zero=False,
                     max_age_days=age,
                     limit=limit,
+                    offset=0,
+                    page_size=page_size,
                     jp_line_id=0,
                     jp_station_id=0,
                     walk_max=0,
-                    coverage_matrix_aligned=False,
+                    coverage_matrix_aligned=True,
                 )
                 items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
                     list(data.get("items") or []),
@@ -634,7 +650,7 @@ def _portal_case_search_exact_count_start(payload: dict[str, Any]) -> str:
                 max_age_days=int(payload.get("max_age_days") or 0),
                 limit=int(payload.get("limit") or 0),
                 offset=0,
-                page_size=1 if bool(payload.get("coverage_matrix_aligned")) else 0,
+                page_size=1,
                 jp_line_id=int(payload.get("jp_line_id") or 0),
                 jp_station_id=int(payload.get("jp_station_id") or 0),
                 walk_max=int(payload.get("walk_max") or 0),
@@ -22835,7 +22851,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     if cached_body is not None:
         try:
             cached_data = json.loads(cached_body)
-            cached_count_exact = bool(cached_data.get("count_exact")) or not bool(cached_data.get("truncation_note"))
+            cached_count_exact = bool(cached_data.get("count_exact")) and not bool(cached_data.get("count_provisional"))
             cached_body = json.dumps(
                 _attach_exact_count_meta(cached_data, count_exact_known=cached_count_exact),
                 ensure_ascii=False,
@@ -22891,7 +22907,12 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
                 item["jp_region_display_zh"] = response_region_hint
     items_bf = _portal_case_prioritize_displayable_media(items_bf)
     data["items"] = items_bf
-    _portal_case_result_prefetch_images(items_bf, limit=12)
+    # Keep search responses CPU/IO-light: cards can lazy-load through the image
+    # proxy/cache after the first page is rendered. Forced prefetch here competes
+    # with SQLite on cold region searches and is the main reason area clicks feel
+    # blocked on smaller servers.
+    if page_size <= 0 and lim <= 24:
+        _portal_case_result_prefetch_images(items_bf, limit=6)
     data["portal_thumb_backfill"] = bf_meta
     track_filters = {
         "transaction": tx,
@@ -22923,7 +22944,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     data["allowed_transactions"] = allowed_tx
     data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
     data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
-    result_count_exact = bool(data.get("count_exact")) or not bool(data.get("truncation_note"))
+    result_count_exact = bool(data.get("count_exact")) and not bool(data.get("count_provisional"))
     data = _attach_exact_count_meta(data, count_exact_known=result_count_exact)
     response_body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     _portal_case_search_cache_set(cache_key, response_body)
