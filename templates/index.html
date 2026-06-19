@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260618-stable-results-stage-b">
+  <link rel="stylesheet" href="/static/site.css?v=20260619-home-media-b">
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -33,10 +33,6 @@
 </head>
 <body class="site-home site-lang-hant{% if admin_standalone %} site-admin-standalone site-admin-locked{% endif %}">
   <header class="bh-site-header" aria-label="日本不動產產品站導覽">
-    <div class="bh-site-header-top">
-      <span>海外買家日本不動產支援</span>
-      <span>日本區域選點、房源資料與顧問諮詢導覽</span>
-    </div>
     <nav class="bh-site-nav" aria-label="首頁主導覽">
       <a class="bh-site-brand" href="#home-hero-heading" aria-label="{{ site_name }}">
         <img src="/static/brand-logo1.png" width="48" height="48" alt="{{ site_name }}" loading="eager" decoding="async">
@@ -159,11 +155,13 @@
         {% endif %}
       {% endfor %}
       {% set initial_hero_media = hero_media_ns.item %}
-      <div class="hero-media{% if home_video_carousel %} hero-media--video-carousel{% endif %}" data-home-hero-theme="{{ home_hero.theme }}" data-home-hero-media-type="image" data-home-hero-fallback-image="{{ home_hero.image_url }}" data-home-hero-items='{{ home_video_carousel|tojson|forceescape }}' style="--home-hero-image: none;">
+      {% set initial_hero_poster = (initial_hero_media.poster_url if initial_hero_media and initial_hero_media.poster_url else '') %}
+      {% set initial_hero_fallback_image = initial_hero_poster or (home_hero.image_url if home_hero.media_type != 'video' else '/static/img/home-hero-brand-gold-residence.svg') %}
+      <div class="hero-media{% if home_video_carousel %} hero-media--video-carousel{% endif %}" data-home-hero-theme="{{ home_hero.theme }}" data-home-hero-media-type="image" data-home-hero-fallback-image="{{ initial_hero_fallback_image }}" data-home-hero-items='{{ home_video_carousel|tojson|forceescape }}' style="--home-hero-image: url('{{ initial_hero_fallback_image }}');">
         {% if initial_hero_media and initial_hero_media.media_type == "video" %}
-        <video id="home-hero-video-carousel-player" class="home-hero-video home-hero-generated-video" data-src="{{ initial_hero_media.url }}" muted loop playsinline preload="none"></video>
+        <video id="home-hero-video-carousel-player" class="home-hero-video home-hero-generated-video" src="{{ initial_hero_media.url }}" data-src="{{ initial_hero_media.url }}" poster="{{ initial_hero_fallback_image }}" muted loop playsinline autoplay preload="metadata"></video>
         {% elif home_hero.media_type == 'video' and home_hero.media_url %}
-        <video class="home-hero-video" data-src="{{ home_hero.media_url }}" muted loop playsinline preload="none"></video>
+        <video class="home-hero-video" src="{{ home_hero.media_url }}" data-src="{{ home_hero.media_url }}" poster="{{ initial_hero_fallback_image }}" muted loop playsinline autoplay preload="metadata"></video>
         {% endif %}
         <div class="home-hero-video-placeholder" aria-hidden="true"></div>
         <audio id="home-hero-audio-carousel-player" class="home-hero-audio" preload="none"></audio>
@@ -226,7 +224,7 @@
                   <div class="jp-map-hub-map jp-map-hub-map--solo jp-map-hub-map--raster jp-area-picker-map-inner" role="application" aria-label="日本地圖：點區塊查詢案件">
                     <div class="jp-map-hub-raster-stack jp-area-picker-raster-stack">
                       <div id="jp-leaflet-map" class="jp-leaflet-map" aria-label="可縮放日本地圖"></div>
-                      <img class="jp-map-hub-map-raster-img" src="/static/img/jp-area-map-clean.png?v=clean-map-20260503" alt="日本地圖：請點選圖上的大區標籤或綠色熱區" width="1024" height="640" loading="lazy" decoding="async" data-jp-map-base-img />
+                      <img class="jp-map-hub-map-raster-img" src="/static/img/jp-area-map-clean.png?v=clean-map-20260503" alt="日本地圖：請點選圖上的大區標籤或綠色熱區" width="1024" height="640" loading="eager" decoding="async" fetchpriority="high" data-jp-map-base-img />
                       <svg class="jp-map-hub-map-svg jp-map-hub-map-svg--hit" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="presentation">
                         <title>地區點選（透明熱區）</title>
                         <g class="jp-map-broad-hits" aria-label="地區點選（大區）">
@@ -726,7 +724,7 @@
         </div>
       </details>
       <a class="advisor-home-card" href="#advisor-workbench-panel" onclick="openAdvisorWorkbenchPanel()">
-        <img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=80" alt="首頁顧問工作台" loading="lazy">
+        <img src="/static/template-bhomeland/aboutus_img.jpg" alt="首頁顧問工作台" loading="lazy" decoding="async">
         <span class="advisor-home-card-overlay">
           <strong>首頁 / 顧問工作台</strong>
           <span>回到首頁主功能區，快速執行顧問流程。</span>
@@ -2003,7 +2001,7 @@
       </div>
       <div class="bh-feature-card-grid">
         <article class="bh-feature-card">
-          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/feature_img_1.jpg" alt="日本住宅外觀參考" loading="lazy" decoding="async" fetchpriority="low">
+          <img src="/static/template-bhomeland/feature_img_1.jpg" alt="日本住宅外觀參考" loading="eager" decoding="async" fetchpriority="high">
           <div>
             <span>日本區域圖</span>
             <h3>用地圖先決定查詢範圍</h3>
@@ -2012,7 +2010,7 @@
           </div>
         </article>
         <article class="bh-feature-card">
-          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/feature_img_2.jpg" alt="日本室內房源參考" loading="lazy" decoding="async" fetchpriority="low">
+          <img src="/static/template-bhomeland/feature_img_2.jpg" alt="日本室內房源參考" loading="eager" decoding="async" fetchpriority="high">
           <div>
             <span>智慧查詢</span>
             <h3>依條件整理可比較的房源結果</h3>
@@ -2021,7 +2019,7 @@
           </div>
         </article>
         <article class="bh-feature-card">
-          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3Crect width='16' height='9' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/feature_img_3.jpg" alt="日本公寓房源參考" loading="lazy" decoding="async" fetchpriority="low">
+          <img src="/static/template-bhomeland/feature_img_3.jpg" alt="日本公寓房源參考" loading="eager" decoding="async" fetchpriority="high">
           <div>
             <span>顧問諮詢</span>
             <h3>收藏與諮詢入口延續原流程</h3>
@@ -2044,7 +2042,7 @@
         </ul>
       </div>
       <figure class="bh-about-media">
-        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Crect width='16' height='10' fill='%23eef3f7'/%3E%3C/svg%3E" data-deferred-src="/static/template-bhomeland/aboutus_img.jpg" alt="日本不動產顧問服務場景" loading="lazy" decoding="async" fetchpriority="low">
+        <img src="/static/template-bhomeland/aboutus_img.jpg" alt="日本不動產顧問服務場景" loading="lazy" decoding="async">
       </figure>
     </section>
 
@@ -16901,7 +16899,7 @@
       }
       hero.setAttribute('data-home-hero-media-type', isVideo ? 'video' : 'image');
       hero.classList.add('hero-media--video-carousel');
-      hero.style.setProperty('--home-hero-image', isVideo ? 'none' : `url('${url}')`);
+      hero.style.setProperty('--home-hero-image', isVideo ? `url('${homeHeroFallbackImage()}')` : `url('${url}')`);
       let video = hero.querySelector(':scope > .home-hero-video');
       if (isVideo) {
         if (!video) {
@@ -16924,6 +16922,7 @@
         video.volume = homeHeroSoundEnabled ? 1 : 0;
         video.playsInline = true;
         video.loop = true;
+        if (!video.poster) video.poster = homeHeroFallbackImage();
         video.src = url;
         if (homeHeroSoundEnabled) silenceOtherHomeMedia(video, true);
         try { video.load(); } catch (_) {}
@@ -17408,7 +17407,11 @@
         if (msg && !(options && options.auto)) msg.textContent = '目前沒有可預覽的首頁影片，請先加入或上傳影片。';
         return;
       }
-      if (options && options.auto && hero.querySelector(':scope > .home-hero-generated-video')) return;
+      if (options && options.auto) {
+        const generated = hero.querySelector(':scope > .home-hero-generated-video');
+        const generatedSrc = String(generated?.currentSrc || generated?.getAttribute('src') || '').trim();
+        if (generated && generatedSrc) return;
+      }
       const src = String(media.getAttribute('src') || '').trim();
       if (!src) {
         if (msg && !(options && options.auto)) msg.textContent = '目前選擇沒有影片網址，請先加入或上傳影片。';
@@ -22180,7 +22183,8 @@
       });
     }
     scheduleNonCriticalStartup(loadDialogTopCasesAndFaq, 30000);
-    scheduleNonCriticalStartup(hydrateDeferredStaticImages, 36000);
+    hydrateDeferredStaticImages();
+    scheduleNonCriticalStartup(hydrateDeferredStaticImages, 1200);
     toggleQueryDialog(true);
     supportSelectedCasesCollapsed = loadSupportSelectedCasesCollapsedLocal();
     supportSelectedCases = loadSupportSelectedCasesLocal();

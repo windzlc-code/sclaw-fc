@@ -23,7 +23,7 @@ body.site-home {
 }
 
 body.site-home .bh-site-header {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
@@ -38,7 +38,7 @@ body.site-home .bh-site-nav {
 }
 
 body.site-home .bh-site-header-top {
-  display: flex;
+  display: none;
   justify-content: space-between;
   gap: 16px;
   padding: 7px clamp(22px, 4vw, 58px);
@@ -16024,6 +16024,10 @@ body.site-home .jp-map-hub-map--raster.is-leaflet-ready .jp-map-hub-map-svg--hit
   pointer-events: none;
 }
 
+body.site-home .jp-map-hub-map--raster.is-leaflet-ready .jp-map-hub-map-raster-img {
+  opacity: 0.42;
+}
+
 body.site-home .jp-map-hub-map--raster.is-leaflet-ready .jp-map-pref-overlays {
   visibility: hidden;
   opacity: 0;
@@ -18174,6 +18178,7 @@ body.site-home .bh-site-header {
 }
 
 body.site-home .bh-site-header-top {
+  display: none;
   min-height: 28px;
   padding: 0 32px;
   color: rgba(255, 255, 255, 0.84);
@@ -23927,40 +23932,6 @@ body.site-admin-standalone.site-admin-locked .admin-tab-bar,
 body.site-admin-standalone.site-admin-locked .admin-tab-panel,
 body.site-admin-standalone.site-admin-locked .admin-detail-lightbox {
   display: none !important;
-}
-
-/* Final guard: homepage header should not cover content while scrolling.
-   On desktop, the 8px top edge acts as the reveal target. */
-@media (hover: hover) and (pointer: fine) and (min-width: 761px) {
-  body.site-home .bh-site-header {
-    transition:
-      transform 180ms ease,
-      opacity 160ms ease,
-      box-shadow 160ms ease !important;
-    will-change: transform;
-  }
-
-  body.site-home.bh-scrolled .bh-site-header {
-    transform: translateY(calc(-100% + 8px)) !important;
-    opacity: 0.96;
-    pointer-events: auto !important;
-  }
-
-  body.site-home.bh-scrolled .bh-site-header:hover,
-  body.site-home.bh-scrolled .bh-site-header:focus-within {
-    transform: translateY(0) !important;
-    opacity: 1;
-  }
-
-  body.site-home.bh-scrolled .bh-site-header:not(:hover):not(:focus-within) .bh-site-header-top,
-  body.site-home.bh-scrolled .bh-site-header:not(:hover):not(:focus-within) .bh-site-nav,
-  body.site-home.bh-scrolled .bh-site-header:not(:hover):not(:focus-within) .bh-nav-keyword-panels {
-    pointer-events: none !important;
-  }
-
-  body.site-home.bh-scrolled .bh-site-header:not(:hover):not(:focus-within) .bh-nav-keyword-panels {
-    display: none !important;
-  }
 }
 
 /* Figure results pager guard: block page turns until current-page media is ready. */
