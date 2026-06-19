@@ -229,15 +229,52 @@
               </svg>
             </span>
             <strong id="support-phone-login-title">號碼登入</strong>
-            <p class="muted">請先輸入聯絡號碼；登入後即可使用 AI 智能客服與後續顧問接手。</p>
+            <p id="support-phone-login-subtitle" class="muted">輸入合規聯絡號碼後，即可使用智能客服與顧問接手。</p>
           </div>
           <button type="button" class="ui-close-btn" onclick="toggleSupportPhoneLoginModal(false)" aria-label="關閉號碼登入" title="關閉">×</button>
         </div>
-        <div class="support-phone-login-body">
-          <label for="support-phone-login-input">聯絡電話</label>
-          <input id="support-phone-login-input" type="tel" inputmode="tel" autocomplete="tel" maxlength="40" placeholder="請輸入電話號碼">
+        <div id="support-phone-login-form" class="support-phone-login-body">
+          <div class="support-phone-login-field">
+            <label for="support-phone-country">號碼所屬國家 / 地區</label>
+            <select id="support-phone-country" autocomplete="tel-country-code" onchange="refreshSupportPhoneLoginHint()">
+              <option value="tw">台灣 +886</option>
+              <option value="jp">日本 +81</option>
+              <option value="cn">中國大陸 +86</option>
+              <option value="hk">香港 +852</option>
+              <option value="mo">澳門 +853</option>
+              <option value="sg">新加坡 +65</option>
+              <option value="my">馬來西亞 +60</option>
+              <option value="kr">韓國 +82</option>
+              <option value="us">美國 / 加拿大 +1</option>
+              <option value="th">泰國 +66</option>
+            </select>
+          </div>
+          <div class="support-phone-login-field">
+            <label for="support-phone-login-input">聯絡電話</label>
+            <input id="support-phone-login-input" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="40" placeholder="例：0912 345 678" oninput="refreshSupportPhoneLoginHint()">
+          </div>
+          <p id="support-phone-login-format" class="support-phone-login-format muted">請選擇國家 / 地區後，輸入符合當地規範的手機或市話。</p>
           <button id="support-phone-login-submit" type="button" class="primary" onclick="submitSupportPhoneLogin()">登入並送出</button>
           <p id="support-phone-login-msg" class="muted" aria-live="polite"></p>
+        </div>
+        <div id="support-phone-login-profile" class="support-phone-login-profile" hidden>
+          <div class="support-phone-login-profile-card">
+            <span class="support-phone-login-profile-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" focusable="false">
+                <path d="M11.2 6.8h9.6a2.4 2.4 0 0 1 2.4 2.4v13.6a2.4 2.4 0 0 1-2.4 2.4h-9.6a2.4 2.4 0 0 1-2.4-2.4V9.2a2.4 2.4 0 0 1 2.4-2.4Z" />
+                <path d="m12.8 16.4 2.3 2.4 4.4-5.1" />
+              </svg>
+            </span>
+            <div>
+              <span class="support-phone-login-profile-eyebrow">目前登入帳號</span>
+              <strong id="support-phone-login-profile-phone">--</strong>
+              <p id="support-phone-login-profile-meta" class="muted">智能客服已同步此號碼。</p>
+            </div>
+          </div>
+          <div class="support-phone-login-profile-actions">
+            <button type="button" class="primary" onclick="toggleSupportPhoneLoginModal(false); toggleSupportChat(true)">開啟智能客服</button>
+            <button type="button" class="secondary" onclick="logoutSupportPhoneLogin()">退出登入</button>
+          </div>
         </div>
       </div>
       <div id="support-selected-cases-drawer" class="support-selected-cases-drawer" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="support-selected-cases-drawer-title">
@@ -253,7 +290,7 @@
         </div>
         <div id="support-selected-cases-drawer-list" class="support-selected-cases-drawer-list muted">尚未加入案件。可在智慧查詢結果點選心型收藏。</div>
         <div class="support-selected-cases-drawer-actions">
-          <button type="button" class="primary" onclick="promptSupportChatCompareSelectedCases()">開始對比</button>
+          <button type="button" class="primary" onclick="openSupportSelectedCasesComparePage()">開始對比</button>
         </div>
       </div>
       <div id="support-chat-panel" class="support-chat-panel" style="display: none;" aria-busy="false">
@@ -264,8 +301,32 @@
             </span>
             <strong>線上智能客服</strong>
           </div>
-          <button type="button" class="ui-close-btn" onclick="toggleSupportChat(false)" aria-label="收起線上智能客服" title="收起">×</button>
+          <div class="support-chat-head-actions">
+            <button id="support-chat-menu-toggle" type="button" class="support-chat-menu-toggle" onclick="toggleSupportChatMenu()" aria-label="客服功能選單" aria-haspopup="menu" aria-expanded="false" title="客服功能選單">
+              <span aria-hidden="true"></span>
+              <span aria-hidden="true"></span>
+              <span aria-hidden="true"></span>
+            </button>
+            <button type="button" class="ui-close-btn" onclick="toggleSupportChat(false)" aria-label="收起線上智能客服" title="收起">×</button>
+          </div>
         </div>
+        <div id="support-chat-menu" class="support-chat-menu" role="menu" hidden>
+          <button id="support-chat-menu-cases" type="button" role="menuitem" onclick="openSupportChatMenuCases()">已選案件 <span id="support-chat-selected-cases-count">0</span></button>
+          <button type="button" role="menuitem" onclick="openSupportChatHistoryPanel()">查詢歷史與關鍵字</button>
+          <button id="support-chat-menu-speech" type="button" role="menuitemcheckbox" aria-checked="false" onclick="toggleSupportChatSpeech()">語音播報：關閉</button>
+        </div>
+        <section id="support-chat-history-panel" class="support-chat-history-panel support-chat-history-panel--popup" style="display:none;" aria-label="查詢歷史與關鍵字">
+          <div class="support-chat-history-head">
+            <strong>查詢歷史與關鍵字</strong>
+            <button type="button" class="ui-close-btn" onclick="toggleSupportChatHistoryPanel(false)" aria-label="關閉查詢歷史" title="關閉">×</button>
+          </div>
+          <div class="support-chat-history-filters">
+            <input type="search" id="support-chat-history-filter" placeholder="過濾歷史關鍵字或標題…" autocomplete="off" oninput="renderSupportKbHistoryList()">
+            <button type="button" class="secondary" onclick="clearSupportKbHistory()">清除</button>
+          </div>
+          <div id="support-chat-history-list" class="support-chat-history-list"></div>
+          <div id="support-chat-kb-preview" class="support-chat-kb-preview muted" aria-live="polite"></div>
+        </section>
         <div class="support-chat-body">
         <div id="support-chat-messages" class="support-chat-messages"></div>
         <div id="support-chat-thinking" class="support-chat-thinking" style="display: none;" aria-live="polite">
@@ -277,27 +338,12 @@
             <span id="support-chat-thinking-label">思考中…</span>
           </button>
         </div>
-        <div class="support-chat-toolbar">
-          <button id="support-chat-speech-toggle" type="button" class="secondary" onclick="toggleSupportChatSpeech()">語音播報：開啟（點一下關閉）</button>
-          <button id="support-chat-selected-cases-btn" type="button" class="secondary" onclick="toggleSupportSelectedCasesDrawer(true)" aria-haspopup="dialog" aria-controls="support-selected-cases-drawer">♥ 已選：<span id="support-chat-selected-cases-count">0</span></button>
-        </div>
         <p id="support-chat-telegram-status" class="support-chat-telegram-status muted" style="display:none;"></p>
-        <details class="support-chat-history-panel" id="support-chat-history-panel">
-          <summary>查詢歷史與關鍵字</summary>
-          <div class="support-chat-history-filters">
-            <input type="search" id="support-chat-history-filter" placeholder="過濾歷史關鍵字或標題…" autocomplete="off" oninput="renderSupportKbHistoryList()">
-            <button type="button" class="secondary" onclick="clearSupportKbHistory()">清除歷史</button>
-          </div>
-          <div id="support-chat-history-list" class="support-chat-history-list"></div>
-          <div id="support-chat-kb-preview" class="support-chat-kb-preview muted" aria-live="polite"></div>
-        </details>
         </div>
         <div class="support-chat-input-row">
-          <button type="button" class="secondary support-chat-mic-btn support-chat-mic-btn-icon" id="support-chat-mic-btn" onclick="toggleSupportVoiceInput()" title="點一下開始口語輸入，再點一下結束（不自動送出）" aria-label="點一下開始口語輸入，再點一下結束（不自動送出）"><span aria-hidden="true">🎤</span></button>
           <input id="support-chat-input" type="text" placeholder="輸入訊息…" maxlength="2000" autocomplete="off" enterkeyhint="send" inputmode="text" onkeydown="if(event.key==='Enter'){event.preventDefault();sendSupportChat();}">
           <button id="support-chat-send-btn" class="support-chat-send-btn-icon" type="button" onclick="sendSupportChat()" aria-label="送出訊息" title="送出訊息"><span aria-hidden="true">➤</span></button>
         </div>
-        <p id="support-chat-mic-hint" class="muted" style="font-size:12px;margin:0.35rem 0 0;line-height:1.45;">點一下麥克風開始口語輸入，再點一下結束（轉成文字後不會自動送出）。</p>
       </div>
 	      <button id="support-phone-login-toggle" type="button" class="support-phone-login-toggle floating-action-btn support-phone-login-toggle--standalone" onclick="toggleSupportPhoneLoginModal()" aria-label="號碼登入" aria-haspopup="dialog" aria-controls="support-phone-login-modal" aria-expanded="false" title="號碼登入" data-floating-label="號碼登入">
         <span class="support-phone-login-icon" aria-hidden="true">

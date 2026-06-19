@@ -3913,6 +3913,20 @@ def index(request: Request):
     )
 
 
+@app.get("/selected-cases-compare")
+def selected_cases_compare_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="selected_cases_compare.html",
+        context={
+            "request": request,
+            "site_name": SITE_NAME,
+            "brand_name": BRAND_NAME,
+            "site_url": get_effective_site_url(),
+        },
+    )
+
+
 @app.get("/admin")
 @app.get("/admin/")
 def admin_page(request: Request):
@@ -4788,7 +4802,10 @@ def _sort_relevant_real_estate_images(urls: list[str], *, limit: int = 10) -> li
 
 
 def _thumbnail_kind_label(u: str) -> str:
-    lu = str(u or "").lower()
+    try:
+        lu = unquote(str(u or "")).lower()
+    except Exception:
+        lu = str(u or "").lower()
     if any(k in lu for k in ("map", "chizu", "location", "access", "station", "route", "地図")):
         return "地圖"
     if any(k in lu for k in ("madori", "floorplan", "floor_plan", "間取", "layout", "plan")):
@@ -7013,6 +7030,259 @@ def _sanitize_support_selected_cases(raw_rows: list[Any], *, max_items: int = 16
     return out
 
 
+def _support_compare_nearby_summary(row: dict[str, Any], fields: dict[str, Any], *, limit: int = 6) -> str:
+    """Best-effort nearby/facility snippets for the selected-cases compare page."""
+    blob = re.sub(
+        r"\s+",
+        " ",
+        "\n".join(
+            str((row or {}).get(k) or "")
+            for k in ("body_zh_hant", "body_zh_hans", "body_original", "title_original", "title_zh_hant")
+        ),
+    ).strip()
+    if not blob:
+        return ""
+    patterns = (
+        r"[^。．\n]{0,36}(?:スーパー|超市|コンビニ|便利店|商店街|百貨|ショッピング|购物)[^。．\n]{0,54}",
+        r"[^。．\n]{0,36}(?:小学校|中学校|学校|幼稚園|保育園|學校|学校)[^。．\n]{0,54}",
+        r"[^。．\n]{0,36}(?:病院|クリニック|医院|醫院|診所)[^。．\n]{0,54}",
+        r"[^。．\n]{0,36}(?:公園|公园|緑地|河川|海岸|自然)[^。．\n]{0,54}",
+        r"[^。．\n]{0,36}(?:駅|站|バス停|徒歩|步行|交通)[^。．\n]{0,54}",
+        r"[^。．\n]{0,36}(?:周辺|周邊|生活|利便|便利)[^。．\n]{0,54}",
+    )
+    out: list[str] = []
+    seen: set[str] = set()
+    for pat in patterns:
+        for m in re.finditer(pat, blob, flags=re.I):
+            s = re.sub(r"\s+", " ", m.group(0)).strip(" ：:-　")
+            if len(s) < 5 or len(s) > 120:
+                continue
+            key = s.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(s)
+            if len(out) >= max(1, int(limit or 6)):
+                return "\n".join(out)
+    addr = str(fields.get("address_line_jp") or fields.get("address_hint_zh") or "").strip()
+    access = str(fields.get("access_line_jp") or "").strip()
+    fallback = " / ".join(x for x in (addr, access) if x)
+    return fallback[:220]
+
+
+def _support_nearby_category_label(text: str) -> str:
+    s = str(text or "")
+    if re.search(r"小学校|中学校|学校|幼稚園|保育園|學校|学校|大学|大學", s, flags=re.I):
+        return "學校托育"
+    if re.search(r"病院|クリニック|医院|醫院|診所|薬局|藥局", s, flags=re.I):
+        return "醫療"
+    if re.search(r"公園|公园|緑地|河川|海岸|自然|スポーツ|運動", s, flags=re.I):
+        return "公園休閒"
+    if re.search(r"スーパー|超市|コンビニ|便利店|商店街|百貨|ショッピング|购物|銀行|银行|菜場|菜场|薬局|藥局", s, flags=re.I):
+        return "商超生活"
+    if re.search(r"駅|站|バス停|徒歩|步行|交通|地铁|地下鉄|線", s, flags=re.I):
+        return "交通"
+    return "生活機能"
+
+
+def _support_nearby_distance_meters(text: str) -> float | None:
+    s = unicodedata.normalize("NFKC", str(text or ""))
+    values: list[float] = []
+    for m in re.finditer(r"([0-9]+(?:\.[0-9]+)?)\s*(km|㎞|公里)", s, flags=re.I):
+        values.append(float(m.group(1)) * 1000.0)
+    for m in re.finditer(r"([0-9]+(?:\.[0-9]+)?)\s*(?:m|ｍ|米|公尺)(?!\s*[2²])", s, flags=re.I):
+        before = s[max(0, m.start() - 18):m.start()]
+        if re.search(r"面積|専有|建物|土地|陽台|バルコニー|ベランダ|坪|畳|帖", before, flags=re.I):
+            continue
+        values.append(float(m.group(1)))
+    for m in re.finditer(r"(?:徒歩|步行|徒步|歩)\s*([0-9]{1,3})\s*分", s, flags=re.I):
+        values.append(float(m.group(1)) * 80.0)
+    return min(values) if values else None
+
+
+def _support_nearby_compact_snippet(text: str) -> str:
+    s = re.sub(r"\s+", " ", str(text or "")).strip(" ：:-　")
+    m = re.search(
+        r"駅|站|バス停|徒歩|步行|交通|地铁|地下鉄|線|スーパー|超市|コンビニ|便利店|商店街|百貨|ショッピング|购物|小学校|中学校|学校|幼稚園|保育園|學校|病院|クリニック|医院|醫院|診所|公園|公园|緑地|周辺|周邊|生活",
+        s,
+        flags=re.I,
+    )
+    if not m:
+        return s[:118]
+    start = m.start()
+    end = min(len(s), m.end() + 90)
+    return s[start:end].strip(" ：:-　")[:118]
+
+
+def _support_compare_nearby_radius_payload(row: dict[str, Any], fields: dict[str, Any], *, radius_m: int, limit: int = 8) -> str:
+    blob = _support_compare_text_blob(row, fields)
+    if not blob:
+        return ""
+    candidates: list[tuple[float, str, str]] = []
+    seen: set[str] = set()
+    sentence_parts = re.split(r"[。．\n\r]|(?<=分)\s+|(?<=m)\s+|(?<=米)\s+", blob)
+    for raw in sentence_parts:
+        s = re.sub(r"\s+", " ", str(raw or "")).strip(" ：:-　")
+        if len(s) < 5:
+            continue
+        if not re.search(r"駅|站|バス停|徒歩|步行|交通|スーパー|超市|コンビニ|便利店|商店街|百貨|ショッピング|购物|小学校|中学校|学校|幼稚園|保育園|學校|病院|クリニック|医院|醫院|診所|公園|公园|緑地|生活|周辺|周邊", s, flags=re.I):
+            continue
+        clean = _support_nearby_compact_snippet(s)
+        dist = _support_nearby_distance_meters(clean)
+        if dist is None or dist > float(radius_m):
+            continue
+        cat = _support_nearby_category_label(clean)
+        key = f"{cat}:{clean}".casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append((dist, cat, clean))
+    if not candidates:
+        return ""
+    candidates.sort(key=lambda x: (x[0], x[1], x[2]))
+    lines: list[str] = []
+    cat_counts: dict[str, int] = {}
+    for dist, cat, clean in candidates[: max(1, int(limit or 8))]:
+        cat_counts[cat] = cat_counts.get(cat, 0) + 1
+        dist_label = f"{dist / 1000:.1f}km" if dist >= 1000 else f"{int(round(dist))}m"
+        lines.append(f"{cat}｜{dist_label}｜{clean}")
+    summary = " / ".join(f"{k}{v}" for k, v in cat_counts.items())
+    return (f"{summary}\n" + "\n".join(lines)).strip()[:720]
+
+
+def _support_compare_text_blob(row: dict[str, Any], fields: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for source in (fields, row):
+        if not isinstance(source, dict):
+            continue
+        for key, value in source.items():
+            if key in {"image_urls", "listing_media_json"}:
+                continue
+            if isinstance(value, (list, tuple)):
+                parts.extend(str(x or "") for x in value)
+            elif isinstance(value, dict):
+                parts.extend(str(x or "") for x in value.values())
+            elif value:
+                parts.append(str(value))
+    return re.sub(r"\s+", " ", "\n".join(parts)).strip()
+
+
+def _support_compare_orientation_summary(row: dict[str, Any], fields: dict[str, Any]) -> str:
+    """Extract buyer-facing orientation/daylight hints similar to listing compare sites."""
+    blob = _support_compare_text_blob(row, fields)
+    if not blob:
+        return ""
+    for pat in (
+        r"(?:主要採光面|主要採光|方角|向き|朝向|採光)\s*[:：]?\s*(南東|南西|北東|北西|東南|西南|東北|西北|南|北|東|西)[^\s。．、，]{0,12}",
+        r"(南東|南西|北東|北西|東南|西南|東北|西北|南|北|東|西)\s*(?:向き|朝向|採光)",
+        r"(?:採光|日当たり|陽当たり|采光)[^。．\n]{0,40}",
+    ):
+        m = re.search(pat, blob, flags=re.I)
+        if m:
+            return re.sub(r"\s+", " ", m.group(0)).strip(" ：:-　")[:80]
+    return ""
+
+
+def _support_compare_decoration_summary(row: dict[str, Any], fields: dict[str, Any]) -> str:
+    """Extract renovation/decoration state when the source exposes it."""
+    blob = _support_compare_text_blob(row, fields)
+    if not blob:
+        return ""
+    for pat in (
+        r"(?:装修|裝修|装潢|裝潢|内装|リフォーム|リノベーション|リノベ|改装|翻新)\s*[:：]?\s*[^。．\n]{0,60}",
+        r"(?:精装|精裝|简装|簡裝|毛坯|豪装|豪裝|リフォーム済|リノベーション済)[^。．\n]{0,40}",
+    ):
+        m = re.search(pat, blob, flags=re.I)
+        if m:
+            s = re.sub(r"\s+", " ", m.group(0)).strip(" ：:-　")
+            s = re.split(
+                r"\s*(?:周辺|周邊|交通|所在地|価格|間取り|専有面積|建物面積|土地面積|管理費|修繕|駐車場|現況|引渡し)\b",
+                s,
+                maxsplit=1,
+            )[0].strip(" ：:-　")
+            return s[:100]
+    return ""
+
+
+def _support_compare_labeled_value(row: dict[str, Any], fields: dict[str, Any], labels: tuple[str, ...], *, max_len: int = 90) -> str:
+    blob = _support_compare_text_blob(row, fields)
+    if not blob:
+        return ""
+    label_pat = "|".join(re.escape(x) for x in labels if x)
+    if not label_pat:
+        return ""
+    stop = (
+        r"価格|總價|总价|賃料|管理費|修繕|間取り|格局|専有面積|建物面積|土地面積|"
+        r"所在地|住所|交通|アクセス|築年月|建築|構造|階建|所在階|方角|向き|朝向|"
+        r"用途|用途地域|都市計画|地目|接道|私道|建ぺい率|建蔽率|容積率|權利|権利|"
+        r"产权|產權|房本|小区|小區|管理会社|管理形態|管理方式|総戸数|駐車場|現況|引渡し|"
+        r"エレベーター|供暖|暖房|抵押|住宅ローン|周辺|周邊|設備|備考|取引態様|建築確認|情報公開|次回更新"
+    )
+    for pat in (
+        rf"(?:{label_pat})\s*[:：]?\s*([^。．\n\r]{{1,{max_len + 24}}}?)(?=\s*(?:{stop})\b|$)",
+        rf"(?:{label_pat})\s*[:：]?\s*([^。．\n\r]{{1,{max_len}}})",
+    ):
+        m = re.search(pat, blob, flags=re.I)
+        if not m:
+            continue
+        value = re.sub(r"\s+", " ", m.group(1)).strip(" ：:-　")
+        value = re.sub(r"^(：|:|/|／)+", "", value).strip()
+        if value and len(value) >= 2:
+            return value[:max_len]
+    return ""
+
+
+def _support_compare_gallery_payload(row: dict[str, Any], *, limit: int = 12) -> tuple[list[str], list[str]]:
+    """Split gallery into property photos and floor-plan images for comparison."""
+    item_url = str((row or {}).get("item_url") or "")
+    image_urls_s = str((row or {}).get("image_urls") or "")
+    body_original_s = str((row or {}).get("body_original") or "")
+    listing_media_json_s = str((row or {}).get("listing_media_json") or "[]")
+    try:
+        gallery = ordered_listing_image_urls(
+            image_urls_s,
+            body_original_s,
+            listing_media_json_s,
+            item_url=item_url,
+            limit=max(3, min(int(limit or 12), 18)),
+        )
+    except Exception:
+        gallery = []
+    raw_candidates: list[str] = []
+    for src in (
+        gallery,
+        [x.strip() for x in image_urls_s.splitlines() if x.strip()],
+        _extract_image_urls_from_plain_blob(body_original_s, limit=80),
+        _extract_image_urls_from_plain_blob(listing_media_json_s, limit=80),
+    ):
+        for x in src:
+            sx = str(x or "").strip()
+            if sx and sx not in raw_candidates:
+                raw_candidates.append(sx)
+    photos: list[str] = []
+    floorplans: list[str] = []
+    seen: set[str] = set()
+    for raw_u in raw_candidates:
+        u = _normalize_listing_image_url_for_display(
+            str(raw_u or "").strip(),
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+        if not u:
+            continue
+        key = _case_gallery_url_identity_key(u) or u
+        if key in seen:
+            continue
+        seen.add(key)
+        if is_likely_agent_portrait_image_url(u) or not _row_image_url_is_usable(u):
+            continue
+        if _thumbnail_kind_label(u) == "格局":
+            floorplans.append(u)
+        elif _is_case_property_gallery_image_url(u):
+            photos.append(u)
+    return photos[: max(1, int(limit or 12))], floorplans[:4]
+
+
 def _load_support_session_interest_cases(session_id: str, *, limit: int = 16) -> list[dict[str, Any]]:
     sid = _normalize_support_session_id(session_id)
     if not sid:
@@ -7111,8 +7381,46 @@ def _support_selected_case_enrich_one(conn: sqlite3.Connection, raw: dict[str, A
     price = str(fields.get("price_text_hant") or "").strip()
     if not price:
         price = _home_intro_case_price_hint(d)
-    gallery = _case_verified_property_gallery_urls(d, limit=1)
-    thumb = gallery[0] if gallery else ""
+    gallery_urls, floorplan_urls = _support_compare_gallery_payload(d, limit=12)
+    if not gallery_urls:
+        gallery_urls = _case_verified_property_gallery_urls(d, limit=12)
+    thumb = gallery_urls[0] if gallery_urls else ""
+    nearby_summary = _support_compare_nearby_summary(d, fields, limit=6)
+    nearby_2km_summary = _support_compare_nearby_radius_payload(d, fields, radius_m=2000, limit=8)
+    orientation_summary = _support_compare_orientation_summary(d, fields)
+    decoration_summary = _support_compare_decoration_summary(d, fields)
+    property_rights = _support_compare_labeled_value(d, fields, ("権利", "權利", "權利形態", "権利形態", "敷地権利", "土地権利", "产权", "產權"))
+    land_rights = _support_compare_labeled_value(d, fields, ("土地権利", "土地權利", "敷地権利", "土地權屬"))
+    house_use = _support_compare_labeled_value(d, fields, ("用途", "房屋用途", "建物用途", "物件用途", "種別", "種類"))
+    title_age = _support_compare_labeled_value(d, fields, ("房本年限", "土地権利", "権利", "權利", "所有権"))
+    layout_structure = _support_compare_labeled_value(d, fields, ("間取り詳細", "間取り内訳", "户型结构", "戶型結構", "間取内訳", "間取り備考"))
+    elevator_ratio = _support_compare_labeled_value(d, fields, ("梯户比例", "梯戶比例", "エレベーター", "EV", "エレベータ"))
+    elevator = _support_compare_labeled_value(d, fields, ("エレベーター", "EV", "電梯", "电梯"))
+    heating = _support_compare_labeled_value(d, fields, ("供暖方式", "暖房", "暖房方式", "給湯", "供暖"))
+    mortgage = _support_compare_labeled_value(d, fields, ("抵押信息", "抵押資訊", "抵当権", "抵押", "住宅ローン"))
+    community_info = _support_compare_labeled_value(d, fields, ("小区名称", "小區名稱", "マンション名", "物件名", "建物名", "販売名"), max_len=120)
+    building_area = _support_compare_labeled_value(d, fields, ("建物面積", "建築面積", "建筑面积"), max_len=80)
+    land_area = _support_compare_labeled_value(d, fields, ("土地面積", "土地面积"), max_len=80)
+    management_company = _support_compare_labeled_value(d, fields, ("管理会社", "管理公司", "物業公司", "物业公司"), max_len=120)
+    management_form = _support_compare_labeled_value(d, fields, ("管理形態", "管理方式", "管理形式"), max_len=100)
+    use_district = _support_compare_labeled_value(d, fields, ("用途地域", "用途區域", "用途区域"), max_len=100)
+    urban_planning = _support_compare_labeled_value(d, fields, ("都市計画", "都市計畫"), max_len=100)
+    land_category = _support_compare_labeled_value(d, fields, ("地目", "土地地目"), max_len=80)
+    road_access = _support_compare_labeled_value(d, fields, ("接道状況", "接道狀況", "接道", "道路"), max_len=140)
+    private_road = _support_compare_labeled_value(d, fields, ("私道負担", "私道負擔", "私道"), max_len=100)
+    building_coverage = _support_compare_labeled_value(d, fields, ("建ぺい率", "建蔽率"), max_len=60)
+    floor_area_ratio = _support_compare_labeled_value(d, fields, ("容積率",), max_len=60)
+    transaction_agent = _support_compare_labeled_value(d, fields, ("取引態様", "取引態樣", "交易權屬", "交易权属"), max_len=100)
+    building_confirm = _support_compare_labeled_value(d, fields, ("建築確認番号", "建築確認番號", "建築確認", "建築許可"), max_len=120)
+    contact_summary = _support_compare_labeled_value(d, fields, ("お問い合せ先", "問合せ先", "問い合わせ先", "聯絡", "联络"), max_len=160)
+    if not building_area and str(fields.get("exclusive_area_jp") or "").startswith("建物 "):
+        m_ba = re.search(r"建物\s*([^/]+)", str(fields.get("exclusive_area_jp") or ""))
+        if m_ba:
+            building_area = m_ba.group(1).strip()
+    if not land_area:
+        m_la = re.search(r"土地\s*([^/]+)", str(fields.get("other_area_jp") or fields.get("exclusive_area_jp") or ""))
+        if m_la:
+            land_area = m_la.group(1).strip()
     slug = str(d.get("seo_slug") or "").strip()
     sid = int(d.get("source_item_id") or 0)
     out = {
@@ -7132,10 +7440,68 @@ def _support_selected_case_enrich_one(conn: sqlite3.Connection, raw: dict[str, A
         "price_text_hant": price[:80],
         "price_fx_hant": str(fields.get("price_fx_hant") or raw.get("price_fx_hant") or "").strip()[:80],
         "layout_text_hant": str(fields.get("layout_text_hant") or raw.get("layout_text_hant") or "").strip()[:80],
+        "layout_line_jp": str(fields.get("layout_line_jp") or raw.get("layout_line_jp") or "").strip()[:120],
         "area_text_hant": str(fields.get("area_text_hant") or raw.get("area_text_hant") or "").strip()[:80],
+        "exclusive_area_jp": str(fields.get("exclusive_area_jp") or raw.get("exclusive_area_jp") or "").strip()[:120],
+        "other_area_jp": str(fields.get("other_area_jp") or raw.get("other_area_jp") or "").strip()[:120],
         "building_type_zh": str(fields.get("building_type_zh") or raw.get("building_type_zh") or "").strip()[:80],
+        "property_rights_jp": property_rights[:90],
+        "land_rights_jp": land_rights[:90],
+        "house_use_jp": house_use[:90],
+        "title_age_jp": title_age[:90],
+        "layout_structure_jp": layout_structure[:90],
+        "elevator_ratio_jp": elevator_ratio[:90],
+        "elevator_jp": elevator[:90],
+        "heating_jp": heating[:90],
+        "mortgage_jp": mortgage[:120],
+        "community_info_jp": community_info[:120],
+        "building_area_jp": building_area[:80],
+        "land_area_jp": land_area[:80],
+        "management_company_jp": management_company[:120],
+        "management_form_jp": management_form[:100],
+        "use_district_jp": use_district[:100],
+        "urban_planning_jp": urban_planning[:100],
+        "land_category_jp": land_category[:80],
+        "road_access_jp": road_access[:140],
+        "private_road_jp": private_road[:100],
+        "building_coverage_jp": building_coverage[:60],
+        "floor_area_ratio_jp": floor_area_ratio[:60],
+        "transaction_agent_jp": transaction_agent[:100],
+        "building_confirm_jp": building_confirm[:120],
+        "contact_summary_jp": contact_summary[:160],
+        "building_name_jp": str(fields.get("building_name_jp") or raw.get("building_name_jp") or "").strip()[:180],
+        "address_line_jp": str(fields.get("address_line_jp") or raw.get("address_line_jp") or "").strip()[:180],
+        "access_line_jp": str(fields.get("access_line_jp") or raw.get("access_line_jp") or "").strip()[:220],
+        "age_text_hant": str(fields.get("age_text_hant") or raw.get("age_text_hant") or "").strip()[:80],
+        "built_ym_jp": str(fields.get("built_ym_jp") or raw.get("built_ym_jp") or "").strip()[:80],
+        "floor_text_hant": str(fields.get("floor_text_hant") or raw.get("floor_text_hant") or "").strip()[:80],
+        "floor_structure_jp": str(fields.get("floor_structure_jp") or raw.get("floor_structure_jp") or "").strip()[:120],
+        "structure_jp": str(fields.get("structure_jp") or raw.get("structure_jp") or "").strip()[:120],
+        "balcony_line_jp": str(fields.get("balcony_line_jp") or raw.get("balcony_line_jp") or "").strip()[:80],
+        "manage_fee_jp": str(fields.get("manage_fee_jp") or raw.get("manage_fee_jp") or "").strip()[:80],
+        "reserve_fee_jp": str(fields.get("reserve_fee_jp") or raw.get("reserve_fee_jp") or "").strip()[:80],
+        "parking_jp": str(fields.get("parking_jp") or raw.get("parking_jp") or "").strip()[:120],
+        "orientation_jp": orientation_summary[:80],
+        "decoration_jp": decoration_summary[:100],
+        "total_units_jp": str(fields.get("total_units_jp") or raw.get("total_units_jp") or "").strip()[:80],
+        "sales_units_jp": str(fields.get("sales_units_jp") or raw.get("sales_units_jp") or "").strip()[:80],
+        "status_jp": str(fields.get("status_jp") or raw.get("status_jp") or "").strip()[:80],
+        "handover_jp": str(fields.get("handover_jp") or raw.get("handover_jp") or "").strip()[:80],
+        "property_no_jp": str(fields.get("property_no_jp") or raw.get("property_no_jp") or "").strip()[:80],
+        "info_open_jp": str(fields.get("info_open_jp") or raw.get("info_open_jp") or "").strip()[:80],
+        "next_update_jp": str(fields.get("next_update_jp") or raw.get("next_update_jp") or "").strip()[:120],
+        "related_links_jp": str(fields.get("related_links_jp") or raw.get("related_links_jp") or "").strip()[:520],
+        "company_guide_jp": str(fields.get("company_guide_jp") or raw.get("company_guide_jp") or "").strip()[:320],
+        "staff_message_jp": str(fields.get("staff_message_jp") or raw.get("staff_message_jp") or "").strip()[:360],
+        "inquiry_contact_jp": str(fields.get("inquiry_contact_jp") or raw.get("inquiry_contact_jp") or "").strip()[:360],
+        "homes_site_trail_jp": str(fields.get("homes_site_trail_jp") or raw.get("homes_site_trail_jp") or "").strip()[:360],
+        "feature_tags_hant": list(fields.get("feature_tags_hant") or raw.get("feature_tags_hant") or [])[:12],
+        "nearby_summary": nearby_summary[:520],
+        "nearby_2km_summary": nearby_2km_summary[:720],
         "thumb_url": _normalize_case_interest_url(thumb or raw.get("thumb_url")),
-        "image_count": 1 if thumb else max(0, _safe_int(raw.get("image_count"))),
+        "gallery_urls": gallery_urls[:12],
+        "floorplan_urls": floorplan_urls[:4],
+        "image_count": max(len(gallery_urls), len(floorplan_urls), _safe_int(raw.get("image_count"))),
     }
     return _interest_case_row_with_derived_article_url(out)
 

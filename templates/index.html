@@ -25,7 +25,69 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260619-home-media-b">
+  <link rel="stylesheet" href="/static/site.css?v=20260619-login-footer-contact-a">
+  <style id="phone-login-ui-overrides">
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
+      width: auto !important;
+      min-width: 86px !important;
+      height: 38px !important;
+      min-height: 38px !important;
+      padding: 0 15px !important;
+      border: 1px solid rgba(255, 255, 255, 0.46) !important;
+      border-radius: 999px !important;
+      background: #526b80 !important;
+      color: #fff !important;
+      box-shadow: 0 12px 28px rgba(5, 17, 30, 0.2) !important;
+      font-size: 13px !important;
+      font-weight: 900 !important;
+      line-height: 1 !important;
+      transform: none !important;
+    }
+
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
+      background: #3f566a !important;
+      border-color: rgba(255, 255, 255, 0.72) !important;
+    }
+
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
+      border-color: rgba(209, 250, 229, 0.78) !important;
+      background: #2f7d68 !important;
+      color: #fff !important;
+      box-shadow: 0 12px 28px rgba(47, 125, 104, 0.26) !important;
+    }
+
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon {
+      display: none !important;
+    }
+
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-text {
+      display: inline !important;
+      color: inherit !important;
+      white-space: nowrap !important;
+    }
+
+    .support-phone-login-modal .support-phone-login-body .primary,
+    .support-phone-login-modal .support-phone-login-profile-actions .primary {
+      border-color: #3f566a !important;
+      background: #526b80 !important;
+      color: #fff !important;
+      box-shadow: 0 14px 28px rgba(82, 107, 128, 0.22) !important;
+    }
+
+    .support-phone-login-modal .support-phone-login-body input:focus,
+    .support-phone-login-modal .support-phone-login-body input:focus-visible,
+    .support-phone-login-modal .support-phone-login-body select:focus,
+    .support-phone-login-modal .support-phone-login-body select:focus-visible {
+      border-color: #526b80 !important;
+      box-shadow: 0 0 0 3px rgba(82, 107, 128, 0.16) !important;
+      outline: none !important;
+    }
+  </style>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -103,13 +165,13 @@
         </nav>
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-source" role="tabpanel" aria-label="平台來源關鍵詞" data-bh-nav-keyword-panel="source" data-bh-panel-title="平台來源" hidden>
           <div class="bh-nav-keyword-list">
-          <a href="#query-dialog" data-geo-keyword="SUUMO 房源查詢">SUUMO 房源查詢</a>
-          <a href="#query-dialog" data-geo-keyword="LIFULL HOME'S 房源查詢">LIFULL HOME'S</a>
-          <a href="#query-dialog" data-geo-keyword="at home 房源查詢">at home 房源查詢</a>
-          <a href="#query-dialog" data-geo-keyword="Yahoo! 不動產案件">Yahoo! 不動產</a>
-          <a href="#query-dialog" data-geo-keyword="樂天不動產案件">樂天不動產案件</a>
-          <a href="#query-dialog" data-geo-keyword="Yes! 房源查詢">Yes! 房源查詢</a>
-          <a href="#query-dialog" data-geo-keyword="OHEYASU 房源查詢">OHEYASU</a>
+          <a href="https://suumo.jp/" target="_blank" rel="noopener noreferrer">SUUMO 房源查詢</a>
+          <a href="https://www.homes.co.jp/" target="_blank" rel="noopener noreferrer">LIFULL HOME'S</a>
+          <a href="https://www.athome.co.jp/" target="_blank" rel="noopener noreferrer">at home 房源查詢</a>
+          <a href="https://realestate.yahoo.co.jp/" target="_blank" rel="noopener noreferrer">Yahoo! 不動產</a>
+          <a href="https://realestate.rakuten.co.jp/" target="_blank" rel="noopener noreferrer">樂天不動產案件</a>
+          <a href="https://www.yes1.co.jp/" target="_blank" rel="noopener noreferrer">Yes! 房源查詢</a>
+          <a href="https://www.oheya-su.jp/" target="_blank" rel="noopener noreferrer">OHEYASU</a>
           </div>
         </nav>
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-help" role="tabpanel" aria-label="服務幫助關鍵詞" data-bh-nav-keyword-panel="help" data-bh-panel-title="服務幫助" hidden>
@@ -123,6 +185,9 @@
       </div>
       <div class="bh-site-titlebar-actions" aria-label="首頁工具列">
         {% include 'partials/site_language_switch.html' %}
+        <button id="bh-nav-phone-login-btn" type="button" class="bh-nav-phone-login-btn" onclick="toggleSupportPhoneLoginModal(true)" aria-label="號碼登入" aria-haspopup="dialog" aria-controls="support-phone-login-modal" title="號碼登入">
+          <span id="bh-nav-phone-login-text" class="bh-nav-phone-login-text">未登录</span>
+        </button>
       </div>
     </nav>
   </header>
@@ -2126,13 +2191,13 @@
       </nav>
       <nav class="bh-footer-directory-column" aria-label="平台來源">
         <h3>平台來源</h3>
-        <a href="#query-dialog" data-geo-keyword="SUUMO 房源查詢">SUUMO 房源查詢</a>
-        <a href="#query-dialog" data-geo-keyword="LIFULL HOME'S 房源查詢">LIFULL HOME'S</a>
-        <a href="#query-dialog" data-geo-keyword="at home 房源查詢">at home 房源查詢</a>
-        <a href="#query-dialog" data-geo-keyword="Yahoo! 不動產案件">Yahoo! 不動產</a>
-        <a href="#query-dialog" data-geo-keyword="樂天不動產案件">樂天不動產案件</a>
-        <a href="#query-dialog" data-geo-keyword="Yes! 房源查詢">Yes! 房源查詢</a>
-        <a href="#query-dialog" data-geo-keyword="OHEYASU 房源查詢">OHEYASU</a>
+        <a href="https://suumo.jp/" target="_blank" rel="noopener noreferrer">SUUMO 房源查詢</a>
+        <a href="https://www.homes.co.jp/" target="_blank" rel="noopener noreferrer">LIFULL HOME'S</a>
+        <a href="https://www.athome.co.jp/" target="_blank" rel="noopener noreferrer">at home 房源查詢</a>
+        <a href="https://realestate.yahoo.co.jp/" target="_blank" rel="noopener noreferrer">Yahoo! 不動產</a>
+        <a href="https://realestate.rakuten.co.jp/" target="_blank" rel="noopener noreferrer">樂天不動產案件</a>
+        <a href="https://www.yes1.co.jp/" target="_blank" rel="noopener noreferrer">Yes! 房源查詢</a>
+        <a href="https://www.oheya-su.jp/" target="_blank" rel="noopener noreferrer">OHEYASU</a>
       </nav>
       <nav class="bh-footer-directory-column" aria-label="服務幫助">
         <h3>服務幫助</h3>
@@ -2148,14 +2213,28 @@
         <button class="bh-footer-app-button bh-footer-app-button--support" type="button" onclick="toggleSupportChat(true)">
           <span class="bh-footer-app-icon" aria-hidden="true">AI</span>
           <span class="bh-footer-app-copy"><strong>智能客服</strong><small>線上對話</small></span>
+          <span class="bh-footer-contact-popover" role="tooltip">
+            <strong>智能客服</strong>
+            <small>點擊開啟站內 AI 對話；登入號碼後可同步顧問接手。</small>
+          </span>
         </button>
         <a class="bh-footer-app-button bh-footer-app-button--line" href="/static/human-handoff/line.png" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
           <span class="bh-footer-app-icon" aria-hidden="true">LINE</span>
           <span class="bh-footer-app-copy"><strong>LINE</strong><small>專人 QR</small></span>
+          <span class="bh-footer-contact-popover" role="tooltip">
+            <strong>LINE 專人 QR</strong>
+            <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
+            <img src="/static/human-handoff/line.png" width="92" height="92" alt="LINE 專人 QR" loading="lazy" decoding="async">
+          </span>
         </a>
         <a class="bh-footer-app-button bh-footer-app-button--wechat" href="/static/human-handoff/wechat.png" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
           <span class="bh-footer-app-icon" aria-hidden="true">微信</span>
           <span class="bh-footer-app-copy"><strong>WeChat</strong><small>專人 QR</small></span>
+          <span class="bh-footer-contact-popover" role="tooltip">
+            <strong>WeChat 專人 QR</strong>
+            <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
+            <img src="/static/human-handoff/wechat.png" width="92" height="92" alt="WeChat 專人 QR" loading="lazy" decoding="async">
+          </span>
         </a>
       </div>
     </section>
@@ -3661,7 +3740,7 @@
     let supportTelegramThreadActive = false;
     let supportTelegramLastPullStatus = '';
     let supportChatOpen = false;
-    let supportChatTtsEnabled = true;
+    let supportChatTtsEnabled = false;
     let supportChatSpeechPrimed = false;
     let supportChatSpeechScript = '';
     let supportSelectedCases = [];
@@ -3670,6 +3749,7 @@
     let supportSelectedCasesDrawerOpen = false;
     let supportSelectedCasesDetailEnrichPending = false;
     let supportSelectedCasesDetailEnrichSig = '';
+    let supportSelectedCasesSyncChannel = null;
     let supportTelegramInboxBootstrapped = false;
     let latestFigureCaseItems = [];
     let latestFigureResultMeta = null;
@@ -3680,6 +3760,7 @@
     const SUPPORT_KB_HISTORY_KEY = 'sclaw_support_kb_history_v1';
     const SUPPORT_SALES_SESSION_KEY = 'sclaw_support_sales_session_v1';
     const SUPPORT_SELECTED_CASES_KEY = 'sclaw_support_selected_cases_v1';
+    const SUPPORT_SELECTED_CASES_CHANNEL = 'sclaw_support_selected_cases_channel_v1';
     const SUPPORT_SELECTED_CASES_COLLAPSED_KEY = 'sclaw_support_selected_cases_collapsed_v1';
     const SUPPORT_CHAT_TTS_ENABLED_KEY = 'sclaw_support_chat_tts_enabled_v1';
     const DIALOG_AUTO_SPEAK_KEY = 'sclaw_dialog_auto_speak_v1';
@@ -3687,9 +3768,7 @@
     const ADMIN_PASSWORD_CACHE_KEY = 'sclaw_admin_panel_pwd_v1';
     try {
       const cached = String(localStorage.getItem(SUPPORT_CHAT_TTS_ENABLED_KEY) || '').trim();
-      if (cached === '0' || cached === '1') {
-        supportChatTtsEnabled = cached === '1';
-      }
+      supportChatTtsEnabled = cached === '1';
     } catch (_) {
       // ignore
     }
@@ -5293,7 +5372,7 @@
     function revealSupportChatHistoryPreview() {
       const panel = document.getElementById('support-chat-history-panel');
       const preview = document.getElementById('support-chat-kb-preview');
-      if (panel) panel.open = true;
+      toggleSupportChatHistoryPanel(true);
       if (preview) {
         requestAnimationFrame(() => {
           try {
@@ -5302,6 +5381,51 @@
         });
       }
       return preview;
+    }
+
+    function setSupportChatMenuOpen(open) {
+      const menu = document.getElementById('support-chat-menu');
+      const btn = document.getElementById('support-chat-menu-toggle');
+      const shouldOpen = !!open;
+      if (menu) menu.hidden = !shouldOpen;
+      if (btn) {
+        btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        btn.classList.toggle('is-active', shouldOpen);
+      }
+    }
+
+    function toggleSupportChatMenu(force) {
+      const menu = document.getElementById('support-chat-menu');
+      const open = typeof force === 'boolean' ? force : !!(menu && menu.hidden);
+      setSupportChatMenuOpen(open);
+      if (open) toggleSupportChatHistoryPanel(false);
+    }
+
+    function openSupportChatMenuCases() {
+      setSupportChatMenuOpen(false);
+      toggleSupportSelectedCasesDrawer(true);
+    }
+
+    function toggleSupportChatHistoryPanel(force) {
+      const panel = document.getElementById('support-chat-history-panel');
+      if (!panel) return;
+      const open = typeof force === 'boolean' ? force : panel.style.display === 'none' || !panel.style.display;
+      panel.style.display = open ? 'block' : 'none';
+      panel.classList.toggle('is-open', open);
+      panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+      if (open) {
+        setSupportChatMenuOpen(false);
+        renderSupportKbHistoryList();
+        window.setTimeout(() => {
+          try {
+            document.getElementById('support-chat-history-filter')?.focus({ preventScroll: true });
+          } catch (_) {}
+        }, 30);
+      }
+    }
+
+    function openSupportChatHistoryPanel() {
+      toggleSupportChatHistoryPanel(true);
     }
 
     function isUnstableSuumoListingUrl(url) {
@@ -6762,16 +6886,17 @@
     }
 
     function updateSupportChatSpeechToggleLabel() {
-      const btn = document.getElementById('support-chat-speech-toggle');
+      const btn = document.getElementById('support-chat-menu-speech');
       if (!btn) return;
       const supported = 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
       btn.disabled = !supported;
       btn.setAttribute('aria-pressed', supportChatTtsEnabled ? 'true' : 'false');
+      btn.setAttribute('aria-checked', supportChatTtsEnabled ? 'true' : 'false');
       if (!supported) {
-        btn.textContent = '語音播報：此瀏覽器不支援';
+        btn.textContent = '語音播報：不支援';
         return;
       }
-      btn.textContent = supportChatTtsEnabled ? '語音播報：開啟（點一下關閉）' : '語音播報：關閉（點一下開啟）';
+      btn.textContent = supportChatTtsEnabled ? '語音播報：開啟' : '語音播報：關閉';
     }
 
     function saveSupportChatTtsEnabledLocal() {
@@ -8157,6 +8282,15 @@
       updateScrollState();
     }
 
+    function ensureSupportChatPanelInViewportLayer() {
+      const panel = document.getElementById('support-chat-panel');
+      const widget = document.getElementById('support-chat-widget');
+      if (!panel || !widget) return;
+      if (panel.parentElement === widget) {
+        document.body.appendChild(panel);
+      }
+    }
+
     function toggleSupportChat(force, options = {}) {
       const panel = document.getElementById('support-chat-panel');
       const btn = document.getElementById('support-chat-toggle');
@@ -8169,6 +8303,7 @@
         setSupportPhoneLoginModalOpen(true, { returnToChat: true });
         return;
       }
+      if (open) ensureSupportChatPanelInViewportLayer();
       if (open && !(options && options.skipExclusive)) closeFloatingPanelsExcept('support');
       panel.style.display = open ? 'flex' : 'none';
       supportChatOpen = open;
@@ -8184,6 +8319,8 @@
       }
       updateSupportChatVisualViewportVars();
       if (!open) {
+        setSupportChatMenuOpen(false);
+        toggleSupportChatHistoryPanel(false);
         document.body.classList.remove('support-chat-scroll-lock');
         document.body.classList.remove('support-chat-keyboard-open');
         document.body.classList.remove('support-chat-composer-focus');
@@ -8446,8 +8583,6 @@
           top_titles: titles,
         });
         localStorage.setItem(SUPPORT_KB_HISTORY_KEY, JSON.stringify(list.slice(-80)));
-        const panel = document.getElementById('support-chat-history-panel');
-        if (panel) panel.open = true;
       } catch (e) { /* ignore quota */ }
     }
 
@@ -8525,7 +8660,7 @@
     function resetSupportChatDefaults() {
       if (!confirm('確定恢復智能客服預設狀態？這會清空本機歷史與目前對話。')) return;
       stopSupportChatSpeech();
-      supportChatTtsEnabled = true;
+      supportChatTtsEnabled = false;
       supportChatSpeechScript = '';
       supportChatHistory = [];
       supportSelectedCases = [];
@@ -8724,6 +8859,19 @@
     }
 
     const SUPPORT_PHONE_LOGIN_KEY = 'sclaw_support_phone_login';
+    const SUPPORT_PHONE_LOGIN_COUNTRY_KEY = 'sclaw_support_phone_login_country';
+    const SUPPORT_PHONE_COUNTRY_RULES = {
+      tw: { label: '台灣', dial: '+886', example: '0912 345 678', hint: '台灣手機需 09 開頭共 10 碼；市話需含區碼，例如 02 2345 6789。' },
+      jp: { label: '日本', dial: '+81', example: '090 1234 5678', hint: '日本手機通常 070 / 080 / 090 開頭共 11 碼；市話通常 10 碼。' },
+      cn: { label: '中國大陸', dial: '+86', example: '138 0013 8000', hint: '中國大陸手機需 1 開頭共 11 碼。' },
+      hk: { label: '香港', dial: '+852', example: '9123 4567', hint: '香港手機通常 5 / 6 / 9 開頭共 8 碼。' },
+      mo: { label: '澳門', dial: '+853', example: '6612 3456', hint: '澳門手機通常 6 開頭共 8 碼。' },
+      sg: { label: '新加坡', dial: '+65', example: '8123 4567', hint: '新加坡手機通常 8 / 9 開頭共 8 碼。' },
+      my: { label: '馬來西亞', dial: '+60', example: '012 345 6789', hint: '馬來西亞手機通常 01 開頭，去除符號後約 10-11 碼。' },
+      kr: { label: '韓國', dial: '+82', example: '010 1234 5678', hint: '韓國手機通常 010 開頭共 11 碼。' },
+      us: { label: '美國 / 加拿大', dial: '+1', example: '415 555 2671', hint: '美國 / 加拿大需 10 碼區號電話；不可使用 0 或 1 作為區號開頭。' },
+      th: { label: '泰國', dial: '+66', example: '081 234 5678', hint: '泰國手機通常 06 / 08 / 09 開頭共 10 碼。' },
+    };
     let supportPhoneLoginReturnToChat = false;
 
     function getSupportPhoneLoginValue() {
@@ -8736,6 +8884,168 @@
 
     function isSupportPhoneLoggedIn() {
       return !!getSupportPhoneLoginValue();
+    }
+
+    function getSupportPhoneCountryLabel(countryKey) {
+      const key = String(countryKey || getSupportPhoneCountry()).trim().toLowerCase();
+      const rule = SUPPORT_PHONE_COUNTRY_RULES[key] || SUPPORT_PHONE_COUNTRY_RULES.tw;
+      return `${rule.label} ${rule.dial}`;
+    }
+
+    function renderSupportPhoneLoginModalState() {
+      const logged = isSupportPhoneLoggedIn();
+      const modal = document.getElementById('support-phone-login-modal');
+      const form = document.getElementById('support-phone-login-form');
+      const profile = document.getElementById('support-phone-login-profile');
+      const title = document.getElementById('support-phone-login-title');
+      const subtitle = document.getElementById('support-phone-login-subtitle');
+      const phoneEl = document.getElementById('support-phone-login-profile-phone');
+      const metaEl = document.getElementById('support-phone-login-profile-meta');
+      if (modal) modal.classList.toggle('is-logged-in', logged);
+      if (form) {
+        form.hidden = logged;
+        form.style.display = logged ? 'none' : 'grid';
+        form.setAttribute('aria-hidden', logged ? 'true' : 'false');
+      }
+      if (profile) {
+        profile.hidden = !logged;
+        profile.style.display = logged ? 'grid' : 'none';
+        profile.setAttribute('aria-hidden', logged ? 'false' : 'true');
+      }
+      if (title) title.textContent = logged ? '已登入' : '號碼登入';
+      if (subtitle) {
+        subtitle.textContent = logged
+          ? '此號碼已通過格式檢查，智能客服與顧問接手已同步。'
+          : '輸入合規聯絡號碼後，即可使用智能客服與顧問接手。';
+      }
+      if (logged) {
+        const phone = getSupportPhoneLoginValue();
+        let country = getSupportPhoneCountry();
+        try {
+          country = String(localStorage.getItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY) || country).trim().toLowerCase();
+        } catch (_) {}
+        if (phoneEl) phoneEl.textContent = phone || '--';
+        if (metaEl) metaEl.textContent = `${getSupportPhoneCountryLabel(country)}｜智能客服已同步此號碼。`;
+      }
+    }
+
+    function syncSupportPhoneLoginUiState() {
+      const logged = isSupportPhoneLoggedIn();
+      const navBtn = document.getElementById('bh-nav-phone-login-btn');
+      const navText = document.getElementById('bh-nav-phone-login-text');
+      const floatingBtn = document.getElementById('support-phone-login-toggle');
+      const label = logged ? '已登录' : '未登录';
+      if (navText) navText.textContent = label;
+      [navBtn, floatingBtn].forEach((btn) => {
+        if (!btn) return;
+        btn.classList.toggle('is-logged-in', logged);
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('title', label);
+      });
+      renderSupportPhoneLoginModalState();
+    }
+
+    function getSupportPhoneCountry() {
+      try {
+        const v = String(localStorage.getItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY) || '').trim().toLowerCase();
+        return SUPPORT_PHONE_COUNTRY_RULES[v] ? v : 'tw';
+      } catch (_) {
+        return 'tw';
+      }
+    }
+
+    function supportPhoneDigits(value) {
+      return String(value || '').replace(/[^\d]/g, '');
+    }
+
+    function validateSupportPhoneByCountry(countryKey, rawValue) {
+      const key = SUPPORT_PHONE_COUNTRY_RULES[countryKey] ? countryKey : 'tw';
+      const rule = SUPPORT_PHONE_COUNTRY_RULES[key];
+      const raw = String(rawValue || '').trim();
+      const digits = supportPhoneDigits(raw);
+      const fail = (detail) => ({
+        ok: false,
+        country: key,
+        label: rule.label,
+        dial: rule.dial,
+        digits,
+        message: `${rule.label}號碼格式不正確。${detail || rule.hint} 範例：${rule.example}`,
+      });
+      if (!digits) return fail('請先輸入電話號碼。');
+      let local = digits;
+      const dialDigits = rule.dial.replace(/[^\d]/g, '');
+      if (local.startsWith('00' + dialDigits)) local = local.slice(2 + dialDigits.length);
+      if (local.startsWith(dialDigits) && local.length > dialDigits.length + 5) local = local.slice(dialDigits.length);
+      switch (key) {
+        case 'tw':
+          if (/^09\d{8}$/.test(local) || /^9\d{8}$/.test(local) || /^0[2-8]\d{7,8}$/.test(local) || /^[2-8]\d{7,8}$/.test(local)) break;
+          return fail();
+        case 'jp':
+          if (/^0(?:70|80|90)\d{8}$/.test(local) || /^(?:70|80|90)\d{8}$/.test(local) || /^0[1-9]\d{8,9}$/.test(local) || /^[1-9]\d{8,9}$/.test(local)) break;
+          return fail();
+        case 'cn':
+          if (/^1[3-9]\d{9}$/.test(local)) break;
+          return fail();
+        case 'hk':
+          if (/^[569]\d{7}$/.test(local)) break;
+          return fail();
+        case 'mo':
+          if (/^6\d{7}$/.test(local)) break;
+          return fail();
+        case 'sg':
+          if (/^[89]\d{7}$/.test(local)) break;
+          return fail();
+        case 'my':
+          if (/^01[0-9]\d{7,8}$/.test(local) || /^1[0-9]\d{7,8}$/.test(local)) break;
+          return fail();
+        case 'kr':
+          if (/^010\d{8}$/.test(local) || /^10\d{8}$/.test(local)) break;
+          return fail();
+        case 'us':
+          if (/^[2-9]\d{2}[2-9]\d{6}$/.test(local)) break;
+          return fail();
+        case 'th':
+          if (/^0[689]\d{8}$/.test(local) || /^[689]\d{8}$/.test(local)) break;
+          return fail();
+        default:
+          return fail();
+      }
+      const normalizedLocal = local.replace(/^0+/, '');
+      return {
+        ok: true,
+        country: key,
+        label: rule.label,
+        dial: rule.dial,
+        local,
+        digits: local,
+        formatted: `${rule.dial} ${normalizedLocal}`,
+        message: `${rule.label}號碼格式正確，將以 ${rule.dial} 國際格式登入。`,
+      };
+    }
+
+    function refreshSupportPhoneLoginHint() {
+      const country = document.getElementById('support-phone-country');
+      const input = document.getElementById('support-phone-login-input');
+      const hint = document.getElementById('support-phone-login-format');
+      const msg = document.getElementById('support-phone-login-msg');
+      const key = String(country?.value || getSupportPhoneCountry()).trim().toLowerCase();
+      const rule = SUPPORT_PHONE_COUNTRY_RULES[key] || SUPPORT_PHONE_COUNTRY_RULES.tw;
+      if (hint) hint.textContent = `${rule.hint} 範例：${rule.example}`;
+      const raw = String(input?.value || '').trim();
+      if (!raw) {
+        if (input) input.classList.remove('is-invalid', 'is-valid');
+        return;
+      }
+      const result = validateSupportPhoneByCountry(key, raw);
+      if (input) {
+        input.classList.toggle('is-invalid', !result.ok);
+        input.classList.toggle('is-valid', result.ok);
+      }
+      if (msg) {
+        msg.textContent = result.ok ? result.message : result.message;
+        msg.classList.toggle('support-phone-login-msg--error', !result.ok);
+        msg.classList.toggle('support-phone-login-msg--ok', result.ok);
+      }
     }
 
     function closeFloatingPanelsExcept(exceptKey) {
@@ -9348,6 +9658,12 @@
       const backdrop = document.getElementById('support-phone-login-backdrop');
       const btn = document.getElementById('support-phone-login-toggle');
       if (!modal) return;
+      if (modal.parentElement && modal.parentElement.id === 'support-chat-widget') {
+        document.body.appendChild(modal);
+      }
+      if (backdrop && backdrop.parentElement && backdrop.parentElement.id === 'support-chat-widget') {
+        document.body.appendChild(backdrop);
+      }
       if (shouldOpen && options && options.returnToChat) supportPhoneLoginReturnToChat = true;
       if (!shouldOpen && options && options.clearReturnToChat) supportPhoneLoginReturnToChat = false;
       if (shouldOpen && !(options && options.skipExclusive)) closeFloatingPanelsExcept('phone');
@@ -9360,17 +9676,30 @@
         btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
         btn.classList.toggle('is-active', shouldOpen);
       }
+      renderSupportPhoneLoginModalState();
       if (shouldOpen) {
+        if (isSupportPhoneLoggedIn()) {
+          const msg = document.getElementById('support-phone-login-msg');
+          if (msg) {
+            msg.textContent = '';
+            msg.classList.remove('support-phone-login-msg--error', 'support-phone-login-msg--ok');
+          }
+          return;
+        }
         const input = document.getElementById('support-phone-login-input');
+        const country = document.getElementById('support-phone-country');
         const msg = document.getElementById('support-phone-login-msg');
         try {
           const cached = localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '';
+          const cachedCountry = localStorage.getItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY) || getSupportPhoneCountry();
+          if (country && SUPPORT_PHONE_COUNTRY_RULES[cachedCountry]) country.value = cachedCountry;
           if (input && cached && !input.value) input.value = cached;
         } catch (_) {}
+        refreshSupportPhoneLoginHint();
         if (msg && !String(msg.textContent || '').trim()) {
           msg.textContent = supportPhoneLoginReturnToChat
             ? '請先完成號碼登入，登入後會自動開啟 AI 智能客服。'
-            : '請輸入可聯絡的電話號碼。';
+            : '請選擇號碼所屬國家 / 地區，並輸入符合當地規範的電話號碼。';
         }
         setTimeout(() => {
           try {
@@ -9390,16 +9719,44 @@
       setSupportPhoneLoginModalOpen(open);
     }
 
+    function logoutSupportPhoneLogin() {
+      supportPhoneLoginReturnToChat = false;
+      try {
+        localStorage.removeItem(SUPPORT_PHONE_LOGIN_KEY);
+      } catch (_) {}
+      toggleSupportChat(false, { skipExclusive: true });
+      syncSupportPhoneLoginUiState();
+      const modal = document.getElementById('support-phone-login-modal');
+      if (modal && modal.style.display !== 'none') {
+        setSupportPhoneLoginModalOpen(true, { skipExclusive: true, restoreFocus: false, clearReturnToChat: true });
+        const msg = document.getElementById('support-phone-login-msg');
+        if (msg) {
+          msg.textContent = '已退出登入，請重新登入後使用智能客服。';
+          msg.classList.remove('support-phone-login-msg--ok');
+          msg.classList.add('support-phone-login-msg--error');
+        }
+      }
+    }
+
     async function submitSupportPhoneLogin() {
       const input = document.getElementById('support-phone-login-input');
+      const country = document.getElementById('support-phone-country');
       const msg = document.getElementById('support-phone-login-msg');
       const btn = document.getElementById('support-phone-login-submit');
-      const phone = String(input?.value || '').trim();
-      if (!phone) {
-        if (msg) msg.textContent = '請先輸入電話號碼。';
+      const countryKey = String(country?.value || getSupportPhoneCountry()).trim().toLowerCase();
+      const validation = validateSupportPhoneByCountry(countryKey, input?.value || '');
+      refreshSupportPhoneLoginHint();
+      if (!validation.ok) {
+        if (msg) {
+          msg.textContent = validation.message;
+          msg.classList.add('support-phone-login-msg--error');
+          msg.classList.remove('support-phone-login-msg--ok');
+        }
+        if (input) input.classList.add('is-invalid');
         if (input && typeof input.focus === 'function') input.focus();
         return;
       }
+      const phone = validation.formatted;
       if (btn) btn.disabled = true;
       if (msg) msg.textContent = '送出中…';
       try {
@@ -9407,7 +9764,7 @@
           name: '號碼登入訪客',
           phone,
           email: '',
-          note: '【號碼登入】使用者由右側浮動面板提交聯絡號碼。',
+          note: `【號碼登入】來源：${validation.label}；原始輸入：${String(input?.value || '').trim()}。`,
           action_id: 'phone_login',
           session_id: getSupportSalesSessionId(),
           conversation: typeof supportChatHandoffConversationPayload === 'function' ? supportChatHandoffConversationPayload() : [],
@@ -9416,8 +9773,14 @@
         const data = await parseApiResponseSafe(res);
         try {
           localStorage.setItem(SUPPORT_PHONE_LOGIN_KEY, phone);
+          localStorage.setItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY, validation.country);
         } catch (_) {}
-        if (msg) msg.textContent = `已登入並建立留單 #${data.handoff_id || ''}，後台可查看與編輯。`;
+        syncSupportPhoneLoginUiState();
+        if (msg) {
+          msg.textContent = `已登入：${phone}${data.handoff_id ? `｜留單 #${data.handoff_id}` : ''}`;
+          msg.classList.add('support-phone-login-msg--ok');
+          msg.classList.remove('support-phone-login-msg--error');
+        }
         const adminQ = document.getElementById('admin-handoff-q');
         if (adminQ && !adminQ.value) adminQ.value = phone;
         const shouldOpenChat = true;
@@ -9618,6 +9981,77 @@
       try {
         supportSelectedCases = dedupeSupportSelectedCaseList(supportSelectedCases).slice(0, 20);
         localStorage.setItem(SUPPORT_SELECTED_CASES_KEY, JSON.stringify(supportSelectedCases));
+        notifySupportSelectedCasesChanged('home');
+      } catch (_) {}
+    }
+
+    function getSupportSelectedCasesSignature(list) {
+      try {
+        return JSON.stringify(dedupeSupportSelectedCaseList(list).map((it) => [
+          supportSelectedCaseStableKey(it),
+          Number(it?.source_item_id || 0),
+          Number(it?.content_id || 0),
+          String(it?.title || ''),
+          String(it?.item_url || ''),
+          String(it?.price_text_hant || ''),
+        ]));
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function notifySupportSelectedCasesChanged(source) {
+      try {
+        if (!supportSelectedCasesSyncChannel && 'BroadcastChannel' in window) {
+          supportSelectedCasesSyncChannel = new BroadcastChannel(SUPPORT_SELECTED_CASES_CHANNEL);
+        }
+        if (supportSelectedCasesSyncChannel) {
+          supportSelectedCasesSyncChannel.postMessage({
+            type: 'selected-cases-updated',
+            source: source || 'home',
+            items: supportSelectedCases,
+          });
+        }
+      } catch (_) {}
+    }
+
+    async function refreshSupportSelectedCasesFromSharedStorage(options = {}) {
+      const before = getSupportSelectedCasesSignature(supportSelectedCases);
+      const next = loadSupportSelectedCasesLocal();
+      const after = getSupportSelectedCasesSignature(next);
+      if (!options.force && before === after) return false;
+      supportSelectedCases = next;
+      supportSelectedCasesDetailEnrichSig = '';
+      renderSupportSelectedCasesPanel();
+      renderSupportSelectedCasesDrawerList();
+      hydrateSupportSelectedCasesDetails({ force: true }).catch(() => {});
+      if (options.persistRemote) {
+        persistSupportSelectedCasesRemote().catch(() => {});
+      }
+      return true;
+    }
+
+    function bindSupportSelectedCasesSharedSync() {
+      if (document.documentElement.dataset.supportSelectedCasesSyncBound === '1') return;
+      document.documentElement.dataset.supportSelectedCasesSyncBound = '1';
+      window.addEventListener('storage', (ev) => {
+        if (ev.key !== SUPPORT_SELECTED_CASES_KEY) return;
+        refreshSupportSelectedCasesFromSharedStorage({ persistRemote: true }).catch(() => {});
+      });
+      window.addEventListener('focus', () => {
+        refreshSupportSelectedCasesFromSharedStorage().catch(() => {});
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshSupportSelectedCasesFromSharedStorage().catch(() => {});
+      });
+      try {
+        if ('BroadcastChannel' in window) {
+          supportSelectedCasesSyncChannel = supportSelectedCasesSyncChannel || new BroadcastChannel(SUPPORT_SELECTED_CASES_CHANNEL);
+          supportSelectedCasesSyncChannel.addEventListener('message', (ev) => {
+            if (!ev || !ev.data || ev.data.type !== 'selected-cases-updated' || ev.data.source === 'home') return;
+            refreshSupportSelectedCasesFromSharedStorage({ persistRemote: true }).catch(() => {});
+          });
+        }
       } catch (_) {}
     }
 
@@ -10041,6 +10475,13 @@
       }
       html += '</div>';
       wrap.innerHTML = html;
+    }
+
+    async function openSupportSelectedCasesComparePage() {
+      const opened = window.open('/selected-cases-compare', '_blank');
+      if (opened) {
+        try { opened.opener = null; } catch (_) {}
+      }
     }
 
     function openSupportChatForSelectedCases() {
@@ -22099,6 +22540,13 @@
     window.setSmartQueryMainTab = setSmartQueryMainTab;
     window.toggleSupportPhoneLoginModal = toggleSupportPhoneLoginModal;
     window.submitSupportPhoneLogin = submitSupportPhoneLogin;
+    window.refreshSupportPhoneLoginHint = refreshSupportPhoneLoginHint;
+    window.logoutSupportPhoneLogin = logoutSupportPhoneLogin;
+    window.toggleSupportChatMenu = toggleSupportChatMenu;
+    window.openSupportChatMenuCases = openSupportChatMenuCases;
+    window.openSupportChatHistoryPanel = openSupportChatHistoryPanel;
+    window.toggleSupportChatHistoryPanel = toggleSupportChatHistoryPanel;
+    window.toggleSupportChatSpeech = toggleSupportChatSpeech;
     window.toggleAdminDrawer = toggleAdminDrawer;
     window.unlockAdminPanel = unlockAdminPanel;
     window.clearAdminAuth = clearAdminAuth;
@@ -22189,13 +22637,25 @@
     supportSelectedCasesCollapsed = loadSupportSelectedCasesCollapsedLocal();
     supportSelectedCases = loadSupportSelectedCasesLocal();
     renderSupportSelectedCasesPanel();
+    syncSupportPhoneLoginUiState();
+    bindSupportSelectedCasesSharedSync();
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (!isAdminStandalonePage()) toggleAdminDrawer(false);
         toggleSupportSelectedCasesDrawer(false);
         toggleSupportPhoneLoginModal(false);
+        toggleSupportChatHistoryPanel(false);
+        setSupportChatMenuOpen(false);
         toggleSupportChat(false);
       }
+    });
+    document.addEventListener('click', (e) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target) return;
+      const panel = document.getElementById('support-chat-panel');
+      if (!panel || panel.style.display === 'none') return;
+      if (target.closest('#support-chat-menu') || target.closest('#support-chat-menu-toggle')) return;
+      setSupportChatMenuOpen(false);
     });
     scheduleNonCriticalStartup(loadGuidance, 32000);
     scheduleNonCriticalStartup(refreshLlmUiFromStatus, 33000);
