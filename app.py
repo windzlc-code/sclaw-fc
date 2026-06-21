@@ -76,6 +76,7 @@ from src.dialog_ai import run_dialog_ai_summary, run_smart_nav_graph_ai
 from src.search_reading_order import run_search_reading_order_ai
 from src.case_metadata import JP_AREA_FILTER_LABELS, infer_case_metadata, transaction_sql_clause
 from src.jp_map_hub_data import HOMES_STYLE_PREF_CLUSTERS, JP_MAP_ORBIT_EAST, JP_MAP_ORBIT_WEST
+from src.jp_listing_region_index import REGION_INDEX_SEARCH_KEYS, normalize_region_index_search_key
 from src.jp_real_estate_guidance import JP_REAL_ESTATE_GUIDANCE_FAQS, guidance_block_for_prompt, match_jp_real_estate_guidance
 from src.portal_case_search import (
     _extract_listing_body_image_urls,
@@ -13003,7 +13004,7 @@ def _admin_cases_where_params(
 ) -> tuple[str, list[Any]]:
     parts: list[str] = ["1=1"]
     params: list[Any] = []
-    tx_sql, tx_params = transaction_sql_clause(transaction)
+    tx_sql, tx_params = _admin_cases_transaction_sql_clause(transaction)
     parts.append(f"({tx_sql})")
     params.extend(tx_params)
     rc = (region_code or "").strip()
@@ -13012,14 +13013,25 @@ def _admin_cases_where_params(
         params.append(rc)
     ja = (jp_area or "").strip()
     if ja:
-        like = f"%{ja}%"
-        parts.append(
-            "("
-            "c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ? OR c.body_zh_hant LIKE ? OR "
-            "c.body_zh_hans LIKE ? OR s.title_original LIKE ?"
-            ")"
-        )
-        params.extend([like, like, like, like, like])
+        region_keys = _admin_cases_region_index_keys(ja)
+        if region_keys:
+            placeholders = ",".join("?" for _ in region_keys)
+            parts.append(
+                "c.source_item_id IN ("
+                "SELECT source_item_id FROM jp_listing_region_index "
+                f"WHERE region_key IN ({placeholders})"
+                ")"
+            )
+            params.extend(region_keys)
+        else:
+            like = f"%{ja}%"
+            parts.append(
+                "("
+                "c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ? OR c.body_zh_hant LIKE ? OR "
+                "c.body_zh_hans LIKE ? OR s.title_original LIKE ?"
+                ")"
+            )
+            params.extend([like, like, like, like, like])
     sid = max(0, int(jp_station_id or 0))
     if sid > 0:
         parts.append("c.jp_station_id = ?")
@@ -13034,15 +13046,84 @@ def _admin_cases_where_params(
         params.append(wmax)
     qc = (q or "").strip()
     if qc:
-        like = f"%{qc}%"
-        parts.append(
-            "("
-            "c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ? OR c.body_zh_hant LIKE ? OR "
-            "c.body_zh_hans LIKE ? OR s.title_original LIKE ? OR s.item_url LIKE ?"
-            ")"
-        )
-        params.extend([like, like, like, like, like, like])
+        fts_q = _admin_cases_fts_match_query(qc)
+        if fts_q:
+            parts.append(
+                "("
+                "c.id IN (SELECT rowid FROM content_fts WHERE content_fts MATCH ?) OR "
+                "c.source_item_id IN (SELECT rowid FROM source_fts WHERE source_fts MATCH ?)"
+                ")"
+            )
+            params.extend([fts_q, fts_q])
+        else:
+            like = f"%{qc}%"
+            parts.append(
+                "("
+                "c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ? OR s.title_original LIKE ? OR s.item_url LIKE ?"
+                ")"
+            )
+            params.extend([like, like, like, like])
     return " AND ".join(parts), params
+
+
+def _admin_cases_fts_match_query(raw: str) -> str:
+    tokens = re.findall(r"[A-Za-z0-9_@./:+-]+|[\u3040-\u30ff\u3400-\u9fff]+", str(raw or ""))
+    out: list[str] = []
+    for tok in tokens[:8]:
+        t = tok.strip().replace('"', '""')
+        if t and t not in out:
+            out.append(f'"{t}"')
+    return " OR ".join(out)
+
+
+def _admin_cases_transaction_sql_clause(side: str) -> tuple[str, list[Any]]:
+    s = (side or "").strip().lower()
+    if s == "buy":
+        return (
+            "s.content_kind = 'jp_listing' "
+            "AND instr(lower(COALESCE(s.item_url,'')), ?) = 0 "
+            "AND instr(lower(COALESCE(s.item_url,'')), ?) = 0",
+            ["chintai", "/chintai"],
+        )
+    if s == "rent":
+        return (
+            "s.content_kind = 'jp_listing' "
+            "AND (instr(lower(COALESCE(s.item_url,'')), ?) > 0 "
+            "OR instr(lower(COALESCE(s.item_url,'')), ?) > 0)",
+            ["chintai", "/chintai"],
+        )
+    return transaction_sql_clause(side)
+
+
+def _admin_cases_region_index_keys(raw: str) -> list[str]:
+    s = str(raw or "").strip()
+    if not s:
+        return []
+    candidates = [s]
+    if any(sep in s for sep in ("・", "/", "／", "、", ",")):
+        candidates.extend(x.strip() for x in re.split(r"[・/／、,]+", s) if x.strip())
+    if s in ("甲信越・北陸", "甲信越/北陸", "甲信越／北陸"):
+        candidates.extend(["甲信越", "北陸"])
+    out: list[str] = []
+    for cand in candidates:
+        key = normalize_region_index_search_key(cand)
+        if key in REGION_INDEX_SEARCH_KEYS and key not in out:
+            out.append(key)
+    return out
+
+
+def _admin_cases_filter_needs_source_join(
+    *,
+    q: str,
+    transaction: str,
+    jp_area: str,
+) -> bool:
+    """Whether the admin case filter references source_items columns."""
+    if (q or "").strip() and not _admin_cases_fts_match_query(q):
+        return True
+    if (jp_area or "").strip() and not _admin_cases_region_index_keys(jp_area):
+        return True
+    return (transaction or "").strip().lower() in ("buy", "rent")
 
 
 _CASE_CSV_COLUMNS: list[str] = [
@@ -18886,20 +18967,35 @@ def api_admin_cases(
         jp_station_id=jp_station_id,
         walk_max=walk_max,
     )
+    needs_source_join = _admin_cases_filter_needs_source_join(q=q, transaction=transaction, jp_area=jp_area)
+    fast_region_keys = _admin_cases_region_index_keys(jp_area)
+    tx_side = (transaction or "").strip().lower()
+    no_extra_admin_filters = not (q or "").strip() and not (region_code or "").strip() and int(jp_line_id or 0) <= 0 and int(jp_station_id or 0) <= 0 and int(walk_max or 0) <= 0
+    use_region_index_page = bool(fast_region_keys) and no_extra_admin_filters and not tx_side
+    use_source_tx_page = tx_side in ("buy", "rent") and no_extra_admin_filters and not (jp_area or "").strip()
     with get_conn() as conn:
-        total = int(
-            conn.execute(
-                f"""
-                SELECT COUNT(1) AS c
-                FROM content_items c
-                JOIN source_items s ON s.id = c.source_item_id
-                WHERE {where_sql}
-                """,
-                base_params,
-            ).fetchone()["c"]
+        count_from_sql = (
+            "content_items c JOIN source_items s ON s.id = c.source_item_id"
+            if needs_source_join
+            else "content_items c"
         )
-        rows = conn.execute(
-            f"""
+        if use_region_index_page:
+            placeholders = ",".join("?" for _ in fast_region_keys)
+            total = int(
+                conn.execute(
+                    f"SELECT COUNT(DISTINCT source_item_id) AS c FROM jp_listing_region_index WHERE region_key IN ({placeholders})",
+                    fast_region_keys,
+                ).fetchone()["c"]
+                or 0
+            )
+        else:
+            total = int(
+                conn.execute(
+                    f"SELECT COUNT(1) AS c FROM {count_from_sql} WHERE {where_sql}",
+                    base_params,
+                ).fetchone()["c"]
+            )
+        admin_case_select_sql = """
             SELECT
               c.id AS content_id,
               c.seo_slug,
@@ -18925,19 +19021,56 @@ def api_admin_cases(
               s.source_name,
               s.item_url,
               s.image_urls,
-              s.body_original,
+              substr(COALESCE(s.body_original,''),1,2000) AS body_original,
               s.title_original,
               COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind
-            FROM content_items c
-            JOIN source_items s ON s.id = c.source_item_id
+        """
+        admin_case_tail_sql = """
             LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
             LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
-            WHERE {where_sql}
-            ORDER BY c.updated_at DESC, c.id DESC
-            LIMIT ? OFFSET ?
-            """,
-            [*base_params, page_size, offset],
-        ).fetchall()
+        """
+        if use_region_index_page:
+            placeholders = ",".join("?" for _ in fast_region_keys)
+            rows = conn.execute(
+                f"""
+                {admin_case_select_sql}
+                FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort
+                JOIN content_items c ON c.source_item_id = rix.source_item_id
+                JOIN source_items s ON s.id = rix.source_item_id
+                {admin_case_tail_sql}
+                WHERE rix.region_key IN ({placeholders})
+                ORDER BY rix.sort_time DESC, rix.source_item_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                [*fast_region_keys, page_size, offset],
+            ).fetchall()
+        elif use_source_tx_page:
+            tx_sql, tx_params = _admin_cases_transaction_sql_clause(tx_side)
+            rows = conn.execute(
+                f"""
+                {admin_case_select_sql}
+                FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
+                JOIN content_items c ON c.source_item_id = s.id
+                {admin_case_tail_sql}
+                WHERE ({tx_sql})
+                ORDER BY s.last_checked_at DESC, s.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                [*tx_params, page_size, offset],
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"""
+                {admin_case_select_sql}
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                {admin_case_tail_sql}
+                WHERE {where_sql}
+                ORDER BY c.updated_at DESC, c.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                [*base_params, page_size, offset],
+            ).fetchall()
     items: list[dict] = []
     for r in rows:
         d = dict(r)
@@ -19190,6 +19323,12 @@ def api_admin_cases_csv_export(
         walk_max=walk_max,
     )
     lim = max(1, min(10000, int(limit)))
+    needs_source_join = _admin_cases_filter_needs_source_join(q=q, transaction=transaction, jp_area=jp_area)
+    export_from_sql = (
+        "content_items c JOIN source_items s ON s.id = c.source_item_id"
+        if needs_source_join
+        else "content_items c"
+    )
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -19203,8 +19342,7 @@ def api_admin_cases_csv_export(
               COALESCE(c.walk_min, 0) AS walk_min,
               COALESCE(c.featured_weight, 0) AS featured_weight,
               COALESCE(c.listing_media_json, '[]') AS listing_media_json
-            FROM content_items c
-            JOIN source_items s ON s.id = c.source_item_id
+            FROM {export_from_sql}
             WHERE {where_sql}
             ORDER BY c.updated_at DESC, c.id DESC
             LIMIT ?
