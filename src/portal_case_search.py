@@ -84,6 +84,23 @@ def _normalize_region_index_focus_key(raw: str) -> str:
     return key if key in REGION_INDEX_SEARCH_KEYS else ""
 
 
+def _region_hint_index_keys(raw: str) -> list[str]:
+    s = str(raw or "").strip()
+    if not s:
+        return []
+    candidates = [s]
+    if any(sep in s for sep in ("・", "/", "／", "、", ",")):
+        candidates.extend(x.strip() for x in re.split(r"[・/／、,]+", s) if x.strip())
+    if s in ("甲信越・北陸", "甲信越/北陸", "甲信越／北陸"):
+        candidates.extend(["甲信越", "北陸"])
+    out: list[str] = []
+    for cand in candidates:
+        key = _normalize_region_index_focus_key(cand) or _normalize_smart_query_geo_label(cand)
+        if key in REGION_INDEX_SEARCH_KEYS and key not in out:
+            out.append(key)
+    return out
+
+
 def _extract_simple_geo_focus_keyword(kw: str) -> str:
     tokens = _portal_keyword_tokens(kw)
     if not tokens:
@@ -4627,6 +4644,35 @@ def search_portal_cases(
             if tok0_index and rest and all(t in generic for t in rest):
                 region_hint = tok0_index
                 kw_base = ""
+    elif (region_hint or "").strip() and kw_base:
+        # The UI can carry a generic default keyword such as "関東 不動産" while
+        # the user actually clicked another map region. Treat those defaults as
+        # noise so they do not override the explicit region or force an FTS scan.
+        toks = [t for t in kw_base.split() if t]
+        if len(toks) >= 2:
+            generic = {
+                "不動産",
+                "不動產",
+                "物件",
+                "住宅",
+                "マンション",
+                "一戸建",
+                "賃貸",
+                "売買",
+                "購入",
+                "買屋",
+            }
+            first = toks[0]
+            first_norm = first
+            if first in ("関東", "关东"):
+                first_norm = "關東"
+            elif first in ("関西", "关西"):
+                first_norm = "關西"
+            elif first in ("沖縄", "冲绳"):
+                first_norm = "沖繩"
+            first_index = _normalize_region_index_focus_key(first_norm)
+            if (first_norm in _JP_AREA_LABEL_SET or first_index) and all(t in generic for t in toks[1:]):
+                kw_base = ""
     # 已選大區（如 關東/首都圏）但 keyword 又是「東京」等更細地區：視為地區精煉，避免再走關鍵字掃描。
     broad_regions = {
         "首都圏",
@@ -4712,9 +4758,18 @@ def search_portal_cases(
     region_join_params: list[Any] = []
     region_sql = ""
     region_params: list[Any] = []
+    region_index_keys = _region_hint_index_keys(region_hint)
     if region_hint:
-        region_join_sql = "JOIN jp_listing_region_index rix ON rix.source_item_id = s.id AND rix.region_key = ?"
-        region_join_params = [region_hint]
+        if region_index_keys:
+            region_placeholders = ",".join("?" for _ in region_index_keys)
+            region_join_sql = (
+                "JOIN jp_listing_region_index rix ON rix.source_item_id = s.id "
+                f"AND rix.region_key IN ({region_placeholders})"
+            )
+            region_join_params = list(region_index_keys)
+        else:
+            region_join_sql = "JOIN jp_listing_region_index rix ON rix.source_item_id = s.id AND rix.region_key = ?"
+            region_join_params = [region_hint]
 
     sid = max(0, int(jp_station_id or 0))
     lid = max(0, int(jp_line_id or 0))
@@ -4741,8 +4796,13 @@ def search_portal_cases(
         # Rare-region browse queries are fastest when driven by the prebuilt region/time index.
         region_join_sql = ""
         region_join_params = []
-        region_sql = " AND rix.region_key = ?"
-        region_params = [region_hint]
+        if region_index_keys:
+            region_placeholders = ",".join("?" for _ in region_index_keys)
+            region_sql = f" AND rix.region_key IN ({region_placeholders})"
+            region_params = list(region_index_keys)
+        else:
+            region_sql = " AND rix.region_key = ?"
+            region_params = [region_hint]
     multi_portal = len(portal_keys) > 1
     if has_transit_filter:
         # 通勤・駅搜尋需要快：交通條件本身已高度限縮，避免過度取樣造成延遲。
@@ -5009,78 +5069,59 @@ def search_portal_cases(
     )
 
     def _fetch_region_index_page_exact(conn: Any) -> tuple[list[dict[str, Any]], int, bool]:
-        needs_content_recency = int(max_age_days or 0) > 0
-        content_recency_join = (
-            "        LEFT JOIN content_items c ON c.source_item_id = s.id\n"
-            if needs_content_recency
-            else ""
+        region_rec_sql = rec_sql
+        region_rec_params = list(rec_params)
+        if int(max_age_days or 0) > 0:
+            n_days = int(max_age_days or 0)
+            source_time_sql = (
+                "COALESCE("
+                "NULLIF(TRIM(s.published_at), ''), "
+                "NULLIF(TRIM(s.last_checked_at), ''), "
+                "NULLIF(TRIM(s.crawled_at), ''), "
+                "datetime('now')"
+                ")"
+            )
+            region_rec_sql = f"date({source_time_sql}) >= date('now', '-{n_days} days')"
+            region_rec_params = []
+        count_keys = region_index_keys or [region_hint]
+        count_placeholders = ",".join("?" for _ in count_keys)
+        fast_count_sql = (
+            "SELECT COUNT(*) FROM jp_listing_region_index INDEXED BY idx_jp_listing_region_sort "
+            f"WHERE region_key IN ({count_placeholders})"
         )
-        base_where_count = (
-            "FROM jp_listing_region_index rix\n"
-            "        JOIN source_items s ON s.id = rix.source_item_id\n"
-            "{content_recency_join}"
-            "        WHERE ({tx_sql})\n"
-            "          AND ({portal_sql})\n"
-            "          AND ({rec_sql})\n"
-            "          {region_sql}"
-        ).format(
-            content_recency_join=content_recency_join,
-            tx_sql=tx_sql,
-            portal_sql=portal_sql,
-            rec_sql=rec_sql,
-            region_sql=region_sql,
-        )
+        fast_count_params: list[Any] = list(count_keys)
+        if int(max_age_days or 0) > 0:
+            fast_count_sql += " AND sort_time >= datetime('now', ?)"
+            fast_count_params.append(f"-{int(max_age_days or 0)} days")
         base_where_page = (
             "FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort\n"
             "        JOIN source_items s ON s.id = rix.source_item_id\n"
-            "{content_recency_join}"
             "        WHERE ({tx_sql})\n"
             "          AND ({portal_sql})\n"
             "          AND ({rec_sql})\n"
             "          AND ({suumo_guard})\n"
             "          {region_sql}"
         ).format(
-            content_recency_join=content_recency_join,
             tx_sql=tx_sql,
             portal_sql=portal_sql,
-            rec_sql=rec_sql,
+            rec_sql=region_rec_sql,
             suumo_guard=_suumo_ms_guard,
             region_sql=region_sql,
         )
         base_params: list[Any] = [
             *tx_params,
             *portal_params,
-            *rec_params,
+            *region_rec_params,
             *region_params,
         ]
-        total_sql = (
-            f"SELECT COUNT(DISTINCT rix.source_item_id) {base_where_count}"
-            if needs_content_recency
-            else f"SELECT COUNT(*) {base_where_count}"
-        )
-        total_row = conn.execute(
-            total_sql,
-            base_params,
-        ).fetchone()
+        total_row = conn.execute(fast_count_sql, fast_count_params).fetchone()
         total_count = int((total_row[0] if total_row else 0) or 0)
-        if total_count <= 0:
-            return [], 0, True
-        page_sid_sql = (
-            f"""
-            SELECT rix.source_item_id
-            {base_where_page}
-            GROUP BY rix.source_item_id
-            ORDER BY MAX(rix.sort_time) DESC, rix.source_item_id DESC
-            LIMIT ? OFFSET ?
-            """
-            if needs_content_recency
-            else f"""
+        page_sid_sql = f"""
             SELECT rix.source_item_id
             {base_where_page}
             ORDER BY rix.sort_time DESC, rix.source_item_id DESC
             LIMIT ? OFFSET ?
             """
-        )
         sid_rows = conn.execute(
             page_sid_sql,
             [*base_params, requested_page_size, page_offset],
@@ -5190,7 +5231,7 @@ def search_portal_cases(
                 "count_exact": bool(total_count_exact),
                 "count_provisional": not bool(total_count_exact),
                 "truncation_note": False,
-                "search_scope_note_zh": "目前使用區域索引直接分頁與精確總數；案件頁面會按頁即時載入，不再以截斷窗口估算整區筆數。",
+                "search_scope_note_zh": "目前使用區域索引快速分頁；總數先用區域索引快速估算，案件頁面按頁即時載入，避免首屏被全量計數拖慢。",
                 "broad_inventory_browse": bool(broad_inventory_browse),
                 "page_offset": page_offset,
                 "page_size": requested_page_size,
