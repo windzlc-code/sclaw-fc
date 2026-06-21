@@ -25,8 +25,12 @@ from src.jp_listing_region_index import REGION_INDEX_SEARCH_KEYS, normalize_regi
 
 # 與「日本區域」下拉、巡檢矩陣地區列一致，供關鍵字首詞推斷
 _JP_AREA_LABEL_SET: frozenset[str] = frozenset(x for x in JP_AREA_FILTER_LABELS if str(x or "").strip())
-_SMART_QUERY_GENERIC_GEO_KEYWORDS: frozenset[str] = frozenset({"不動産", "不動產", "賃貸", "物件", "住宅"})
+_SMART_QUERY_GENERIC_GEO_KEYWORDS: frozenset[str] = frozenset({"不動産", "不動產", "不动産", "不动产", "賃貸", "物件", "住宅"})
 _SMART_QUERY_REGION_ALIASES: dict[str, str] = {
+    "关东": "關東",
+    "关西": "關西",
+    "冲绳": "沖繩",
+    "中国地方": "中國地方",
     "中國": "中國地方",
     "中国": "中國地方",
     "中國地區": "中國地方",
@@ -4618,6 +4622,9 @@ def search_portal_cases(
                 "不動産",
                 "物件",
                 "住宅",
+                "不動產",
+                "不动産",
+                "不动产",
                 "マンション",
                 "一戸建",
                 "賃貸",
@@ -4633,6 +4640,9 @@ def search_portal_cases(
                 "不動産",
                 "物件",
                 "住宅",
+                "不動產",
+                "不动産",
+                "不动产",
                 "マンション",
                 "一戸建",
                 "賃貸",
@@ -4653,6 +4663,8 @@ def search_portal_cases(
             generic = {
                 "不動産",
                 "不動產",
+                "不动産",
+                "不动产",
                 "物件",
                 "住宅",
                 "マンション",

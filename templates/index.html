@@ -7543,9 +7543,13 @@
     function warmFigureCaseItems(items, options = {}) {
       const rows = Array.isArray(items) ? items : [];
       if (!rows.length) return;
-      const thumbPerItem = Math.max(1, Math.min(3, parseInt(String(options.thumbPerItem || 1), 10) || 1));
-      const fullPerItem = Math.max(0, Math.min(2, parseInt(String(options.fullPerItem || 0), 10) || 0));
-      const maxUrls = Math.max(1, Math.min(48, parseInt(String(options.maxUrls || 18), 10) || 18));
+      const thumbPerItemRaw = options.thumbPerItem == null ? 1 : options.thumbPerItem;
+      const fullPerItemRaw = options.fullPerItem == null ? 0 : options.fullPerItem;
+      const maxUrlsRaw = options.maxUrls == null ? 18 : options.maxUrls;
+      const thumbPerItem = Math.max(0, Math.min(3, parseInt(String(thumbPerItemRaw), 10) || 0));
+      const fullPerItem = Math.max(0, Math.min(2, parseInt(String(fullPerItemRaw), 10) || 0));
+      const maxUrls = Math.max(0, Math.min(48, parseInt(String(maxUrlsRaw), 10) || 0));
+      if (maxUrls <= 0 || (thumbPerItem <= 0 && fullPerItem <= 0)) return;
       const basePriority = Number(options.priorityBase || 0) || 0;
       let queued = 0;
       rows.some((item, itemIndex) => {
@@ -7574,9 +7578,12 @@
 
     function warmFigureCaseCards(cards, options = {}) {
       const rows = Array.isArray(cards) ? cards : [];
-      const thumbPerCard = Math.max(1, Math.min(3, parseInt(String(options.thumbPerCard || 1), 10) || 1));
-      const fullPerCard = Math.max(0, Math.min(2, parseInt(String(options.fullPerCard || 0), 10) || 0));
+      const thumbPerCardRaw = options.thumbPerCard == null ? 1 : options.thumbPerCard;
+      const fullPerCardRaw = options.fullPerCard == null ? 0 : options.fullPerCard;
+      const thumbPerCard = Math.max(0, Math.min(3, parseInt(String(thumbPerCardRaw), 10) || 0));
+      const fullPerCard = Math.max(0, Math.min(2, parseInt(String(fullPerCardRaw), 10) || 0));
       const basePriority = Number(options.priorityBase || 0) || 0;
+      if (thumbPerCard <= 0 && fullPerCard <= 0) return;
       rows.forEach((card, cardIndex) => {
         if (!(card instanceof Element)) return;
         const media = card.querySelector('.portal-suumo-card-media');
@@ -7599,7 +7606,7 @@
       const shell = root.matches('.figure-results-carousel-shell') ? root : root.querySelector('.figure-results-carousel-shell');
       if (!shell) {
         warmFigureCaseCards(
-          Array.from(root.querySelectorAll('.market-item-card.figure-case-card')).slice(0, 6),
+          Array.from(root.querySelectorAll('.market-item-card.figure-case-card')).slice(0, 2),
           { thumbPerCard: 1, fullPerCard: 0, priorityBase: 0 }
         );
         return;
@@ -7609,14 +7616,14 @@
       const current = pages[Math.max(0, Math.min(pages.length - 1, currentPageIndex))];
       const next = pages[(Math.max(0, Math.min(pages.length - 1, currentPageIndex)) + 1) % pages.length];
       if (current) {
-        warmFigureCaseCards(Array.from(current.querySelectorAll('.market-item-card.figure-case-card')), {
+        warmFigureCaseCards(Array.from(current.querySelectorAll('.market-item-card.figure-case-card')).slice(0, 2), {
           thumbPerCard: 1,
           fullPerCard: 0,
           priorityBase: 0,
         });
       }
       if (next && next !== current) {
-        warmFigureCaseCards(Array.from(next.querySelectorAll('.market-item-card.figure-case-card')), {
+        warmFigureCaseCards(Array.from(next.querySelectorAll('.market-item-card.figure-case-card')).slice(0, 1), {
           thumbPerCard: 1,
           fullPerCard: 0,
           priorityBase: 120,
@@ -8063,13 +8070,13 @@
       bindPagedFigureResultsMediaGuard(state, page);
       if (typeof warmFigureCaseItems === 'function') {
         warmFigureCaseItems(items, {
-          thumbPerItem: 1,
+          thumbPerItem: 0,
           fullPerItem: 0,
-          maxUrls: 18,
+          maxUrls: 0,
           priorityBase: pageIndex === getPagedFigureResultsDisplayPage(state) ? 0 : 90,
         });
       }
-      warmFigureCaseCards(Array.from(page.querySelectorAll('.market-item-card.figure-case-card')), {
+      warmFigureCaseCards(Array.from(page.querySelectorAll('.market-item-card.figure-case-card')).slice(0, 2), {
         thumbPerCard: 1,
         fullPerCard: 0,
         priorityBase: 0,
@@ -8200,11 +8207,12 @@
             payload: payload || {},
           };
           state.pageCache.set(target, pageData);
-          if (typeof warmFigureCaseItems === 'function') {
+          const shouldWarmMedia = !options || options.preloadMedia !== false;
+          if (shouldWarmMedia && typeof warmFigureCaseItems === 'function') {
             warmFigureCaseItems(pageData.items, {
               thumbPerItem: 1,
               fullPerItem: 0,
-              maxUrls: 14,
+              maxUrls: 6,
               priorityBase: Math.abs(target - getPagedFigureResultsDisplayPage(state)) <= 1 ? 30 : 140,
             });
           }
@@ -8228,7 +8236,7 @@
       if (!state) return;
       const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
       if (target === state.currentPage || state.pageCache.has(target) || state.pagePromises.has(target)) return;
-      getPagedFigureResultsPage(state, target).catch(() => {});
+      getPagedFigureResultsPage(state, target, { preloadMedia: false }).catch(() => {});
     }
 
     async function setPagedFigureResultsPage(state, pageIndex, options = {}) {
@@ -8250,9 +8258,9 @@
         const cachedData = state.pageCache.get(target) || { items: [] };
         if (typeof warmFigureCaseItems === 'function') {
           warmFigureCaseItems(cachedData?.items || [], {
-            thumbPerItem: 2,
+            thumbPerItem: 0,
             fullPerItem: 0,
-            maxUrls: 18,
+            maxUrls: 0,
             priorityBase: 0,
           });
         }
@@ -8286,9 +8294,9 @@
         syncPagedFigureResultsControls(state);
         if (typeof warmFigureCaseItems === 'function') {
           warmFigureCaseItems(pageData?.items || [], {
-            thumbPerItem: 2,
+            thumbPerItem: 0,
             fullPerItem: 0,
-            maxUrls: 18,
+            maxUrls: 0,
             priorityBase: 0,
           });
         }
@@ -10677,6 +10685,18 @@
       const input = document.getElementById('support-chat-input');
       if (input && !String(input.value || '').trim() && supportSelectedCases.length) {
         input.value = `我已選 ${supportSelectedCases.length} 筆案件，請協助比較重點與建議。`;
+      }
+      focusSupportChatInput({ allowMobile: true, delay: 180 });
+    }
+
+    function openSupportChatForCaseFromCard(btn) {
+      const sid = Math.max(0, parseInt(String(btn && btn.getAttribute ? btn.getAttribute('data-case-sid') : '0'), 10) || 0);
+      toggleSupportChat(true);
+      const input = document.getElementById('support-chat-input');
+      if (input && sid) {
+        const prefix = `案件編號 ${sid}：請協助聯繫顧問／填單引導。`;
+        const cur = String(input.value || '').trim();
+        input.value = cur && !cur.includes(String(sid)) ? `${prefix}\n${cur}` : cur || prefix;
       }
       focusSupportChatInput({ allowMobile: true, delay: 180 });
     }
@@ -19813,8 +19833,8 @@
         const noImageCopyHtml = portalCaseNoImageCopyHtml(hasReferenceImage ? 'fetch_failed' : 'missing_reference');
         const imageMetaText = esc([it.area_text_hant, it.layout_text_hant].map((x) => String(x || '').trim()).filter(Boolean).join(' ｜ ') || sub || '日本不動產');
         const imageWarm = hasReferenceImage && typeof isFigureCaseMediaWarm === 'function' && isFigureCaseMediaWarm(mainSrc);
-        const imageLoading = index < 6 || imageWarm ? 'eager' : 'lazy';
-        const imageFetchPriority = index < 3 || imageWarm ? 'high' : 'low';
+        const imageLoading = index < 2 || imageWarm ? 'eager' : 'lazy';
+        const imageFetchPriority = index < 1 || imageWarm ? 'high' : 'low';
         const caseSidAttr = sid > 0 ? ` data-case-sid="${sid}"` : '';
         const mediaBlock = mainSrc
           ? `<div class="figure-case-thumb portal-suumo-card-media${hasReferenceImage ? ' portal-suumo-card-media--loading' : ''}${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>
@@ -19864,7 +19884,7 @@
                   }
                   ${isSuumoUnstable && rawItemUrl ? `<a class="portal-suumo-cta portal-suumo-cta--ghost" href="${esc(rawItemUrl)}" target="_blank" rel="nofollow noopener">嘗試原站</a>` : ''}
                   <a class="portal-suumo-cta portal-suumo-cta--ghost" href="${esc(internal)}" target="_blank" rel="noopener noreferrer">站內明細</a>
-                  ${sid ? `<a class="portal-suumo-cta portal-suumo-cta--consult portal-suumo-cta--compact" href="/?open_support=1&case_sid=${sid}">智能客服</a>` : ''}
+                  ${sid ? `<button type="button" class="portal-suumo-cta portal-suumo-cta--consult portal-suumo-cta--compact" data-case-sid="${sid}" onclick="openSupportChatForCaseFromCard(this)">智能客服</button>` : ''}
                 </div>
                 <div class="figure-case-actions">
                   <button type="button" class="secondary figure-case-fav-btn" data-support-fav-case-key="${esc(caseKey)}" onclick='toggleFigureCaseFavoriteByKey(${caseKeyJs}, this)' aria-pressed="false">
@@ -23189,6 +23209,7 @@
     window.logoutSupportPhoneLogin = logoutSupportPhoneLogin;
     window.toggleSupportChatMenu = toggleSupportChatMenu;
     window.openSupportChatMenuCases = openSupportChatMenuCases;
+    window.openSupportChatForCaseFromCard = openSupportChatForCaseFromCard;
     window.openSupportChatHistoryPanel = openSupportChatHistoryPanel;
     window.toggleSupportChatHistoryPanel = toggleSupportChatHistoryPanel;
     window.toggleSupportChatSpeech = toggleSupportChatSpeech;
