@@ -56,6 +56,23 @@ def _host_key(url: str) -> str:
     return ""
 
 
+def _looks_like_blocked_detail_response(title: str, body: str) -> bool:
+    text = f"{title}\n{body}".lower()
+    return any(
+        token in text
+        for token in (
+            "認証中",
+            "認證中",
+            "认证中",
+            "click to verify",
+            "captcha",
+            "human verification",
+            "awswaf",
+            "通常のサイト閲覧を超える速度",
+        )
+    )
+
+
 def _timeout_for_url(item_url: str) -> float:
     ul = item_url.lower()
     if "realestate.yahoo.co.jp" in ul and ("/land/search/" in ul or "/used/mansion/search/" in ul):
@@ -227,11 +244,17 @@ def run_empty_image_backfill(
             skip += 1
             continue
         img_lines = _merge_image_lines(row.get("image_urls") or "", list(imgs or []), item_url=item_url)
-        title_new = (
-            str(title).strip()[:200]
-            if title and str(title).strip()
-            else str(row.get("title_original") or "")[:200]
-        )
+        blocked_response = _looks_like_blocked_detail_response(str(title or ""), str(body_original or ""))
+        if blocked_response:
+            skip += 1
+            continue
+        else:
+            title_new = (
+                str(title).strip()[:200]
+                if title and str(title).strip()
+                else str(row.get("title_original") or "")[:200]
+            )
+            body_new = str(body_original or "").strip()
         if dry_run:
             ok += 1
             continue
@@ -248,7 +271,7 @@ def run_empty_image_backfill(
                 """,
                 (
                     title_new,
-                    str(body_original or "").strip(),
+                    body_new,
                     img_lines,
                     now,
                     now,
@@ -350,11 +373,24 @@ def enrich_single_source_item_by_id(
         return {"ok": False, "error": "empty response from source page"}
 
     img_lines = _merge_image_lines(drow.get("image_urls") or "", list(imgs or []), item_url=item_url)
-    title_new = (
-        str(title).strip()[:200]
-        if title and str(title).strip()
-        else str(drow.get("title_original") or "")[:200]
-    )
+    blocked_response = _looks_like_blocked_detail_response(str(title or ""), str(body_original or ""))
+    if blocked_response:
+        return {
+            "ok": False,
+            "error": "source returned blocked verification page; data was not overwritten",
+            "source_item_id": sid,
+            "item_url": item_url,
+            "host": _host_key(item_url),
+            "blocked_response": True,
+            "preserved_existing": True,
+        }
+    else:
+        title_new = (
+            str(title).strip()[:200]
+            if title and str(title).strip()
+            else str(drow.get("title_original") or "")[:200]
+        )
+        body_new = str(body_original or "").strip()
 
     if dry_run:
         return {
@@ -364,7 +400,8 @@ def enrich_single_source_item_by_id(
             "item_url": item_url,
             "host": _host_key(item_url),
             "merged_image_lines": len(img_lines.splitlines()),
-            "body_chars": len(str(body_original or "")),
+            "body_chars": len(body_new),
+            "blocked_response": bool(blocked_response),
         }
 
     with get_conn() as conn:
@@ -380,7 +417,7 @@ def enrich_single_source_item_by_id(
             """,
             (
                 title_new,
-                str(body_original or "").strip(),
+                body_new,
                 img_lines,
                 now,
                 now,
@@ -395,5 +432,6 @@ def enrich_single_source_item_by_id(
         "item_url": item_url,
         "host": _host_key(item_url),
         "image_urls_lines": len(img_lines.splitlines()),
-        "body_chars": len(str(body_original or "").strip()),
+        "body_chars": len(body_new),
+        "blocked_response": bool(blocked_response),
     }

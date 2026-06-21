@@ -49,7 +49,7 @@
     "mainstream_portal": true,
     "official_market_data": true,
     "ownership_registry": false,
-    "auction": false,
+    "auction": true,
     "sell_assessment": false,
     "developer_brand": false,
     "kansai_local": false,

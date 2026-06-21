@@ -457,6 +457,7 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                         item["jp_region_display_zh"] = region
                 data["items"] = items_bf
                 data["portal_thumb_backfill"] = bf_meta
+                data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
                 data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
                 data["allowed_transactions"] = allowed_tx
                 data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
@@ -546,6 +547,11 @@ def _portal_case_search_cache_set(key: str, body: str) -> None:
         while len(_PORTAL_CASE_SEARCH_CACHE) > _PORTAL_CASE_SEARCH_CACHE_MAX:
             oldest = min(_PORTAL_CASE_SEARCH_CACHE.items(), key=lambda kv: kv[1][0])[0]
             _PORTAL_CASE_SEARCH_CACHE.pop(oldest, None)
+
+
+def _portal_case_search_cache_clear() -> None:
+    with _PORTAL_CASE_SEARCH_CACHE_LOCK:
+        _PORTAL_CASE_SEARCH_CACHE.clear()
 
 
 def _portal_case_search_exact_count_ttl() -> float:
@@ -3246,6 +3252,14 @@ class CaseQualityBatchRunPost(BaseModel):
     sleep: float = Field(default=0.35, ge=0.0, le=5.0)
 
 
+class AdminCleanupInvalidSourcePost(BaseModel):
+    """清理原站回傳認證／驗證頁造成的失效案件快取。"""
+
+    dry_run: bool = True
+    limit: int = Field(default=500, ge=1, le=5000)
+    hosts: str = ""  # comma-separated host keys; empty = all
+
+
 class AdminCasePatchRequest(BaseModel):
     title_zh_hant: str | None = None
     title_zh_hans: str | None = None
@@ -4444,7 +4458,13 @@ def _is_non_listing_asset_url(lu: str) -> bool:
         "/edit/assets/suumo/img/pagetop",
         "inc_cm_top_",
         "inc_kr_top_",
+        "inc_kr_detail_",
         "inc_cm_all_",
+        "jjcommon/img/btn",
+        "mailmaga",
+        "melmaga",
+        "merumaga",
+        "mail_magazine",
         "menuclose_soba",
         "barcode",
         "gomezbaibai",
@@ -18632,6 +18652,142 @@ def api_cases_dashboard_thumb_backfill_remaining_three_alias(
     return api_admin_thumb_backfill_remaining_three(payload, request)
 
 
+_BLOCKED_SOURCE_SQL = """
+(
+  COALESCE(s.title_original,'') LIKE '%認証中%'
+  OR COALESCE(s.title_original,'') LIKE '%認證中%'
+  OR COALESCE(s.title_original,'') LIKE '%认证中%'
+  OR COALESCE(s.body_original,'') LIKE '%Click to verify%'
+  OR COALESCE(s.body_original,'') LIKE '%click to verify%'
+  OR COALESCE(s.body_original,'') LIKE '%captcha%'
+  OR COALESCE(s.body_original,'') LIKE '%human verification%'
+  OR COALESCE(s.body_original,'') LIKE '%awswaf%'
+  OR COALESCE(s.body_original,'') LIKE '%通常のサイト閲覧を超える速度%'
+)
+"""
+
+
+def _admin_cleanup_invalid_source_cache(payload: AdminCleanupInvalidSourcePost) -> dict[str, Any]:
+    lim = max(1, min(5000, int(payload.limit or 500)))
+    host_filter = _parse_host_filter_csv(str(payload.hosts or ""))
+    host_sql = ""
+    params: list[Any] = []
+    if host_filter:
+        clauses: list[str] = []
+        for host in sorted(host_filter):
+            clauses.append("lower(s.item_url) LIKE ?")
+            params.append(f"%{host.lower()}%")
+        host_sql = " AND (" + " OR ".join(clauses) + ")"
+    select_sql = f"""
+        SELECT s.id, s.source_name, s.item_url, s.title_original,
+               length(COALESCE(s.image_urls,'')) AS image_len,
+               COALESCE(s.access_status,'public') AS access_status,
+               c.id AS content_id
+        FROM source_items s
+        LEFT JOIN content_items c ON c.source_item_id = s.id
+        WHERE {_BLOCKED_SOURCE_SQL}
+          {host_sql}
+        ORDER BY s.last_checked_at DESC, s.id DESC
+        LIMIT ?
+    """
+    with get_conn() as conn:
+        rows = [dict(r) for r in conn.execute(select_sql, (*params, lim)).fetchall()]
+        total_row = conn.execute(
+            f"""
+            SELECT COUNT(1) AS c
+            FROM source_items s
+            WHERE {_BLOCKED_SOURCE_SQL}
+              {host_sql}
+            """,
+            params,
+        ).fetchone()
+        total = int(total_row["c"] if total_row else 0)
+        if not payload.dry_run and rows:
+            now = datetime.now(timezone.utc).isoformat()
+            source_ids = [int(r["id"]) for r in rows if int(r.get("id") or 0) > 0]
+            for sid in source_ids:
+                conn.execute(
+                    """
+                    UPDATE source_items
+                    SET title_original = ?,
+                        body_original = '',
+                        access_status = 'restricted',
+                        access_note = ?,
+                        last_checked_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        f"原站資料待重新抓取（source #{sid}）",
+                        "原站曾回傳驗證／認證頁，已清理失效快取；請執行原站補抓後再公開展示。",
+                        now,
+                        sid,
+                    ),
+                )
+                conn.execute(
+                    """
+                    UPDATE content_items
+                    SET title_zh_hant = CASE
+                            WHEN title_zh_hant LIKE '%認証中%' OR title_zh_hant LIKE '%認證中%' OR title_zh_hant LIKE '%认证中%'
+                            THEN '原站資料待重新抓取'
+                            ELSE title_zh_hant
+                        END,
+                        title_zh_hans = CASE
+                            WHEN title_zh_hans LIKE '%認証中%' OR title_zh_hans LIKE '%認證中%' OR title_zh_hans LIKE '%认证中%'
+                            THEN '原站资料待重新抓取'
+                            ELSE title_zh_hans
+                        END,
+                        body_zh_hant = CASE
+                            WHEN body_zh_hant LIKE '%認証中%' OR body_zh_hant LIKE '%Click to verify%' OR body_zh_hant LIKE '%通常のサイト閲覧を超える速度%'
+                            THEN '原站曾回傳驗證／認證頁，這筆資料已清理並標記為待重新抓取。請在後台執行原站補抓，成功取得真實詳情後再公開展示。'
+                            ELSE body_zh_hant
+                        END,
+                        body_zh_hans = CASE
+                            WHEN body_zh_hans LIKE '%認証中%' OR body_zh_hans LIKE '%Click to verify%' OR body_zh_hans LIKE '%通常のサイト閲覧を超える速度%'
+                            THEN '原站曾返回验证／认证页，这笔资料已清理并标记为待重新抓取。请在后台执行原站补抓，成功取得真实详情后再公开展示。'
+                            ELSE body_zh_hans
+                        END,
+                        listing_media_json = CASE
+                            WHEN listing_media_json LIKE '%認証中%' OR listing_media_json LIKE '%Click to verify%'
+                            THEN '[]'
+                            ELSE listing_media_json
+                        END,
+                        updated_at = ?
+                    WHERE source_item_id = ?
+                    """,
+                    (now, sid),
+                )
+            conn.commit()
+    return {
+        "ok": True,
+        "dry_run": bool(payload.dry_run),
+        "total_matched": total,
+        "processed_rows": len(rows),
+        "updated_rows": 0 if payload.dry_run else len(rows),
+        "hosts": sorted(host_filter) if host_filter else None,
+        "sample": rows[:12],
+        "message": "dry-run only" if payload.dry_run else "invalid source cache cleaned",
+    }
+
+
+@app.post("/api/admin/cases/cleanup-invalid-source")
+def api_admin_cases_cleanup_invalid_source(payload: AdminCleanupInvalidSourcePost, request: Request):
+    _require_admin_password(request)
+    out = _admin_cleanup_invalid_source_cache(payload)
+    _portal_case_search_cache_clear()
+    _CASE_PAGE_HTML_CACHE.clear()
+    return JSONResponse(out)
+
+
+@app.post("/api/cases/cleanup-invalid-source")
+def api_cases_cleanup_invalid_source_alias(payload: AdminCleanupInvalidSourcePost, request: Request):
+    return api_admin_cases_cleanup_invalid_source(payload, request)
+
+
+@app.post("/api/cases-dashboard/cleanup-invalid-source")
+def api_cases_dashboard_cleanup_invalid_source_alias(payload: AdminCleanupInvalidSourcePost, request: Request):
+    return api_admin_cases_cleanup_invalid_source(payload, request)
+
+
 @app.post("/api/admin/cases/enrich-from-source")
 def api_admin_case_enrich_from_source(payload: AdminCaseEnrichFromSourcePost, request: Request):
     """依 source_item_id 向原站重抓並合併 image_urls／body／title（七大門戶等 live_enrich 白名單）。"""
@@ -22907,6 +23063,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
                 item["jp_region_display_zh"] = response_region_hint
     items_bf = _portal_case_prioritize_displayable_media(items_bf)
     data["items"] = items_bf
+    data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
     # Keep search responses CPU/IO-light: cards can lazy-load through the image
     # proxy/cache after the first page is rendered. Forced prefetch here competes
     # with SQLite on cold region searches and is the main reason area clicks feel
@@ -25172,6 +25329,14 @@ def _persist_live_enrich_snapshot_if_enabled(
     """若設 SCLAW_PERSIST_LIVE_ENRICH=1（或 force），將即時補抓結果寫回 source_items。"""
     if not snap:
         return
+    snap_title = str(snap.get("title_original") or "")
+    snap_body = str(snap.get("body_original") or "")
+    if re.search(
+        r"(?:認証中|認證中|认证中|Click to verify|captcha|human verification|awswaf|通常のサイト閲覧を超える速度)",
+        f"{snap_title}\n{snap_body}",
+        flags=re.I,
+    ):
+        return
     if not force and not _effective_live_enrich_persist_enabled():
         return
     sid = int(source_item_id or 0)
@@ -25391,6 +25556,173 @@ def _portal_api_backfill_empty_thumbs(
         meta["filled"] += 1
         out.append(nit)
     return out, meta
+
+
+_PORTAL_SEARCH_ENRICH_LOCK = threading.Lock()
+_PORTAL_SEARCH_ENRICH_INFLIGHT: set[int] = set()
+_PORTAL_SEARCH_ENRICH_RECENT: dict[int, float] = {}
+_PORTAL_SEARCH_ENRICH_RECENT_MAX = 1200
+
+
+def _source_item_text_has_any(source_item_id: int, tokens: tuple[str, ...]) -> bool:
+    sid = int(source_item_id or 0)
+    if sid <= 0 or not tokens:
+        return False
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(title_original,'') || '\n' || COALESCE(body_original,'') AS text FROM source_items WHERE id = ?",
+                (sid,),
+            ).fetchone()
+    except Exception:
+        return False
+    text = str((dict(row) if row else {}).get("text") or "")
+    return any(tok in text for tok in tokens)
+
+
+def _portal_item_needs_detail_enrich(item: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Whether a search card should be refreshed from the official detail page.
+
+    Keep this deliberately focused on fields the card/detail comparison depends on;
+    broad live fetches inside search were the source of earlier timeout issues.
+    """
+    reasons: list[str] = []
+    sid = int(item.get("source_item_id") or 0)
+    if sid <= 0:
+        return False, ["missing_source_item_id"]
+    url = str(item.get("item_url") or "").strip()
+    if not url or not live_enrich_eligible_url(url):
+        return False, ["ineligible_url"]
+    price = str(item.get("price_text_hant") or "").strip()
+    area = str(item.get("area_text_hant") or "").strip()
+    layout = str(item.get("layout_text_hant") or "").strip()
+    title = str(item.get("title_original") or "")
+    snippet = str(item.get("snippet_jp") or "")
+    blocked_snapshot = bool("認証中" in title or "認証中" in snippet)
+    if not price:
+        reasons.append("missing_price")
+    if not area:
+        reasons.append("missing_area")
+    if not layout:
+        reasons.append("missing_layout")
+    if _portal_item_thumb_needs_property_backfill(item):
+        reasons.append("missing_or_bad_media")
+    # Some crawler-blocked pages keep only the WAF text plus a short fallback; these
+    # need a real source refresh even if one title-derived field was parsed.
+    if blocked_snapshot and (not area or not price):
+        reasons.append("blocked_source_snapshot")
+    return bool(reasons), reasons
+
+
+def _portal_search_detail_enrich_enabled() -> bool:
+    raw = os.getenv("SCLAW_PORTAL_SEARCH_DETAIL_ENRICH")
+    if raw is None or str(raw).strip() == "":
+        return True
+    return str(raw).strip().lower() not in ("0", "false", "no", "off")
+
+
+def _portal_search_detail_enrich_cooldown_s() -> float:
+    try:
+        return max(60.0, min(86400.0, float(os.getenv("SCLAW_PORTAL_SEARCH_DETAIL_ENRICH_COOLDOWN", "1800") or 1800)))
+    except Exception:
+        return 1800.0
+
+
+def _portal_search_detail_enrich_limit() -> int:
+    try:
+        return max(0, min(12, int(os.getenv("SCLAW_PORTAL_SEARCH_DETAIL_ENRICH_MAX", "6") or 6)))
+    except Exception:
+        return 6
+
+
+def _portal_search_enrich_one_source_item(source_item_id: int) -> dict[str, Any]:
+    sid = int(source_item_id or 0)
+    if sid <= 0:
+        return {"ok": False, "error": "missing_source_item_id"}
+    from src.thumb_backfill_service import enrich_single_source_item_by_id
+
+    out = enrich_single_source_item_by_id(sid, force=True, dry_run=False)
+    if not out.get("ok"):
+        return out
+    media_fix: dict[str, Any] = {}
+    text_fix: dict[str, Any] = {}
+    try:
+        media_fix = _sync_case_listing_media_from_source_item_id(sid, force=True, dry_run=False)
+    except Exception as exc:
+        media_fix = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    try:
+        text_fix = _repair_case_text_fields_from_source_item_id(sid, dry_run=False)
+    except Exception as exc:
+        text_fix = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {**out, "media_fix": media_fix, "text_fix": text_fix}
+
+
+def _portal_search_detail_enrich_worker(source_item_ids: list[int]) -> None:
+    changed = False
+    try:
+        for sid in source_item_ids:
+            try:
+                out = _portal_search_enrich_one_source_item(int(sid))
+                if out.get("ok"):
+                    changed = True
+            except Exception as exc:
+                print(f"SCLAW: portal search detail enrich error sid={sid}: {type(exc).__name__}: {exc}", flush=True)
+            finally:
+                with _PORTAL_SEARCH_ENRICH_LOCK:
+                    _PORTAL_SEARCH_ENRICH_INFLIGHT.discard(int(sid))
+                    _PORTAL_SEARCH_ENRICH_RECENT[int(sid)] = time.monotonic()
+                    while len(_PORTAL_SEARCH_ENRICH_RECENT) > _PORTAL_SEARCH_ENRICH_RECENT_MAX:
+                        oldest = min(_PORTAL_SEARCH_ENRICH_RECENT.items(), key=lambda kv: kv[1])[0]
+                        _PORTAL_SEARCH_ENRICH_RECENT.pop(oldest, None)
+    finally:
+        if changed:
+            _portal_case_search_cache_clear()
+            _CASE_PAGE_HTML_CACHE.clear()
+
+
+def _portal_search_schedule_detail_enrich(items: list[dict[str, Any]]) -> dict[str, Any]:
+    meta: dict[str, Any] = {"enabled": False, "scheduled": 0, "candidates": 0, "reasons": {}}
+    if not _portal_search_detail_enrich_enabled():
+        meta["disabled_reason"] = "env_disabled"
+        return meta
+    limit = _portal_search_detail_enrich_limit()
+    if limit <= 0:
+        meta["disabled_reason"] = "limit_zero"
+        return meta
+    meta["enabled"] = True
+    cooldown = _portal_search_detail_enrich_cooldown_s()
+    now = time.monotonic()
+    picks: list[int] = []
+    with _PORTAL_SEARCH_ENRICH_LOCK:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            needs, reasons = _portal_item_needs_detail_enrich(item)
+            if not needs:
+                continue
+            sid = int(item.get("source_item_id") or 0)
+            if sid <= 0:
+                continue
+            meta["candidates"] += 1
+            for reason in reasons:
+                meta["reasons"][reason] = int(meta["reasons"].get(reason, 0) or 0) + 1
+            last = float(_PORTAL_SEARCH_ENRICH_RECENT.get(sid) or 0.0)
+            if sid in _PORTAL_SEARCH_ENRICH_INFLIGHT or (last > 0 and now - last < cooldown):
+                continue
+            _PORTAL_SEARCH_ENRICH_INFLIGHT.add(sid)
+            picks.append(sid)
+            if len(picks) >= limit:
+                break
+    if picks:
+        threading.Thread(
+            target=_portal_search_detail_enrich_worker,
+            args=(picks,),
+            daemon=True,
+            name="portal-search-detail-enrich",
+        ).start()
+    meta["scheduled"] = len(picks)
+    meta["source_item_ids"] = picks
+    return meta
 
 
 def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:

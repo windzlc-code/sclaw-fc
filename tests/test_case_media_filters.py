@@ -24,6 +24,7 @@ from src.portal_property_crawl import (
     _suumo_goo_mirror_detail_from_html,
     _suumo_goo_mirror_url_candidates,
 )
+from src.portal_case_search import _fast_first_image_url, _fast_first_media_url, _is_probably_listing_detail_result
 
 
 class CaseMediaFilterTests(unittest.TestCase):
@@ -129,6 +130,34 @@ class CaseMediaFilterTests(unittest.TestCase):
         self.assertIn("w=1280", rendered)
         self.assertIn("h=960", rendered)
         self.assertIn("realestate-buy-image", rendered)
+
+    def test_suumo_template_assets_are_skipped_by_fast_search_thumbs(self):
+        btn = "https://suumo.jp/jj/jjcommon/img/btn.gif"
+        banner = "https://suumo.jp/edit/assets/suumo/img/include/inc_KR_detail_000_bk_banner.png"
+
+        self.assertEqual(
+            _fast_first_media_url(json.dumps([{"type": "image", "url": btn}, {"type": "image", "url": banner}])),
+            "",
+        )
+        self.assertEqual(_fast_first_image_url(f"{btn}\n{banner}"), "")
+
+    def test_blocked_official_detail_snapshot_is_not_displayable_listing(self):
+        self.assertFalse(
+            _is_probably_listing_detail_result(
+                {
+                    "item_url": "https://www.athome.co.jp/kodate/6974217549/?DOWN=1",
+                    "source_name": "アットホーム（AtHome）",
+                    "title_original": "【アットホーム】認証中",
+                    "snippet_jp": "Click to verify 通常のサイト閲覧を超える速度",
+                    "body_zh_hant_preview": "認証にご協力ください。",
+                    "price_text_hant": "",
+                    "area_text_hant": "",
+                    "layout_text_hant": "",
+                    "address_line_jp": "",
+                    "access_line_jp": "",
+                }
+            )
+        )
 
     def test_homes_display_normalization_uses_smaller_card_thumb_size(self):
         url = (

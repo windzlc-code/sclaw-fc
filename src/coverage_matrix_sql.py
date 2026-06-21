@@ -10,7 +10,10 @@ CASE_INV_FRESH_TS = (
     "NULLIF(TRIM(s.crawled_at), ''))"
 )
 
-CASE_INV_JP_LISTING_SQL = "COALESCE(NULLIF(TRIM(s.content_kind), ''), '') = 'jp_listing'"
+CASE_INV_JP_LISTING_SQL = (
+    "COALESCE(NULLIF(TRIM(s.content_kind), ''), '') = 'jp_listing' "
+    "AND COALESCE(NULLIF(TRIM(s.access_status), ''), 'public') = 'public'"
+)
 
 
 def coverage_host_where_sql(host: str) -> tuple[str, list[Any]]:

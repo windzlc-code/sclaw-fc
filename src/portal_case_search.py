@@ -768,6 +768,72 @@ def _listing_value_present(value: Any) -> bool:
     return True
 
 
+def _preview_text_looks_stale(text: str) -> bool:
+    t = str(text or "").strip()
+    if not t:
+        return True
+    if re.search(r"(?:認証中|認證中|认证中|Click to verify|captcha|human verification|awswaf)", t, re.I):
+        return True
+    if t.count("：—") >= 4 or t.count(": —") >= 4:
+        return True
+    return False
+
+
+def _clean_portal_case_preview(
+    d: dict[str, Any],
+    listing_fields: dict[str, Any],
+    *,
+    script: str = "hant",
+) -> str:
+    """Build a short, user-facing listing preview from current parsed fields.
+
+    Content rows can lag behind source_items after live/detail enrichment. Search
+    cards should prefer the freshly parsed source fields over stale WAF/captcha
+    text from older generated article bodies.
+    """
+    labels_hant = {
+        "price_text_hant": "價格",
+        "layout_text_hant": "格局",
+        "area_text_hant": "面積",
+        "address_line_jp": "位置",
+        "access_line_jp": "交通",
+        "built_ym_jp": "築年",
+        "floor_text_hant": "樓層",
+    }
+    labels_hans = {
+        "price_text_hant": "价格",
+        "layout_text_hant": "格局",
+        "area_text_hant": "面积",
+        "address_line_jp": "位置",
+        "access_line_jp": "交通",
+        "built_ym_jp": "建年",
+        "floor_text_hant": "楼层",
+    }
+    label = labels_hans if script == "hans" else labels_hant
+    rows: list[str] = []
+    title = _clean_translation_noise(str(d.get("title_original") or d.get("title_zh_hant") or ""))
+    if title:
+        rows.append(title)
+    for key in (
+        "price_text_hant",
+        "layout_text_hant",
+        "area_text_hant",
+        "address_line_jp",
+        "access_line_jp",
+        "built_ym_jp",
+        "floor_text_hant",
+    ):
+        value = _clean_translation_noise(str(listing_fields.get(key) or ""))
+        if not _listing_value_present(value):
+            continue
+        rows.append(f"{label.get(key, key)}：{value}")
+    if len(rows) <= 1:
+        snippet = _clean_snippet_text(str(d.get("body_original") or ""))
+        if snippet and not _preview_text_looks_stale(snippet):
+            rows.append(snippet)
+    return " ".join(rows)[:320]
+
+
 def _has_listing_field_signal(it: dict[str, Any]) -> bool:
     fields = (
         "price_text_hant",
@@ -909,6 +975,15 @@ def _is_probably_listing_detail_result(it: dict[str, Any]) -> bool:
         and "物件番号" not in body_hint
     )
     if yes1_generic_empty:
+        return False
+    blocked_snapshot = bool(
+        re.search(
+            r"(?:認証中|認證中|认证中|Click to verify|captcha|human verification|awswaf|通常のサイト閲覧を超える速度)",
+            f"{title}\n{body_hint}",
+            flags=re.I,
+        )
+    )
+    if blocked_snapshot and not has_signal and not has_price and strong_n <= 0:
         return False
     # 明確的門戶「物件詳情」URL＋有標題：不強依賴正則已切出專有面積等（關鍵字搜尋常僅有 URL 含 /tokyo/）
     if not has_any_signal and len(title) >= 4:
@@ -1374,7 +1449,13 @@ def _is_non_listing_asset_url(text: str) -> bool:
         "/edit/assets/suumo/img/pagetop",
         "inc_cm_top_",
         "inc_kr_top_",
+        "inc_kr_detail_",
         "inc_cm_all_",
+        "jjcommon/img/btn",
+        "mailmaga",
+        "melmaga",
+        "merumaga",
+        "mail_magazine",
         "menuclose_soba",
         "barcode",
         "gomezbaibai",
@@ -2113,6 +2194,12 @@ def _extract_listing_price_text(
         if _is_suumo_property_detail_url(item_url) or len(reasonable) == 1:
             man = reasonable[0]
             return man, f"{_fmt_number_zh(man, max_decimals=1)}萬日圓"
+    if re.search(
+        r"(?:販売(?:価格)?|価格|販賣價格|價格|价格|售價|家賃|賃料)\s*[:：]?\s*(?:価格)?未定",
+        b,
+        flags=re.I,
+    ):
+        return None, "價格未定"
     return None, ""
 
 
@@ -2161,8 +2248,8 @@ def _listing_price_fx_hant(price_man: float | None, price_text: str) -> str:
 
 
 def _layout_jp_to_zh(raw: str) -> str:
-    s = _to_half_width_num(raw).strip().upper().replace(" ", "")
-    m = re.match(r"^(\d+)(S?)(LDK|DK|K|R)$", s)
+    s = unicodedata.normalize("NFKC", _to_half_width_num(raw)).strip().upper().replace(" ", "")
+    m = re.match(r"^(\d+)(S?)(LDK|LK|DK|K|R)$", s)
     if not m:
         return s
     n = int(m.group(1))
@@ -2174,6 +2261,8 @@ def _layout_jp_to_zh(raw: str) -> str:
         out = f"{n}房 + 廚房"
     elif core == "DK":
         out = f"{n}房 + 餐廚"
+    elif core == "LK":
+        out = f"{n}房 + 客廚"
     else:
         out = f"{n}房 + 客餐廚"
     if has_s:
@@ -2182,8 +2271,24 @@ def _layout_jp_to_zh(raw: str) -> str:
 
 
 def _extract_layout_text(blob: str, *, blob_hw: str | None = None) -> str:
-    b = blob_hw if blob_hw is not None else _to_half_width_num(blob)
-    m_jp = re.search(r"\b(\d+\s*S?LDK|\d+\s*DK|\d+\s*K|\d+\s*R)\b", b, flags=re.I)
+    b = unicodedata.normalize("NFKC", blob_hw if blob_hw is not None else _to_half_width_num(blob))
+    labeled = re.search(
+        r"(?:格局|間取り|間取)\s*[:：]?\s*([0-9]\s*S?(?:LDK|LK|DK|K|R)(?:\s*[～〜~\-－―]\s*[0-9]\s*S?(?:LDK|LK|DK|K|R))?)",
+        b,
+        flags=re.I,
+    )
+    if labeled:
+        raw = re.sub(r"\s+", "", labeled.group(1)).upper()
+        if re.search(r"[～〜~\-－―]", raw):
+            return raw
+        return _layout_jp_to_zh(raw)
+    m_jp = None
+    for mm in re.finditer(r"(?<![0-9A-Z])(\d+\s*S?(?:LDK|LK|DK|K|R))(?![0-9A-Z])", b, flags=re.I):
+        tail = b[mm.end() : mm.end() + 4]
+        if re.match(r"\s*(?:以下|以上)", tail):
+            continue
+        m_jp = mm
+        break
     if m_jp:
         raw = re.sub(r"\s+", "", m_jp.group(1))
         return _layout_jp_to_zh(raw)
@@ -3763,6 +3868,12 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
     title_hans_clean = _clean_translation_noise(str(d.get("title_zh_hans") or "")) or title_hant_clean
     body_hant_preview = _clean_translation_noise(str(d.get("body_zh_hant") or ""))[:320]
     body_hans_preview = _clean_translation_noise(str(d.get("body_zh_hans") or ""))[:320]
+    clean_hant_preview = _clean_portal_case_preview(d, listing_fields, script="hant")
+    clean_hans_preview = _clean_portal_case_preview(d, listing_fields, script="hans")
+    if clean_hant_preview and _preview_text_looks_stale(body_hant_preview):
+        body_hant_preview = clean_hant_preview
+    if clean_hans_preview and _preview_text_looks_stale(body_hans_preview):
+        body_hans_preview = clean_hans_preview
     return {
         "content_id": d.get("id"),
         "source_item_id": d.get("source_item_id"),
@@ -3881,22 +3992,28 @@ def _fast_first_media_url(listing_media_json: str) -> str:
     s = str(listing_media_json or "").strip()
     if not s or s in ("[]", "{}", "null", "None"):
         return ""
-    i = s.find('\"url\"')
-    if i < 0:
-        return ""
-    i = s.find(":", i)
-    if i < 0:
-        return ""
-    i += 1
-    while i < len(s) and s[i] in (" ", "\t", "\r", "\n"):
+    i = 0
+    while i < len(s):
+        i = s.find('\"url\"', i)
+        if i < 0:
+            break
+        i = s.find(":", i)
+        if i < 0:
+            break
         i += 1
-    if i >= len(s) or s[i] != '\"':
-        return ""
-    j = s.find('\"', i + 1)
-    if j < 0:
-        return ""
-    url = s[i + 1 : j].strip()
-    if url.startswith("http://") or url.startswith("https://"):
+        while i < len(s) and s[i] in (" ", "\t", "\r", "\n"):
+            i += 1
+        if i >= len(s) or s[i] != '\"':
+            continue
+        j = s.find('\"', i + 1)
+        if j < 0:
+            break
+        url = s[i + 1 : j].strip()
+        i = j + 1
+        if not (url.startswith("http://") or url.startswith("https://")):
+            continue
+        if not _is_fast_listing_image_url_usable(url):
+            continue
         return url[:2048]
     return ""
 
@@ -3907,9 +4024,26 @@ def _fast_first_image_url(image_urls: str) -> str:
         return ""
     for part in s.replace("\r", "").replace("\n", " ").split():
         u = part.strip().strip(",")
-        if u.startswith("http://") or u.startswith("https://"):
+        if (u.startswith("http://") or u.startswith("https://")) and _is_fast_listing_image_url_usable(u):
             return u[:2048]
     return ""
+
+
+def _is_fast_listing_image_url_usable(url: str) -> bool:
+    u = str(url or "").strip()
+    if not u.startswith(("http://", "https://")):
+        return False
+    if not _is_percent_encoding_valid(u):
+        return False
+    if _is_truncated_listing_image_url(u):
+        return False
+    if _is_non_listing_asset_url(u):
+        return False
+    if is_non_image_portal_page_url(u):
+        return False
+    if is_likely_agent_portrait_image_url(u):
+        return False
+    return True
 
 
 def _row_to_portal_case_item_matrix_fast(r: Any) -> dict[str, Any]:
@@ -4213,12 +4347,17 @@ def _search_portal_cases_coverage_matrix_mode(
             coverage_matrix_sql_total = int(sum(int(cell_by_host.get(hk, 0) or 0) for hk in resolved_hosts))
 
         page_sql = "LIMIT ? OFFSET ?" if requested_page_size > 0 else "LIMIT ?"
+        page_query_limit = fetch_lim
+        if requested_page_size > 0:
+            page_query_limit = max(fetch_lim, max(1, int(requested_page_size or 1)) * 8)
         sql = f"""
         SELECT
           COALESCE(c.id, 0) AS id,
           COALESCE(c.seo_slug, '') AS seo_slug,
           COALESCE(c.title_zh_hant, '') AS title_zh_hant,
           COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+          substr(COALESCE(c.body_zh_hant,''),1,900) AS body_zh_hant,
+          substr(COALESCE(c.body_zh_hans,''),1,900) AS body_zh_hans,
           COALESCE(c.region_code, '') AS region_code,
           COALESCE(c.keyword_type, '') AS keyword_type,
           COALESCE(c.topic_category, '') AS topic_category,
@@ -4228,13 +4367,14 @@ def _search_portal_cases_coverage_matrix_mode(
           COALESCE(c.jp_station_id, 0) AS jp_station_id,
           COALESCE(c.walk_min, 0) AS walk_min,
           COALESCE(c.featured_weight, 0) AS featured_weight,
-          substr(COALESCE(c.listing_media_json, '[]'),1,3500) AS listing_media_json,
+          COALESCE(c.listing_media_json, '[]') AS listing_media_json,
           COALESCE(c.updated_at, '') AS updated_at,
           s.id AS source_item_id,
           s.source_name,
           s.item_url,
           s.title_original,
-          substr(COALESCE(s.image_urls,''),1,3500) AS image_urls,
+          substr(COALESCE(s.body_original,''),1,9000) AS body_original,
+          substr(COALESCE(s.image_urls,''),1,8000) AS image_urls,
           s.published_at,
           s.crawled_at,
           s.last_checked_at,
@@ -4248,15 +4388,26 @@ def _search_portal_cases_coverage_matrix_mode(
         ORDER BY {order_by_sql}
         {page_sql}
         """
-        params = [*fetch_region_params, *host_params, *mk_params, fetch_lim]
+        params = [*fetch_region_params, *host_params, *mk_params, page_query_limit]
         if requested_page_size > 0:
             params.append(page_offset)
         rows = conn.execute(sql, params).fetchall()
         row_fetch_count = len(rows)
-    items = [_row_to_portal_case_item_matrix_fast(r) for r in rows]
     if requested_page_size > 0:
-        items = items[:requested_page_size]
+        # The matrix query keeps COUNT/WHERE aligned with the coverage dashboard, but
+        # displayed cards must use the full extractor; otherwise price/area/layout are
+        # intentionally absent from the fast matrix shape and the UI shows dashes.
+        page_items: list[dict[str, Any]] = []
+        for r in rows:
+            it = _row_to_portal_case_item(r)
+            if not _is_probably_listing_detail_result(it):
+                continue
+            page_items.append(it)
+            if len(page_items) >= requested_page_size:
+                break
+        items = page_items
     else:
+        items = [_row_to_portal_case_item_matrix_fast(r) for r in rows]
         items = _prefer_complete_items_for_display(items, lim=lim)
         if multi_portal:
             items = _merge_multi_portal_items(items, lim=lim)

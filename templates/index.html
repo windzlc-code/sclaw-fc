@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260619-login-footer-contact-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260620-admin-search-all-a">
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
@@ -805,10 +805,13 @@
           <strong>後台管理</strong>
           <span class="admin-head-console">控制台</span>
         </div>
-        <label class="admin-head-search" aria-label="後台全域搜尋">
+        <div class="admin-head-search" role="search" aria-label="後台全域搜尋">
           <span aria-hidden="true">⌕</span>
-          <input id="admin-global-search" type="search" placeholder="搜尋案件 ID、客戶訊息、知識庫關鍵字" autocomplete="off">
-        </label>
+          <input id="admin-global-search" type="search" placeholder="案件 ID、客戶、知識庫關鍵字" autocomplete="off" aria-label="搜尋案件 ID、客戶訊息、知識庫關鍵字">
+          <button id="admin-global-search-btn" type="button" aria-label="執行後台搜尋">搜索</button>
+          <small id="admin-global-search-status" aria-live="polite"></small>
+          <div id="admin-global-search-menu" class="admin-global-search-menu" role="listbox" aria-label="後台搜尋建議"></div>
+        </div>
         <div class="admin-head-actions">
           <section class="site-language-switch site-language-switch--globe admin-language-switch" aria-label="中文版本切換" data-site-lang-menu-root>
             <button
@@ -845,14 +848,6 @@
           <input id="admin-password-input" type="password" placeholder="輸入後台密碼" autocomplete="off">
           <button type="button" class="secondary" onclick="unlockAdminPanel()">登入</button>
         </div>
-      </div>
-      <div class="search-row-basic admin-mode-strip">
-        <label class="muted admin-mode-switch">
-          <input id="admin-simple-mode-toggle" type="checkbox" checked onchange="toggleAdminSimpleMode(this.checked)">
-          <span class="admin-switch-track" aria-hidden="true"></span>
-          <strong>核心模式</strong>
-        </label>
-        <span id="admin-simple-mode-meta" class="muted">核心分頁</span>
       </div>
       <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
         <div class="admin-tab-group" data-admin-group="daily">
@@ -921,7 +916,7 @@
           <span class="muted">日常管理</span>
         </div>
         <div class="search-row-basic admin-quick-map-grid">
-          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>列表與入庫</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>列表與維護</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">02</span><span><strong>留單</strong><small>客戶跟進</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">03</span><span><strong>客服 AI</strong><small>訓練與提示詞</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">04</span><span><strong>知識庫</strong><small>問答素材</small></span></button>
@@ -1040,13 +1035,13 @@
       </div>
 
       <div id="admin-tab-portal-matrix" class="admin-tab-panel" role="tabpanel">
-      <div class="panel">
-        <h3 class="config-subhead">七大站 × 全地區案件數統計</h3>
-        <p class="muted" style="margin:0 0 0.65rem;line-height:1.55;">查看七大站各地區案件量；資料不足時先執行下方補齊流程。</p>
-        <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;margin-bottom:0.5rem;">
-          <label class="muted">新鮮度（天）
-            <input type="number" id="admin-portal-matrix-age" min="1" max="366" value="180" style="width:4.5rem;">
-          </label>
+      <div class="panel admin-portal-matrix-panel">
+        <div class="admin-portal-matrix-head">
+          <div>
+            <h3 class="config-subhead">七大站 × 全地區案件數統計</h3>
+            <p class="muted">查看七大站各地區案件量；資料不足時可執行補齊流程。</p>
+          </div>
+          <input type="hidden" id="admin-portal-matrix-age" value="180">
           <button type="button" onclick="loadAdminPortalMatrixReport()">重新載入報表</button>
         </div>
         <div class="admin-seven-portal-flow">
@@ -1063,9 +1058,11 @@
             <button type="button" class="secondary" onclick="runSevenPortalFullRefresh()">全七站巡檢＋報表</button>
           </div>
         </div>
-        <p id="admin-portal-matrix-msg" class="muted" style="font-size:13px;"></p>
-        <div id="admin-portal-matrix-summary" class="muted" style="font-size:13px;margin:0.35rem 0;line-height:1.55;"></div>
-        <div class="panel support-bot-status-panel admin-data-completion-bot-panel" style="margin:0.55rem 0;padding:0.7rem 0.8rem;">
+        <div class="admin-portal-matrix-status">
+          <p id="admin-portal-matrix-msg" class="muted"></p>
+          <div id="admin-portal-matrix-summary" class="muted"></div>
+        </div>
+        <div class="panel support-bot-status-panel admin-data-completion-bot-panel admin-technical-info" style="margin:0.55rem 0;padding:0.7rem 0.8rem;">
           <h3 class="config-subhead" style="margin-top:0;">資料補全自我優化 BOT</h3>
           <p class="muted" style="margin:0 0 0.55rem;line-height:1.5;">自動檢查缺圖、缺文字與 0 格資料。</p>
           <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.45rem;">
@@ -1335,13 +1332,15 @@
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
             設定輪數後，系統會依序補前四站，再補後三站。
           </p>
-          <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;">
-            <label class="muted" style="font-size:0.9rem;">連跑輪數（僅①前四站）
-              <input type="number" id="admin-primary-four-rounds" min="1" max="20" value="3" title="前四站連跑次數；預設 3" style="width:3.75rem;padding:0.28rem 0.4rem;">
+          <div class="search-row-basic admin-maintenance-row">
+            <strong>七站補全</strong>
+            <label class="muted">前四站連跑
+              <input type="number" id="admin-primary-four-rounds" min="1" max="20" value="3" title="前四站連跑次數；預設 3">
+              輪
             </label>
-            <button type="button" class="admin-seven-crawl-btn" onclick="runSevenPortalsSegmentedPipeline()" style="font-weight:700;padding:0.55rem 1.1rem;background:#1746a2;color:#fff;border-radius:8px;border:1px solid #133f91;cursor:pointer;">
-              七站分段補全（前四 × N 輪 → 後三）
-            </button>
+            <div class="admin-maintenance-actions">
+              <button type="button" class="admin-seven-crawl-btn" onclick="runSevenPortalsSegmentedPipeline()">開始補全</button>
+            </div>
           </div>
         </details>
         <details class="panel slim admin-case-settings-details" open style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f5f0ff 0%,#fff 100%);border:1px solid #e0d5f5;border-radius:10px;">
@@ -1352,33 +1351,66 @@
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
             查詢結果缺圖時，自動補抓物件照並可寫回資料庫。
           </p>
-          <div class="search-row-basic" style="flex-wrap:wrap;align-items:center;gap:0.65rem;">
-            <label class="muted" style="font-size:0.9rem;display:inline-flex;align-items:center;gap:0.35rem;">
+          <div class="search-row-basic admin-maintenance-row admin-maintenance-row--wide">
+            <strong>查詢補圖</strong>
+            <div class="admin-maintenance-fields">
+            <label class="muted">
               <input type="checkbox" id="portal_backfill_empty_thumbs" checked> 無圖或疑似人像時向原站補物件圖
             </label>
-            <label class="muted" style="font-size:0.9rem;display:inline-flex;align-items:center;gap:0.35rem;">
+            <label class="muted">
               <input type="checkbox" id="portal_backfill_persist" checked> 成功後寫回資料庫
             </label>
-            <label class="muted" style="font-size:0.9rem;">每請求最多補
-              <input id="portal_backfill_max" type="number" min="1" max="12" value="3" title="單次 API 回應最多補幾筆" style="width:3.25rem;padding:0.28rem 0.4rem;"> 筆
+            <label class="muted">每請求最多補
+              <input id="portal_backfill_max" type="number" min="1" max="12" value="3" title="單次 API 回應最多補幾筆"> 筆
             </label>
-            <button type="button" onclick="saveCrawlSettings()">儲存爬文與縮圖設定</button>
+            </div>
+            <div class="admin-maintenance-actions">
+              <button type="button" onclick="saveCrawlSettings()">儲存設定</button>
+            </div>
           </div>
-          <div class="search-row-basic" style="margin-top:0.55rem;flex-wrap:wrap;align-items:center;gap:0.65rem;padding-top:0.5rem;border-top:1px dashed #dcd3ee;">
-            <strong style="font-size:0.92rem;">② 後三站缺圖批次補齊</strong>
-            <span class="muted" style="font-size:0.85rem;">楽天／Yes!／OHEYASU・庫內 image_urls 為空</span>
-            <label class="muted" style="font-size:0.9rem;">批次上限
-              <input id="admin-remaining-three-thumb-limit" type="number" min="1" max="500" value="40" style="width:3.5rem;padding:0.28rem 0.4rem;">
+          <div class="search-row-basic admin-maintenance-row">
+            <strong>後三站缺圖</strong>
+            <label class="muted">楽天／Yes!／OHEYASU，上限
+              <input id="admin-remaining-three-thumb-limit" type="number" min="1" max="500" value="40">
             </label>
-            <button type="button" class="secondary" onclick="runRemainingThreeThumbBackfill(true)">預覽（dry-run）</button>
-            <button type="button" onclick="runRemainingThreeThumbBackfill(false)">執行補圖</button>
+            <div class="admin-maintenance-actions">
+              <button type="button" class="secondary" onclick="runRemainingThreeThumbBackfill(true)">預覽</button>
+              <button type="button" onclick="runRemainingThreeThumbBackfill(false)">執行補圖</button>
+            </div>
           </div>
-          <div class="search-row-basic" style="margin-top:0.55rem;flex-wrap:wrap;align-items:center;gap:0.65rem;padding-top:0.5rem;border-top:1px dashed #dcd3ee;">
-            <strong style="font-size:0.92rem;">每日案件品質批次</strong>
-            <span class="muted" style="font-size:0.85rem;">固定每日補圖、後三站補圖、刷新低品質圖文與重抓缺欄案件</span>
-            <button type="button" class="secondary" onclick="loadCaseQualityBatchStatus()">查看狀態</button>
-            <button type="button" class="secondary" onclick="runCaseQualityBatch(true)">預覽批次</button>
-            <button type="button" onclick="runCaseQualityBatch(false)">立即排入執行</button>
+          <div class="search-row-basic admin-maintenance-row">
+            <strong>品質批次</strong>
+            <span class="muted">補圖、刷新低品質圖文、重抓缺欄案件</span>
+            <div class="admin-maintenance-actions">
+              <button type="button" class="secondary" onclick="loadCaseQualityBatchStatus()">查看狀態</button>
+              <button type="button" class="secondary" onclick="runCaseQualityBatch(true)">預覽</button>
+              <button type="button" onclick="runCaseQualityBatch(false)">立即執行</button>
+            </div>
+          </div>
+          <div class="search-row-basic admin-maintenance-row">
+            <strong>失效快取</strong>
+            <div class="admin-maintenance-fields">
+            <label class="muted">上限
+              <input id="admin-invalid-source-cleanup-limit" type="number" min="1" max="5000" value="500">
+            </label>
+            <label class="muted">來源
+              <select id="admin-invalid-source-cleanup-host">
+                <option value="">全部來源</option>
+                <option value="athome.co.jp" selected>AtHome</option>
+                <option value="suumo.jp">SUUMO</option>
+                <option value="homes.co.jp">LIFULL HOME'S</option>
+                <option value="realestate.yahoo.co.jp">Yahoo! 不動產</option>
+                <option value="realestate.rakuten.co.jp">楽天</option>
+                <option value="yes1.co.jp">Yes!</option>
+                <option value="oheya-su.jp">OHEYASU</option>
+              </select>
+            </label>
+            <span class="muted">清理認證頁／驗證頁污染</span>
+            </div>
+            <div class="admin-maintenance-actions">
+              <button type="button" class="secondary" onclick="cleanupInvalidSourceCache(true)">預覽</button>
+              <button type="button" onclick="cleanupInvalidSourceCache(false)">清理</button>
+            </div>
           </div>
           <p id="admin-case-quality-batch-status" class="muted" style="margin:0.45rem 0 0;font-size:0.85rem;line-height:1.55;" aria-live="polite"></p>
         </details>
@@ -1426,19 +1458,19 @@
                 <label class="muted">爬取間隔（小時）
                   <input id="interval_hours" type="number" min="1" max="48" value="2">
                 </label>
-                <label class="muted">圖頁籤間隔
+                <label class="muted admin-technical-info">圖頁籤間隔
                   <input id="market_interval_hours" type="number" min="1" max="24" value="1">
                 </label>
-                <label class="muted">市場資料上限
+                <label class="muted admin-technical-info">市場資料上限
                   <input id="market_max_records" type="number" min="100" max="100000" value="10000">
                 </label>
-                <label class="muted">保留天數
+                <label class="muted admin-technical-info">保留天數
                   <input id="market_retention_days" type="number" min="1" max="365" value="15">
                 </label>
-                <label class="muted">智慧查詢上限
+                <label class="muted admin-technical-info">智慧查詢上限
                   <input id="portal_query_max_records" type="number" min="10" max="100000" value="100000">
                 </label>
-                <label class="muted">新鮮度天數
+                <label class="muted admin-technical-info">新鮮度天數
                   <input id="portal_query_max_age_days" type="number" min="1" max="366" value="180">
                 </label>
               </div>
@@ -1454,7 +1486,7 @@
             </div>
           </div>
           <div id="source-list" class="source-list-wrap"><p class="muted">尚未載入來源清單。</p></div>
-          <div id="source-health" class="muted"></div>
+          <div id="source-health" class="muted admin-technical-info"></div>
         </details>
         <details class="admin-case-settings-details admin-case-settings-details--filters" open>
           <summary>
@@ -1470,10 +1502,10 @@
               <option value="buy">買屋不動產</option>
             </select>
           </label>
-          <label class="muted">路線 ID
+          <label class="muted admin-technical-info">路線 ID
             <input id="admin-cases-jp-line" type="number" min="0" step="1" placeholder="0" title="jp_trans_line.line_id" style="width:4.5rem;">
           </label>
-          <label class="muted">車站 ID
+          <label class="muted admin-technical-info">車站 ID
             <input id="admin-cases-jp-station" type="number" min="0" step="1" placeholder="0" title="jp_trans_station.station_id" style="width:4.5rem;">
           </label>
           <label class="muted">徒步≤
@@ -1507,7 +1539,7 @@
             </select>
           </label>
           <button type="button" onclick="adminCasesPage=1;loadAdminCasesPage();">套用篩選</button>
-          <button type="button" class="admin-btn-danger" onclick="purgeAllAdminCases()" aria-label="全部刪除（不可還原）" title="全部刪除（不可還原）">清空列表</button>
+          <button type="button" class="admin-btn-danger admin-technical-info" onclick="purgeAllAdminCases()" aria-label="全部刪除（不可還原）" title="全部刪除（不可還原）">清空列表</button>
         </div>
         </details>
         <details class="admin-case-settings-details admin-case-settings-details--tools">
@@ -1516,7 +1548,7 @@
             <span class="muted">重爬、模板、匯入、分頁</span>
           </summary>
         <div class="admin-cases-bulk-tools search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
-          <label class="muted">每來源筆數上限
+          <label class="muted admin-technical-info">每來源筆數上限
             <select id="admin-cases-per-source">
               <option value="10">10</option>
               <option value="20">20</option>
@@ -1561,10 +1593,10 @@
           <div id="admin-cases-progress-meta" class="muted" style="margin-top:0.35rem;"></div>
         </div>
         <div id="admin-cases-list-wrap" class="muted">請先登入。</div>
-        <div class="search-row-basic" style="margin-top:0.5rem;">
-          <button type="button" class="secondary" onclick="adminCasesPage=Math.max(1,(adminCasesPage||1)-1);loadAdminCasesPage();">上一頁</button>
+        <div class="search-row-basic admin-cases-pager" style="margin-top:0.5rem;">
+          <button id="admin-cases-prev-btn" type="button" class="secondary" onclick="adminCasesPage=Math.max(1,(adminCasesPage||1)-1);loadAdminCasesPage();" disabled>上一頁</button>
           <span id="admin-cases-page-label" class="muted">第 1 頁</span>
-          <button type="button" class="secondary" onclick="adminCasesPage=(adminCasesPage||1)+1;loadAdminCasesPage();">下一頁</button>
+          <button id="admin-cases-next-btn" type="button" class="secondary" onclick="adminCasesPage=(adminCasesPage||1)+1;loadAdminCasesPage();" disabled>下一頁</button>
         </div>
         </div>
       </div>
@@ -1625,9 +1657,11 @@
         <p id="social-radar-msg" class="muted"></p>
           </div>
         </details>
-        <div id="social-radar-summary" class="muted">尚未載入社群雷達。</div>
-        <div id="social-radar-account-matrix" class="muted"></div>
-        <div id="social-radar-results" class="muted"></div>
+        <div id="social-radar-analysis-section" class="social-radar-analysis-section">
+          <div id="social-radar-summary" class="muted">尚未載入社群雷達。</div>
+          <div id="social-radar-account-matrix" class="muted"></div>
+          <div id="social-radar-results" class="muted"></div>
+        </div>
       </div>
       <div class="panel">
         <h3 class="config-subhead">顧問建議線索看板</h3>
@@ -1723,8 +1757,8 @@
           <strong>連線自檢</strong>（切換本頁籤時自動更新）<br>
           <span id="admin-tg-api-line">後端 API：尚未檢測</span><br>
           <span id="admin-tg-api-hint" class="muted" style="font-size:12px;display:none;"></span>
-          <span id="admin-tg-config-line">Telegram 本機設定：—</span><br>
-          <span id="admin-line-config-line">LINE 本機設定：—</span>
+          <span id="admin-tg-config-line">Telegram 通知：—</span><br>
+          <span id="admin-line-config-line">LINE 通知：—</span>
         </div>
         <div class="panel admin-telegram-line-panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
           <h4 class="config-subhead" style="margin-top:0;">LINE 官方帳號</h4>
@@ -1749,7 +1783,7 @@
             <input id="admin-line-staff-user-id" type="text" autocomplete="off" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
           </label>
           <p class="muted" style="margin:-0.35rem 0 0.45rem;font-size:12px;line-height:1.45;">請填 <code>U</code> 開頭 user ID，不是 Channel ID。</p>
-          <label class="muted">Webhook URL
+          <label class="muted admin-technical-info">Webhook URL
             <input id="admin-line-webhook-url" type="url" autocomplete="off" placeholder="https://your-domain.com/api/line/webhook">
           </label>
           <label class="muted">測試訊息
@@ -1759,11 +1793,11 @@
             <button type="button" onclick="saveAdminLineSettings()">儲存 LINE</button>
             <button type="button" class="secondary" onclick="loadAdminLineSettings()">重新載入</button>
             <button type="button" class="secondary" onclick="testAdminLine()">測試 LINE 推播</button>
-            <button type="button" class="secondary" onclick="loadAdminLineWebhookInfo()">查詢 Webhook</button>
-            <button type="button" onclick="registerAdminLineWebhook()">設定 LINE Webhook</button>
+            <button type="button" class="secondary admin-technical-info" onclick="loadAdminLineWebhookInfo()">查詢 Webhook</button>
+            <button type="button" class="admin-technical-info" onclick="registerAdminLineWebhook()">設定 LINE Webhook</button>
           </div>
           <p id="admin-line-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
-          <pre id="admin-line-webhook-status" class="muted" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
+          <pre id="admin-line-webhook-status" class="muted admin-technical-info" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
         </div>
         <div class="panel admin-telegram-accounts-panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
           <h4 class="config-subhead" style="margin-top:0;">多顧問／多 Bot</h4>
@@ -1925,10 +1959,10 @@
         </div>
         <p id="admin-handoff-msg" class="muted"></p>
         <div id="admin-handoff-list-wrap" class="muted">請先登入。</div>
-        <div class="search-row-basic" style="margin-top:0.5rem;">
-          <button id="admin-handoff-prev-btn" type="button" class="secondary" onclick="adminHandoffPage=Math.max(1,(adminHandoffPage||1)-1);loadAdminHandoffRequests();">上一頁</button>
+        <div class="search-row-basic admin-table-pager admin-handoff-pager" style="margin-top:0.5rem;">
+          <button id="admin-handoff-prev-btn" type="button" class="secondary" onclick="adminHandoffPage=Math.max(1,(adminHandoffPage||1)-1);loadAdminHandoffRequests();" disabled>上一頁</button>
           <span id="admin-handoff-page-label" class="muted">第 1 頁</span>
-          <button id="admin-handoff-next-btn" type="button" class="secondary" onclick="adminHandoffPage=(adminHandoffPage||1)+1;loadAdminHandoffRequests();">下一頁</button>
+          <button id="admin-handoff-next-btn" type="button" class="secondary" onclick="adminHandoffPage=(adminHandoffPage||1)+1;loadAdminHandoffRequests();" disabled>下一頁</button>
         </div>
       </div>
       </div>
@@ -3909,7 +3943,7 @@
     const ADMIN_SCENARIO_PAGE_SIZE = 8;
     let adminSupportQaListPage = 1;
     const ADMIN_SUPPORT_QA_PAGE_SIZE = 8;
-    let adminSimpleMode = true;
+    let adminSimpleMode = false;
     const ADMIN_SIMPLE_MODE_CACHE_KEY = 'sclaw.admin.simple_mode.v2';
     const ADMIN_SIDEBAR_COLLAPSE_CACHE_KEY = 'sclaw.admin.sidebar_collapsed.v1';
     let adminCollapsedSidebarGroups = new Set();
@@ -3952,8 +3986,8 @@
       },
       telegram: {
         desc: '設定 LINE／Telegram 通知與人工回覆通道。',
-        chips: ['通知通道', 'Webhook', '人工接手'],
-        notice: '通知通道設定會影響人工接手與顧問提醒；測試發送前請先確認 Bot Token、Chat ID 與 Webhook 狀態。',
+        chips: ['通知通道', '顧問收件', '人工接手'],
+        notice: '通知通道會影響人工接手與顧問提醒；儲存後可直接用測試按鈕確認是否能收到訊息。',
       },
       'home-content': {
         desc: '管理首頁影片輪播、主視覺素材與 16:9 口播介紹影片。',
@@ -3962,7 +3996,7 @@
       },
       'portal-matrix': {
         desc: '查看七大門戶案件數、資料缺口與補齊流程。',
-        chips: ['七站報表', '資料補齊', 'BOT 巡檢'],
+        chips: ['七站報表', '資料補齊', '刷新統計'],
         notice: '報表用來判斷七大站資料缺口；補齊任務可能耗時，建議先看缺口再執行批次。',
       },
       leads: {
@@ -4016,12 +4050,10 @@
       ],
       'portal-matrix': [
         { label: '七站報表', selector: '#admin-portal-matrix-wrap' },
-        { label: '資料補齊', selector: '.admin-seven-portal-flow' },
-        { label: 'BOT 巡檢', selector: '.admin-data-completion-bot-panel' },
       ],
       leads: [
         { label: '導入分析', selector: '.social-radar-tools' },
-        { label: '分析結果', selector: '#social-radar-results' },
+        { label: '分析結果', selector: '#social-radar-analysis-section' },
         { label: '線索看板', selector: '#admin-tab-leads > .panel:nth-of-type(2)' },
       ],
       llm: [
@@ -4032,10 +4064,8 @@
       ],
     };
     try {
-      const cached = String(localStorage.getItem(ADMIN_SIMPLE_MODE_CACHE_KEY) || '').trim();
-      if (cached === '0' || cached === '1') {
-        adminSimpleMode = cached === '1';
-      }
+      localStorage.setItem(ADMIN_SIMPLE_MODE_CACHE_KEY, '0');
+      adminSimpleMode = false;
       const collapsed = JSON.parse(localStorage.getItem(ADMIN_SIDEBAR_COLLAPSE_CACHE_KEY) || '[]');
       if (Array.isArray(collapsed)) {
         adminCollapsedSidebarGroups = new Set(collapsed.map((x) => String(x || '')).filter(Boolean));
@@ -5021,8 +5051,16 @@
           const probe = new Image();
           probe.decoding = 'async';
           probe.referrerPolicy = 'no-referrer';
+          try {
+            probe.fetchPriority = 'high';
+          } catch (_) {
+            // optional browser hint
+          }
           probe.onload = () => {
             if (requestId !== lightboxImageLoadSeq) return;
+            if (typeof rememberFigureCasePreloadState === 'function') {
+              rememberFigureCasePreloadState(tries[candidateIndex], 'loaded', probe);
+            }
             syncLightboxLoaderFrame({
               width: probe.naturalWidth || 0,
               height: probe.naturalHeight || 0,
@@ -5034,6 +5072,9 @@
           };
           probe.onerror = () => {
             if (requestId !== lightboxImageLoadSeq) return;
+            if (typeof rememberFigureCasePreloadState === 'function') {
+              rememberFigureCasePreloadState(tries[candidateIndex], 'error');
+            }
             setLightboxLoaderState(true, {
               title: candidateIndex === tries.length - 1 ? '正在嘗試最後一張備援圖' : '原圖回應較慢，正在改用備援圖',
               hint: '狀態角標已切換到新圖片，畫面會在可用圖源載入後更新。',
@@ -5173,6 +5214,16 @@
         dot.setAttribute('aria-selected', 'true');
         if (sameSource) portalCaseHeroImgOnLoad(img);
       });
+      const warmFromDot = (evt) => {
+        const dot = evt.target instanceof Element ? evt.target.closest('.portal-suumo-card-image-dot') : null;
+        if (!dot) return;
+        const src = String(dot.getAttribute('data-card-img-src') || '').trim();
+        const full = String(dot.getAttribute('data-card-img-full') || src).trim();
+        queueFigureCaseMediaPreload(src, 4);
+        queueFigureCaseMediaPreload(full, 24);
+      };
+      document.addEventListener('pointerover', warmFromDot, { passive: true });
+      document.addEventListener('focusin', warmFromDot);
     }
 
     function seoLlmProviderPayload() {
@@ -7392,9 +7443,12 @@
     }
 
     const FIGURE_CASE_PRELOAD_CONCURRENCY = 2;
+    const FIGURE_CASE_PRELOAD_CACHE_LIMIT = 260;
     const FIGURE_RESULTS_PAGE_SIZE = 6;
     const figureCasePreloadSeen = new Set();
     const figureCasePreloadQueue = [];
+    const figureCasePreloadState = new Map();
+    const figureCasePreloadKeepAlive = [];
     let figureCasePreloadActive = 0;
     let figureResultsPagedState = null;
 
@@ -7413,10 +7467,38 @@
       }
     }
 
+    function rememberFigureCasePreloadState(src, status, probe = null) {
+      const url = String(src || '').trim();
+      if (!url) return;
+      figureCasePreloadState.set(url, {
+        status,
+        at: Date.now(),
+      });
+      if (probe && status === 'loaded') {
+        figureCasePreloadKeepAlive.push({ url, probe, at: Date.now() });
+        while (figureCasePreloadKeepAlive.length > 36) figureCasePreloadKeepAlive.shift();
+      }
+      if (figureCasePreloadState.size > FIGURE_CASE_PRELOAD_CACHE_LIMIT) {
+        const rows = Array.from(figureCasePreloadState.entries())
+          .sort((a, b) => Number(a[1]?.at || 0) - Number(b[1]?.at || 0));
+        rows.slice(0, Math.max(1, rows.length - FIGURE_CASE_PRELOAD_CACHE_LIMIT)).forEach(([key]) => {
+          figureCasePreloadState.delete(key);
+          figureCasePreloadSeen.delete(key);
+        });
+      }
+    }
+
+    function isFigureCaseMediaWarm(src) {
+      const url = String(src || '').trim();
+      return !!url && figureCasePreloadState.get(url)?.status === 'loaded';
+    }
+
     function drainFigureCasePreloadQueue() {
       while (figureCasePreloadActive < FIGURE_CASE_PRELOAD_CONCURRENCY && figureCasePreloadQueue.length) {
         const next = figureCasePreloadQueue.shift();
         if (!next || !next.url) continue;
+        const current = figureCasePreloadState.get(next.url);
+        if (current && (current.status === 'loading' || current.status === 'loaded')) continue;
         figureCasePreloadActive += 1;
         const probe = new Image();
         const done = () => {
@@ -7428,19 +7510,66 @@
         probe.decoding = 'async';
         probe.loading = 'eager';
         probe.referrerPolicy = 'no-referrer';
-        probe.onload = done;
-        probe.onerror = done;
+        try {
+          probe.fetchPriority = Number(next.priority || 100) <= 12 ? 'high' : 'low';
+        } catch (_) {
+          // fetchPriority is optional in older browsers.
+        }
+        rememberFigureCasePreloadState(next.url, 'loading');
+        probe.onload = () => {
+          rememberFigureCasePreloadState(next.url, 'loaded', probe);
+          done();
+        };
+        probe.onerror = () => {
+          rememberFigureCasePreloadState(next.url, 'error');
+          done();
+        };
         probe.src = next.url;
       }
     }
 
     function queueFigureCaseMediaPreload(url, priority = 100) {
       const src = String(url || '').trim();
-      if (!src || src === LISTING_IMAGE_FALLBACK_URL || figureCasePreloadSeen.has(src)) return;
+      if (!src || src === LISTING_IMAGE_FALLBACK_URL) return;
+      const state = figureCasePreloadState.get(src);
+      if (state && (state.status === 'loading' || state.status === 'loaded')) return;
+      if (figureCasePreloadSeen.has(src) && state && state.status === 'error') return;
       figureCasePreloadSeen.add(src);
       figureCasePreloadQueue.push({ url: src, priority: Number(priority) || 100 });
       figureCasePreloadQueue.sort((a, b) => a.priority - b.priority);
       drainFigureCasePreloadQueue();
+    }
+
+    function warmFigureCaseItems(items, options = {}) {
+      const rows = Array.isArray(items) ? items : [];
+      if (!rows.length) return;
+      const thumbPerItem = Math.max(1, Math.min(3, parseInt(String(options.thumbPerItem || 1), 10) || 1));
+      const fullPerItem = Math.max(0, Math.min(2, parseInt(String(options.fullPerItem || 0), 10) || 0));
+      const maxUrls = Math.max(1, Math.min(48, parseInt(String(options.maxUrls || 18), 10) || 18));
+      const basePriority = Number(options.priorityBase || 0) || 0;
+      let queued = 0;
+      rows.some((item, itemIndex) => {
+        const rawUrls = typeof portalCaseGalleryUrlsPropertyOnly === 'function'
+          ? portalCaseGalleryUrlsPropertyOnly(item)
+          : (Array.isArray(item?.gallery_urls) ? item.gallery_urls : []);
+        const thumbs = rawUrls
+          .map((u) => portalListingThumbDisplayUrl(String(u || '').trim(), 240, 160))
+          .filter(Boolean);
+        const fulls = rawUrls
+          .map((u) => portalListingFullDisplayUrl(String(u || '').trim()))
+          .filter(Boolean);
+        thumbs.slice(0, thumbPerItem).forEach((src, idx) => {
+          if (queued >= maxUrls) return;
+          queueFigureCaseMediaPreload(src, basePriority + itemIndex * 8 + idx);
+          queued += 1;
+        });
+        fulls.slice(0, fullPerItem).forEach((src, idx) => {
+          if (queued >= maxUrls) return;
+          queueFigureCaseMediaPreload(src, basePriority + 90 + itemIndex * 8 + idx);
+          queued += 1;
+        });
+        return queued >= maxUrls;
+      });
     }
 
     function warmFigureCaseCards(cards, options = {}) {
@@ -7932,6 +8061,14 @@
       if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
       if (typeof syncPortalCaseCardImageLoadStates === 'function') syncPortalCaseCardImageLoadStates(page);
       bindPagedFigureResultsMediaGuard(state, page);
+      if (typeof warmFigureCaseItems === 'function') {
+        warmFigureCaseItems(items, {
+          thumbPerItem: 1,
+          fullPerItem: 0,
+          maxUrls: 18,
+          priorityBase: pageIndex === getPagedFigureResultsDisplayPage(state) ? 0 : 90,
+        });
+      }
       warmFigureCaseCards(Array.from(page.querySelectorAll('.market-item-card.figure-case-card')), {
         thumbPerCard: 1,
         fullPerCard: 0,
@@ -8063,6 +8200,14 @@
             payload: payload || {},
           };
           state.pageCache.set(target, pageData);
+          if (typeof warmFigureCaseItems === 'function') {
+            warmFigureCaseItems(pageData.items, {
+              thumbPerItem: 1,
+              fullPerItem: 0,
+              maxUrls: 14,
+              priorityBase: Math.abs(target - getPagedFigureResultsDisplayPage(state)) <= 1 ? 30 : 140,
+            });
+          }
           const totalCount = Number(payload?.count);
           if (Number.isFinite(totalCount) && totalCount >= 0) {
             state.totalCount = totalCount;
@@ -8103,6 +8248,14 @@
         state.currentPage = target;
         syncPagedFigureResultsControls(state);
         const cachedData = state.pageCache.get(target) || { items: [] };
+        if (typeof warmFigureCaseItems === 'function') {
+          warmFigureCaseItems(cachedData?.items || [], {
+            thumbPerItem: 2,
+            fullPerItem: 0,
+            maxUrls: 18,
+            priorityBase: 0,
+          });
+        }
         renderPagedFigureResultsCards(state, cachedData?.items || [], direction, target);
         prefetchPagedFigureResultsPage(state, target + 1);
         prefetchPagedFigureResultsPage(state, target - 1);
@@ -8131,6 +8284,14 @@
         state.loadingPage = null;
         state.loading = false;
         syncPagedFigureResultsControls(state);
+        if (typeof warmFigureCaseItems === 'function') {
+          warmFigureCaseItems(pageData?.items || [], {
+            thumbPerItem: 2,
+            fullPerItem: 0,
+            maxUrls: 18,
+            priorityBase: 0,
+          });
+        }
         renderPagedFigureResultsCards(state, pageData?.items || [], direction, target);
         prefetchPagedFigureResultsPage(state, target + 1);
         prefetchPagedFigureResultsPage(state, target - 1);
@@ -8173,6 +8334,14 @@
       const pageSize = Math.max(1, Math.min(24, Number.isFinite(pageSizeRaw) ? pageSizeRaw : FIGURE_RESULTS_PAGE_SIZE));
       if (totalCount <= pageSize) {
         latestFigureCaseItems = initialItems;
+        if (typeof warmFigureCaseItems === 'function') {
+          warmFigureCaseItems(initialItems, {
+            thumbPerItem: 2,
+            fullPerItem: 0,
+            maxUrls: 18,
+            priorityBase: 0,
+          });
+        }
         resultWrap.innerHTML = renderPortalCaseCards(initialItems);
         syncFigureCaseFavoriteButtons();
         if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
@@ -8216,7 +8385,16 @@
       state.pageCache.set(0, { items: initialItems, payload: data || {} });
       figureResultsPagedState = state;
       syncPagedFigureResultsControls(state);
+      if (typeof warmFigureCaseItems === 'function') {
+        warmFigureCaseItems(initialItems, {
+          thumbPerItem: 2,
+          fullPerItem: 0,
+          maxUrls: 18,
+          priorityBase: 0,
+        });
+      }
       renderPagedFigureResultsCards(state, initialItems, 0, 0);
+      prefetchPagedFigureResultsPage(state, 1);
       shell.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target.closest('[data-figure-carousel], [data-figure-carousel-dot]') : null;
         if (!target || state.disposed || figureResultsPagedState !== state) return;
@@ -11749,12 +11927,14 @@
 
     function adminPagerHtml(page, total, fnName) {
       const current = Math.max(1, Number(page || 1));
-      const max = Math.max(1, Number(total || 1));
+      const rawTotal = Math.max(0, Number(total || 0));
+      const max = rawTotal > 0 ? Math.max(1, rawTotal) : 0;
+      const disabled = max <= 0;
       const fn = String(fnName || '');
       return `<div class="admin-table-pager">
-        <button type="button" class="secondary" ${current <= 1 ? 'disabled' : ''} onclick="${fn}(${current - 1})">上一頁</button>
-        <span class="muted">第 ${current} / ${max} 頁</span>
-        <button type="button" class="secondary" ${current >= max ? 'disabled' : ''} onclick="${fn}(${current + 1})">下一頁</button>
+        <button type="button" class="secondary" ${disabled || current <= 1 ? 'disabled' : ''} onclick="${fn}(${current - 1})">上一頁</button>
+        <span class="muted">${disabled ? '無資料' : `第 ${current} / ${max} 頁`}</span>
+        <button type="button" class="secondary" ${disabled || current >= max ? 'disabled' : ''} onclick="${fn}(${current + 1})">下一頁</button>
       </div>`;
     }
 
@@ -11968,22 +12148,22 @@
         }
       }
       if (cfgEl && !adminPanelPassword) {
-        cfgEl.textContent = 'Telegram 本機設定：請先登入後台';
-        if (lineCfgEl) lineCfgEl.textContent = 'LINE 本機設定：請先登入後台';
+        cfgEl.textContent = 'Telegram 通知：請先登入後台';
+        if (lineCfgEl) lineCfgEl.textContent = 'LINE 通知：請先登入後台';
         styleAdminTelegramAutoStatusBox(ok, false, false);
       } else if (cfgEl && !ok) {
-        cfgEl.textContent = 'Telegram 本機設定：後端未就緒，無法讀取';
-        if (lineCfgEl) lineCfgEl.textContent = 'LINE 本機設定：後端未就緒，無法讀取';
+        cfgEl.textContent = 'Telegram 通知：後端未就緒，無法讀取';
+        if (lineCfgEl) lineCfgEl.textContent = 'LINE 通知：後端未就緒，無法讀取';
         styleAdminTelegramAutoStatusBox(false, false, false);
       } else if (cfgEl && ok && adminPanelPassword) {
-        cfgEl.textContent = 'Telegram 本機設定：讀取中…';
-        if (lineCfgEl) lineCfgEl.textContent = 'LINE 本機設定：讀取中…';
+        cfgEl.textContent = 'Telegram 通知：讀取中…';
+        if (lineCfgEl) lineCfgEl.textContent = 'LINE 通知：讀取中…';
         styleAdminTelegramAutoStatusBox(true, false, false);
       }
       return ok;
     }
 
-    /** 依後台回傳的 snapshot 更新「Token／Chat ID」自檢列。 */
+    /** 依後台回傳的 snapshot 更新通知通道狀態。 */
     function updateTelegramTabAutoStatusFromSnapshot(data, apiOk) {
       const cfgEl = document.getElementById('admin-tg-config-line');
       if (!cfgEl) return;
@@ -11993,16 +12173,15 @@
         ? Boolean(data.bot_token_format_ok)
         : true;
       const hasChat = Boolean(data && String(data.chat_id || '').trim());
-      let tokLabel = hasTok ? '已儲存 Bot Token' : '尚未儲存 Token';
-      if (hasTok && !fmtOk) tokLabel = '已儲存 Token，但格式不正確（須為「數字:密鑰」）';
-      cfgEl.textContent =
-        'Telegram 本機設定：' +
-        tokLabel +
-        '；' +
-        (hasChat ? '已填 Chat ID' : '尚未填 Chat ID') +
-        (hasTok && fmtOk && hasChat
-          ? '（可按「測試連線並發送」驗證與 Telegram 的通道）'
-          : '（請到 @BotFather 複製整段 API Token 後按「儲存 Telegram」）');
+      let statusText = '待設定，請在顧問 Bot 分頁填入收件帳號。';
+      if (hasTok && !fmtOk) {
+        statusText = '設定格式需要修正，請重新貼上完整的機器人金鑰。';
+      } else if (hasTok && hasChat) {
+        statusText = '已完成，可按「測試連線並發送」確認顧問是否收到訊息。';
+      } else if (hasTok || hasChat) {
+        statusText = '尚未完整，請補齊顧問收件帳號後儲存。';
+      }
+      cfgEl.textContent = 'Telegram 通知：' + statusText;
       styleAdminTelegramAutoStatusBox(ok, hasTok && fmtOk, hasChat);
     }
 
@@ -12014,14 +12193,11 @@
       const hasStaff = Boolean(data && String(data.staff_user_id || '').trim());
       const channels = Array.isArray(data && data.notify_channels) ? data.notify_channels : [];
       const chText = channels.length ? channels.join(' + ') : 'telegram';
+      const ready = hasTok && hasSecret && hasStaff;
       cfgEl.textContent =
-        'LINE 本機設定：' +
-        (hasTok ? '已儲存 Token' : '尚未儲存 Token') +
-        '；' +
-        (hasSecret ? '已儲存 Secret' : '尚未儲存 Secret') +
-        '；' +
-        (hasStaff ? '已填顧問 User ID' : '尚未填顧問 User ID') +
-        `；自動通知：${chText}`;
+        'LINE 通知：' +
+        (ready ? '已完成' : '尚未完整') +
+        `；目前通知：${chText}`;
     }
 
     function setAdminLlmSecretStatus(provider, isSet, masked, options = {}) {
@@ -12177,7 +12353,7 @@
       const drawer = document.getElementById('admin-drawer');
       if (!drawer) return;
       const previousTab = String(drawer.dataset.adminActiveTab || drawer.querySelector('.admin-tab-btn.is-active')?.getAttribute('data-admin-tab') || 'cases');
-      const targetTab = adminSimpleMode && !ADMIN_SIMPLE_CORE_TABS.has(t) ? 'cases' : t;
+      const targetTab = t;
       openAdminSidebarGroupForTab(targetTab);
       drawer.dataset.adminActiveTab = targetTab;
       drawer.querySelectorAll('.admin-tab-btn').forEach((btn) => {
@@ -12565,13 +12741,14 @@
       const activeTab = drawer.dataset.adminActiveTab || 'cases';
       const panel = document.getElementById(`admin-tab-${activeTab}`);
       const details = panel ? Array.from(panel.querySelectorAll('details')) : [];
-      const hasDetails = details.length > 0;
-      const allOpen = hasDetails && details.every((node) => node.open);
-      btn.hidden = !hasDetails;
-      btn.disabled = !hasDetails;
-      btn.textContent = allOpen ? '收合配置' : '展開配置';
-      btn.setAttribute('aria-pressed', allOpen ? 'true' : 'false');
-      btn.setAttribute('aria-expanded', allOpen ? 'true' : 'false');
+      btn.hidden = true;
+      btn.disabled = true;
+      btn.textContent = '';
+      btn.setAttribute('aria-pressed', 'true');
+      btn.setAttribute('aria-expanded', 'true');
+      details.forEach((node) => {
+        node.open = true;
+      });
     }
 
     function updateAdminConsoleAnchorState(index) {
@@ -12590,24 +12767,330 @@
       applyAdminConsoleSectionVisibility(activeTab, index);
     }
 
-    function runAdminGlobalSearch() {
+    function setAdminGlobalSearchStatus(message, tone = '') {
+      const el = document.getElementById('admin-global-search-status');
+      if (!el) return;
+      el.textContent = message || '';
+      el.dataset.tone = tone || '';
+    }
+
+    function adminGlobalSearchText(value) {
+      return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function adminGlobalSearchCleanLabel(value, max = 72) {
+      const text = String(value || '').replace(/\s+/g, ' ').trim();
+      if (!text) return '';
+      return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+    }
+
+    function adminGlobalSearchTargetSelector(node) {
+      if (!node || !node.id || !window.CSS || typeof CSS.escape !== 'function') return '';
+      return `#${CSS.escape(node.id)}`;
+    }
+
+    function adminGlobalSearchNodeKind(node) {
+      if (!node) return '內容';
+      const tag = String(node.tagName || '').toLowerCase();
+      if (/^h[1-6]$/.test(tag) || tag === 'summary') return '區塊';
+      if (tag === 'button' || node.getAttribute('role') === 'button') return '操作';
+      if (tag === 'input' || tag === 'textarea') return '輸入';
+      if (tag === 'select') return '選項';
+      if (tag === 'label') return '欄位';
+      return '內容';
+    }
+
+    function findAdminGlobalSearchSection(tab, node) {
+      const sections = getAdminConsoleSections(tab);
+      const index = sections.findIndex((section) => {
+        const target = section?.target;
+        return target && node && (target === node || target.contains(node) || node.contains(target));
+      });
+      return {
+        index: index >= 0 ? index : 0,
+        label: sections[index >= 0 ? index : 0]?.label || '頁面內容',
+      };
+    }
+
+    function getAdminGlobalDomSuggestions(query) {
+      const needle = adminGlobalSearchText(query);
+      if (!needle) return [];
+      const drawer = document.getElementById('admin-drawer');
+      if (!drawer) return [];
+      const selector = [
+        '.admin-tab-panel h2',
+        '.admin-tab-panel h3',
+        '.admin-tab-panel h4',
+        '.admin-tab-panel summary',
+        '.admin-tab-panel strong',
+        '.admin-tab-panel label',
+        '.admin-tab-panel button',
+        '.admin-tab-panel input',
+        '.admin-tab-panel textarea',
+        '.admin-tab-panel select',
+        '.admin-tab-panel [aria-label]',
+        '.admin-tab-panel [placeholder]',
+        '.admin-tab-panel .muted',
+      ].join(',');
+      const nodes = Array.from(drawer.querySelectorAll(selector));
+      const items = [];
+      const seen = new Set();
+      nodes.forEach((node) => {
+        if (!node || node.closest('#admin-global-search-menu') || node.closest('script,style')) return;
+        const panel = node.closest('.admin-tab-panel');
+        const tab = String(panel?.id || '').replace(/^admin-tab-/, '') || 'cases';
+        const tabLabel = ADMIN_TAB_LABEL_MAP[tab] || tab;
+        const kind = adminGlobalSearchNodeKind(node);
+        const labelText = node.matches('input, textarea')
+          ? (node.getAttribute('placeholder') || node.getAttribute('aria-label') || node.getAttribute('name') || node.id)
+          : node.matches('select')
+            ? (node.getAttribute('aria-label') || node.getAttribute('name') || node.id || node.previousElementSibling?.textContent)
+            : (node.textContent || node.getAttribute('aria-label') || node.getAttribute('title') || node.id);
+        const label = adminGlobalSearchCleanLabel(labelText, kind === '內容' ? 80 : 64);
+        if (label.length < 2) return;
+        if (/^(展開|收合|刷新|查看|編輯|移除|保存|清除|預覽|登入|退出)$/i.test(label)) return;
+        const section = findAdminGlobalSearchSection(tab, node);
+        const attrs = [
+          label,
+          node.getAttribute('aria-label'),
+          node.getAttribute('title'),
+          node.getAttribute('placeholder'),
+          node.getAttribute('name'),
+          node.id,
+          tabLabel,
+          section.label,
+        ].join(' ');
+        const hay = adminGlobalSearchText(attrs);
+        if (!hay.includes(needle)) return;
+        const key = `${tab}:${section.index}:${kind}:${label}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        const labelHay = adminGlobalSearchText(label);
+        items.push({
+          type: 'page-content',
+          title: `${kind}：${label}`,
+          desc: `${tabLabel} / ${section.label}`,
+          tab,
+          section: section.index,
+          targetSelector: adminGlobalSearchTargetSelector(node),
+          score: labelHay === needle ? 900 : labelHay.startsWith(needle) ? 820 : 650,
+        });
+      });
+      return items
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, 60);
+    }
+
+    function getAdminGlobalSearchSuggestions(query) {
+      const q = String(query || '').trim();
+      const needle = adminGlobalSearchText(q);
+      if (!needle) return [];
+      const suggestions = [
+        {
+          type: 'case-search',
+          title: `搜索案件：${q}`,
+          desc: '查詢案件 ID、標題、內文、原文與網址，並打開案件列表。',
+          tab: 'cases',
+          section: 4,
+          score: 1000,
+        },
+        {
+          type: 'handoff-search',
+          title: `搜索客戶留單：${q}`,
+          desc: '查詢姓名、電話、信箱、Session、備註、AI 整理與對話關鍵字。',
+          tab: 'handoffs',
+          section: 0,
+          score: /客|戶|客户|留單|留单|電話|电话|session|對話|对话|顧問|顾问/i.test(q) ? 940 : 520,
+        },
+        {
+          type: 'knowledge-search',
+          title: `搜索知識庫：${q}`,
+          desc: '查詢知識標題、摘要、主題與意圖。',
+          tab: 'knowledge',
+          section: 0,
+          score: /知識|知识|問答|问答|素材|主題|主题|意圖|意图|kb|knowledge/i.test(q) ? 930 : 500,
+        },
+      ];
+      Object.keys(ADMIN_TAB_LABEL_MAP).forEach((tab) => {
+        const meta = ADMIN_TAB_META_MAP[tab] || {};
+        const tabLabel = ADMIN_TAB_LABEL_MAP[tab] || tab;
+        const hay = adminGlobalSearchText([
+          tabLabel,
+          meta.desc,
+          ...(Array.isArray(meta.chips) ? meta.chips : []),
+          meta.notice,
+        ].join(' '));
+        if (hay.includes(needle)) {
+          suggestions.push({
+            type: 'module',
+            title: tabLabel,
+            desc: meta.desc || '打開後台模組。',
+            tab,
+            section: 0,
+            score: hay.startsWith(needle) ? 860 : 720,
+          });
+        }
+        const sections = Array.isArray(ADMIN_TAB_SECTION_MAP[tab]) ? ADMIN_TAB_SECTION_MAP[tab] : [];
+        sections.forEach((section, index) => {
+          const sectionLabel = String(section.label || '');
+          const sectionHay = adminGlobalSearchText(`${tabLabel} ${sectionLabel} ${meta.desc || ''} ${(meta.chips || []).join(' ')}`);
+          if (!sectionHay.includes(needle)) return;
+          suggestions.push({
+            type: 'section',
+            title: `${tabLabel} / ${sectionLabel}`,
+            desc: `切換到「${tabLabel}」並打開「${sectionLabel}」。`,
+            tab,
+            section: index,
+            score: sectionHay.startsWith(needle) || adminGlobalSearchText(sectionLabel).includes(needle) ? 840 : 680,
+          });
+        });
+      });
+      suggestions.push(...getAdminGlobalDomSuggestions(q));
+      const seen = new Set();
+      return suggestions
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .filter((item) => {
+          const key = `${item.type}:${item.tab}:${item.section}:${item.title}:${item.targetSelector || ''}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, 48);
+    }
+
+    function renderAdminGlobalSearchMenu(query) {
+      const menu = document.getElementById('admin-global-search-menu');
+      if (!menu) return [];
+      const suggestions = getAdminGlobalSearchSuggestions(query);
+      menu.innerHTML = '';
+      menu.dataset.activeIndex = suggestions.length ? '0' : '-1';
+      if (!suggestions.length) {
+        menu.classList.remove('is-open');
+        menu.setAttribute('aria-hidden', 'true');
+        return suggestions;
+      }
+      suggestions.forEach((item, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'admin-global-search-option';
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+        btn.dataset.index = String(index);
+        btn.dataset.type = item.type;
+        btn.dataset.tab = item.tab || '';
+        btn.dataset.section = String(item.section || 0);
+        btn.innerHTML =
+          `<strong>${esc(item.title)}</strong>` +
+          `<span>${esc(item.desc || '')}</span>`;
+        btn.addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          executeAdminGlobalSearchSuggestion(item);
+        });
+        menu.appendChild(btn);
+      });
+      menu.classList.add('is-open');
+      menu.setAttribute('aria-hidden', 'false');
+      return suggestions;
+    }
+
+    function closeAdminGlobalSearchMenu() {
+      const menu = document.getElementById('admin-global-search-menu');
+      if (!menu) return;
+      menu.classList.remove('is-open');
+      menu.setAttribute('aria-hidden', 'true');
+    }
+
+    function setAdminGlobalSearchMenuActive(nextIndex) {
+      const menu = document.getElementById('admin-global-search-menu');
+      if (!menu || !menu.classList.contains('is-open')) return;
+      const options = Array.from(menu.querySelectorAll('.admin-global-search-option'));
+      if (!options.length) return;
+      const idx = (Number(nextIndex) + options.length) % options.length;
+      menu.dataset.activeIndex = String(idx);
+      options.forEach((btn, index) => {
+        btn.setAttribute('aria-selected', index === idx ? 'true' : 'false');
+        btn.classList.toggle('is-active', index === idx);
+      });
+      options[idx].scrollIntoView({ block: 'nearest' });
+    }
+
+    async function executeAdminGlobalSearchSuggestion(item) {
       const input = document.getElementById('admin-global-search');
       const q = String(input?.value || '').trim();
-      if (!q) return;
+      closeAdminGlobalSearchMenu();
+      if (!item) return runAdminGlobalSearch();
+      if (item.type === 'case-search') {
+        await runAdminGlobalSearch();
+        return;
+      }
+      if (item.type === 'handoff-search') {
+        switchAdminTab('handoffs');
+        const hq = document.getElementById('admin-handoff-q');
+        if (hq) hq.value = q;
+        adminHandoffPage = 1;
+        if (adminPanelPassword) await loadAdminHandoffRequests();
+        setAdminGlobalSearchStatus(adminPanelPassword ? '已搜索客戶留單' : '請先登入後台', adminPanelPassword ? 'ok' : 'warn');
+        return;
+      }
+      if (item.type === 'knowledge-search') {
+        switchAdminTab('knowledge');
+        const kq = document.getElementById('config-knowledge-q');
+        if (kq) kq.value = q;
+        if (adminPanelPassword) await loadConfigKnowledgePreview();
+        setAdminGlobalSearchStatus(adminPanelPassword ? '已搜索知識庫' : '請先登入後台', adminPanelPassword ? 'ok' : 'warn');
+        return;
+      }
+      const tab = item.tab || 'cases';
+      const section = Number(item.section || 0);
+      switchAdminTab(tab);
+      scrollAdminConsoleAnchor(section);
+      if (item.type === 'page-content' && item.targetSelector) {
+        window.setTimeout(() => {
+          const target = document.querySelector(item.targetSelector);
+          if (!target) return;
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (typeof target.focus === 'function' && /^(input|textarea|select|button)$/i.test(target.tagName || '')) {
+            target.focus({ preventScroll: true });
+          }
+        }, 80);
+      }
+      setAdminGlobalSearchStatus(item.type === 'page-content' ? `已定位 ${item.title}` : `已打開 ${item.title}`, 'ok');
+    }
+
+    async function runAdminGlobalSearch() {
+      const input = document.getElementById('admin-global-search');
+      const q = String(input?.value || '').trim();
+      if (!q) {
+        setAdminGlobalSearchStatus('請輸入關鍵字', 'warn');
+        if (input) input.focus();
+        renderAdminGlobalSearchMenu(q);
+        return;
+      }
+      closeAdminGlobalSearchMenu();
+      setAdminGlobalSearchStatus('搜尋中…', 'loading');
       if (/ai|模型|供應商|key|gemini|deepseek/i.test(q)) {
         switchAdminTab('llm');
+        setAdminGlobalSearchStatus('已切到 AI 供應商', 'ok');
         return;
       }
       if (/客服|qa|話術|提示詞/i.test(q)) {
         switchAdminTab('support-hub');
+        setAdminGlobalSearchStatus('已切到客服 AI', 'ok');
         return;
       }
       if (/line|telegram|tg|通知/i.test(q)) {
         switchAdminTab('telegram');
+        setAdminGlobalSearchStatus('已切到 LINE/TG', 'ok');
+        return;
+      }
+      if (/知識|知识|素材|問答|问答|knowledge|kb/i.test(q)) {
+        switchAdminTab('knowledge');
+        setAdminGlobalSearchStatus('已切到知識庫', 'ok');
         return;
       }
       if (/留單|客戶|對話|session/i.test(q)) {
         switchAdminTab('handoffs');
+        setAdminGlobalSearchStatus('已切到客戶留單', 'ok');
         return;
       }
       switchAdminTab('cases');
@@ -12616,7 +13099,20 @@
         caseQ.value = q;
         caseQ.dispatchEvent(new Event('input', { bubbles: true }));
       }
-      scrollAdminConsoleAnchor(1);
+      adminCasesPage = 1;
+      scrollAdminConsoleAnchor(4);
+      if (!adminPanelPassword) {
+        setAdminGlobalSearchStatus('請先登入後台', 'warn');
+        return;
+      }
+      try {
+        await loadAdminCasesPage();
+        const total = Number(window.__adminCasesLastTotal || 0);
+        const loaded = Array.isArray(window.__adminCasesLastItems) ? window.__adminCasesLastItems.length : 0;
+        setAdminGlobalSearchStatus(total ? `找到 ${total} 筆` : loaded ? `已載入 ${loaded} 筆` : '沒有符合案件', total || loaded ? 'ok' : 'warn');
+      } catch (err) {
+        setAdminGlobalSearchStatus(`搜尋失敗：${formatApiError(err)}`, 'warn');
+      }
     }
 
     function runAdminConsoleCommand(command) {
@@ -12638,7 +13134,7 @@
         : cmd === 'expand';
       if (cmd === 'toggle-details' || cmd === 'expand' || cmd === 'collapse') {
         details.forEach((node) => {
-          node.open = shouldOpen;
+          node.open = true;
         });
         syncAdminConsoleDetailsToggle();
         const first = details[0];
@@ -12657,36 +13153,29 @@
       }
     }
 
-    // 以「前台對應分頁」為核心顯示邏輯，避免後台過度複雜。
+    // 後台不再分核心/完整模式：所有可操作模組都展示，僅隱藏不必要的技術資訊。
     function applyAdminSimpleModeVisibility() {
       const drawer = document.getElementById('admin-drawer');
       const toggle = document.getElementById('admin-simple-mode-toggle');
       const meta = document.getElementById('admin-simple-mode-meta');
-      if (toggle) toggle.checked = Boolean(adminSimpleMode);
+      adminSimpleMode = false;
+      if (toggle) toggle.checked = false;
       if (!drawer) return;
       const btns = Array.from(drawer.querySelectorAll('.admin-tab-btn'));
       let visibleCount = 0;
       for (const btn of btns) {
-        const tab = String(btn.getAttribute('data-admin-tab') || '');
-        const hide = adminSimpleMode && !ADMIN_SIMPLE_CORE_TABS.has(tab);
-        btn.style.display = hide ? 'none' : '';
-        if (!hide) visibleCount += 1;
+        btn.style.display = '';
+        visibleCount += 1;
       }
       drawer.querySelectorAll('.admin-tab-group').forEach((group) => {
-        const groupBtns = Array.from(group.querySelectorAll('.admin-tab-btn'));
-        const hasVisible = groupBtns.some((btn) => btn.style.display !== 'none');
-        group.style.display = hasVisible ? '' : 'none';
+        group.style.display = '';
       });
       if (meta) {
-        meta.textContent = adminSimpleMode
-          ? `核心模式：${visibleCount} 個分頁`
-          : `完整模式：${btns.length} 個分頁`;
+        meta.textContent = `全部功能：${visibleCount} 個分頁`;
       }
       const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
       const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || '');
-      if (adminSimpleMode && activeBtn && activeBtn.style.display === 'none') {
-        switchAdminTab('cases');
-      } else if (!activeTab) {
+      if (!activeTab) {
         switchAdminTab('cases');
       } else {
         syncAdminSidebarGroups(activeTab);
@@ -12696,9 +13185,9 @@
     }
 
     function toggleAdminSimpleMode(enabled) {
-      adminSimpleMode = Boolean(enabled);
+      adminSimpleMode = false;
       try {
-        localStorage.setItem(ADMIN_SIMPLE_MODE_CACHE_KEY, adminSimpleMode ? '1' : '0');
+        localStorage.setItem(ADMIN_SIMPLE_MODE_CACHE_KEY, '0');
       } catch (_) {
         // ignore
       }
@@ -12745,12 +13234,58 @@
       const globalSearch = document.getElementById('admin-global-search');
       if (globalSearch && globalSearch.dataset.bound !== '1') {
         globalSearch.dataset.bound = '1';
+        globalSearch.addEventListener('input', () => {
+          setAdminGlobalSearchStatus('', '');
+          renderAdminGlobalSearchMenu(globalSearch.value);
+        });
+        globalSearch.addEventListener('focus', () => {
+          renderAdminGlobalSearchMenu(globalSearch.value);
+        });
         globalSearch.addEventListener('keydown', (ev) => {
+          const menu = document.getElementById('admin-global-search-menu');
+          const isOpen = Boolean(menu && menu.classList.contains('is-open'));
+          if (ev.key === 'ArrowDown' && isOpen) {
+            ev.preventDefault();
+            setAdminGlobalSearchMenuActive((Number(menu.dataset.activeIndex || 0) || 0) + 1);
+            return;
+          }
+          if (ev.key === 'ArrowUp' && isOpen) {
+            ev.preventDefault();
+            setAdminGlobalSearchMenuActive((Number(menu.dataset.activeIndex || 0) || 0) - 1);
+            return;
+          }
+          if (ev.key === 'Escape') {
+            closeAdminGlobalSearchMenu();
+            return;
+          }
           if (ev.key !== 'Enter') return;
           ev.preventDefault();
+          if (isOpen) {
+            const options = Array.from(menu.querySelectorAll('.admin-global-search-option'));
+            const idx = Math.max(0, Number(menu.dataset.activeIndex || 0) || 0);
+            const btn = options[idx];
+            if (btn) {
+              btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+              return;
+            }
+          }
           runAdminGlobalSearch();
         });
       }
+      const globalSearchBtn = document.getElementById('admin-global-search-btn');
+      if (globalSearchBtn && globalSearchBtn.dataset.bound !== '1') {
+        globalSearchBtn.dataset.bound = '1';
+        globalSearchBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const suggestions = renderAdminGlobalSearchMenu(globalSearch?.value || '');
+          if (!suggestions.length) runAdminGlobalSearch();
+        });
+      }
+      document.addEventListener('mousedown', (ev) => {
+        const root = document.querySelector('.admin-head-search');
+        if (root && ev.target && root.contains(ev.target)) return;
+        closeAdminGlobalSearchMenu();
+      });
     }
 
     function bindAdminConsoleToolbarOnce() {
@@ -12963,7 +13498,7 @@
       } catch (err) {
         if (msg) msg.textContent = `載入失敗：${formatApiError(err)}`;
         const cfgEl = document.getElementById('admin-tg-config-line');
-        if (cfgEl) cfgEl.textContent = 'Telegram 本機設定：讀取失敗（' + formatApiError(err) + '）';
+        if (cfgEl) cfgEl.textContent = 'Telegram 通知：讀取失敗（' + formatApiError(err) + '）';
         styleAdminTelegramAutoStatusBox(true, false, false);
       }
     }
@@ -13053,7 +13588,7 @@
       } catch (err) {
         if (msg) msg.textContent = `載入 LINE 失敗：${formatApiError(err)}`;
         const cfgEl = document.getElementById('admin-line-config-line');
-        if (cfgEl) cfgEl.textContent = 'LINE 本機設定：讀取失敗（' + formatApiError(err) + '）';
+        if (cfgEl) cfgEl.textContent = 'LINE 通知：讀取失敗（' + formatApiError(err) + '）';
       }
     }
 
@@ -14704,6 +15239,9 @@
       if (!img) return;
       const wrap = img.closest('.portal-suumo-card-media');
       if (!wrap || wrap.classList.contains('portal-suumo-card-media--no-reference')) return;
+      if (typeof rememberFigureCasePreloadState === 'function') {
+        rememberFigureCasePreloadState(String(img.currentSrc || img.getAttribute('src') || '').trim(), 'loaded', img);
+      }
       wrap.classList.remove('portal-suumo-card-media--hero-failed');
       setPortalCaseMediaLoadingState(wrap, false);
     }
@@ -14746,6 +15284,9 @@
           fb.innerHTML = portalCaseNoImageCopyHtml('fetch_failed');
           fb.removeAttribute('hidden');
         }
+      }
+      if (typeof rememberFigureCasePreloadState === 'function') {
+        rememberFigureCasePreloadState(String(img.currentSrc || img.getAttribute('src') || '').trim(), 'error');
       }
       if (img.src !== LISTING_IMAGE_FALLBACK_URL) {
         img.onerror = null;
@@ -14871,15 +15412,31 @@
       }
     }
 
+    function updateAdminCasesPager(page, totalPages, total, hasItems = true) {
+      const lab = document.getElementById('admin-cases-page-label');
+      const prev = document.getElementById('admin-cases-prev-btn');
+      const next = document.getElementById('admin-cases-next-btn');
+      const safeTotal = Math.max(0, Number(total || 0));
+      const safePages = safeTotal > 0 ? Math.max(1, Number(totalPages || 1)) : 0;
+      const safePage = safePages > 0 ? Math.min(Math.max(1, Number(page || 1)), safePages) : 1;
+      if (lab) {
+        lab.textContent = safeTotal > 0
+          ? (hasItems ? `第 ${safePage} / ${safePages} 頁（共 ${safeTotal} 筆）` : `本頁無資料（共 ${safeTotal} 筆）`)
+          : '無資料';
+      }
+      if (prev) prev.disabled = safeTotal <= 0 || safePage <= 1;
+      if (next) next.disabled = safeTotal <= 0 || !hasItems || safePage >= safePages;
+    }
+
     async function loadAdminCasesPage() {
       const wrap = document.getElementById('admin-cases-list-wrap');
       const msg = document.getElementById('admin-cases-msg');
-      const lab = document.getElementById('admin-cases-page-label');
       if (!wrap) return;
       if (!adminPanelPassword) {
         window.__adminCasesLastItems = [];
+        window.__adminCasesLastTotal = 0;
         wrap.innerHTML = '<p class="muted">請先登入。</p>';
-        if (lab) lab.textContent = '第 1 頁';
+        updateAdminCasesPager(1, 0, 0);
         return;
       }
       const ps = Math.max(5, Math.min(200, parseInt(String(document.getElementById('admin-cases-page-size')?.value || '20'), 10) || 20));
@@ -14904,19 +15461,29 @@
         const res = await fetchSclawApiFirstOk([`/api/cases?${qs}`, `/api/admin/cases?${qs}`], { headers: adminApiHeaders(false) });
         const data = await parseApiResponseSafe(res);
         const total = Number(data.total || 0);
+        window.__adminCasesLastTotal = total;
         const page = Math.max(1, Number(data.page || 1));
         const pageSize = Number(data.page_size || ps);
-        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        const totalPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+        if (total <= 0) {
+          adminCasesPage = 1;
+          window.__adminCasesLastItems = [];
+          window.__adminCasesLastTotal = 0;
+          updateAdminCasesPager(1, 0, 0);
+          wrap.innerHTML = '<p class="muted">目前篩選條件沒有案件資料。</p>';
+          return;
+        }
         if (page > totalPages) {
           adminCasesPage = totalPages;
           return loadAdminCasesPage();
         }
         adminCasesPage = page;
-        if (lab) lab.textContent = `第 ${page} / ${totalPages} 頁（共 ${total} 筆）`;
+        updateAdminCasesPager(page, totalPages, total);
         const items = Array.isArray(data.items) ? data.items : [];
         window.__adminCasesLastItems = items.slice();
         if (!items.length) {
-          wrap.innerHTML = '<p class="muted">尚無案件資料。</p>';
+          updateAdminCasesPager(page, totalPages, total, false);
+          wrap.innerHTML = '<p class="muted">本頁沒有資料，請回上一頁或重新套用篩選。</p>';
           return;
         }
         let html =
@@ -14964,6 +15531,8 @@
         wrap.innerHTML = `<div class="admin-cases-scroll">${html}</div>`;
       } catch (err) {
         window.__adminCasesLastItems = [];
+        window.__adminCasesLastTotal = 0;
+        updateAdminCasesPager(1, 0, 0);
         wrap.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
       }
     }
@@ -15214,13 +15783,13 @@
       if (cnt) cnt.textContent = n > 0 ? `已勾選 ${n} 筆` : '';
     }
 
-    function updateAdminHandoffPagerControls(page = 1, totalPages = 1) {
+    function updateAdminHandoffPagerControls(page = 1, totalPages = 1, hasItems = true) {
       const prev = document.getElementById('admin-handoff-prev-btn');
       const next = document.getElementById('admin-handoff-next-btn');
       const current = Math.max(1, Number(page || 1));
-      const total = Math.max(1, Number(totalPages || 1));
-      if (prev) prev.disabled = !adminPanelPassword || current <= 1;
-      if (next) next.disabled = !adminPanelPassword || current >= total;
+      const total = Math.max(0, Number(totalPages || 0));
+      if (prev) prev.disabled = !adminPanelPassword || total <= 0 || current <= 1;
+      if (next) next.disabled = !adminPanelPassword || total <= 0 || !hasItems || current >= total;
     }
 
     function currentAdminHandoffRowIds() {
@@ -15690,7 +16259,7 @@
       if (!adminPanelPassword) {
         wrap.innerHTML = '<p class="muted">請先登入。</p>';
         if (lab) lab.textContent = '第 1 頁';
-        updateAdminHandoffPagerControls(1, 1);
+        updateAdminHandoffPagerControls(1, 0, false);
         updateAdminHandoffBulkControls();
         return;
       }
@@ -15713,7 +16282,16 @@
         const total = Number(data.total || 0);
         const page = Math.max(1, Number(data.page || 1));
         const pageSize = Number(data.page_size || ps);
-        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        const totalPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+        if (total <= 0) {
+          adminHandoffPage = 1;
+          if (lab) lab.textContent = '無資料';
+          updateAdminHandoffPagerControls(1, 0, false);
+          wrap.innerHTML = `<p class="muted">${q ? '查無符合條件的留單。' : '尚無留單紀錄。'}</p>`;
+          syncAdminHandoffSelectAllCheckbox();
+          updateAdminHandoffBulkControls();
+          return;
+        }
         if (page > totalPages && totalPages >= 1) {
           adminHandoffPage = totalPages;
           return loadAdminHandoffRequests();
@@ -15724,7 +16302,7 @@
         const items = Array.isArray(data.items) ? data.items : [];
         if (!items.length) {
           wrap.innerHTML = `<p class="muted">${q ? '查無符合條件的留單。' : '尚無留單紀錄。'}</p>`;
-          updateAdminHandoffPagerControls(page, totalPages);
+          updateAdminHandoffPagerControls(page, totalPages, false);
           syncAdminHandoffSelectAllCheckbox();
           updateAdminHandoffBulkControls();
           return;
@@ -15748,7 +16326,7 @@
         if (msg) msg.textContent = '';
       } catch (err) {
         wrap.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
-        updateAdminHandoffPagerControls(1, 1);
+        updateAdminHandoffPagerControls(1, 0, false);
         syncAdminHandoffSelectAllCheckbox();
         updateAdminHandoffBulkControls();
       }
@@ -19234,8 +19812,9 @@
         const mediaFallbackClass = hasReferenceImage ? '' : ' portal-suumo-card-media--fallback portal-suumo-card-media--no-reference';
         const noImageCopyHtml = portalCaseNoImageCopyHtml(hasReferenceImage ? 'fetch_failed' : 'missing_reference');
         const imageMetaText = esc([it.area_text_hant, it.layout_text_hant].map((x) => String(x || '').trim()).filter(Boolean).join(' ｜ ') || sub || '日本不動產');
-        const imageLoading = index < 6 ? 'eager' : 'lazy';
-        const imageFetchPriority = index < 3 ? 'high' : 'low';
+        const imageWarm = hasReferenceImage && typeof isFigureCaseMediaWarm === 'function' && isFigureCaseMediaWarm(mainSrc);
+        const imageLoading = index < 6 || imageWarm ? 'eager' : 'lazy';
+        const imageFetchPriority = index < 3 || imageWarm ? 'high' : 'low';
         const caseSidAttr = sid > 0 ? ` data-case-sid="${sid}"` : '';
         const mediaBlock = mainSrc
           ? `<div class="figure-case-thumb portal-suumo-card-media${hasReferenceImage ? ' portal-suumo-card-media--loading' : ''}${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>
@@ -19849,7 +20428,7 @@
     }
 
     async function runRemainingThreeThumbBackfill(dryRun) {
-      const msg = document.getElementById('crawl-setting-msg');
+      const msg = document.getElementById('admin-portal-matrix-msg') || document.getElementById('crawl-setting-msg');
       const limEl = document.getElementById('admin-remaining-three-thumb-limit');
       const limit = Math.max(1, Math.min(500, parseInt(String(limEl?.value || '40'), 10) || 40));
       if (msg) msg.textContent = dryRun ? '預覽後三站缺圖補齊…' : '執行後三站缺圖補齊…（可能需數十秒）';
@@ -19954,6 +20533,48 @@
         }
       } catch (err) {
         box.textContent = `排入失敗：${formatApiError(err)}`;
+      }
+    }
+
+    async function cleanupInvalidSourceCache(dryRun) {
+      const box = document.getElementById('admin-case-quality-batch-status');
+      if (!box) return;
+      if (!adminPanelPassword) {
+        box.textContent = '請先輸入後台密碼。';
+        return;
+      }
+      const limit = Math.max(1, Math.min(5000, parseInt(String(document.getElementById('admin-invalid-source-cleanup-limit')?.value || '500'), 10) || 500));
+      const hosts = String(document.getElementById('admin-invalid-source-cleanup-host')?.value || '').trim();
+      if (!dryRun) {
+        const ok = window.confirm('將把認證頁／驗證頁污染的原站快取標記為待重新抓取，正常案件不會刪除。確認執行？');
+        if (!ok) return;
+      }
+      box.textContent = dryRun ? '正在預覽失效原站快取...' : '正在清理失效原站快取...';
+      try {
+        const res = await fetchSclawApiFirstOk(
+          [
+            '/api/cases/cleanup-invalid-source',
+            '/api/admin/cases/cleanup-invalid-source',
+            '/api/cases-dashboard/cleanup-invalid-source',
+          ],
+          {
+            method: 'POST',
+            headers: adminApiHeaders(true),
+            body: JSON.stringify({ dry_run: Boolean(dryRun), limit, hosts }),
+          },
+        );
+        const data = await res.json().catch(() => ({}));
+        const sample = Array.isArray(data.sample) ? data.sample : [];
+        const sampleHtml = sample.length
+          ? '<br>樣本：' + sample.slice(0, 5).map((it) => `#${esc(String(it.id || ''))} ${esc(String(it.source_name || ''))}`).join('、')
+          : '';
+        box.innerHTML =
+          `${dryRun ? '預覽完成' : '清理完成'}：匹配 ${Number(data.total_matched || 0)} 筆，` +
+          `${dryRun ? '本次可處理' : '已標記'} ${Number(data.processed_rows || data.updated_rows || 0)} 筆。` +
+          sampleHtml +
+          (!dryRun ? '<br>接下來可執行「每日案件品質批次」或在案件列表內對單筆點「重新抓取物件頁」。' : '');
+      } catch (err) {
+        box.textContent = `清理失敗：${formatApiError(err)}`;
       }
     }
 
@@ -20127,9 +20748,12 @@
     }
 
     async function runCoverageHeal(dryRun = false, portalScope = '') {
-      const msg = document.getElementById('coverage-msg');
-      const age = Math.max(1, Math.min(366, parseInt(String(document.getElementById('coverage-age-days')?.value || '180'), 10) || 180));
-      const threshold = Math.max(1, Math.min(5000, parseInt(String(document.getElementById('coverage-threshold')?.value || '15'), 10) || 15));
+      const adminMatrixWrap = document.getElementById('admin-portal-matrix-wrap');
+      const msg = document.getElementById('admin-portal-matrix-msg') || document.getElementById('coverage-msg');
+      const ageRaw = document.getElementById('admin-portal-matrix-age')?.value || document.getElementById('coverage-age-days')?.value || '180';
+      const thresholdRaw = document.getElementById('coverage-threshold')?.value || '15';
+      const age = Math.max(1, Math.min(366, parseInt(String(ageRaw), 10) || 180));
+      const threshold = Math.max(1, Math.min(5000, parseInt(String(thresholdRaw), 10) || 15));
       const perSource = Math.max(10, Math.min(2000, parseInt(String(document.getElementById('coverage-heal-per-source')?.value || '160'), 10) || 160));
       const maxCells = Math.max(1, Math.min(120, parseInt(String(document.getElementById('coverage-heal-max-cells')?.value || '18'), 10) || 18));
       if (msg) msg.textContent = dryRun ? '預覽補齊清單中…' : '自動補齊執行中…（可能需數十秒）';
@@ -20161,7 +20785,11 @@
           const okCount = healed.filter((x) => String(x?.status || '') === 'ok').length;
           if (msg) msg.textContent = `補齊完成：目標 ${targets} 格，成功 ${okCount} 格，新增連結 ${Number(data?.crawled_links || 0)}，寫入 ${Number(data?.processed || 0)}。`;
         }
-        await refreshCoverageMatrix();
+        if (adminMatrixWrap) {
+          await loadAdminPortalMatrixReport();
+        } else {
+          await refreshCoverageMatrix();
+        }
         await refreshCaseInventoryStats();
       } catch (err) {
         if (msg) msg.textContent = `補齊失敗：${formatApiError(err)}`;
@@ -20434,10 +21062,10 @@
         healthMapByUrl.set(sourceUrlKey(h?.url), h);
       }
 
-      let html = `<p class="muted">總數 ${data.count}｜啟用 ${data.enabled_count}</p>`;
+      let html = `<p class="muted">來源共 ${Number(data.count || 0)} 個，已啟用 ${Number(data.enabled_count || 0)} 個。</p>`;
       const groupLabelById = {};
       if ((groups.items || []).length) {
-        html += `<p class="muted">來源類別開關（預設維持主流找房與目前啟用類別）</p><div class="quick-chips">`;
+        html += `<p class="muted">來源類別開關</p><div class="quick-chips">`;
         for (const g of groups.items) {
           groupLabelById[g.id] = g.label || g.id;
           const nextState = !g.enabled;
@@ -20463,12 +21091,19 @@
         const checkedAt = String(health?.last_checked_at || '-');
         const actionMsgId = sourceActionMsgId(s.url);
         html += `<li>
-          <a href="${s.url}" target="_blank" rel="nofollow noopener">${s.name}</a>｜${s.category}｜群組:${esc(groupLabel)}｜${s.enabled ? 'enabled' : 'disabled'}｜priority:
-          <input class="priority-input" id="${sourceId(s.url)}" type="number" value="${s.priority || 0}">
-          <button class="chip" onclick='setPriority(${JSON.stringify(s.url)})'>儲存權重</button>
-          <button class="chip" onclick='toggleSource(${JSON.stringify(s.url)}, ${nextState})'>${s.enabled ? '停用' : '啟用'}</button>
-          <button class="chip" onclick='crawlNow(${JSON.stringify(s.url)})'>立即爬取</button>
-          <div class="muted">案例 ${totalCases}｜public/restricted ${publicCases}/${restrictedCases}｜最近更新 ${esc(checkedAt)}</div>
+          <div class="admin-source-row-main">
+            <a href="${esc(s.url)}" target="_blank" rel="nofollow noopener">${esc(s.name)}</a>
+            <span class="muted">${esc(s.category || '來源')}｜${esc(groupLabel)}｜${s.enabled ? '已啟用' : '已停用'}</span>
+          </div>
+          <div class="admin-source-row-actions">
+            <label class="muted">排序權重
+              <input class="priority-input" id="${sourceId(s.url)}" type="number" value="${Number(s.priority || 0)}">
+            </label>
+            <button class="chip" onclick='setPriority(${JSON.stringify(s.url)})'>儲存排序</button>
+            <button class="chip" onclick='toggleSource(${JSON.stringify(s.url)}, ${nextState})'>${s.enabled ? '停用來源' : '啟用來源'}</button>
+            <button class="chip" onclick='crawlNow(${JSON.stringify(s.url)})'>立即抓取</button>
+          </div>
+          <div class="muted admin-technical-info">已收錄 ${totalCases} 筆｜可公開 ${publicCases}｜受限 ${restrictedCases}｜最近檢查 ${esc(checkedAt)}</div>
           <div id="${actionMsgId}" class="muted"></div>
         </li>`;
       }

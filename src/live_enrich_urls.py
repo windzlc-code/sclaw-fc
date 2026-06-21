@@ -28,6 +28,7 @@ def live_enrich_eligible_url(item_url: str) -> bool:
         return bool(
             re.search(r"/mansion/(?:shinchiku|chuko)/[0-9a-z_-]+", ul)
             or re.search(r"/kodate/(?:shinchiku|chuko)/[0-9a-z_-]+", ul)
+            or re.search(r"/kodate/[0-9a-z_-]+/?(?:$|\?)", ul)
             or re.search(r"/tochi/[0-9a-z_-]+", ul)
             or "/chintai/" in ul
         )
