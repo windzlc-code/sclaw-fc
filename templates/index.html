@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260622-mobile-touch-chat-c">
+  <link rel="stylesheet" href="/static/site.css?v=20260623-mobile-perf-login-a">
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
@@ -88,7 +88,56 @@
       outline: none !important;
     }
   </style>
-  <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4"></script>
+  <script>
+    (function () {
+      var pendingPhoneLoginOpen = false;
+      function setModalVisible(open) {
+        var modal = document.getElementById('support-phone-login-modal');
+        var backdrop = document.getElementById('support-phone-login-backdrop');
+        var floatingBtn = document.getElementById('support-phone-login-toggle');
+        var navBtn = document.getElementById('bh-nav-phone-login-btn');
+        if (!modal) {
+          pendingPhoneLoginOpen = !!open;
+          return false;
+        }
+        pendingPhoneLoginOpen = false;
+        modal.style.display = open ? 'block' : 'none';
+        modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+        if (backdrop) {
+          backdrop.style.display = open ? 'block' : 'none';
+          backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        [floatingBtn, navBtn].forEach(function (btn) {
+          if (!btn) return;
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          btn.classList.toggle('is-active', !!open);
+        });
+        if (open) {
+          window.setTimeout(function () {
+            var input = document.getElementById('support-phone-login-input');
+            try { if (input) input.focus({ preventScroll: true }); } catch (_) {}
+          }, 40);
+        }
+        return true;
+      }
+      window.toggleSupportPhoneLoginModal = window.toggleSupportPhoneLoginModal || function (force) {
+        var modal = document.getElementById('support-phone-login-modal');
+        var open = typeof force === 'boolean' ? force : !(modal && modal.style.display !== 'none');
+        setModalVisible(open);
+      };
+      document.addEventListener('click', function (event) {
+        var target = event.target && event.target.closest ? event.target.closest('#bh-nav-phone-login-btn, #support-phone-login-toggle') : null;
+        if (!target) return;
+        if (typeof window.setSupportPhoneLoginModalOpen === 'function') return;
+        event.preventDefault();
+        setModalVisible(true);
+      }, true);
+      document.addEventListener('DOMContentLoaded', function () {
+        if (pendingPhoneLoginOpen) setModalVisible(true);
+      });
+    })();
+  </script>
+  <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
   <script>window.__SUPPORT_AVATAR_ALT__={{ (seo_phrase_brand ~ '｜' ~ seo_phrase_entry ~ '｜智能助理') | tojson }};</script>
@@ -23455,7 +23504,15 @@
     initImageLightbox();
     bindPortalCaseCardImageDots();
     syncPortalCaseCardImageLoadStates(document);
+    const isMobileStartupPerfMode = () => {
+      try {
+        return window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
+      } catch (_) {
+        return Math.min(window.innerWidth || 1024, screen.width || 1024) <= 760;
+      }
+    };
     const scheduleNonCriticalStartup = (fn, delayMs = 8000) => {
+      const mobileDelayBoost = isMobileStartupPerfMode() ? 1.9 : 1;
       window.setTimeout(() => {
         const run = () => {
           try {
@@ -23463,9 +23520,32 @@
             if (ret && typeof ret.catch === 'function') ret.catch(() => {});
           } catch (_) {}
         };
-        if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 5000 });
+        if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: isMobileStartupPerfMode() ? 9000 : 5000 });
         else run();
-      }, Math.max(0, Number(delayMs || 0)));
+      }, Math.max(0, Number(delayMs || 0) * mobileDelayBoost));
+    };
+    const scheduleAfterMobileFirstIntent = (fn, fallbackMs = 12000) => {
+      if (!isMobileStartupPerfMode()) {
+        scheduleNonCriticalStartup(fn, 1000);
+        return;
+      }
+      let done = false;
+      const cleanup = () => {
+        window.removeEventListener('scroll', trigger);
+        window.removeEventListener('touchstart', trigger);
+        window.removeEventListener('pointerdown', trigger);
+      };
+      const run = () => {
+        if (done) return;
+        done = true;
+        cleanup();
+        scheduleNonCriticalStartup(fn, 400);
+      };
+      const trigger = () => run();
+      window.addEventListener('scroll', trigger, { passive: true, once: true });
+      window.addEventListener('touchstart', trigger, { passive: true, once: true });
+      window.addEventListener('pointerdown', trigger, { passive: true, once: true });
+      window.setTimeout(run, Math.max(3000, Number(fallbackMs || 12000)));
     };
     function hydrateDeferredStaticImages() {
       if (isAdminStandalonePage() || isFigureQueryResourcePriorityActive()) return;
@@ -23477,8 +23557,12 @@
       });
     }
     scheduleNonCriticalStartup(loadDialogTopCasesAndFaq, 30000);
-    hydrateDeferredStaticImages();
-    scheduleNonCriticalStartup(hydrateDeferredStaticImages, 1200);
+    if (isMobileStartupPerfMode()) {
+      scheduleAfterMobileFirstIntent(hydrateDeferredStaticImages, 9000);
+    } else {
+      hydrateDeferredStaticImages();
+      scheduleNonCriticalStartup(hydrateDeferredStaticImages, 1200);
+    }
     toggleQueryDialog(true);
     supportSelectedCasesCollapsed = loadSupportSelectedCasesCollapsedLocal();
     supportSelectedCases = loadSupportSelectedCasesLocal();
@@ -25083,14 +25167,14 @@
       initHeaderKeywordTabs();
       installMobileHeaderMetrics();
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
-      scheduleNonCriticalStartup(initHomeHeroCarousel, 37000);
-      scheduleNonCriticalStartup(initHomeVideoCarousel, 38000);
+      scheduleAfterMobileFirstIntent(initHomeHeroCarousel, 12000);
+      scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);
       initBhomelandSeoMotion();
-      initHomeIntroCasePicker();
-      installDialogAutoSpeakControls();
+      scheduleAfterMobileFirstIntent(initHomeIntroCasePicker, 12000);
+      scheduleAfterMobileFirstIntent(installDialogAutoSpeakControls, 12000);
       handleInboundSupportDeepLink();
       refreshSupportChatMicHint();
-      initJpMapHub();
+      scheduleAfterMobileFirstIntent(initJpMapHub, 10000);
       window.setTimeout(runSclawBackendConnectivityCheck, 35000);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runSclawStartupChecks);
