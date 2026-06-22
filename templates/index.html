@@ -240,6 +240,7 @@
       </div>
     </nav>
   </header>
+  {% include 'partials/support_chat_widget.html' %}
   <main class="container">
     <div id="query-progress" class="query-progress" style="display:none;">
       <div class="query-progress-track"><div class="query-progress-bar"></div></div>
@@ -2102,8 +2103,6 @@
     </div>
 
     <div id="admin-backdrop" class="config-backdrop" onclick="toggleAdminDrawer(false)"></div>
-
-    {% include 'partials/support_chat_widget.html' %}
 
     <section class="panel query-feature-panel" id="feature-nta" style="display:none;">
       <h2>國稅廳關鍵字搜尋（預設：綜合所得稅）</h2>
