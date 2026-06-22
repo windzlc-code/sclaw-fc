@@ -36,6 +36,7 @@ services:
       - "443:443"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./static:/srv/sclaw_fz_static:ro
       - caddy_data:/data
       - caddy_config:/config
 

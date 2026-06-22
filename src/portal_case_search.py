@@ -4286,11 +4286,11 @@ def _search_portal_cases_coverage_matrix_mode(
     with get_conn() as conn:
         has_region = bool(region_keys)
         count_needs_content = bool(mk_sql)
-        latest_content_join = (
-            "LEFT JOIN content_items c ON c.id = ("
-            "SELECT c2.id FROM content_items c2 INDEXED BY idx_content_source_item "
-            "WHERE c2.source_item_id = s.id ORDER BY c2.id DESC LIMIT 1)"
-        )
+        # `source_items` and `content_items` are kept one-to-one in the production
+        # listing DB. Avoid a per-row correlated "latest content" lookup here; it
+        # makes cold regional searches (especially smaller buckets like 北陸) pay
+        # hundreds of index probes before the first page can render.
+        latest_content_join = "LEFT JOIN content_items c ON c.source_item_id = s.id"
         count_content_join = f"\n        {latest_content_join}" if count_needs_content else ""
         # jp_listing_region_index.sort_time historically可能為空（舊批次僅建立 key，不填時間）。
         # 為避免「全數歸零」，矩陣同口徑查詢一律以 source_items.last_checked_at 作為新鮮度與排序基準。
@@ -4333,12 +4333,9 @@ def _search_portal_cases_coverage_matrix_mode(
         )
         if can_fast_count_page:
             count_sql = f"""
-            SELECT COUNT(DISTINCT rix.source_item_id) AS c
-            FROM jp_listing_region_index rix
-            JOIN source_items s ON s.id = rix.source_item_id
-            WHERE ({CASE_INV_JP_LISTING_SQL})
-              AND ({fresh_sql})
-              AND ({count_region_where})
+            SELECT COUNT(*) AS c
+            FROM jp_listing_region_index rix INDEXED BY idx_jp_listing_region_sort
+            WHERE ({count_region_where})
             """
             count_row = conn.execute(count_sql, count_region_params).fetchone()
             coverage_matrix_sql_total = int((count_row["c"] if count_row else 0) or 0)
@@ -4367,10 +4364,18 @@ def _search_portal_cases_coverage_matrix_mode(
                     cell_by_host[hk] = int(cell_by_host.get(hk, 0) or 0) + int(r["c"] or 0)
             coverage_matrix_sql_total = int(sum(int(cell_by_host.get(hk, 0) or 0) for hk in resolved_hosts))
 
-        page_sql = "LIMIT ? OFFSET ?" if requested_page_size > 0 else "LIMIT ?"
+        page_sql = "LIMIT ?" if requested_page_size > 0 else "LIMIT ?"
         page_query_limit = fetch_lim
         if requested_page_size > 0:
-            page_query_limit = max(fetch_lim, max(1, int(requested_page_size or 1)) * 8)
+            # Some regional buckets (notably 北陸 / small prefectures) contain many
+            # index hits whose source pages are landing/captcha/list-like records.
+            # Offset must be applied after the cheap "real listing" filter; applying
+            # SQL OFFSET first makes page 2/3 randomly empty when the raw rows around
+            # that offset are mostly list pages. Pull a bounded window from the front,
+            # rank/filter cheaply, then hydrate only the requested page.
+            visible_target = max(1, int(page_offset or 0) + int(requested_page_size or 1))
+            candidate_cap = max(720, min(lim, 12000))
+            page_query_limit = min(candidate_cap, max(fetch_lim, visible_target * 80))
         sql = f"""
         SELECT
           COALESCE(c.id, 0) AS id,
@@ -4410,23 +4415,19 @@ def _search_portal_cases_coverage_matrix_mode(
         {page_sql}
         """
         params = [*fetch_region_params, *host_params, *mk_params, page_query_limit]
-        if requested_page_size > 0:
-            params.append(page_offset)
         rows = conn.execute(sql, params).fetchall()
         row_fetch_count = len(rows)
     if requested_page_size > 0:
         # The matrix query keeps COUNT/WHERE aligned with the coverage dashboard, but
         # displayed cards must use the full extractor; otherwise price/area/layout are
         # intentionally absent from the fast matrix shape and the UI shows dashes.
-        page_items: list[dict[str, Any]] = []
-        for r in rows:
-            it = _row_to_portal_case_item(r)
-            if not _is_probably_listing_detail_result(it):
-                continue
-            page_items.append(it)
-            if len(page_items) >= requested_page_size:
-                break
-        items = page_items
+        items, _display_total_count = _paged_portal_case_items_from_rows_fast(
+            rows,
+            lim=max(int(requested_page_size or 1), int(page_offset or 0) + int(requested_page_size or 1)),
+            offset=page_offset,
+            page_size=requested_page_size,
+            multi_portal=multi_portal,
+        )
     else:
         items = [_row_to_portal_case_item_matrix_fast(r) for r in rows]
         items = _prefer_complete_items_for_display(items, lim=lim)
@@ -4468,7 +4469,7 @@ def _search_portal_cases_coverage_matrix_mode(
         "coverage_matrix_cell_by_host": cell_by_host,
         "coverage_matrix_note_zh": mat_note,
         "count": int(coverage_matrix_sql_total) if requested_page_size > 0 else len(items),
-        "count_exact": True if requested_page_size > 0 else bool(row_fetch_count < fetch_lim),
+        "count_exact": (False if can_fast_count_page else True) if requested_page_size > 0 else bool(row_fetch_count < fetch_lim),
         "truncation_note": False if requested_page_size > 0 else row_fetch_count >= fetch_lim,
         "page_offset": page_offset if requested_page_size > 0 else 0,
         "page_size": requested_page_size if requested_page_size > 0 else 0,

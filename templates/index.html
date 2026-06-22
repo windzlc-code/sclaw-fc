@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260620-admin-search-all-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260622-mobile-touch-chat-c">
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
@@ -2258,7 +2258,7 @@
           <span class="bh-footer-contact-popover" role="tooltip">
             <strong>LINE 專人 QR</strong>
             <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
-            <img src="/static/human-handoff/line.png" width="92" height="92" alt="LINE 專人 QR" loading="lazy" decoding="async">
+            <img src="/static/human-handoff/line.png" width="92" height="92" alt="LINE 專人 QR" loading="eager" decoding="async">
           </span>
         </a>
         <a class="bh-footer-app-button bh-footer-app-button--wechat" href="/static/human-handoff/wechat.png" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
@@ -2267,7 +2267,7 @@
           <span class="bh-footer-contact-popover" role="tooltip">
             <strong>WeChat 專人 QR</strong>
             <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
-            <img src="/static/human-handoff/wechat.png" width="92" height="92" alt="WeChat 專人 QR" loading="lazy" decoding="async">
+            <img src="/static/human-handoff/wechat.png" width="92" height="92" alt="WeChat 專人 QR" loading="eager" decoding="async">
           </span>
         </a>
       </div>
@@ -7138,9 +7138,11 @@
           chatInput.blur();
         } catch (_) {}
       }
+      const modalBody = document.getElementById('support-human-intake-modal-body');
       const wrap = document.getElementById('support-chat-messages');
-      if (!wrap) return;
-      const forms = wrap.querySelectorAll('[data-support-human-form], [data-support-advisor-form]');
+      const roots = [modalBody, wrap].filter(Boolean);
+      if (!roots.length) return;
+      const forms = roots.flatMap((root) => Array.from(root.querySelectorAll('[data-support-human-form], [data-support-advisor-form]')));
       const target = forms.length ? forms[forms.length - 1] : wrap;
       scrollSupportControlIntoView(target, 120);
     }
@@ -7154,7 +7156,10 @@
           const t = ev.target;
           if (!t || !t.matches || !t.matches('input, textarea, select')) return;
           const panel = document.getElementById('support-chat-panel');
-          if (!panel || panel.style.display === 'none' || !panel.contains(t)) return;
+          const modal = document.getElementById('support-human-intake-modal');
+          const inChat = panel && panel.style.display !== 'none' && panel.contains(t);
+          const inModal = modal && modal.style.display !== 'none' && modal.contains(t);
+          if (!inChat && !inModal) return;
           if (!isSupportMobileUi()) return;
           document.body.classList.add('support-chat-keyboard-open');
           if (String(t.id || '') === 'support-chat-input') document.body.classList.add('support-chat-composer-focus');
@@ -7445,6 +7450,9 @@
     const FIGURE_CASE_PRELOAD_CONCURRENCY = 2;
     const FIGURE_CASE_PRELOAD_CACHE_LIMIT = 260;
     const FIGURE_RESULTS_PAGE_SIZE = 6;
+    const FIGURE_RESULTS_PREFETCH_RADIUS = 3;
+    const FIGURE_RESULTS_PREFETCH_DELAY_MS = 140;
+    const FIGURE_RESULTS_PREFETCH_IMAGE_BUDGET = 14;
     const figureCasePreloadSeen = new Set();
     const figureCasePreloadQueue = [];
     const figureCasePreloadState = new Map();
@@ -8209,11 +8217,12 @@
           state.pageCache.set(target, pageData);
           const shouldWarmMedia = !options || options.preloadMedia !== false;
           if (shouldWarmMedia && typeof warmFigureCaseItems === 'function') {
+            const isPrefetch = !!options.prefetch;
             warmFigureCaseItems(pageData.items, {
-              thumbPerItem: 1,
+              thumbPerItem: isPrefetch ? 2 : 1,
               fullPerItem: 0,
-              maxUrls: 6,
-              priorityBase: Math.abs(target - getPagedFigureResultsDisplayPage(state)) <= 1 ? 30 : 140,
+              maxUrls: isPrefetch ? FIGURE_RESULTS_PREFETCH_IMAGE_BUDGET : 6,
+              priorityBase: Math.abs(target - getPagedFigureResultsDisplayPage(state)) <= 1 ? 30 : (isPrefetch ? 120 : 140),
             });
           }
           const totalCount = Number(payload?.count);
@@ -8233,10 +8242,76 @@
     }
 
     function prefetchPagedFigureResultsPage(state, pageIndex) {
-      if (!state) return;
-      const target = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(pageIndex || 0), 10) || 0));
-      if (target === state.currentPage || state.pageCache.has(target) || state.pagePromises.has(target)) return;
-      getPagedFigureResultsPage(state, target, { preloadMedia: false }).catch(() => {});
+      if (!state || state.disposed || figureResultsPagedState !== state) return;
+      const totalPages = Math.max(1, Number(state.pageCount || 1) || 1);
+      const target = Math.max(0, Math.min(totalPages - 1, parseInt(String(pageIndex || 0), 10) || 0));
+      if (state.pageCache.has(target) || state.pagePromises.has(target)) return;
+      if (!state.prefetchQueue) state.prefetchQueue = [];
+      if (!state.prefetchQueued) state.prefetchQueued = new Set();
+      if (state.prefetchQueued.has(target)) return;
+      state.prefetchQueued.add(target);
+      state.prefetchQueue.push(target);
+      schedulePagedFigureResultsPrefetchDrain(state, FIGURE_RESULTS_PREFETCH_DELAY_MS);
+    }
+
+    function schedulePagedFigureResultsPrefetchDrain(state, delayMs = FIGURE_RESULTS_PREFETCH_DELAY_MS) {
+      if (!state || state.disposed || figureResultsPagedState !== state) return;
+      if (state.prefetchTimer) window.clearTimeout(state.prefetchTimer);
+      state.prefetchTimer = window.setTimeout(() => {
+        state.prefetchTimer = 0;
+        drainPagedFigureResultsPrefetchQueue(state);
+      }, Math.max(40, Number(delayMs || FIGURE_RESULTS_PREFETCH_DELAY_MS) || FIGURE_RESULTS_PREFETCH_DELAY_MS));
+    }
+
+    function drainPagedFigureResultsPrefetchQueue(state) {
+      if (!state || state.disposed || figureResultsPagedState !== state) return;
+      if (state.prefetchingPage != null) return;
+      if (state.loading) {
+        schedulePagedFigureResultsPrefetchDrain(state, 260);
+        return;
+      }
+      const queue = Array.isArray(state.prefetchQueue) ? state.prefetchQueue : [];
+      const queued = state.prefetchQueued instanceof Set ? state.prefetchQueued : new Set();
+      const totalPages = Math.max(1, Number(state.pageCount || 1) || 1);
+      let target = null;
+      while (queue.length) {
+        const next = Math.max(0, Math.min(totalPages - 1, parseInt(String(queue.shift() || 0), 10) || 0));
+        queued.delete(next);
+        if (state.pageCache.has(next) || state.pagePromises.has(next)) continue;
+        target = next;
+        break;
+      }
+      if (target == null) return;
+      state.prefetchingPage = target;
+      getPagedFigureResultsPage(state, target, { preloadMedia: true, prefetch: true })
+        .then((pageData) => {
+          if (!state.disposed && figureResultsPagedState === state && typeof warmFigureCaseItems === 'function') {
+            warmFigureCaseItems(pageData?.items || [], {
+              thumbPerItem: 2,
+              fullPerItem: 0,
+              maxUrls: FIGURE_RESULTS_PREFETCH_IMAGE_BUDGET,
+              priorityBase: 130 + Math.abs(target - getPagedFigureResultsDisplayPage(state)) * 12,
+            });
+          }
+        })
+        .catch(() => {
+          // Prefetch is opportunistic; the visible page request still owns user feedback.
+        })
+        .finally(() => {
+          if (!state.disposed && figureResultsPagedState === state) {
+            state.prefetchingPage = null;
+            if (queue.length) schedulePagedFigureResultsPrefetchDrain(state, 180);
+          }
+        });
+    }
+
+    function prefetchPagedFigureResultsAround(state, centerPage) {
+      if (!state || state.disposed || figureResultsPagedState !== state) return;
+      const center = Math.max(0, Math.min(state.pageCount - 1, parseInt(String(centerPage || 0), 10) || 0));
+      for (let distance = 1; distance <= FIGURE_RESULTS_PREFETCH_RADIUS; distance += 1) {
+        prefetchPagedFigureResultsPage(state, center + distance);
+        prefetchPagedFigureResultsPage(state, center - distance);
+      }
     }
 
     async function setPagedFigureResultsPage(state, pageIndex, options = {}) {
@@ -8265,8 +8340,7 @@
           });
         }
         renderPagedFigureResultsCards(state, cachedData?.items || [], direction, target);
-        prefetchPagedFigureResultsPage(state, target + 1);
-        prefetchPagedFigureResultsPage(state, target - 1);
+        prefetchPagedFigureResultsAround(state, target);
         return;
       }
       if (state.loading && state.loadingPage === target) {
@@ -8301,8 +8375,7 @@
           });
         }
         renderPagedFigureResultsCards(state, pageData?.items || [], direction, target);
-        prefetchPagedFigureResultsPage(state, target + 1);
-        prefetchPagedFigureResultsPage(state, target - 1);
+        prefetchPagedFigureResultsAround(state, target);
       } catch (err) {
         if (state.disposed || state.requestId !== requestId || figureResultsPagedState !== state) return;
         if (state.activeFetchController === requestCtrl) state.activeFetchController = null;
@@ -8389,6 +8462,10 @@
         pageMediaPending: new Map(),
         pageAssetsReady: false,
         pendingMediaCount: 0,
+        prefetchQueue: [],
+        prefetchQueued: new Set(),
+        prefetchingPage: null,
+        prefetchTimer: 0,
       };
       state.pageCache.set(0, { items: initialItems, payload: data || {} });
       figureResultsPagedState = state;
@@ -8402,7 +8479,7 @@
         });
       }
       renderPagedFigureResultsCards(state, initialItems, 0, 0);
-      prefetchPagedFigureResultsPage(state, 1);
+      prefetchPagedFigureResultsAround(state, 0);
       shell.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target.closest('[data-figure-carousel], [data-figure-carousel-dot]') : null;
         if (!target || state.disposed || figureResultsPagedState !== state) return;
@@ -10845,15 +10922,102 @@
       await clearSupportSelectedCases();
     }
 
-    function openSupportHumanIntakeFromSalesMcp() {
+    function toggleSupportHumanIntakeModal(open, options = {}) {
+      const modal = document.getElementById('support-human-intake-modal');
+      if (!modal) return;
+      if (modal.parentElement && modal.parentElement.id === 'support-chat-widget') {
+        document.body.appendChild(modal);
+      }
+      const shouldOpen = Boolean(open);
+      modal.style.display = shouldOpen ? 'block' : 'none';
+      modal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+      document.body.classList.toggle('support-human-intake-modal-open', shouldOpen);
+      if (!shouldOpen) return;
+      const titleEl = document.getElementById('support-human-intake-modal-title');
+      const noteEl = document.getElementById('support-human-intake-modal-note');
+      if (titleEl && options.title) titleEl.textContent = String(options.title);
+      if (noteEl && options.note) noteEl.textContent = String(options.note);
+      window.setTimeout(() => {
+        const first = modal.querySelector('input, select, textarea, button');
+        try {
+          first?.focus({ preventScroll: true });
+        } catch (_) {}
+      }, 80);
+    }
+
+    function setSupportHumanIntakeModalContent(html, options = {}) {
+      const body = document.getElementById('support-human-intake-modal-body');
+      if (!body) return false;
+      body.innerHTML = html || '';
+      toggleSupportHumanIntakeModal(true, options);
+      return true;
+    }
+
+    function clearSupportHumanIntakeModalContent() {
+      const body = document.getElementById('support-human-intake-modal-body');
+      if (body) body.innerHTML = '';
+      toggleSupportHumanIntakeModal(false);
+    }
+
+    function supportHumanIntakeLauncherHtml(title, desc) {
+      return (
+        '<div class="support-human-intake-launcher">' +
+        '<div>' +
+        `<strong>${esc(title || '顧問諮詢表單')}</strong>` +
+        `<p class="muted">${esc(desc || '表單會在目前頁面以獨立視窗開啟，不會擠壓對話內容。')}</p>` +
+        '</div>' +
+        '<button type="button" class="secondary" onclick="openSupportHumanIntakeModalFromChat()">開啟填單視窗</button>' +
+        '</div>'
+      );
+    }
+
+    function supportAdvisorActionLauncherHtml(label) {
+      return (
+        '<div class="support-human-intake-launcher">' +
+        '<div>' +
+        `<strong>${esc(label || '顧問留單')}</strong>` +
+        '<p class="muted">已開啟獨立填寫視窗，對話區會保持簡潔。</p>' +
+        '</div>' +
+        '<button type="button" class="secondary" onclick="reopenSupportAdvisorActionModalFromChat()">重新開啟</button>' +
+        '</div>'
+      );
+    }
+
+    function openSupportHumanIntakeModalFromChat() {
+      const body = document.getElementById('support-human-intake-modal-body');
+      if (body && body.querySelector('[data-support-human-form]')) {
+        toggleSupportHumanIntakeModal(true, {
+          title: '日本不動產購買諮詢申請表',
+          note: '請完整填寫問卷與至少一項聯絡方式，確認後才會通知人工顧問。',
+        });
+        return;
+      }
+      openSupportHumanIntakeFromSalesMcp({ silent: true });
+    }
+
+    function reopenSupportAdvisorActionModalFromChat() {
+      const body = document.getElementById('support-human-intake-modal-body');
+      if (body && body.querySelector('[data-support-advisor-form]')) {
+        toggleSupportHumanIntakeModal(true, {
+          title: '顧問留單',
+          note: '填寫聯絡方式或需求說明後送出，系統會通知人工顧問。',
+        });
+      }
+    }
+
+    function openSupportHumanIntakeFromSalesMcp(options = {}) {
       supportHumanHandoffStep = 'form';
-      supportChatHistory.push({
-        role: 'assistant',
-        content: '',
-        contentHtml:
-          '<p class="muted support-human-intake-kicker">人工顧問會在您完成問卷與聯絡方式、確認送出後才回覆。請先填寫下方申請表。</p>' +
-          buildSupportHumanIntakeFormHtml(),
+      setSupportHumanIntakeModalContent(buildSupportHumanIntakeFormHtml(), {
+        title: '日本不動產購買諮詢申請表',
+        note: '請完整填寫問卷與至少一項聯絡方式，確認後才會通知人工顧問。',
       });
+      if (!options || !options.silent) {
+        supportChatHistory.push({
+          role: 'assistant',
+          content: '',
+          contentHtml: supportHumanIntakeLauncherHtml('已開啟真人顧問留單流程', '請在獨立視窗完成問卷；送出後人工顧問才會依資料回覆。'),
+        });
+      }
       renderSupportChatMessages();
       settleSupportMobileFormLayout();
       if (supportChatHistory.length > 24) {
@@ -10945,9 +11109,11 @@
     }
 
     function supportLatestHumanIntakeSeqFromDom() {
-      const wrap = document.getElementById('support-chat-messages');
-      if (!wrap) return 0;
-      const blocks = wrap.querySelectorAll('[data-support-human-form]');
+      const roots = [document.getElementById('support-human-intake-modal-body'), document.getElementById('support-chat-messages')].filter(Boolean);
+      let blocks = [];
+      roots.forEach((root) => {
+        blocks = blocks.concat(Array.from(root.querySelectorAll('[data-support-human-form]')));
+      });
       if (!blocks.length) return 0;
       const last = blocks[blocks.length - 1];
       const n = parseInt(String(last.getAttribute('data-support-human-form') || '0'), 10);
@@ -10955,9 +11121,11 @@
     }
 
     function supportLatestAdvisorIntakeSeqFromDom() {
-      const wrap = document.getElementById('support-chat-messages');
-      if (!wrap) return 0;
-      const blocks = wrap.querySelectorAll('[data-support-advisor-form]');
+      const roots = [document.getElementById('support-human-intake-modal-body'), document.getElementById('support-chat-messages')].filter(Boolean);
+      let blocks = [];
+      roots.forEach((root) => {
+        blocks = blocks.concat(Array.from(root.querySelectorAll('[data-support-advisor-form]')));
+      });
       if (!blocks.length) return 0;
       const last = blocks[blocks.length - 1];
       const n = parseInt(String(last.getAttribute('data-support-advisor-form') || '0'), 10);
@@ -11068,12 +11236,20 @@
             '</div>',
         });
         renderSupportChatMessages();
+        clearSupportHumanIntakeModalContent();
         markSupportHandoffSyncActive();
         scheduleSyncHandoffConversationToBackend();
       } catch (err) {
         supportChatHistory.push({ role: 'assistant', content: `送出失敗：${formatApiError(err)}` });
         renderSupportChatMessages();
       }
+    }
+
+    function openSupportAdvisorActionModal(actionId, actionLabel, salesMcp, contextMessage) {
+      setSupportHumanIntakeModalContent(buildSupportAdvisorActionFormHtml(actionId, actionLabel, salesMcp, contextMessage), {
+        title: actionLabel || '顧問留單',
+        note: '填寫聯絡方式或需求說明後送出，系統會通知人工顧問。',
+      });
     }
 
     function applySupportSalesAction(actionId) {
@@ -11089,8 +11265,9 @@
       supportChatHistory.push({
         role: 'assistant',
         content: '',
-        contentHtml: buildSupportAdvisorActionFormHtml(act, labels[act] || act, salesMcp, ctx),
+        contentHtml: supportAdvisorActionLauncherHtml(labels[act] || act),
       });
+      openSupportAdvisorActionModal(act, labels[act] || act, salesMcp, ctx);
       renderSupportChatMessages();
       settleSupportMobileFormLayout();
       if (supportChatHistory.length > 24) {
@@ -11585,6 +11762,7 @@
         });
         renderSupportChatMessages();
         await clearSupportSelectedCasesAfterSend(String(built.payload.interest_pick_summary || '').trim() ? 1 : 0);
+        clearSupportHumanIntakeModalContent();
         markSupportHandoffSyncActive();
         scheduleSyncHandoffConversationToBackend();
       } catch (err) {
@@ -11685,19 +11863,19 @@
         input.value = '';
         supportChatHistory.push({ role: 'user', content: msg });
         if (supportHumanHandoffStep === 'form') {
+          openSupportHumanIntakeModalFromChat();
           supportChatHistory.push({
             role: 'assistant',
             content:
-              '留單表單已顯示於上方對話中。請先填寫完整問卷與聯絡方式，按「預覽送出內容」確認後再按「確認送出」；送出後才會通知人工顧問回覆。',
+              '顧問諮詢表單已在獨立視窗開啟。請先填寫完整問卷與聯絡方式，按「預覽送出內容」確認後再按「確認送出」；送出後才會通知人工顧問回覆。',
           });
         } else {
           supportHumanHandoffStep = 'form';
+          openSupportHumanIntakeFromSalesMcp({ silent: true });
           supportChatHistory.push({
             role: 'assistant',
             content: '',
-            contentHtml:
-              '<p class="muted support-human-intake-kicker">已切換為真人顧問留單流程。請先完成問卷與聯絡方式；確認送出後才會通知人工顧問回覆。</p>' +
-              buildSupportHumanIntakeFormHtml(),
+            contentHtml: supportHumanIntakeLauncherHtml('已切換為真人顧問留單流程', '請在獨立視窗完成問卷與聯絡方式；確認送出後才會通知人工顧問回覆。'),
           });
         }
         renderSupportChatMessages();
@@ -11801,12 +11979,11 @@
           if (data.sales_mcp && data.sales_mcp.human_handoff_intent && supportHumanHandoffStep !== 'form') {
             supportHumanHandoffStep = 'form';
             appendedHumanForm = true;
+            openSupportHumanIntakeFromSalesMcp({ silent: true });
             supportChatHistory.push({
               role: 'assistant',
               content: '',
-              contentHtml:
-                '<p class="muted support-human-intake-kicker">已切換為真人顧問留單流程。請先完成問卷與聯絡方式；確認送出後才會通知人工顧問回覆。</p>' +
-                buildSupportHumanIntakeFormHtml(),
+              contentHtml: supportHumanIntakeLauncherHtml('已切換為真人顧問留單流程', '請在獨立視窗完成問卷與聯絡方式；確認送出後才會通知人工顧問回覆。'),
             });
           }
           saveSupportKbHistoryFromResponse(data.knowledge);
@@ -19576,8 +19753,9 @@
       supportChatHistory.push({
         role: 'assistant',
         content: '',
-        contentHtml: buildSupportHumanIntakeFormHtml(),
+        contentHtml: supportHumanIntakeLauncherHtml('顧問諮詢表單已開啟', '請在獨立視窗填寫需求與聯絡方式，送出後才會通知人工顧問。'),
       });
+      openSupportHumanIntakeFromSalesMcp({ silent: true });
       renderSupportChatMessages();
       settleSupportMobileFormLayout();
       if (supportChatHistory.length > 40) {
@@ -19616,8 +19794,9 @@
       supportChatHistory.push({
         role: 'assistant',
         content: '',
-        contentHtml: buildSupportAdvisorActionFormHtml(act, lab, salesMcp, ctx),
+        contentHtml: supportAdvisorActionLauncherHtml(lab),
       });
+      openSupportAdvisorActionModal(act, lab, salesMcp, ctx);
       renderSupportChatMessages();
       settleSupportMobileFormLayout();
       if (supportChatHistory.length > 40) {
@@ -23006,7 +23185,8 @@
           && !String(mapSelectionState.prefLabel || '').trim()
           && figureMapRegionSearchKeys(String(mapSelectionState.queryRegion || mapSelectionState.region || regionHint || '').trim()).length > 1;
         if (aggregateSplitBroad) {
-          const payloads = await Promise.all(attempts.map(async (attempt) => {
+          const payloads = [];
+          for (const attempt of attempts) {
             const res = await fetchPortalCaseSearch(buildPortalSearchBody(attempt.region, attempt.keyword, {
               page_size: FIGURE_RESULTS_PAGE_SIZE,
             }));
@@ -23015,8 +23195,8 @@
               const detailRaw = payload?.detail || payload?.error || payload?.message || '查詢失敗，請稍後再試。';
               throw new Error(dedupeRepeatedFailureMessage(detailRaw));
             }
-            return payload || {};
-          }));
+            payloads.push(payload || {});
+          }
           data = mergePortalCaseSearchPayloads(payloads, attempts.map((attempt) => attempt.region));
         } else {
           for (const attempt of attempts) {
@@ -23310,6 +23490,7 @@
         if (!isAdminStandalonePage()) toggleAdminDrawer(false);
         toggleSupportSelectedCasesDrawer(false);
         toggleSupportPhoneLoginModal(false);
+        toggleSupportHumanIntakeModal(false);
         toggleSupportChatHistoryPanel(false);
         setSupportChatMenuOpen(false);
         toggleSupportChat(false);
@@ -24512,19 +24693,21 @@
     }
 
     function installSupportHumanIntakeSubmitDelegation() {
-      const wrap = document.getElementById('support-chat-messages');
-      if (!wrap || wrap.dataset.supportHumanSubmitDelegated === '1') return;
-      wrap.dataset.supportHumanSubmitDelegated = '1';
-      wrap.addEventListener('click', (ev) => {
+      if (document.documentElement.dataset.supportHumanSubmitDelegated === '1') return;
+      document.documentElement.dataset.supportHumanSubmitDelegated = '1';
+      document.addEventListener('click', (ev) => {
         const t = ev.target;
         const previewBtn = t && t.closest ? t.closest('[data-support-human-preview]') : null;
-        if (previewBtn && wrap.contains(previewBtn)) {
+        const chatWrap = document.getElementById('support-chat-messages');
+        const modalBody = document.getElementById('support-human-intake-modal-body');
+        const inScope = (node) => Boolean(node && ((chatWrap && chatWrap.contains(node)) || (modalBody && modalBody.contains(node))));
+        if (previewBtn && inScope(previewBtn)) {
           ev.preventDefault();
           previewSupportHumanIntake();
           return;
         }
         const submitBtn = t && t.closest ? t.closest('[data-support-human-submit]') : null;
-        if (!submitBtn || !wrap.contains(submitBtn)) return;
+        if (!submitBtn || !inScope(submitBtn)) return;
         ev.preventDefault();
         void submitSupportHumanIntake();
       });
@@ -24863,6 +25046,25 @@
       });
     }
 
+    function updateMobileHeaderMetrics() {
+      try {
+        const header = document.querySelector('.bh-site-header');
+        if (!header || !document.documentElement) return;
+        const rect = header.getBoundingClientRect();
+        const height = Math.max(72, Math.ceil(rect.height || 0));
+        document.documentElement.style.setProperty('--bh-mobile-header-height', `${height}px`);
+      } catch (_) {}
+    }
+
+    function installMobileHeaderMetrics() {
+      updateMobileHeaderMetrics();
+      window.addEventListener('resize', () => window.requestAnimationFrame(updateMobileHeaderMetrics), { passive: true });
+      window.addEventListener('orientationchange', () => window.setTimeout(updateMobileHeaderMetrics, 80), { passive: true });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => window.requestAnimationFrame(updateMobileHeaderMetrics), { passive: true });
+      }
+    }
+
     function runSclawStartupChecks() {
       if (isAdminStandalonePage()) {
         setStandaloneAdminLocked(true);
@@ -24879,6 +25081,7 @@
       installHomeHeroSoundToggle();
       installGeoKeywordEntrances();
       initHeaderKeywordTabs();
+      installMobileHeaderMetrics();
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       scheduleNonCriticalStartup(initHomeHeroCarousel, 37000);
       scheduleNonCriticalStartup(initHomeVideoCarousel, 38000);

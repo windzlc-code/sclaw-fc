@@ -24,7 +24,7 @@ from typing import Any
 import httpx
 from src.bsoup import soup_from_html
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -193,11 +193,23 @@ async def _api_exception_json_handler(request: Request, exc: Exception):
 
 _PORTAL_CASE_SEARCH_CACHE_LOCK = threading.Lock()
 _PORTAL_CASE_SEARCH_CACHE: dict[str, tuple[float, str]] = {}
-_PORTAL_CASE_SEARCH_CACHE_MAX = 96
+try:
+    _PORTAL_CASE_SEARCH_CACHE_MAX = max(
+        256,
+        min(4096, int(os.getenv("SCLAW_PORTAL_SEARCH_CACHE_MAX", "1024") or 1024)),
+    )
+except Exception:
+    _PORTAL_CASE_SEARCH_CACHE_MAX = 1024
 _PORTAL_CASE_SEARCH_EXACT_COUNT_LOCK = threading.Lock()
 _PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _PORTAL_CASE_SEARCH_EXACT_COUNT_JOBS: set[str] = set()
-_PORTAL_CASE_SEARCH_EXACT_COUNT_MAX = 160
+try:
+    _PORTAL_CASE_SEARCH_EXACT_COUNT_MAX = max(
+        256,
+        min(4096, int(os.getenv("SCLAW_PORTAL_SEARCH_EXACT_COUNT_MAX", "1024") or 1024)),
+    )
+except Exception:
+    _PORTAL_CASE_SEARCH_EXACT_COUNT_MAX = 1024
 _SITE_SEARCH_CACHE_LOCK = threading.Lock()
 _SITE_SEARCH_CACHE: dict[str, tuple[float, bytes]] = {}
 _SITE_SEARCH_CACHE_MAX = 160
@@ -376,9 +388,12 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
     if not regions:
         return
     try:
-        limit = max(10, min(60, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_LIMIT", "60") or 60)))
+        # Keep this aligned with the frontend's default query cap. The response is
+        # still paged by `page_size`, but the cache key includes `limit`; using a
+        # smaller warmup limit creates a warm cache entry that real searches miss.
+        limit = max(10, min(100000, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_LIMIT", "100000") or 100000)))
     except Exception:
-        limit = 60
+        limit = 100000
     try:
         page_size = max(1, min(24, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_PAGE_SIZE", "6") or 6)))
     except Exception:
@@ -405,68 +420,69 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
         allowed_tx = _allowed_portal_transactions(settings)
         for region in regions:
             for age in prewarm_ages:
-                cache_payload = {
-                    "tx": "buy",
-                    "portal": "all",
-                    "region": region,
-                    "keyword": "",
-                    "property_types": [],
-                    "price_min_man": 0,
-                    "price_max_man": 0,
-                    "layout_min_rooms": 0,
-                    "layout_max_rooms": 0,
-                    "layout_exact_zero": False,
-                    "max_age_days": age,
-                    "limit": limit,
-                    "jp_line_id": 0,
-                    "jp_station_id": 0,
-                    "walk_max": 0,
-                    "coverage_matrix_aligned": True,
-                    "offset": 0,
-                    "page_size": page_size,
-                }
-                cache_key = _portal_case_search_cache_key(cache_payload)
-                if not force and _portal_case_search_cache_get(cache_key) is not None:
-                    continue
-                data = search_portal_cases(
-                    transaction="buy",
-                    portal="all",
-                    region_hint=region,
-                    keyword="",
-                    property_types=[],
-                    price_min_man=0,
-                    price_max_man=0,
-                    layout_min_rooms=0,
-                    layout_max_rooms=0,
-                    layout_exact_zero=False,
-                    max_age_days=age,
-                    limit=limit,
-                    offset=0,
-                    page_size=page_size,
-                    jp_line_id=0,
-                    jp_station_id=0,
-                    walk_max=0,
-                    coverage_matrix_aligned=True,
-                )
-                items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
-                    list(data.get("items") or []),
-                    allow_live_fetch=False,
-                )
-                bf_meta["skipped_reason"] = "prewarm_fast_mode"
-                for item in items_bf:
-                    if isinstance(item, dict) and not str(item.get("jp_region_display_zh") or "").strip():
-                        item["jp_region_display_zh"] = region
-                data["items"] = items_bf
-                data["portal_thumb_backfill"] = bf_meta
-                data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
-                data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
-                data["allowed_transactions"] = allowed_tx
-                data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
-                data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
-                _portal_case_search_cache_set(
-                    cache_key,
-                    json.dumps(data, ensure_ascii=False, separators=(",", ":")),
-                )
+                for matrix_aligned in (False, True):
+                    cache_payload = {
+                        "tx": "buy",
+                        "portal": "all",
+                        "region": region,
+                        "keyword": "",
+                        "property_types": [],
+                        "price_min_man": 0,
+                        "price_max_man": 0,
+                        "layout_min_rooms": 0,
+                        "layout_max_rooms": 0,
+                        "layout_exact_zero": False,
+                        "max_age_days": age,
+                        "limit": limit,
+                        "jp_line_id": 0,
+                        "jp_station_id": 0,
+                        "walk_max": 0,
+                        "coverage_matrix_aligned": matrix_aligned,
+                        "offset": 0,
+                        "page_size": page_size,
+                    }
+                    cache_key = _portal_case_search_cache_key(cache_payload)
+                    if not force and _portal_case_search_cache_get(cache_key) is not None:
+                        continue
+                    data = search_portal_cases(
+                        transaction="buy",
+                        portal="all",
+                        region_hint=region,
+                        keyword="",
+                        property_types=[],
+                        price_min_man=0,
+                        price_max_man=0,
+                        layout_min_rooms=0,
+                        layout_max_rooms=0,
+                        layout_exact_zero=False,
+                        max_age_days=age,
+                        limit=limit,
+                        offset=0,
+                        page_size=page_size,
+                        jp_line_id=0,
+                        jp_station_id=0,
+                        walk_max=0,
+                        coverage_matrix_aligned=matrix_aligned,
+                    )
+                    items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
+                        list(data.get("items") or []),
+                        allow_live_fetch=False,
+                    )
+                    bf_meta["skipped_reason"] = "prewarm_fast_mode"
+                    for item in items_bf:
+                        if isinstance(item, dict) and not str(item.get("jp_region_display_zh") or "").strip():
+                            item["jp_region_display_zh"] = region
+                    data["items"] = items_bf
+                    data["portal_thumb_backfill"] = bf_meta
+                    data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
+                    data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
+                    data["allowed_transactions"] = allowed_tx
+                    data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
+                    data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
+                    _portal_case_search_cache_set(
+                        cache_key,
+                        json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+                    )
     except Exception:
         return
 
@@ -1286,6 +1302,11 @@ def _case_image_prefetch_worker(urls: list[str]) -> None:
 
 def _case_image_prefetch_enabled() -> bool:
     return str(os.getenv("SCLAW_CASE_IMAGE_PREFETCH", "")).strip().lower() in ("1", "true", "yes")
+
+
+def _case_image_sync_fetch_enabled() -> bool:
+    """Whether an uncached image request may block while downloading the remote image."""
+    return str(os.getenv("SCLAW_CASE_IMAGE_SYNC_FETCH", "")).strip().lower() in ("1", "true", "yes")
 
 
 def _case_image_prefetch(urls: list[Any], *, limit: int = 8, force: bool = False) -> None:
@@ -2570,7 +2591,22 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     image_hash = _case_image_cache_hash(raw)
     if expected_hash and image_hash != expected_hash:
         return Response(status_code=400, content="image hash mismatch")
-    cached_url = _case_image_cached_static_url(raw) or _case_image_download_to_cache(raw)
+    cached_url = _case_image_cached_static_url(raw)
+    path = _url_to_local_static_path(cached_url)
+    if path:
+        return RedirectResponse(
+            cached_url,
+            status_code=302,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+    if not _case_image_sync_fetch_enabled():
+        _case_image_prefetch([raw], limit=1, force=True)
+        return RedirectResponse(
+            raw,
+            status_code=302,
+            headers={"Cache-Control": "public, max-age=300, stale-while-revalidate=3600"},
+        )
+    cached_url = _case_image_download_to_cache(raw)
     path = _url_to_local_static_path(cached_url)
     if not path:
         return Response(status_code=404, content="image unavailable")
@@ -3419,7 +3455,13 @@ def startup_event() -> None:
             "off",
         ):
             threading.Thread(target=_prewarm_portal_case_search_cache, daemon=True).start()
-            threading.Thread(target=_portal_case_search_cache_prewarm_loop, daemon=True).start()
+            if (os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_LOOP") or "0").strip().lower() not in (
+                "0",
+                "false",
+                "no",
+                "off",
+            ):
+                threading.Thread(target=_portal_case_search_cache_prewarm_loop, daemon=True).start()
     except Exception:
         pass
 
@@ -20348,6 +20390,15 @@ _CHAT_GREETING_ONLY = re.compile(
     re.I,
 )
 
+_CHAT_LIGHT_SUPPORT_ONLY = re.compile(
+    r"^[\s，。、,!！?？~～…]*("
+    r"你是誰|你是谁|你是什麼|你是什么|你能做什麼|你能做什么|"
+    r"你可以做什麼|你可以做什么|你會什麼|你会什么|你有什麼功能|你有什么功能|"
+    r"怎麼用|怎么用|如何使用|使用說明|使用说明|help|what can you do|who are you"
+    r")[\s，。、,!！?？~～…]*$",
+    re.I,
+)
+
 _RE_HINTS_NEED_KB = (
     "日本",
     "東京",
@@ -20453,6 +20504,37 @@ def _chat_message_suggests_knowledge_lookup(text: str) -> bool:
     if len(raw) <= 14:
         return False
     return True
+
+
+def _is_support_greeting_only(text: str) -> bool:
+    raw = (text or "").strip()
+    return bool(raw and len(raw) <= 24 and _CHAT_GREETING_ONLY.match(raw))
+
+
+def _is_support_light_chat_only(text: str) -> bool:
+    raw = (text or "").strip()
+    return bool(raw and len(raw) <= 36 and _CHAT_LIGHT_SUPPORT_ONLY.match(raw))
+
+
+def _build_support_greeting_reply(persona_region: str = "tw") -> str:
+    _ = persona_region
+    return (
+        "您好，我在這裡。您可以直接告訴我想了解日本買房、租房、區域、預算、貸款、稅費，"
+        "或貼一個案件讓我幫您整理重點。\n\n"
+        "如果想找真人顧問接手，也可以輸入「人工」。"
+    )
+
+
+def _build_support_light_chat_reply(message: str, persona_region: str = "tw") -> str:
+    _ = persona_region
+    raw = (message or "").strip()
+    if _CHAT_LIGHT_SUPPORT_ONLY.match(raw):
+        return (
+            "我是線上智能客服，可以先幫您整理日本買房、租房、區域、預算、貸款、稅費與案件重點。"
+            "您也可以貼一個房源，或直接說出想找的地區、預算和用途。\n\n"
+            "如果需要真人顧問接手，輸入「人工」即可。"
+        )
+    return _build_support_greeting_reply(persona_region)
 
 
 _PURCHASE_DISCOVERY_INTENT_TERMS = (
@@ -21609,6 +21691,66 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     session_id = _normalize_support_session_id(payload.sales_session_id or "")
     if not session_id:
         session_id = f"sess-{uuid4().hex[:16]}"
+    light_chat_only = _is_support_greeting_only(msg) or _is_support_light_chat_only(msg)
+    if light_chat_only:
+        reply = _build_support_light_chat_reply(msg, str(payload.persona_region or "tw"))
+        skip_reason = "light_chat_only" if _is_support_light_chat_only(msg) else "greeting_only"
+        knowledge_meta = {
+            "query": msg,
+            "days": 0,
+            "merged_max": 0,
+            "row_count": 0,
+            "keyword_hit_count": 0,
+            "recent_fill_count": 0,
+            "distinct_sources": 0,
+            "items": [],
+            "skipped_lookup": True,
+            "featured_count": 0,
+            "featured_recommendations": [],
+            "managed_cases": [],
+            "managed_case_count": 0,
+            "selected_cases": [],
+            "selected_case_count": 0,
+            "property_listing_intent": False,
+            "purchase_discovery_mode": False,
+            "purchase_discovery": {"active": False, "dimensions": {}, "missing_fields": [], "skip_reason": skip_reason},
+            "client_search": {"figure_keyword": "", "figure_region": "", "dialog_keyword": "", "query_blend": msg},
+        }
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": reply,
+                "knowledge": knowledge_meta,
+                "llm": {
+                    "provider": "",
+                    "enabled": False,
+                    "model": "",
+                    "fast_mode": True,
+                    "knowledge_skipped": True,
+                    "greeting_only": skip_reason == "greeting_only",
+                    "light_chat_only": skip_reason == "light_chat_only",
+                },
+                "sales_mcp": {
+                    "session_id": session_id,
+                    "stage": "discover",
+                    "intent_score": 0,
+                    "outcome": "greeting",
+                    "should_notify_human": False,
+                    "human_handoff_intent": False,
+                    "intake_required_before_human_reply": False,
+                    "case_intro": [],
+                    "next_actions": [],
+                    "sales_pitch": [],
+                },
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
     selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
     if selected_cases_input:
         session_id, _ = _replace_support_session_interest_cases(session_id, selected_cases_input)

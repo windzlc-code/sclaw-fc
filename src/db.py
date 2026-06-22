@@ -105,24 +105,12 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_content_region ON content_items(region_code);
             CREATE INDEX IF NOT EXISTS idx_content_keyword_type ON content_items(keyword_type);
             CREATE INDEX IF NOT EXISTS idx_content_seo_slug ON content_items(seo_slug);
-            CREATE INDEX IF NOT EXISTS idx_source_items_content_kind_last_checked
-                ON source_items(content_kind, last_checked_at DESC, id DESC);
-            CREATE INDEX IF NOT EXISTS idx_source_items_content_kind_published
-                ON source_items(content_kind, published_at DESC, id DESC);
-            CREATE INDEX IF NOT EXISTS idx_source_items_content_kind_crawled
-                ON source_items(content_kind, crawled_at DESC, id DESC);
             CREATE INDEX IF NOT EXISTS idx_source_items_last_checked
                 ON source_items(last_checked_at DESC, id DESC);
             CREATE INDEX IF NOT EXISTS idx_source_items_source_name
                 ON source_items(source_name);
             CREATE INDEX IF NOT EXISTS idx_content_source_item
                 ON content_items(source_item_id);
-            CREATE INDEX IF NOT EXISTS idx_content_updated
-                ON content_items(updated_at DESC, id DESC);
-            CREATE INDEX IF NOT EXISTS idx_content_case_region
-                ON content_items(case_jp_region_override);
-            CREATE INDEX IF NOT EXISTS idx_content_featured_updated
-                ON content_items(featured_weight DESC, updated_at DESC, id DESC);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
                 title_zh_hant,
@@ -539,6 +527,24 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_region_recent ON content_items(region_code, id DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_topic_recent ON content_items(topic_category, id DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_intent_recent ON content_items(intent_target, id DESC)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_source_items_content_kind_last_checked "
+            "ON source_items(content_kind, last_checked_at DESC, id DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_source_items_content_kind_published "
+            "ON source_items(content_kind, published_at DESC, id DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_source_items_content_kind_crawled "
+            "ON source_items(content_kind, crawled_at DESC, id DESC)"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_content_updated ON content_items(updated_at DESC, id DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_content_case_region ON content_items(case_jp_region_override)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_content_featured_updated "
+            "ON content_items(featured_weight DESC, updated_at DESC, id DESC)"
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_jp_station ON content_items(jp_station_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_jp_station_walk ON content_items(jp_station_id, walk_min)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_case_region_recent ON content_items(case_jp_region_override, id DESC)")
