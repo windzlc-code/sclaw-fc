@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260623-mobile-perf-login-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260623-mobile-layout-fit-b">
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
@@ -9952,6 +9952,9 @@
         document.body.appendChild(modal);
       }
       modal.dataset.bound = '1';
+      modal.querySelectorAll('.purchase-tool-backdrop, .purchase-tool-head .ui-close-btn').forEach((btn) => {
+        btn.addEventListener('click', () => setPurchaseToolModalOpen(false, { restoreFocus: true }));
+      });
       modal.querySelectorAll('input, select').forEach((el) => {
         el.addEventListener('change', calculatePurchaseTool);
       });
