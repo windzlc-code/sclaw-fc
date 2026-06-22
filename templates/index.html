@@ -848,6 +848,7 @@
       </div>
     </aside>
 
+    {% if admin_standalone %}
     <aside id="admin-drawer" class="config-drawer admin-drawer" aria-hidden="true">
       <div class="config-drawer-head">
         <div class="admin-head-brand">
@@ -2103,6 +2104,7 @@
     </div>
 
     <div id="admin-backdrop" class="config-backdrop" onclick="toggleAdminDrawer(false)"></div>
+    {% endif %}
 
     <section class="panel query-feature-panel" id="feature-nta" style="display:none;">
       <h2>國稅廳關鍵字搜尋（預設：綜合所得稅）</h2>
