@@ -7967,6 +7967,50 @@ body.selected-compare-body {
   margin-top: 0;
 }
 
+.support-chat-welcome-card {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.support-chat-welcome-card strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #14243b;
+}
+
+.support-chat-welcome-card p {
+  margin: 0;
+  color: #42536a;
+}
+
+.support-chat-suggestion-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 0.75rem;
+}
+
+.support-chat-suggestion-pills button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid rgba(72, 102, 126, 0.22);
+  border-radius: 999px;
+  background: #eef5f8;
+  color: #2f5369;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.support-chat-suggestion-pills button:hover,
+.support-chat-suggestion-pills button:focus-visible {
+  background: #dfeef4;
+  border-color: rgba(72, 102, 126, 0.42);
+  transform: translateY(-1px);
+  outline: none;
+}
+
 /* 智慧關鍵字導航：預設收合選字區，只顯示結果區 */
 .dialog-keyword-hub-pickers {
   margin: 0 0 0.5rem;

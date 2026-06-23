@@ -8661,6 +8661,7 @@
       if (open) {
         refreshSupportHandoffSyncFlag();
         updateSupportTelegramStatusLine();
+        ensureSupportChatWelcomeMessage();
         if (!supportSelectedCases.length) {
           supportSelectedCases = loadSupportSelectedCasesLocal();
         }
@@ -11103,6 +11104,53 @@
       return html;
     }
 
+    function supportChatWelcomeHtml() {
+      return (
+        '<div class="support-chat-welcome-card">' +
+        '<strong>歡迎來到日本不動產智能客服</strong>' +
+        '<p>我可以先幫您把日本買房、租房、區域、預算、貸款與案件重點整理清楚。您可以直接聊天，我會把話題慢慢引導到可查詢、可比較或可交給顧問的下一步。</p>' +
+        '<div class="support-chat-suggestion-pills" aria-label="客服推薦選項">' +
+        '<button type="button" data-support-quick-prompt="我想查日本不動產案件，先從東京或大阪開始">查找案件</button>' +
+        '<button type="button" data-support-quick-prompt="我想買日本房，請先問我需要準備哪些條件">買房諮詢</button>' +
+        '<button type="button" data-support-quick-prompt="我想比較已收藏案件的價格、交通和格局">比較收藏</button>' +
+        '<button type="button" data-support-quick-prompt="人工">顧問接手</button>' +
+        '</div>' +
+        '</div>'
+      );
+    }
+
+    function ensureSupportChatWelcomeMessage() {
+      if (!Array.isArray(supportChatHistory) || supportChatHistory.length) return;
+      supportChatHistory.push({
+        role: 'assistant',
+        content: '歡迎來到日本不動產智能客服。我可以先幫您整理日本買房、租房、區域、預算、貸款與案件重點。',
+        contentHtml: supportChatWelcomeHtml(),
+        supportWelcome: true,
+      });
+    }
+
+    function supportChatQuickPrompt(text) {
+      const input = document.getElementById('support-chat-input');
+      const val = String(text || '').trim();
+      if (!val) return;
+      if (input) {
+        input.value = val;
+        input.focus({ preventScroll: true });
+      }
+      if (val === '人工') {
+        sendSupportChat();
+      }
+    }
+
+    document.addEventListener('click', (event) => {
+      const btn = event.target && event.target.closest
+        ? event.target.closest('[data-support-quick-prompt]')
+        : null;
+      if (!btn) return;
+      event.preventDefault();
+      supportChatQuickPrompt(btn.getAttribute('data-support-quick-prompt') || '');
+    });
+
     function getLastAssistantSalesMcp() {
       for (let i = supportChatHistory.length - 1; i >= 0; i--) {
         const r = supportChatHistory[i];
@@ -11857,6 +11905,7 @@
     function renderSupportChatMessages() {
       const wrap = document.getElementById('support-chat-messages');
       if (!wrap) return;
+      ensureSupportChatWelcomeMessage();
       const fieldSnap = snapshotSupportEmbeddedFormFields(wrap);
       let html = '';
       for (const row of getVisibleSupportChatRows()) {

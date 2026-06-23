@@ -787,7 +787,9 @@ def chat_support_reply_gemini(
     fast = bool(fast_mode)
     kb_cap = 900 if fast and not kb_trim else 6800
     fast_hint = (
-        "\n（本次為快速對話模式：未附加站內摘錄；請簡短問候並溫和引導使用者提出日本不動產相關具體問題。）"
+        "\n（本次為快速對話模式：未附加站內摘錄；請像真人顧問私訊一樣自然接話。"
+        "即使使用者閒聊，也要溫和引導到日本不動產查詢、買房/租房條件、案件比較或真人顧問接手；"
+        "避免自稱 AI、避免機械模板，最後最多給一個清楚下一步。）"
         if fast and not kb_trim
         else ""
     )

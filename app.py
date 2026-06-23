@@ -20394,8 +20394,15 @@ _CHAT_LIGHT_SUPPORT_ONLY = re.compile(
     r"^[\s，。、,!！?？~～…]*("
     r"你是誰|你是谁|你是什麼|你是什么|你能做什麼|你能做什么|"
     r"你可以做什麼|你可以做什么|你會什麼|你会什么|你有什麼功能|你有什么功能|"
-    r"怎麼用|怎么用|如何使用|使用說明|使用说明|help|what can you do|who are you"
+    r"怎麼用|怎么用|如何使用|使用說明|使用说明|help|what can you do|who are you|"
+    r"陪我聊聊|隨便聊聊|随便聊聊|聊聊天|闲聊|閒聊|你好吗|你好嗎|心情不好|无聊|無聊"
     r")[\s，。、,!！?？~～…]*$",
+    re.I,
+)
+
+_CHAT_SMALL_TALK_HINT = re.compile(
+    r"(天氣|天气|心情|無聊|无聊|累|辛苦|吃飯|吃饭|睡不著|睡不着|開心|开心|難過|难过|"
+    r"哈哈|呵呵|笑死|隨便聊|随便聊|聊聊天|閒聊|闲聊|你好吗|你好嗎|最近怎樣|最近怎么样)",
     re.I,
 )
 
@@ -20516,23 +20523,38 @@ def _is_support_light_chat_only(text: str) -> bool:
     return bool(raw and len(raw) <= 36 and _CHAT_LIGHT_SUPPORT_ONLY.match(raw))
 
 
+def _is_support_project_conversation_bridge(text: str) -> bool:
+    """Small talk that should not trigger RAG, but should be guided back to the site journey."""
+    raw = (text or "").strip()
+    if not raw:
+        return False
+    if _is_support_greeting_only(raw) or _is_support_light_chat_only(raw):
+        return True
+    if len(raw) > 80:
+        return False
+    low = raw.lower()
+    if any(h.lower() in low or h in raw for h in _RE_HINTS_NEED_KB):
+        return False
+    return bool(_CHAT_SMALL_TALK_HINT.search(raw))
+
+
 def _build_support_greeting_reply(persona_region: str = "tw") -> str:
     _ = persona_region
     return (
-        "您好，我在這裡。您可以直接告訴我想了解日本買房、租房、區域、預算、貸款、稅費，"
-        "或貼一個案件讓我幫您整理重點。\n\n"
-        "如果想找真人顧問接手，也可以輸入「人工」。"
+        "您好，我是線上智能客服，會先用簡單的方式幫您把日本房產需求整理清楚。"
+        "您可以直接說想看的地區、預算、用途，或貼一個案件給我，我會幫您整理重點。\n\n"
+        "也可以先從這幾個方向開始：查日本不動產案件、比較已收藏案件、了解買房流程，或輸入「人工」讓顧問接手。"
     )
 
 
 def _build_support_light_chat_reply(message: str, persona_region: str = "tw") -> str:
     _ = persona_region
     raw = (message or "").strip()
-    if _CHAT_LIGHT_SUPPORT_ONLY.match(raw):
+    if _CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_SMALL_TALK_HINT.search(raw):
         return (
-            "我是線上智能客服，可以先幫您整理日本買房、租房、區域、預算、貸款、稅費與案件重點。"
-            "您也可以貼一個房源，或直接說出想找的地區、預算和用途。\n\n"
-            "如果需要真人顧問接手，輸入「人工」即可。"
+            "可以，我先陪您把方向整理清楚。這裡主要協助日本不動產查詢、買房／租房流程、區域與預算判斷，"
+            "所以就算只是先聊聊，我也會慢慢幫您收斂成可查詢的條件。\n\n"
+            "您可以回我一個方向：想看東京或大阪？自住還是投資？大概預算多少？也可以直接說「幫我找房」或「人工」。"
         )
     return _build_support_greeting_reply(persona_region)
 
@@ -20740,8 +20762,9 @@ def _support_should_enter_purchase_discovery(
         dialog_keyword=dialog_keyword,
     )
     filled = sum(1 for ok in dimensions.values() if ok)
-    # 有明確購買意願，但條件少於兩個時，先盤點需求；已選案件只當參考，不再追加大量案件。
-    return filled < 2
+    # 有明確購買意願，但用途／地區／類型仍不完整時先盤點需求；
+    # 單純「買房 + 預算」不足以直接進入重檢索，否則客服會變慢且推薦失準。
+    return filled < 3
 
 
 def _support_purchase_discovery_prompt_block(
@@ -21691,10 +21714,102 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     session_id = _normalize_support_session_id(payload.sales_session_id or "")
     if not session_id:
         session_id = f"sess-{uuid4().hex[:16]}"
-    light_chat_only = _is_support_greeting_only(msg) or _is_support_light_chat_only(msg)
+    purchase_quick_dimensions = _support_purchase_discovery_dimensions(
+        msg,
+        figure_region=(payload.figure_region or "").strip(),
+        figure_keyword=(payload.figure_keyword or "").strip(),
+        figure_price=(payload.figure_price or "").strip(),
+        figure_layout=(payload.figure_layout or "").strip(),
+        figure_property_types=list(payload.figure_property_types or []),
+        dialog_keyword=(payload.dialog_keyword or "").strip(),
+    )
+    purchase_quick_missing = _support_purchase_discovery_missing_fields(purchase_quick_dimensions)
+    purchase_quick_mode = (
+        _support_message_has_purchase_intent(msg)
+        and bool(purchase_quick_missing)
+        and sum(1 for ok in purchase_quick_dimensions.values() if ok) < 4
+    )
+    if purchase_quick_mode:
+        selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
+        reply = _build_purchase_discovery_reply(
+            msg,
+            selected_cases=selected_cases_input,
+            missing_fields=purchase_quick_missing,
+        )
+        knowledge_meta = {
+            "query": msg,
+            "days": 0,
+            "merged_max": 0,
+            "row_count": 0,
+            "keyword_hit_count": 0,
+            "recent_fill_count": 0,
+            "distinct_sources": 0,
+            "items": [],
+            "skipped_lookup": True,
+            "featured_count": 0,
+            "featured_recommendations": [],
+            "managed_cases": [],
+            "managed_case_count": 0,
+            "selected_cases": selected_cases_input,
+            "selected_case_count": len(selected_cases_input),
+            "property_listing_intent": True,
+            "purchase_discovery_mode": True,
+            "purchase_discovery": {
+                "active": True,
+                "dimensions": purchase_quick_dimensions,
+                "missing_fields": purchase_quick_missing,
+                "skip_reason": "purchase_quick_requirements",
+            },
+            "client_search": {
+                "figure_keyword": (payload.figure_keyword or "").strip(),
+                "figure_region": (payload.figure_region or "").strip(),
+                "dialog_keyword": (payload.dialog_keyword or "").strip(),
+                "query_blend": msg,
+            },
+        }
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": reply,
+                "knowledge": knowledge_meta,
+                "llm": {
+                    "provider": "",
+                    "enabled": False,
+                    "model": "",
+                    "fast_mode": True,
+                    "knowledge_skipped": True,
+                    "purchase_discovery_fast_reply": True,
+                },
+                "sales_mcp": {
+                    "session_id": session_id,
+                    "stage": "discover",
+                    "intent_score": 32,
+                    "outcome": "purchase_discovery",
+                    "should_notify_human": False,
+                    "human_handoff_intent": False,
+                    "intake_required_before_human_reply": False,
+                    "purchase_discovery_mode": True,
+                    "case_intro": [],
+                    "next_actions": [
+                        {"id": "confirm_one_requirement", "label": "本輪只確認一個關鍵條件"},
+                        {"id": "narrow_region", "label": "下一輪再縮小區域／車站"},
+                        {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
+                    ],
+                    "sales_pitch": [],
+                },
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
+    light_chat_only = _is_support_project_conversation_bridge(msg)
     if light_chat_only:
         reply = _build_support_light_chat_reply(msg, str(payload.persona_region or "tw"))
-        skip_reason = "light_chat_only" if _is_support_light_chat_only(msg) else "greeting_only"
+        skip_reason = "greeting_only" if _is_support_greeting_only(msg) else "light_chat_only"
         knowledge_meta = {
             "query": msg,
             "days": 0,
@@ -21925,7 +22040,15 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             f"{qbody[:5200]}"
         )
     stage_key, _ = _detect_sales_stage(msg)
-    if llm_meta["enabled"]:
+    if purchase_discovery_mode:
+        llm_meta["enabled"] = False
+        llm_meta["purchase_discovery_fast_reply"] = True
+        reply = _build_purchase_discovery_reply(
+            msg,
+            selected_cases=selected_cases,
+            missing_fields=purchase_missing_fields,
+        )
+    elif llm_meta["enabled"]:
         try:
             reply = chat_support_reply_gemini(
                 user_message=msg,
