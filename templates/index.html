@@ -101,8 +101,11 @@
           return false;
         }
         pendingPhoneLoginOpen = false;
+        if (backdrop && backdrop.parentElement !== document.body) document.body.appendChild(backdrop);
+        if (modal.parentElement !== document.body) document.body.appendChild(modal);
         modal.style.display = open ? 'block' : 'none';
         modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+        document.body.classList.toggle('support-phone-login-open', !!open);
         if (backdrop) {
           backdrop.style.display = open ? 'block' : 'none';
           backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
@@ -8567,6 +8570,9 @@
         '.bh-site-footer',
       ].join(',');
       const markVisible = (el) => el.classList.add('is-bh-inview');
+      if (window.matchMedia && window.matchMedia('(max-width: 820px)').matches) {
+        document.querySelectorAll('.bh-search-dock, #jp-map-hub, #query-dialog').forEach(markVisible);
+      }
       if ('IntersectionObserver' in window) {
         const observer = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
@@ -9983,12 +9989,13 @@
       const modal = document.getElementById('support-phone-login-modal');
       const backdrop = document.getElementById('support-phone-login-backdrop');
       const btn = document.getElementById('support-phone-login-toggle');
+      const navBtn = document.getElementById('bh-nav-phone-login-btn');
       if (!modal) return;
-      if (modal.parentElement && modal.parentElement.id === 'support-chat-widget') {
-        document.body.appendChild(modal);
-      }
-      if (backdrop && backdrop.parentElement && backdrop.parentElement.id === 'support-chat-widget') {
+      if (backdrop && backdrop.parentElement !== document.body) {
         document.body.appendChild(backdrop);
+      }
+      if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
       }
       if (shouldOpen && options && options.returnToChat) supportPhoneLoginReturnToChat = true;
       if (!shouldOpen && options && options.clearReturnToChat) supportPhoneLoginReturnToChat = false;
@@ -10002,6 +10009,11 @@
         btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
         btn.classList.toggle('is-active', shouldOpen);
       }
+      if (navBtn) {
+        navBtn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        navBtn.classList.toggle('is-active', shouldOpen);
+      }
+      document.body.classList.toggle('support-phone-login-open', shouldOpen);
       renderSupportPhoneLoginModalState();
       if (shouldOpen) {
         if (isSupportPhoneLoggedIn()) {
@@ -24379,13 +24391,23 @@
           marker.on('mouseout blur', clear);
           marker.on('click', activate);
           window.setTimeout(() => {
-            const btn = marker.getElement()?.querySelector('.jp-map-leaflet-region-label');
-            if (!btn) return;
-            btn.addEventListener('focusin', preview);
-            btn.addEventListener('focusout', clear);
-            btn.addEventListener('keydown', (ev) => {
-              if (ev.key === 'Enter' || ev.key === ' ') {
-                ev.preventDefault();
+	            const btn = marker.getElement()?.querySelector('.jp-map-leaflet-region-label');
+	            if (!btn) return;
+	            btn.addEventListener('focusin', preview);
+	            btn.addEventListener('focusout', clear);
+	            btn.addEventListener('pointerup', (ev) => {
+	              ev.preventDefault();
+	              ev.stopPropagation();
+	              activate();
+	            });
+	            btn.addEventListener('click', (ev) => {
+	              ev.preventDefault();
+	              ev.stopPropagation();
+	              activate();
+	            });
+	            btn.addEventListener('keydown', (ev) => {
+	              if (ev.key === 'Enter' || ev.key === ' ') {
+	                ev.preventDefault();
                 activate();
               }
             });
@@ -24490,10 +24512,19 @@
             if (ev && ev.originalEvent && typeof ev.originalEvent.preventDefault === 'function') ev.originalEvent.preventDefault();
             resetJpMapSelection(root, mapSvg);
           });
-          root.querySelector('.jp-map-hub-map--raster')?.classList.add('is-leaflet-ready');
+          const markLeafletReady = () => {
+            const rect = leafletHost.getBoundingClientRect();
+            if (rect.width > 80 && rect.height > 80 && jpLeafletState.geoJson) {
+              root.querySelector('.jp-map-hub-map--raster')?.classList.add('is-leaflet-ready');
+              return true;
+            }
+            return false;
+          };
+          markLeafletReady();
           window.setTimeout(() => {
             map.invalidateSize();
             fitJpLeafletWholeJapan({ animate: false });
+            markLeafletReady();
             try { map.setMinZoom(map.getZoom()); } catch (_) {}
           }, 120);
         } catch (err) {
@@ -25155,6 +25186,14 @@
         });
       };
       tabs.forEach((tab) => {
+        tab.addEventListener('pointerup', (evt) => {
+          if (evt.pointerType === 'mouse') return;
+          clearCloseTimer();
+          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+          if (!key) return;
+          evt.preventDefault();
+          setActive(key, false);
+        });
         tab.addEventListener('mouseenter', () => {
           clearCloseTimer();
           const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
@@ -25227,7 +25266,7 @@
       scheduleAfterMobileFirstIntent(installDialogAutoSpeakControls, 12000);
       handleInboundSupportDeepLink();
       refreshSupportChatMicHint();
-      scheduleAfterMobileFirstIntent(initJpMapHub, 10000);
+      scheduleNonCriticalStartup(initJpMapHub, isMobileStartupPerfMode() ? 600 : 1000);
       window.setTimeout(runSclawBackendConnectivityCheck, 35000);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runSclawStartupChecks);
