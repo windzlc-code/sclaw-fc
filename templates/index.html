@@ -343,7 +343,6 @@
                   <div class="jp-map-hub-map jp-map-hub-map--solo jp-map-hub-map--raster jp-area-picker-map-inner" role="application" aria-label="日本地圖：點區塊查詢案件">
                     <div class="jp-map-hub-raster-stack jp-area-picker-raster-stack">
                       <div id="jp-leaflet-map" class="jp-leaflet-map" aria-label="可縮放日本地圖"></div>
-                      <img class="jp-map-hub-map-raster-img" src="/static/img/jp-area-map-clean.png?v=clean-map-20260503" alt="日本地圖：請點選圖上的大區標籤或綠色熱區" width="1024" height="640" loading="eager" decoding="async" fetchpriority="high" data-jp-map-base-img />
                       <svg class="jp-map-hub-map-svg jp-map-hub-map-svg--hit" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="presentation">
                         <title>地區點選（透明熱區）</title>
                         <g class="jp-map-broad-hits" aria-label="地區點選（大區）">
@@ -24079,6 +24078,7 @@
         prefLayerByName: new Map(),
         broadForPref: new Map(),
         wholeBounds: null,
+        styleFrame: 0,
       };
       const JP_LEAFLET_REGION_LABELS = {
         北海道: [43.55, 142.35],
@@ -24178,9 +24178,12 @@
         };
       }
       function refreshJpLeafletStyles() {
-        if (jpLeafletState.geoJson && typeof jpLeafletState.geoJson.setStyle === 'function') {
+        if (!jpLeafletState.geoJson || typeof jpLeafletState.geoJson.setStyle !== 'function') return;
+        if (jpLeafletState.styleFrame) return;
+        jpLeafletState.styleFrame = window.requestAnimationFrame(() => {
+          jpLeafletState.styleFrame = 0;
           jpLeafletState.geoJson.setStyle(jpLeafletLayerStyle);
-        }
+        });
       }
       function setJpLeafletPreviewBroad(broadKeys) {
         jpLeafletState.previewBroad = new Set((broadKeys || []).map((k) => String(k || '').trim()).filter(Boolean));
@@ -24482,7 +24485,7 @@
                   }
                 },
               });
-              if (label) layer.bindTooltip(label, { sticky: true, direction: 'top' });
+              if (label) layer.bindTooltip(label, { sticky: false, direction: 'top' });
             },
           }).addTo(map);
           jpLeafletState.map = map;
@@ -24498,9 +24501,6 @@
             setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
           } catch (_) {}
           buildJpLeafletRegionMarkers(map);
-          map.on('mousemove', (ev) => {
-            if (ev && ev.latlng) setJpMapCoordinateLive(ev.latlng, '座標');
-          });
           map.on('mouseout', () => {
             setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
           });
@@ -25150,6 +25150,7 @@
       root.dataset.bound = '1';
       const tabs = Array.from(root.querySelectorAll('[data-bh-nav-keyword-tab]'));
       const panels = Array.from(root.querySelectorAll('[data-bh-nav-keyword-panel]'));
+      const internalSwitches = Array.from(root.querySelectorAll('[data-home-view-switch]'));
       let closeTimer = 0;
       const clearCloseTimer = () => {
         if (closeTimer) {
@@ -25211,6 +25212,16 @@
           if (key) setActive(key, false);
         });
       });
+      internalSwitches.forEach((btn) => {
+        if (btn.hasAttribute('data-bh-nav-keyword-tab')) return;
+        const syncStandaloneState = () => {
+          clearCloseTimer();
+          closeMenu();
+        };
+        btn.addEventListener('mouseenter', syncStandaloneState);
+        btn.addEventListener('focus', syncStandaloneState);
+        btn.addEventListener('click', syncStandaloneState);
+      });
       root.addEventListener('mouseenter', clearCloseTimer);
       root.addEventListener('mouseleave', () => {
         clearCloseTimer();
@@ -25246,7 +25257,8 @@
 	      document.querySelectorAll('[data-home-view-switch]').forEach((btn) => {
 	        const targetMode = String(btn.getAttribute('data-home-view-switch') || '').trim();
 	        const active = targetMode === mode;
-	        btn.classList.toggle('is-home-view-active', active);
+	        const visualActive = active && targetMode !== 'workbench';
+	        btn.classList.toggle('is-home-view-active', visualActive);
 	        if (btn.tagName === 'BUTTON') btn.setAttribute('aria-pressed', active ? 'true' : 'false');
 	      });
 	      if (showWorkbench) {
@@ -25256,8 +25268,28 @@
 	        window.setTimeout(() => {
 	          try {
 	            if (typeof initJpMapHub === 'function') initJpMapHub();
-	            const map = window.__sclawJpLeafletMap || document.getElementById('jp-leaflet-map')?.__sclawLeafletMap;
-	            if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+	            const leafletHost = document.getElementById('jp-leaflet-map');
+	            const map = window.__sclawJpLeafletMap || leafletHost?.__sclawLeafletMap;
+	            const reactivateMap = () => {
+	              if (!map || typeof map.invalidateSize !== 'function') return;
+	              map.invalidateSize();
+	              if (typeof map.setMinZoom === 'function') map.setMinZoom(3);
+	              if (typeof map.setMaxZoom === 'function') map.setMaxZoom(9);
+	              if (window.L && typeof window.L.latLngBounds === 'function' && typeof map.fitBounds === 'function') {
+	                map.fitBounds(window.L.latLngBounds([[24.0, 122.4], [45.9, 146.2]]), {
+	                  animate: false,
+	                  paddingTopLeft: [42, 34],
+	                  paddingBottomRight: [42, 34],
+	                });
+	              }
+	              if (typeof map.getZoom === 'function' && typeof map.setMinZoom === 'function') map.setMinZoom(map.getZoom());
+	              const rect = leafletHost && leafletHost.getBoundingClientRect();
+	              if (rect && rect.width > 80 && rect.height > 80) {
+	                document.querySelector('.jp-map-hub-map--raster')?.classList.add('is-leaflet-ready');
+	              }
+	            };
+	            reactivateMap();
+	            window.setTimeout(reactivateMap, 180);
 	          } catch (_) {}
 	        }, 90);
 	      }
@@ -25325,7 +25357,7 @@
 		        }
 		      });
 		      window.addEventListener('hashchange', () => syncFromHash(false));
-		      syncFromHash(true);
+		      setHomeInternalView('home', { instant: true, scroll: false, persist: true });
 		    }
 
 	    function updateMobileHeaderMetrics() {
