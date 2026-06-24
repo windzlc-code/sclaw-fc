@@ -148,7 +148,7 @@
 <body class="site-home site-lang-hant{% if admin_standalone %} site-admin-standalone site-admin-locked{% endif %}">
   <header class="bh-site-header" aria-label="日本不動產產品站導覽">
     <nav class="bh-site-nav" aria-label="首頁主導覽">
-      <a class="bh-site-brand" href="#home-hero-heading" aria-label="{{ site_name }}">
+      <a class="bh-site-brand" href="#home-hero-heading" aria-label="{{ site_name }}" data-home-view-switch="home">
         <img src="/static/brand-logo1.png" width="48" height="48" alt="{{ site_name }}" loading="eager" decoding="async">
         <span>
           <strong>{{ seo_phrase_brand }}</strong>
@@ -157,6 +157,7 @@
       </a>
       <div class="bh-site-nav-links bh-nav-keywords" aria-label="導航關鍵詞">
       <div class="bh-nav-keyword-tabs" role="tablist" aria-label="關鍵詞分組">
+        <button type="button" class="bh-nav-keyword-tab bh-nav-workbench-tab" data-home-view-switch="workbench" aria-pressed="false">找房工作台</button>
         <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region">地區找房</button>
         <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-buyer" data-bh-nav-keyword-tab="buyer">買家需求</button>
         <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-property" data-bh-nav-keyword-tab="property">房源條件</button>
@@ -25143,9 +25144,9 @@
       selectVideo(0, true);
     }
 
-    function initHeaderKeywordTabs() {
-      const root = document.querySelector('.bh-nav-keywords');
-      if (!root || root.dataset.bound === '1') return;
+	    function initHeaderKeywordTabs() {
+	      const root = document.querySelector('.bh-nav-keywords');
+	      if (!root || root.dataset.bound === '1') return;
       root.dataset.bound = '1';
       const tabs = Array.from(root.querySelectorAll('[data-bh-nav-keyword-tab]'));
       const panels = Array.from(root.querySelectorAll('[data-bh-nav-keyword-panel]'));
@@ -25219,10 +25220,115 @@
         const link = evt.target instanceof Element ? evt.target.closest('.bh-nav-keyword-panel a') : null;
         if (!link || !root.contains(link)) return;
         window.setTimeout(closeMenu, 160);
-      });
-    }
+	      });
+	    }
 
-    function updateMobileHeaderMetrics() {
+	    function setHomeInternalView(view, options = {}) {
+	      const mode = view === 'workbench' ? 'workbench' : 'home';
+	      const showWorkbench = mode === 'workbench';
+	      const body = document.body;
+	      if (!body || !body.classList.contains('site-home')) return;
+	      const navRoot = document.querySelector('.bh-nav-keywords');
+	      if (navRoot) {
+	        navRoot.classList.remove('is-open');
+	        navRoot.querySelectorAll('[data-bh-nav-keyword-tab]').forEach((tab) => {
+	          tab.classList.remove('is-active');
+	          tab.setAttribute('aria-selected', 'false');
+	          tab.setAttribute('aria-expanded', 'false');
+	        });
+	        navRoot.querySelectorAll('[data-bh-nav-keyword-panel]').forEach((panel) => {
+	          panel.classList.remove('is-active');
+	          panel.hidden = true;
+	        });
+	      }
+	      body.classList.toggle('home-view-workbench', showWorkbench);
+	      body.classList.toggle('home-view-default', !showWorkbench);
+	      document.querySelectorAll('[data-home-view-switch]').forEach((btn) => {
+	        const targetMode = String(btn.getAttribute('data-home-view-switch') || '').trim();
+	        const active = targetMode === mode;
+	        btn.classList.toggle('is-home-view-active', active);
+	        if (btn.tagName === 'BUTTON') btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+	      });
+	      if (showWorkbench) {
+	        document.querySelectorAll('#jp-map-hub, #query-dialog').forEach((el) => {
+	          el.classList.add('is-bh-inview');
+	        });
+	        window.setTimeout(() => {
+	          try {
+	            if (typeof initJpMapHub === 'function') initJpMapHub();
+	            const map = window.__sclawJpLeafletMap || document.getElementById('jp-leaflet-map')?.__sclawLeafletMap;
+	            if (map && typeof map.invalidateSize === 'function') map.invalidateSize();
+	          } catch (_) {}
+	        }, 90);
+	      }
+	      if (options.scroll !== false) {
+	        const target = document.getElementById(showWorkbench ? (options.targetId || 'jp-map-hub') : 'home-hero-heading')
+	          || document.querySelector(showWorkbench ? '#jp-map-hub' : '.site-home-hero');
+	        if (target) {
+	          window.requestAnimationFrame(() => {
+	            const header = document.querySelector('.bh-site-header');
+	            const headerH = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
+	            const y = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerH - 10);
+	            window.scrollTo({ top: y, behavior: options.instant ? 'auto' : 'smooth' });
+	          });
+	        }
+	      }
+	      if (options.persist !== false && window.history && window.location) {
+	        const nextHash = showWorkbench ? '#jp-map-hub' : '#home-hero-heading';
+	        const base = `${window.location.pathname}${window.location.search}`;
+	        try {
+	          window.history.replaceState(null, '', `${base}${nextHash}`);
+	        } catch (_) {}
+	      }
+	    }
+	    window.setHomeInternalView = setHomeInternalView;
+
+	    function installHomeInternalViewSwitch() {
+	      if (window.__sclawHomeInternalViewSwitchBound) return;
+	      window.__sclawHomeInternalViewSwitchBound = true;
+	      const workbenchHashes = new Set(['#jp-map-hub', '#query-dialog', '#figure-results']);
+		      const syncFromHash = (instant = true) => {
+		        const hash = String(window.location.hash || '');
+		        if (workbenchHashes.has(hash)) {
+		          setHomeInternalView('workbench', {
+		            targetId: hash.slice(1),
+		            instant,
+		            scroll: true,
+		          });
+		        }
+		      };
+		      document.addEventListener('click', (evt) => {
+		        const trigger = evt.target instanceof Element ? evt.target.closest('[data-home-view-switch], a[href^="#"]') : null;
+		        if (!trigger) return;
+		        if (trigger.hasAttribute('data-home-view-switch')) {
+		          const mode = String(trigger.getAttribute('data-home-view-switch') || '').trim();
+		          if (mode === 'workbench' || mode === 'home') {
+		            evt.preventDefault();
+		            setHomeInternalView(mode, { targetId: mode === 'workbench' ? 'jp-map-hub' : 'home-hero-heading', persist: true });
+		            return;
+		          }
+		        }
+		        const href = String(trigger.getAttribute('href') || '').trim();
+		        if (workbenchHashes.has(href)) {
+		          setHomeInternalView('workbench', { targetId: href.slice(1), scroll: false });
+		          window.requestAnimationFrame(() => {
+		            const target = document.getElementById(href.slice(1));
+		            if (target) {
+	              const header = document.querySelector('.bh-site-header');
+	              const headerH = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
+	              const y = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerH - 10);
+	              window.scrollTo({ top: y, behavior: 'smooth' });
+		            }
+		          });
+		        } else if (href === '#home-hero-heading') {
+		          setHomeInternalView('home', { scroll: false });
+		        }
+		      });
+		      window.addEventListener('hashchange', () => syncFromHash(false));
+		      syncFromHash(true);
+		    }
+
+	    function updateMobileHeaderMetrics() {
       try {
         const header = document.querySelector('.bh-site-header');
         if (!header || !document.documentElement) return;
@@ -25255,9 +25361,10 @@
       installSupportHumanIntakeSubmitDelegation();
       installSupportChatHistoryApplyDelegation();
       installHomeHeroSoundToggle();
-      installGeoKeywordEntrances();
-      initHeaderKeywordTabs();
-      installMobileHeaderMetrics();
+	      installGeoKeywordEntrances();
+	      initHeaderKeywordTabs();
+	      installHomeInternalViewSwitch();
+	      installMobileHeaderMetrics();
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       scheduleAfterMobileFirstIntent(initHomeHeroCarousel, 12000);
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);
