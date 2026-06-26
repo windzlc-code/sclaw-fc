@@ -22,9 +22,9 @@ SEVEN_JP_PORTAL_SEEDS: list[tuple[str, str, str]] = [
     ("SUUMO", "https://suumo.jp", "七大門戶預設；智慧查詢半年內主資料源"),
     ("LIFULL HOME'S", "https://www.homes.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
     ("at home", "https://www.athome.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
-    ("Yahoo!不動産", "https://realestate.yahoo.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
-    ("楽天不動産", "https://realestate.rakuten.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
-    ("イエステーション", "https://www.yes1.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
+    ("Yahoo!不動產", "https://realestate.yahoo.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
+    ("樂天不動產", "https://realestate.rakuten.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
+    ("YesStation", "https://www.yes1.co.jp", "七大門戶預設；智慧查詢半年內主資料源"),
     ("OHEYASU", "https://www.oheya-su.jp", "七大門戶預設；智慧查詢半年內主資料源"),
 ]
 # 以正規化 host 做對齊與排序（同 host 不重复）
@@ -40,7 +40,7 @@ SEVEN_JP_PORTAL_HOST_ORDER: tuple[str, ...] = (
 
 # 第一波補全：SUUMO → LIFULL HOME'S → at home → Yahoo!（與 SEVEN_JP 前四項一致）
 PRIMARY_FOUR_PORTAL_HOSTS: tuple[str, ...] = SEVEN_JP_PORTAL_HOST_ORDER[:4]
-# 第二波：楽天／イエステーション／OHEYASU
+# 第二波：樂天不動產／YesStation／OHEYASU
 REMAINING_THREE_PORTAL_HOSTS: tuple[str, ...] = SEVEN_JP_PORTAL_HOST_ORDER[4:]
 
 SOURCE_GROUP_DEFS = [

@@ -15,44 +15,44 @@ _REFRESH_LOCK = threading.Lock()
 _REFRESH_INFLIGHT: set[str] = set()
 
 TAB_DEFAULTS = {
-    "athome": "中古 マンション",
-    "suumo": "関東 賃貸",
-    "homes": "全国 賃貸 住宅",
+    "athome": "中古 公寓",
+    "suumo": "關東 租屋",
+    "homes": "全國 租屋 住宅",
 }
 
 SOURCE_HUB = {
     "suumo": {
         "home_url": "https://suumo.jp/chintai/kanto/",
         "feature_links": [
-            {"label_jp": "沿線・エリアから探す", "url": "https://suumo.jp/chintai/kanto/"},
-            {"label_jp": "通勤・通学時間から探す", "url": "https://suumo.jp/chintai/kanto/"},
-            {"label_jp": "家賃相場から探す", "url": "https://suumo.jp/chintai/kanto/"},
-            {"label_jp": "地図から探す", "url": "https://suumo.jp/chintai/kanto/"},
-            {"label_jp": "キーワード検索", "url": "https://suumo.jp/chintai/kanto/"},
+            {"label_jp": "依沿線與區域查找", "url": "https://suumo.jp/chintai/kanto/"},
+            {"label_jp": "依通勤通學時間查找", "url": "https://suumo.jp/chintai/kanto/"},
+            {"label_jp": "依租金行情查找", "url": "https://suumo.jp/chintai/kanto/"},
+            {"label_jp": "從地圖查找", "url": "https://suumo.jp/chintai/kanto/"},
+            {"label_jp": "關鍵字搜尋", "url": "https://suumo.jp/chintai/kanto/"},
         ],
     },
     "homes": {
         "home_url": "https://www.homes.co.jp/chintai/",
         "feature_links": [
-            {"label_jp": "都道府県から探す", "url": "https://www.homes.co.jp/chintai/"},
-            {"label_jp": "沿線・駅から探す", "url": "https://www.homes.co.jp/chintai/"},
-            {"label_jp": "地図から探す", "url": "https://www.homes.co.jp/chintai/"},
-            {"label_jp": "通勤・通学時間から探す", "url": "https://www.homes.co.jp/chintai/"},
-            {"label_jp": "こだわり条件で探す", "url": "https://www.homes.co.jp/chintai/"},
+            {"label_jp": "依都道府縣查找", "url": "https://www.homes.co.jp/chintai/"},
+            {"label_jp": "依沿線與車站查找", "url": "https://www.homes.co.jp/chintai/"},
+            {"label_jp": "從地圖查找", "url": "https://www.homes.co.jp/chintai/"},
+            {"label_jp": "依通勤通學時間查找", "url": "https://www.homes.co.jp/chintai/"},
+            {"label_jp": "依條件篩選查找", "url": "https://www.homes.co.jp/chintai/"},
         ],
     },
     "athome": {
         "home_url": "https://www.athome.co.jp/chintai/",
         "feature_links": [
-            {"label_jp": "アットホーム トップ", "url": "https://www.athome.co.jp/"},
-            {"label_jp": "借りる（賃貸）", "url": "https://www.athome.co.jp/chintai/"},
-            {"label_jp": "買う（マンション）", "url": "https://www.athome.co.jp/mansion/"},
-            {"label_jp": "中古マンション", "url": "http://athome.co.jp/mansion/chuko/"},
-            {"label_jp": "新築マンション", "url": "https://www.athome.co.jp/mansion/shinchiku/"},
-            {"label_jp": "一戸建て", "url": "https://www.athome.co.jp/kodate/"},
+            {"label_jp": "AtHome 首頁", "url": "https://www.athome.co.jp/"},
+            {"label_jp": "租屋（租賃）", "url": "https://www.athome.co.jp/chintai/"},
+            {"label_jp": "買屋（公寓）", "url": "https://www.athome.co.jp/mansion/"},
+            {"label_jp": "中古公寓", "url": "http://athome.co.jp/mansion/chuko/"},
+            {"label_jp": "新建公寓", "url": "https://www.athome.co.jp/mansion/shinchiku/"},
+            {"label_jp": "透天住宅", "url": "https://www.athome.co.jp/kodate/"},
             {"label_jp": "土地", "url": "https://www.athome.co.jp/tochi/"},
-            {"label_jp": "売る・貸す", "url": "https://www.athome.co.jp/satei/"},
-            {"label_jp": "投資・収益物件", "url": "https://www.athome.co.jp/"},
+            {"label_jp": "出售／出租", "url": "https://www.athome.co.jp/satei/"},
+            {"label_jp": "投資／收益物件", "url": "https://www.athome.co.jp/"},
         ],
     },
 }
@@ -62,16 +62,16 @@ KEYWORD_DIRECT_LINKS = {
         {
             "patterns": ["セキスイハイム", "スマートハイムプレイス川口市末広", "川口市末広", "sid-517", "smart heim place"],
             "url": "https://www.homes.co.jp/kodate/shinchiku/special/sid-517/?o=48h60VWRlShzwk",
-            "title_jp": "【セキスイハイム】スマートハイムプレイス川口市末広",
-            "snippet_jp": "LIFULL HOME'S 新築一戸建て特集ページ。対象物件の詳細と問い合わせ導線を確認できます。",
+            "title_jp": "【積水住宅】智慧家園 川口市末廣",
+            "snippet_jp": "LIFULL HOME'S 新建透天特輯頁，可查看物件詳情與諮詢入口。",
         }
     ],
     "athome": [
         {
             "patterns": ["関東住宅(株)", "関東住宅", "kanto-j", "kanto j"],
             "url": "https://www.athome.co.jp/ahch/kanto-j.html",
-            "title_jp": "関東住宅(株) 店舗ページ",
-            "snippet_jp": "アットホーム掲載の関東住宅(株)詳細ページ。会社情報・問い合わせ導線を確認できます。",
+            "title_jp": "關東住宅（株）門店頁",
+            "snippet_jp": "AtHome 收錄的關東住宅（株）詳情頁，可查看公司資訊與聯絡入口。",
         }
     ]
 }

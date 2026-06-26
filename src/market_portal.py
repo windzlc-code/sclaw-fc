@@ -385,7 +385,7 @@ def _build_limited_points(title_hant: str, snippet_hant: str, url: str) -> list[
 
 
 def search_market_portal(keyword: str, per_source_limit: int = 6) -> dict:
-    query = (keyword or "関東 不動産").strip() or "関東 不動産"
+    query = (keyword or "關東 不動產").strip() or "關東 不動產"
     keyword_hant, keyword_hans = _fast_keyword_dual(query)
 
     # Keep interactive lookup snappy (<0.5s) by limiting scan size; UI only needs a few hundred cards.
@@ -430,9 +430,9 @@ def search_market_portal(keyword: str, per_source_limit: int = 6) -> dict:
                     "source_name": source["name"],
                     "source_note": source["note"],
                     "source_icon": source["icon"],
-                    "title_jp": f"{source['name']} 検索入口",
-                    "title_zh_hant": f"{source['name']} 検索入口",
-                    "title_zh_hans": f"{source['name']} 検索入口",
+                    "title_jp": f"{source['name']} 搜尋入口",
+                    "title_zh_hant": f"{source['name']} 搜尋入口",
+                    "title_zh_hans": f"{source['name']} 搜尋入口",
                     "snippet_jp": f"未命中資料庫快取；請點此開啟來源頁再用關鍵字搜尋：{query}",
                     "snippet_zh_hant": f"未命中資料庫快取；請點此開啟來源頁再用關鍵字搜尋：{query}",
                     "snippet_zh_hans": f"未命中資料库缓存；请点此开启来源页再用关键词搜索：{query}",
@@ -516,7 +516,7 @@ def collect_live_portal_search_links(keyword: str, per_source_limit: int = 6) ->
     """
     from src.crawler import BROWSER_HEADERS
 
-    query = (keyword or "").strip() or "関東 不動産"
+    query = (keyword or "").strip() or "關東 不動產"
     lim = max(1, min(12, int(per_source_limit)))
     rows_out: list[dict] = []
     with httpx.Client(timeout=22, follow_redirects=True, headers=BROWSER_HEADERS) as client:

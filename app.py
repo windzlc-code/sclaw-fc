@@ -71,6 +71,10 @@ from src.support_crm_prompt_defaults import (
     SUPPORT_CRM_DEFAULT_COMPACT,
     SUPPORT_CRM_DEFAULT_EXAMPLES,
     SUPPORT_CRM_DEFAULT_FULL,
+    SUPPORT_SIMULATED_ADVISOR_ROSTER_DEFAULT,
+    SUPPORT_SIMULATED_HANDOFF_TEMPLATES_DEFAULT,
+    SUPPORT_SIMULATED_QUEUE_TEMPLATES_DEFAULT,
+    SUPPORT_SIMULATED_SERVICE_TEMPLATES_DEFAULT,
 )
 from src.dialog_ai import run_dialog_ai_summary, run_smart_nav_graph_ai
 from src.search_reading_order import run_search_reading_order_ai
@@ -2946,7 +2950,7 @@ class NTASearchRequest(BaseModel):
 
 
 class MarketSearchRequest(BaseModel):
-    keyword: str = "関東 不動産"
+    keyword: str = "關東 不動產"
 
 
 class FigureQueryRequest(BaseModel):
@@ -3116,6 +3120,10 @@ class SupportCrmPromptPut(BaseModel):
     full_prompt: str | None = None
     compact_prompt: str | None = None
     examples: str | None = None
+    simulated_advisors: str | None = None
+    queue_templates: str | None = None
+    service_templates: str | None = None
+    handoff_templates: str | None = None
     inject_mode: str | None = None
     enabled: bool | None = None
 
@@ -3123,6 +3131,10 @@ class SupportCrmPromptPut(BaseModel):
 KV_SUPPORT_CRM_FULL = "support_crm_prompt_full"
 KV_SUPPORT_CRM_COMPACT = "support_crm_prompt_compact"
 KV_SUPPORT_CRM_EXAMPLES = "support_crm_prompt_examples"
+KV_SUPPORT_SIMULATED_ADVISORS = "support_simulated_advisors"
+KV_SUPPORT_QUEUE_TEMPLATES = "support_queue_templates"
+KV_SUPPORT_SERVICE_TEMPLATES = "support_service_templates"
+KV_SUPPORT_HANDOFF_TEMPLATES = "support_handoff_templates"
 KV_SUPPORT_CRM_MODE = "support_crm_prompt_inject_mode"
 KV_SUPPORT_CRM_ENABLED = "support_crm_prompt_enabled"
 
@@ -3346,6 +3358,12 @@ class AdminHandoffUpdateRequest(BaseModel):
     matched_scene_label: str = ""
     context_message: str = ""
     opinion: str = ""
+
+
+class AdminHandoffReplyRequest(BaseModel):
+    message: str = ""
+    channel: str = "auto"
+    sender_name: str = "人工客服"
 
 
 class HandoffConversationSyncRequest(BaseModel):
@@ -3835,6 +3853,33 @@ def fetch_top_keywords(limit: int = 12) -> list[dict]:
     return fallback
 
 
+def _translate_site_keyword_hant(raw: str) -> str:
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    direct = {
+        "portal_case:buy:all": "買屋案件總入口",
+        "portal_case:buy:suumo,homes,athome,yahoo,rakuten,yes1,oheya_su": "買屋案件來源：SUUMO、HOMES、AtHome、Yahoo、樂天、YesStation、OHEYASU",
+    }
+    if s in direct:
+        return direct[s]
+    replacements = [
+        ("Yahoo!不動産", "Yahoo!不動產"),
+        ("楽天不動産", "樂天不動產"),
+        ("関東", "關東"),
+        ("関西", "關西"),
+        ("新潟県", "新潟縣"),
+        ("不動産", "不動產"),
+        ("マンション", "公寓"),
+        ("一戸建て", "透天"),
+        ("賃貸", "租屋"),
+        ("東京メトロ", "東京地鐵"),
+    ]
+    for old_value, new_value in replacements:
+        s = s.replace(old_value, new_value)
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def build_index_schema(top_keywords: list[dict]) -> str:
     base = get_effective_site_url()
     avatar_url = get_support_avatar_url()
@@ -3842,7 +3887,7 @@ def build_index_schema(top_keywords: list[dict]) -> str:
     same_as = [ref_url] if ref_url and ref_url.startswith("http") else []
     item_list = []
     for idx, row in enumerate(top_keywords[:10], 1):
-        kw = (row.get("keyword") or "").strip()
+        kw = _translate_site_keyword_hant((row.get("keyword") or "").strip())
         if not kw:
             continue
         item_list.append(
@@ -3927,7 +3972,8 @@ def build_index_schema(top_keywords: list[dict]) -> str:
 
 
 def _index_template_context(request: Request, *, admin_standalone: bool = False) -> dict[str, Any]:
-    top_keywords = fetch_top_keywords(limit=12)
+    top_keywords_raw = fetch_top_keywords(limit=12)
+    top_keywords = [dict(x, keyword=_translate_site_keyword_hant(x.get("keyword") or "")) for x in top_keywords_raw]
     seo_keyword_meta = ",".join([x["keyword"] for x in top_keywords if x.get("keyword")][:12])
     crawl_settings = load_crawl_settings()
     home_hero = _resolve_home_hero_preset(crawl_settings)
@@ -5652,7 +5698,7 @@ def _case_detail_unavailable_reason(row: dict[str, Any]) -> str:
     ):
         return "這筆來源是 SUUMO 區域／搜尋入口，不是完整單一房源；已避免套用物件詳情欄位。"
     if "realestate.yahoo.co.jp" in item_url and "/search/" in item_url:
-        return "這筆來源是 Yahoo!不動産搜尋結果列表，不是完整單一房源；請改開列表中的單筆官方物件頁。"
+        return "這筆來源是 Yahoo!不動產搜尋結果列表，不是完整單一房源；請改開列表中的單筆官方物件頁。"
     if (
         "athome.co.jp" in item_url
         and re.search(r"(?:認証中|認證中|认证中)", title + "\n" + source_body, re.I)
@@ -5738,7 +5784,7 @@ def _case_missing_verified_gallery_unavailable_reason(
     elif "athome.co.jp" in ul:
         source_label = "AtHome"
     elif "realestate.yahoo.co.jp" in ul:
-        source_label = "Yahoo!不動産"
+        source_label = "Yahoo!不動產"
     elif "realestate.rakuten.co.jp" in ul:
         source_label = "樂天不動產"
     else:
@@ -6242,14 +6288,16 @@ def _build_sales_mcp_payload(
     knowledge_meta: dict,
     session_id: str,
     *,
+    turn_index: int = 0,
     matched_scenario: dict | None = None,
 ) -> dict:
     stage, outcome = _detect_sales_stage(message)
     score = _calc_sales_intent_score(message, knowledge_meta)
     human_intent = _message_wants_human_or_advisor(message)
+    direct_buy_intent = _support_has_direct_buying_commitment(message)
     selected_interest = int(knowledge_meta.get("selected_case_count") or 0) > 0
-    # 意願分 ≥50：記錄對話、佇列通知、引導人工（亦觸發 Telegram，見 chat-support）
-    should_notify = bool((score >= 50 or human_intent or selected_interest) and outcome != "not_interested")
+    # 真正進入人工接手前，先由模擬顧問承接；只有直接表達「要買房 / 準備買房 / 要看屋」時才開真人接手入口。
+    should_notify = bool(direct_buy_intent and outcome != "not_interested")
     next_actions = [
         {"id": "confirm_budget", "label": "確認預算與貸款條件"},
         {"id": "ask_one_followup", "label": "一次只補問一個關鍵條件"},
@@ -6257,6 +6305,8 @@ def _build_sales_mcp_payload(
     ]
     if should_notify:
         next_actions.insert(0, {"id": "handoff_human", "label": "轉真人顧問對接"})
+    elif human_intent:
+        next_actions.insert(0, {"id": "clarify_purchase_plan", "label": "先確認是否已進入買房決策"})
     pitch_lines = list(_sales_pitch_for_stage(stage, message, score))
     if matched_scenario:
         label = str(matched_scenario.get("label") or "").strip()
@@ -6269,16 +6319,24 @@ def _build_sales_mcp_payload(
     matched_id = str(matched_scenario.get("id") or "").strip() if matched_scenario else ""
     matched_label = str(matched_scenario.get("label") or "").strip() if matched_scenario else ""
     notify_reason = (
-        "客戶明確要求人工／顧問協助，建議立即留單並由真人承接"
-        if human_intent
+        "客戶已明確表示正在買房／安排看屋，可進入真人顧問接手流程"
+        if should_notify
         else (
-            "客戶已送出有興趣的站內案件，建議顧問留存並追蹤"
-            if selected_interest
-            else ("詢問權重達五成以上，建議真人顧問介入並留存對話" if should_notify else "")
+            "客戶目前想找顧問，但尚未明確進入買房決策；先由模擬顧問接待並補一個關鍵條件"
+            if human_intent
+            else ("客戶已送出有興趣的站內案件，先整理需求，暫不真人轉接" if selected_interest else "")
         )
     )
     lead_capture = _support_lead_capture_blueprint(message, knowledge_meta, human_intent=human_intent)
     case_intro = _support_case_intro_items(knowledge_meta, limit=3)
+    simulated_service = _build_support_simulated_service_meta(
+        session_id=session_id,
+        message=message,
+        turn_index=turn_index,
+        queue_only=bool(human_intent and not should_notify),
+        human_intent=human_intent,
+        real_handoff_ready=should_notify,
+    )
     return {
         "session_id": session_id,
         "stage": stage,
@@ -6286,6 +6344,8 @@ def _build_sales_mcp_payload(
         "intent_score": score,
         "should_notify_human": should_notify,
         "human_handoff_intent": human_intent,
+        "direct_buy_intent": direct_buy_intent,
+        "real_handoff_ready": should_notify,
         "notify_reason": notify_reason,
         "matched_scene_id": matched_id,
         "matched_scene_label": matched_label,
@@ -6293,6 +6353,7 @@ def _build_sales_mcp_payload(
         "next_actions": next_actions,
         "lead_capture": lead_capture,
         "case_intro": case_intro,
+        "simulated_service": simulated_service,
         "knowledge_upgrade": [
             "將本次對話重點回寫為顧問問答模版",
             "補齊對應區域的稅費、流程與成本明細",
@@ -9572,12 +9633,17 @@ def _insert_support_staff_inbox_message(
                 (sid[:120], text[:8000], channel, from_id),
             )
             conn.commit()
-        label = "LINE" if channel == "line" else "Telegram" if channel == "telegram" else channel.upper()
+        label = {
+            "line": "LINE 顧問",
+            "telegram": "Telegram 顧問",
+            "admin": "後台人工",
+            "advisor": "人工顧問",
+        }.get(channel, channel.upper())
         try:
             _append_turn_to_latest_handoff_conversation(
                 sid,
                 role="assistant",
-                content=f"（{label} 顧問）{text[:7900]}",
+                content=f"（{label}）{text[:7900]}",
             )
         except Exception:
             pass
@@ -9618,14 +9684,13 @@ def _support_session_has_telegram_thread(session_id: str) -> bool:
                 """
                 SELECT
                   (SELECT COUNT(1) FROM telegram_outbound_bridge WHERE session_id = ?) AS bridge_count,
-                  (SELECT COUNT(1) FROM telegram_staff_inbox WHERE session_id = ?) AS inbox_count,
-                  (SELECT COUNT(1) FROM human_handoff_requests WHERE session_id = ?) AS handoff_count
+                  (SELECT COUNT(1) FROM telegram_staff_inbox WHERE session_id = ?) AS inbox_count
                 """,
-                (sid, sid, sid),
+                (sid, sid),
             ).fetchone()
         if not row:
             return False
-        return any(int(row[k] or 0) > 0 for k in ("bridge_count", "inbox_count", "handoff_count"))
+        return any(int(row[k] or 0) > 0 for k in ("bridge_count", "inbox_count"))
     except Exception:
         return False
 
@@ -10521,14 +10586,13 @@ def _support_session_has_line_thread(session_id: str) -> bool:
                 SELECT
                   (SELECT COUNT(1) FROM line_outbound_bridge WHERE session_id = ?) AS bridge_count,
                   (SELECT COUNT(1) FROM line_staff_inbox WHERE session_id = ?) AS inbox_count,
-                  (SELECT COUNT(1) FROM support_staff_inbox WHERE session_id = ? AND source_channel = 'line') AS generic_count,
-                  (SELECT COUNT(1) FROM human_handoff_requests WHERE session_id = ?) AS handoff_count
+                  (SELECT COUNT(1) FROM support_staff_inbox WHERE session_id = ? AND source_channel = 'line') AS generic_count
                 """,
-                (sid, sid, sid, sid),
+                (sid, sid, sid),
             ).fetchone()
         if not row:
             return False
-        return any(int(row[k] or 0) > 0 for k in ("bridge_count", "inbox_count", "generic_count", "handoff_count"))
+        return any(int(row[k] or 0) > 0 for k in ("bridge_count", "inbox_count", "generic_count"))
     except Exception:
         return False
 
@@ -11188,13 +11252,258 @@ def support_crm_system_addon_for_llm() -> str:
     return _compose_support_crm_addon_from_parts(sf, sc, se, _support_crm_inject_mode())
 
 
+def _support_multiline_runtime_value(kv_key: str, default_value: str) -> str:
+    raw = get_kv(kv_key).strip()
+    text = raw or str(default_value or "").strip()
+    lines = [str(line or "").strip() for line in text.splitlines() if str(line or "").strip()]
+    return "\n".join(lines).strip()
+
+
+def _support_parse_simulated_advisors(text: str) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    for idx, raw_line in enumerate(str(text or "").splitlines(), start=1):
+        line = str(raw_line or "").strip()
+        if not line:
+            continue
+        parts = [p.strip() for p in re.split(r"[|｜]", line) if p.strip()]
+        if not parts:
+            continue
+        if len(parts) >= 2:
+            code_raw, name = parts[0], parts[1]
+            title = parts[2] if len(parts) >= 3 else "置業顧問"
+        else:
+            code_raw, name, title = "", parts[0], "置業顧問"
+        digits = re.sub(r"\D+", "", code_raw)
+        code = digits[:8] if digits else str(1000 + idx)
+        out.append(
+            {
+                "code": code,
+                "name": name[:24] or f"顧問{idx}",
+                "title": title[:36] or "置業顧問",
+            }
+        )
+    if out:
+        return out
+    return [
+        {"code": "1001", "name": "小美", "title": "海外置產顧問"},
+        {"code": "1002", "name": "小帥", "title": "日本買房顧問"},
+    ]
+
+
+def _support_runtime_simulated_advisors() -> list[dict[str, str]]:
+    return _support_parse_simulated_advisors(
+        _support_multiline_runtime_value(KV_SUPPORT_SIMULATED_ADVISORS, SUPPORT_SIMULATED_ADVISOR_ROSTER_DEFAULT)
+    )
+
+
+def _support_runtime_queue_templates() -> list[str]:
+    text = _support_multiline_runtime_value(KV_SUPPORT_QUEUE_TEMPLATES, SUPPORT_SIMULATED_QUEUE_TEMPLATES_DEFAULT)
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def _support_runtime_service_templates() -> list[str]:
+    text = _support_multiline_runtime_value(KV_SUPPORT_SERVICE_TEMPLATES, SUPPORT_SIMULATED_SERVICE_TEMPLATES_DEFAULT)
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def _support_runtime_handoff_templates() -> list[str]:
+    text = _support_multiline_runtime_value(KV_SUPPORT_HANDOFF_TEMPLATES, SUPPORT_SIMULATED_HANDOFF_TEMPLATES_DEFAULT)
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def _support_hash_pick_index(seed: str, size: int) -> int:
+    if size <= 0:
+        return 0
+    digest = hashlib.md5(str(seed or "support").encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % size
+
+
+def _support_pick_simulated_advisor(session_id: str) -> dict[str, str]:
+    rows = _support_runtime_simulated_advisors()
+    return rows[_support_hash_pick_index(session_id or "support", len(rows))]
+
+
+def _support_fill_simulated_template(
+    template: str,
+    advisor: dict[str, str],
+    *,
+    queue_position: int = 0,
+    wait_minutes: int = 0,
+    turn_index: int = 0,
+) -> str:
+    safe = str(template or "").strip()
+    if not safe:
+        return ""
+    values = {
+        "code": str(advisor.get("code") or "").strip(),
+        "name": str(advisor.get("name") or "").strip(),
+        "title": str(advisor.get("title") or "").strip(),
+        "queue": queue_position,
+        "wait": wait_minutes,
+        "turn": max(1, int(turn_index or 0)),
+    }
+
+    class _SafeDict(dict):
+        def __missing__(self, key: str) -> str:
+            return "{" + str(key or "") + "}"
+
+    try:
+        return safe.format_map(_SafeDict(values)).strip()
+    except Exception:
+        return safe
+
+
+def _support_has_direct_buying_commitment(message: str) -> bool:
+    raw = str(message or "").strip()
+    if not raw:
+        return False
+    compact = re.sub(r"\s+", "", raw)
+    buy_terms = r"(買房|买房|購屋|买屋|置產|置产|下斡旋|簽約|签约|看屋|看房)"
+    property_terms = r"(日本房|日本房產|日本不動產|日本不动产|東京房|东京房|大阪房|公寓|一戶建|一户建|自住房|自住|マンション|物件|房子)"
+    quick_window = r"(三個月內|三个月内|近期|盡快|尽快|馬上|马上|本月|这个月|這個月)"
+    handoff_terms = r"(人工|真人|顧問|顾问|業務|业务|仲介|經紀|经纪)"
+    strong_commitment_patterns = (
+        r"(預約|预约|安排|約|约).{0,6}(看屋|看房|帶看|带看)",
+        r"(準備|准备|打算|計畫|计划|考慮|考虑|確定|确定|決定|决定).{0,6}(買房|买房|購屋|置產|置产)",
+        r"(我|我們|本人|這邊|这边).{0,4}(想|要|確定|确定|決定|决定).{0,3}(買房|买房|購屋|置產|置产)(?!流程|知識|知识|稅|税|貸款|贷款|費用|费用|條件|条件|能不能|可不可以)",
+        r"(我|我們|本人|這邊|这边).{0,4}(想|要|準備|准备|打算|確定|确定|決定|决定).{0,5}(買|买).{0,10}(日本房|日本房產|日本不動產|東京房|东京房|大阪房|公寓|一戶建|一户建|マンション|物件|房子)(?!流程|知識|知识|稅|税|貸款|贷款|費用|费用|條件|条件|能不能|可不可以)",
+        r"(想|要|準備|准备|確定|确定|決定|决定).{0,8}(下斡旋|簽約|签约)",
+        r"(我|我們|本人).{0,10}(想|要|確定|确定|決定|决定).{0,8}(買|买).{0,8}(這套|这套|這筆|这笔|這個案件|这个案件|這個物件|这个物件)",
+        r"(請|请|麻煩|麻烦|幫我|帮我).{0,8}(安排|轉|转|接手).{0,8}(人工|真人|顧問|顾问).{0,12}(買房|买房|購屋|置產|置产|看屋|看房)?",
+    )
+    if any(re.search(pat, compact) for pat in strong_commitment_patterns):
+        return True
+    if re.search(quick_window, compact) and re.search(buy_terms, compact) and re.search(property_terms, compact):
+        return True
+    if re.search(buy_terms, compact) and re.search(handoff_terms, compact) and re.search(r"(接手|安排|轉接|转接|對接|对接)", compact):
+        return True
+    if re.search(
+        r"(買房流程|买房流程|購買流程|购买流程|如何購買|如何购买|怎麼買|怎么买|外國人能不能買|外国人能不能买)",
+        compact,
+    ):
+        return False
+    if re.search(
+        r"(想了解|想瞭解|先了解|先瞭解|了解一下|瞭解一下|先問|先问|想問|想问|諮詢|咨询|研究|比較|对比|流程|知識|知识)"
+        r".{0,10}(買房|买房|購屋|日本房|日本房產|日本不動產|公寓|一戶建|一户建|マンション|物件|房子)",
+        compact,
+    ):
+        return False
+    if re.search(
+        r"(買房|买房|購屋|日本房|日本房產|日本不動產).{0,10}(流程|知識|知识|稅|税|貸款|贷款|費用|费用|條件|条件|能不能|可不可以)",
+        compact,
+    ):
+        return False
+    patterns = (
+        r"(想|要|準備|准备|確定|确定|決定|决定).{0,6}(買|买).{0,12}(日本房|日本房產|日本不動產|公寓|一戶建|一户建|マンション|物件|房子)",
+    )
+    return any(re.search(pat, compact) for pat in patterns)
+
+
+def _support_user_turn_count(history: list[dict[str, Any]] | None = None, current_message: str = "") -> int:
+    turns = 0
+    for row in history or []:
+        if not isinstance(row, dict):
+            continue
+        role = str(row.get("role") or "").strip().lower()
+        content = str(row.get("content") or "").strip()
+        if role == "user" and content:
+            turns += 1
+    if str(current_message or "").strip():
+        turns += 1
+    return max(0, turns)
+
+
+def _build_support_simulated_service_meta(
+    *,
+    session_id: str,
+    message: str,
+    turn_index: int = 0,
+    queue_only: bool = False,
+    human_intent: bool = False,
+    real_handoff_ready: bool = False,
+) -> dict[str, Any]:
+    queue_phase = bool(queue_only or human_intent) and not real_handoff_ready and int(turn_index or 0) <= 1
+    mode = "handoff_ready" if real_handoff_ready else ("queueing" if queue_phase else "serving")
+    advisor_seed = (
+        f"{session_id}:handoff"
+        if real_handoff_ready
+        else (f"{session_id}:queue" if mode == "queueing" else f"{session_id}:serving")
+    )
+    advisor = _support_pick_simulated_advisor(advisor_seed)
+    queue_position = 1 + _support_hash_pick_index(f"{session_id}:{message}:queue-position", 4)
+    wait_minutes = 1 + _support_hash_pick_index(f"{session_id}:{message}:queue-wait", 5)
+    queue_text = _support_fill_simulated_template(
+        _support_runtime_queue_templates()[
+            _support_hash_pick_index(f"{session_id}:{message}:queue", len(_support_runtime_queue_templates()))
+        ],
+        advisor,
+        queue_position=queue_position,
+        wait_minutes=wait_minutes,
+        turn_index=turn_index,
+    )
+    service_text = _support_fill_simulated_template(
+        _support_runtime_service_templates()[
+            _support_hash_pick_index(f"{session_id}:{message}:service", len(_support_runtime_service_templates()))
+        ],
+        advisor,
+        queue_position=queue_position,
+        wait_minutes=wait_minutes,
+        turn_index=turn_index,
+    )
+    handoff_text = _support_fill_simulated_template(
+        _support_runtime_handoff_templates()[
+            _support_hash_pick_index(f"{session_id}:{message}:handoff", len(_support_runtime_handoff_templates()))
+        ],
+        advisor,
+        queue_position=queue_position,
+        wait_minutes=wait_minutes,
+        turn_index=turn_index,
+    )
+    display_text = handoff_text if real_handoff_ready else (queue_text if mode == "queueing" else service_text)
+    return {
+        "active": True,
+        "mode": mode,
+        "advisor_code": str(advisor.get("code") or "").strip(),
+        "advisor_name": str(advisor.get("name") or "").strip(),
+        "advisor_title": str(advisor.get("title") or "").strip(),
+        "service_label": f"工號{advisor.get('code') or ''}｜{advisor.get('name') or ''}",
+        "queue_position": queue_position,
+        "wait_minutes": wait_minutes,
+        "turn_index": max(0, int(turn_index or 0)),
+        "queue_text": queue_text,
+        "service_text": service_text,
+        "handoff_text": handoff_text,
+        "display_text": display_text,
+    }
+
+
+def _build_support_welcome_text(advisor: dict[str, str] | None = None) -> str:
+    row = advisor or _support_pick_simulated_advisor("support-welcome")
+    name = str((row or {}).get("name") or "顧問").strip() or "顧問"
+    title = str((row or {}).get("title") or "置業顧問").strip() or "置業顧問"
+    return (
+        f"您好，我是今天值班的{title}{name}。"
+        "我先陪您把地區、用途、預算和買房重點整理清楚。"
+        "如果您只是先了解方向，我會先用顧問接待的方式陪您聊；"
+        "只有您明確要買房或想安排看屋時，我再直接幫您接真人顧問。"
+    )
+
+
 def admin_support_crm_prompt_snapshot() -> dict[str, Any]:
     sf_raw = get_kv(KV_SUPPORT_CRM_FULL).strip()
     sc_raw = get_kv(KV_SUPPORT_CRM_COMPACT).strip()
     se_raw = get_kv(KV_SUPPORT_CRM_EXAMPLES).strip()
+    sa_raw = get_kv(KV_SUPPORT_SIMULATED_ADVISORS).strip()
+    sq_raw = get_kv(KV_SUPPORT_QUEUE_TEMPLATES).strip()
+    ss_raw = get_kv(KV_SUPPORT_SERVICE_TEMPLATES).strip()
+    sh_raw = get_kv(KV_SUPPORT_HANDOFF_TEMPLATES).strip()
     sf = sf_raw or SUPPORT_CRM_DEFAULT_FULL
     sc = sc_raw or SUPPORT_CRM_DEFAULT_COMPACT
     se = se_raw or SUPPORT_CRM_DEFAULT_EXAMPLES
+    sa = sa_raw or _support_multiline_runtime_value(KV_SUPPORT_SIMULATED_ADVISORS, SUPPORT_SIMULATED_ADVISOR_ROSTER_DEFAULT)
+    sq = sq_raw or _support_multiline_runtime_value(KV_SUPPORT_QUEUE_TEMPLATES, SUPPORT_SIMULATED_QUEUE_TEMPLATES_DEFAULT)
+    ss = ss_raw or _support_multiline_runtime_value(KV_SUPPORT_SERVICE_TEMPLATES, SUPPORT_SIMULATED_SERVICE_TEMPLATES_DEFAULT)
+    sh = sh_raw or _support_multiline_runtime_value(KV_SUPPORT_HANDOFF_TEMPLATES, SUPPORT_SIMULATED_HANDOFF_TEMPLATES_DEFAULT)
     mode = _support_crm_inject_mode()
     en = _support_crm_enabled_runtime()
     addon = _compose_support_crm_addon_from_parts(sf, sc, se, mode) if en else ""
@@ -11204,7 +11513,19 @@ def admin_support_crm_prompt_snapshot() -> dict[str, Any]:
         "full_prompt": sf,
         "compact_prompt": sc,
         "examples": se,
-        "stored_empty": {"full": not sf_raw, "compact": not sc_raw, "examples": not se_raw},
+        "simulated_advisors": sa,
+        "queue_templates": sq,
+        "service_templates": ss,
+        "handoff_templates": sh,
+        "stored_empty": {
+            "full": not sf_raw,
+            "compact": not sc_raw,
+            "examples": not se_raw,
+            "simulated_advisors": not sa_raw,
+            "queue_templates": not sq_raw,
+            "service_templates": not ss_raw,
+            "handoff_templates": not sh_raw,
+        },
         "injected_char_count": len(addon),
     }
 
@@ -11483,12 +11804,23 @@ def _build_offline_support_reply(message: str, knowledge_meta: dict, persona_reg
     excerpt = (text[:160] or "您的提問").replace("\n", " ").strip()
     intent_ref = _calc_sales_intent_score(text, knowledge_meta)
     prop_listing = bool(knowledge_meta.get("property_listing_intent"))
+    wants_human = _message_wants_human_or_advisor(text)
+    direct_buy_intent = _support_has_direct_buying_commitment(text)
     if bool(knowledge_meta.get("purchase_discovery_mode")):
         return _build_purchase_discovery_reply(
             text,
             selected_cases=list(knowledge_meta.get("selected_cases") or []),
             missing_fields=list((knowledge_meta.get("purchase_discovery") or {}).get("missing_fields") or []),
         )
+    if wants_human and not direct_buy_intent:
+        next_q = _support_single_followup_question(text, intent_ref=intent_ref)
+        lines = [
+            "可以，先由我這邊用顧問接待的方式陪您往下聊。",
+            "您如果還在了解方向，我先幫您把需求整理清楚；等您明確要買房或安排看屋時，我再直接接真人顧問。",
+            "",
+            next_q,
+        ]
+        return sanitize_support_chat_visible_reply("\n".join(lines).strip())
     qa_hit = _match_support_qa_training(text)
     if prop_listing and not qa_hit:
         next_q = _support_single_followup_question(
@@ -11901,6 +12233,14 @@ def api_admin_put_support_crm_prompt(payload: SupportCrmPromptPut, request: Requ
         set_kv(KV_SUPPORT_CRM_COMPACT, str(payload.compact_prompt))
     if payload.examples is not None:
         set_kv(KV_SUPPORT_CRM_EXAMPLES, str(payload.examples))
+    if payload.simulated_advisors is not None:
+        set_kv(KV_SUPPORT_SIMULATED_ADVISORS, str(payload.simulated_advisors))
+    if payload.queue_templates is not None:
+        set_kv(KV_SUPPORT_QUEUE_TEMPLATES, str(payload.queue_templates))
+    if payload.service_templates is not None:
+        set_kv(KV_SUPPORT_SERVICE_TEMPLATES, str(payload.service_templates))
+    if payload.handoff_templates is not None:
+        set_kv(KV_SUPPORT_HANDOFF_TEMPLATES, str(payload.handoff_templates))
     return JSONResponse({"ok": True, **admin_support_crm_prompt_snapshot()})
 
 
@@ -11912,6 +12252,10 @@ def api_admin_delete_support_crm_prompt(request: Request):
         KV_SUPPORT_CRM_FULL,
         KV_SUPPORT_CRM_COMPACT,
         KV_SUPPORT_CRM_EXAMPLES,
+        KV_SUPPORT_SIMULATED_ADVISORS,
+        KV_SUPPORT_QUEUE_TEMPLATES,
+        KV_SUPPORT_SERVICE_TEMPLATES,
+        KV_SUPPORT_HANDOFF_TEMPLATES,
         KV_SUPPORT_CRM_MODE,
         KV_SUPPORT_CRM_ENABLED,
     ):
@@ -12939,6 +13283,13 @@ def api_admin_handoff_request_detail(handoff_id: int, request: Request):
     d["questionnaire"] = q_obj
     d["interested_cases"] = case_rows
     d["staff_inbox"] = list(reversed(staff_rows))
+    sid = _normalize_support_session_id(str(d.get("session_id") or ""))
+    d["thread_channels"] = {
+        "telegram": bool(sid and _support_session_has_telegram_thread(sid)),
+        "line": bool(sid and _support_session_has_line_thread(sid)),
+        "web": bool(sid),
+    }
+    d["staff_reply_count"] = len(staff_rows)
     return JSONResponse({"ok": True, "item": d})
 
 
@@ -12983,6 +13334,126 @@ def api_admin_handoff_request_update(handoff_id: int, payload: AdminHandoffUpdat
         )
         conn.commit()
     return JSONResponse({"ok": True, "id": hid, "item": fields})
+
+
+def _admin_send_handoff_reply(
+    *,
+    session_id: str,
+    message: str,
+    preferred_channel: str = "auto",
+    sender_name: str = "人工客服",
+) -> dict[str, Any]:
+    sid = _normalize_support_session_id(session_id)
+    if not sid:
+        raise RuntimeError("missing session_id")
+    text = sanitize_support_chat_visible_reply(str(message or "").strip())[:4000].strip()
+    if not text:
+        raise RuntimeError("missing message")
+    channel = str(preferred_channel or "auto").strip().lower()
+    if channel not in {"auto", "web", "telegram", "line"}:
+        channel = "auto"
+    line_ready = _support_session_has_line_thread(sid)
+    telegram_ready = _support_session_has_telegram_thread(sid)
+    attempts: list[dict[str, str]] = []
+
+    def _send_web() -> dict[str, Any]:
+        ok = _insert_support_staff_inbox_message(
+            sid,
+            text,
+            source_channel="admin",
+            source_from_id=(sender_name or "admin_console")[:120],
+        )
+        if not ok:
+            raise RuntimeError("write support_staff_inbox failed")
+        return {
+            "delivery_mode": "web_chat",
+            "delivery_note": "written_to_support_staff_inbox",
+            "channel_used": "web",
+        }
+
+    def _record_external_reply(channel_name: str) -> None:
+        ok = _insert_support_staff_inbox_message(
+            sid,
+            text,
+            source_channel=channel_name,
+            source_from_id=(sender_name or "admin_console")[:120],
+        )
+        if not ok:
+            raise RuntimeError("write support_staff_inbox failed after external send")
+
+    send_order: list[str]
+    if channel == "line":
+        send_order = ["line", "web"]
+    elif channel == "telegram":
+        send_order = ["telegram", "web"]
+    elif channel == "web":
+        send_order = ["web"]
+    else:
+        send_order = []
+        if line_ready:
+            send_order.append("line")
+        if telegram_ready and "telegram" not in send_order:
+            send_order.append("telegram")
+        send_order.append("web")
+
+    for target in send_order:
+        try:
+            if target == "line":
+                sent = _line_send_by_session(sid, text)
+                if str(sent.get("_delivery_mode") or "") == "direct_customer_line":
+                    _record_external_reply("line")
+                return {
+                    "channel_used": "line",
+                    "delivery_mode": str(sent.get("_delivery_mode") or "direct_customer_line"),
+                    "delivery_note": str(sent.get("_delivery_note") or ""),
+                }
+            if target == "telegram":
+                sent = _telegram_send_by_session(sid, text)
+                if str(sent.get("_delivery_mode") or "") == "direct_customer_chat":
+                    _record_external_reply("telegram")
+                return {
+                    "channel_used": "telegram",
+                    "delivery_mode": str(sent.get("_delivery_mode") or "direct_customer_chat"),
+                    "delivery_note": str(sent.get("_delivery_note") or ""),
+                }
+            return _send_web()
+        except Exception as exc:
+            attempts.append({"channel": target, "error": str(exc)[:300]})
+            continue
+
+    detail = "；".join(f"{row['channel']}：{row['error']}" for row in attempts if row.get("error"))
+    raise RuntimeError(detail or "reply failed")
+
+
+@app.post("/api/admin/handoff-requests/{handoff_id}/reply")
+def api_admin_handoff_request_reply(handoff_id: int, payload: AdminHandoffReplyRequest, request: Request):
+    _require_admin_password(request)
+    hid = int(handoff_id)
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT id, session_id
+            FROM human_handoff_requests
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (hid,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="handoff not found")
+    sid = _normalize_support_session_id(str(row["session_id"] or ""))
+    if not sid:
+        raise HTTPException(status_code=400, detail="handoff session missing")
+    try:
+        sent = _admin_send_handoff_reply(
+            session_id=sid,
+            message=payload.message,
+            preferred_channel=payload.channel,
+            sender_name=payload.sender_name or "人工客服",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)[:400]) from exc
+    return JSONResponse({"ok": True, "handoff_id": hid, "session_id": sid, "reply": sent})
 
 
 @app.delete("/api/admin/handoff-requests/{handoff_id}")
@@ -19893,7 +20364,7 @@ def _run_admin_cases_crawl_job(payload: AdminCasesCrawlPost, task_id: str | None
                 REMAINING_THREE_PORTAL_HOSTS,
             )
             warning_parts = [w for w in warning_parts if "七大日本門戶依固定順序" not in (w or "")]
-            warning_parts.append("【後三站】依序：楽天不動産 → イエステーション → OHEYASU")
+            warning_parts.append("【後三站】依序：樂天不動產 → YesStation → OHEYASU")
             if missing_hosts:
                 warning_parts.append(
                     "後三站來源缺失："
@@ -20243,6 +20714,12 @@ def api_handoff_request_update_no_admin_path(handoff_id: int, payload: AdminHand
     return api_admin_handoff_request_update(handoff_id, payload, request)
 
 
+@app.post("/api/handoff-requests/{handoff_id}/reply")
+def api_handoff_request_reply_no_admin_path(handoff_id: int, payload: AdminHandoffReplyRequest, request: Request):
+    """與 POST /api/admin/handoff-requests/{id}/reply 相同。"""
+    return api_admin_handoff_request_reply(handoff_id, payload, request)
+
+
 @app.delete("/api/handoff-requests/{handoff_id}")
 def api_handoff_request_delete_no_admin_path(handoff_id: int, request: Request):
     """與 DELETE /api/admin/handoff-requests/{id} 相同。"""
@@ -20541,9 +21018,9 @@ def _is_support_project_conversation_bridge(text: str) -> bool:
 def _build_support_greeting_reply(persona_region: str = "tw") -> str:
     _ = persona_region
     return (
-        "您好，我是線上智能客服，會先用簡單的方式幫您把日本房產需求整理清楚。"
-        "您可以直接說想看的地區、預算、用途，或貼一個案件給我，我會幫您整理重點。\n\n"
-        "也可以先從這幾個方向開始：查日本不動產案件、比較已收藏案件、了解買房流程，或輸入「人工」讓顧問接手。"
+        "您好，我先用顧問接待的方式陪您聊，幫您把日本房產需求整理清楚。"
+        "您可以直接說想看的地區、預算、用途，或貼一個案件給我，我先幫您抓重點。\n\n"
+        "如果您只是先了解方向，我會先一步步陪您整理；等您真的準備買房時，再幫您接真人顧問。"
     )
 
 
@@ -20552,9 +21029,9 @@ def _build_support_light_chat_reply(message: str, persona_region: str = "tw") ->
     raw = (message or "").strip()
     if _CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_SMALL_TALK_HINT.search(raw):
         return (
-            "可以，我先陪您把方向整理清楚。這裡主要協助日本不動產查詢、買房／租房流程、區域與預算判斷，"
-            "所以就算只是先聊聊，我也會慢慢幫您收斂成可查詢的條件。\n\n"
-            "您可以回我一個方向：想看東京或大阪？自住還是投資？大概預算多少？也可以直接說「幫我找房」或「人工」。"
+            "可以，我先陪您慢慢聊，不急著丟案件。"
+            "您把想法當成在跟真人顧問私訊就好，我這邊會先幫您整理日本買房、租房、區域和預算方向。\n\n"
+            "您先回我一個重點就行，例如想看東京還是大阪、自住還是投資，或目前大概抓多少預算。"
         )
     return _build_support_greeting_reply(persona_region)
 
@@ -20792,22 +21269,27 @@ def _build_purchase_discovery_reply(
     selected_cases: list[dict] | None = None,
     missing_fields: list[str] | None = None,
 ) -> str:
+    direct_buy_intent = _support_has_direct_buying_commitment(message)
     next_q = _support_single_followup_question(message, missing_fields=missing_fields, intent_ref=60)
     selected_count = len(selected_cases or [])
-    lines = [
-        "收到，您有購買意願這點很明確。我先不一次丟大量案件，避免資訊太多反而不好判斷。",
-    ]
+    if direct_buy_intent:
+        lines = [
+            "收到，您這邊已經明確要買房或安排看屋，我先幫您切進真人顧問接手流程。",
+            "在顧問正式接手前，我先替您補一個最關鍵的條件，這樣後面銜接會更快。",
+        ]
+    else:
+        lines = [
+            "收到，您有買房意願這點很明確，我先像真人顧問一樣幫您把條件收斂，不急著一次丟很多案件。",
+        ]
     if selected_count:
         lines.append(f"我也有看到您已選的 {selected_count} 筆案件，先只當背景整理，不再另外推薦新案件。")
-    if missing_fields:
+    if missing_fields and not direct_buy_intent:
         lines.append("目前先補一個關鍵條件就好。")
-    lines.extend(
-        [
-            "",
-            next_q,
-            "若想讓真人顧問接手，也可以直接回「人工」。",
-        ]
-    )
+    lines.extend(["", next_q])
+    if direct_buy_intent:
+        lines.append("您填完後，我就把這輪需求直接交給真人顧問跟進。")
+    else:
+        lines.append("等條件更明確，或您直接表示要買房／安排看屋時，我再幫您接真人顧問。")
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
 
 
@@ -21706,6 +22188,49 @@ def api_ai_support_keyword_hint(payload: SupportKeywordHintRequest):
     )
 
 
+@app.get("/api/ai/chat-support/bootstrap")
+def api_ai_chat_support_bootstrap(session_id: str = Query("", description="客服前端會話 ID")):
+    sid = _normalize_support_session_id(session_id or "")
+    if not sid:
+        sid = f"sess-{uuid4().hex[:16]}"
+    simulated_service = _build_support_simulated_service_meta(
+        session_id=sid,
+        message="welcome",
+        queue_only=True,
+        human_intent=False,
+        real_handoff_ready=False,
+    )
+    advisor = {
+        "code": str(simulated_service.get("advisor_code") or "").strip(),
+        "name": str(simulated_service.get("advisor_name") or "").strip(),
+        "title": str(simulated_service.get("advisor_title") or "").strip(),
+    }
+    return JSONResponse(
+        {
+            "ok": True,
+            "session_id": sid,
+            "reply": _build_support_welcome_text(advisor),
+            "sales_mcp": {
+                "session_id": sid,
+                "stage": "discover",
+                "outcome": "welcome",
+                "intent_score": 0,
+                "should_notify_human": False,
+                "human_handoff_intent": False,
+                "direct_buy_intent": False,
+                "real_handoff_ready": False,
+                "next_actions": [
+                    {"id": "browse_tokyo_cases", "label": "先看東京案件"},
+                    {"id": "buying_consult", "label": "先聊買房方向"},
+                    {"id": "confirm_budget", "label": "先抓預算"},
+                    {"id": "clarify_purchase_plan", "label": "顧問接待"},
+                ],
+                "simulated_service": simulated_service,
+            },
+        }
+    )
+
+
 @app.post("/api/ai/chat-support")
 def api_ai_chat_support(payload: ChatSupportRequest):
     msg = (payload.message or "").strip()
@@ -21714,6 +22239,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     session_id = _normalize_support_session_id(payload.sales_session_id or "")
     if not session_id:
         session_id = f"sess-{uuid4().hex[:16]}"
+    support_turn_index = _support_user_turn_count(payload.history, msg)
     purchase_quick_dimensions = _support_purchase_discovery_dimensions(
         msg,
         figure_region=(payload.figure_region or "").strip(),
@@ -21736,6 +22262,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             selected_cases=selected_cases_input,
             missing_fields=purchase_quick_missing,
         )
+        human_handoff_intent = bool(_message_wants_human_or_advisor(msg))
         knowledge_meta = {
             "query": msg,
             "days": 0,
@@ -21767,6 +22294,15 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "query_blend": msg,
             },
         }
+        real_handoff_ready = _support_has_direct_buying_commitment(msg)
+        simulated_service = _build_support_simulated_service_meta(
+            session_id=session_id,
+            message=msg,
+            turn_index=support_turn_index,
+            queue_only=not real_handoff_ready,
+            human_intent=real_handoff_ready,
+            real_handoff_ready=real_handoff_ready,
+        )
         return JSONResponse(
             {
                 "ok": True,
@@ -21786,17 +22322,20 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "stage": "discover",
                     "intent_score": 32,
                     "outcome": "purchase_discovery",
-                    "should_notify_human": False,
-                    "human_handoff_intent": False,
+                    "should_notify_human": real_handoff_ready,
+                    "human_handoff_intent": human_handoff_intent or real_handoff_ready,
+                    "direct_buy_intent": real_handoff_ready,
+                    "real_handoff_ready": real_handoff_ready,
                     "intake_required_before_human_reply": False,
                     "purchase_discovery_mode": True,
                     "case_intro": [],
                     "next_actions": [
                         {"id": "confirm_one_requirement", "label": "本輪只確認一個關鍵條件"},
                         {"id": "narrow_region", "label": "下一輪再縮小區域／車站"},
-                        {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
+                        {"id": "handoff_human", "label": "轉真人顧問對接"} if real_handoff_ready else {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
                     ],
                     "sales_pitch": [],
+                    "simulated_service": simulated_service,
                 },
                 "matched_scene": None,
                 "matched_qa": None,
@@ -21831,6 +22370,14 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             "purchase_discovery": {"active": False, "dimensions": {}, "missing_fields": [], "skip_reason": skip_reason},
             "client_search": {"figure_keyword": "", "figure_region": "", "dialog_keyword": "", "query_blend": msg},
         }
+        simulated_service = _build_support_simulated_service_meta(
+            session_id=session_id,
+            message=msg,
+            turn_index=support_turn_index,
+            queue_only=True,
+            human_intent=False,
+            real_handoff_ready=False,
+        )
         return JSONResponse(
             {
                 "ok": True,
@@ -21853,10 +22400,18 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "outcome": "greeting",
                     "should_notify_human": False,
                     "human_handoff_intent": False,
+                    "direct_buy_intent": False,
+                    "real_handoff_ready": False,
                     "intake_required_before_human_reply": False,
                     "case_intro": [],
-                    "next_actions": [],
+                    "next_actions": [
+                        {"id": "browse_tokyo_cases", "label": "先看東京案件"},
+                        {"id": "buying_consult", "label": "先聊買房方向"},
+                        {"id": "confirm_budget", "label": "先抓預算"},
+                        {"id": "clarify_purchase_plan", "label": "顧問接待"},
+                    ],
                     "sales_pitch": [],
+                    "simulated_service": simulated_service,
                 },
                 "matched_scene": None,
                 "matched_qa": None,
@@ -22112,6 +22667,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         msg,
         knowledge_meta,
         session_id=session_id,
+        turn_index=support_turn_index,
         matched_scenario=matched,
     )
     sales_mcp["case_intro"] = []
@@ -23228,7 +23784,7 @@ def api_nta_taxanswer_search(payload: NTASearchRequest):
 
 @app.post("/api/market-portal-search")
 def api_market_portal_search(payload: MarketSearchRequest):
-    keyword = payload.keyword.strip() or "関東 不動産"
+    keyword = payload.keyword.strip() or "關東 不動產"
     data = search_market_portal(keyword)
     threading.Thread(
         target=lambda: track_keyword_search(keyword=keyword, channel="market_portal", filters={}),

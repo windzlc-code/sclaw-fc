@@ -8,20 +8,20 @@ SUUMO_TABS = {
     "fig24": {
         "name": "SUUMO 新築",
         "base_url": "https://suumo.jp/ms/shinchiku/kanto/",
-        "note": "關東新築分譲マンション",
-        "default_keyword": "新築 マンション",
+        "note": "關東新建公寓購屋資訊",
+        "default_keyword": "新建 公寓",
     },
     "fig3": {
         "name": "SUUMO 中古",
         "base_url": "https://suumo.jp/ms/chuko/kanto/",
-        "note": "關東中古マンション購入情報",
-        "default_keyword": "中古 マンション",
+        "note": "關東中古公寓購屋資訊",
+        "default_keyword": "中古 公寓",
     },
     "fig5": {
         "name": "SUUMO 關東",
         "base_url": "https://suumo.jp/kanto/",
         "note": "關東住宅與不動產綜合入口",
-        "default_keyword": "関東 不動産",
+        "default_keyword": "關東 不動產",
     },
 }
 

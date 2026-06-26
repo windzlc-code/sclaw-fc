@@ -52,6 +52,14 @@
       border-color: rgba(255, 255, 255, 0.72) !important;
     }
 
+    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
+    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
+    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
+      background: transparent !important;
+      border-color: rgba(255, 255, 255, 0.34) !important;
+      box-shadow: none !important;
+    }
+
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
@@ -59,6 +67,15 @@
       background: #2f7d68 !important;
       color: #fff !important;
       box-shadow: 0 12px 28px rgba(47, 125, 104, 0.26) !important;
+    }
+
+    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
+    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
+    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
+      color: #d7fff1 !important;
+      background: transparent !important;
+      border-color: rgba(150, 243, 214, 0.88) !important;
+      box-shadow: none !important;
     }
 
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon {
@@ -194,8 +211,8 @@
         </nav>
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-property" role="tabpanel" aria-label="房源條件關鍵詞" data-bh-nav-keyword-panel="property" data-bh-panel-title="房源條件" hidden>
           <div class="bh-nav-keyword-list">
-          <a href="#query-dialog" data-geo-keyword="日本中古マンション">中古マンション</a>
-          <a href="#query-dialog" data-geo-keyword="日本新築マンション">新築マンション</a>
+          <a href="#query-dialog" data-geo-keyword="日本中古公寓">中古公寓</a>
+          <a href="#query-dialog" data-geo-keyword="日本新建公寓">新建公寓</a>
           <a href="#query-dialog" data-geo-keyword="日本一戶建">日本一戶建</a>
           <a href="#query-dialog" data-geo-keyword="日本公寓找房">日本公寓找房</a>
           <a href="#query-dialog" data-geo-keyword="日本房源比較">日本房源比較</a>
@@ -318,20 +335,6 @@
     </section>
 
     <section class="panel jp-map-hub jp-map-hub--integrated-suite" id="jp-map-hub" aria-label="日本找房工作台：區域圖、都道府縣進階、通勤與案件查詢">
-      <div class="jp-map-hub-banner">
-        <div class="jp-map-hub-banner-icon" aria-hidden="true">🔎</div>
-        <div class="jp-map-hub-banner-text">
-          <strong class="jp-map-hub-banner-title">日本找房工作台</strong>
-          <span class="jp-map-hub-banner-modes muted">中央為<strong>日本區域圖</strong>，直接點圖上的大區標籤或綠色熱區，條件會帶入下方<strong>日本不動產案件</strong>。</span>
-          <span class="muted jp-map-hub-banner-sub"><strong>都道府縣一覽</strong>已收進地圖標籤；選定大區後可在標籤旁展開細分都道府縣。</span>
-          <div class="jp-map-hub-toolbar jp-map-hub-banner-toolbar" role="group" aria-label="BOT 內部條件" style="display:none;">
-            <span class="muted" style="font-size:12px;font-weight:600;">BOT 內部條件</span>
-          </div>
-        </div>
-        <span class="jp-map-hub-ref-links">
-          <button type="button" class="secondary jp-map-hub-ref-link" id="jp-map-hub-collapse-btn" aria-expanded="true" title="僅收合上方地圖與條件區；下方日本不動產案件區仍保留">收合地圖區</button>
-        </span>
-      </div>
       <div class="jp-map-hub-collapsible" id="jp-map-hub-collapsible">
       <div class="jp-map-hub-shell jp-map-hub-shell--integrated">
         <div class="jp-map-hub-main">
@@ -361,7 +364,7 @@
                       <div class="jp-map-pref-overlays" id="jp-map-hub-details-pref" aria-label="地圖內都道府縣文字區塊">
                         {% for cluster in jp_map_pref_map_clusters | default(jp_map_pref_clusters, true) %}
                         {% set cluster_region = '中國地方' if cluster.title == '中國' else cluster.title %}
-                        {% set cluster_kw = '中国 不動産' if cluster.title == '中國' else cluster.title ~ ' 不動産' %}
+                        {% set cluster_kw = '中國 不動產' if cluster.title == '中國' else cluster.title ~ ' 不動產' %}
                         <section class="jp-map-pref-overlay jp-map-hub-cluster" data-jp-pref-cluster="{{ cluster.title }}">
                           <button type="button" class="jp-map-region-label jp-map-pref-overlay-title{% if cluster.title == '甲信越・北陸' %} jp-map-region-label--wide{% endif %}" data-jp-orbit-title="{{ cluster.title }}" data-jp-pref-region="{{ cluster_region }}" data-jp-pref-kw="{{ cluster_kw }}" data-jp-pref-label="{{ cluster.title }}">{{ cluster.title }}</button>
                           <div class="jp-map-hub-cluster-chips">
@@ -685,9 +688,9 @@
         </article>
         <article class="advisor-workbench-card">
           <h3>② 找投資案</h3>
-          <p class="muted">楽待 + 健美家，聚焦收租公寓、一戶建、商用不動產與高報酬物件。</p>
+          <p class="muted">樂待（Rakumachi）與健美家，聚焦收租公寓、一戶建、商用不動產與高報酬物件。</p>
           <div class="advisor-workbench-actions">
-            <a class="chip" href="https://www.rakumachi.jp" target="_blank" rel="nofollow noopener">開啟 楽待</a>
+            <a class="chip" href="https://www.rakumachi.jp" target="_blank" rel="nofollow noopener">開啟 樂待</a>
             <a class="chip" href="https://www.kenbiya.com" target="_blank" rel="nofollow noopener">開啟 健美家</a>
           </div>
         </article>
@@ -1301,6 +1304,18 @@
         </label>
         <label class="muted">範例對話（風格參考，可留空）
           <textarea id="admin-support-crm-examples" rows="8" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
+        </label>
+        <label class="muted">模擬值班顧問（每行：工號 | 名稱 | 職稱）
+          <textarea id="admin-support-crm-simulated-advisors" rows="5" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
+        </label>
+        <label class="muted">排隊提示模板（每行一則）
+          <textarea id="admin-support-crm-queue-templates" rows="4" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
+        </label>
+        <label class="muted">接待提示模板（每行一則）
+          <textarea id="admin-support-crm-service-templates" rows="4" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
+        </label>
+        <label class="muted">真人接手提示模板（每行一則）
+          <textarea id="admin-support-crm-handoff-templates" rows="3" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
         </label>
         <div class="search-row-basic" style="margin-top:0.5rem;flex-wrap:wrap;gap:0.5rem;">
           <button type="button" onclick="saveAdminSupportCrmPrompt()">儲存 CRM 提示詞</button>
@@ -1985,8 +2000,8 @@
 
       <div id="admin-tab-handoffs" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
-        <h3 class="config-subhead">客戶留單與對話紀錄</h3>
-        <p class="muted">查看客戶留單、對話摘要與人工跟進狀態。</p>
+        <h3 class="config-subhead">人工接手對話框</h3>
+        <p class="muted">查看 AI 轉人工的留單、完整對話與人工接手回覆。</p>
         <div class="search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
           <label class="muted">查詢
             <input
@@ -2124,9 +2139,9 @@
       <h2>三站市場查詢（SUUMO / HOMES / AtHome）</h2>
       <p class="muted">支援日文關鍵字輸入、自動翻譯中文、自動小結論；本站預設只顯示買屋不動產資料。</p>
       <div class="search-row-basic">
-        <input id="market_keyword" value="関東 不動産" placeholder="輸入日文/中文關鍵字，例如 関東 不動産、マンション">
+        <input id="market_keyword" value="關東 不動產" placeholder="輸入日文/中文關鍵字，例如 關東 不動產、東京公寓">
         <button onclick="searchMarketPortal()">查詢三站</button>
-        <button class="secondary" onclick="document.getElementById('market_keyword').value='関東 不動産';searchMarketPortal()">預設查詢</button>
+        <button class="secondary" onclick="document.getElementById('market_keyword').value='關東 不動產';searchMarketPortal()">預設查詢</button>
       </div>
       <div class="market-source-grid">
         <div class="market-source-card"><strong>SUUMO</strong><span>市場趨勢、價格行情、地區分析</span></div>
@@ -2256,8 +2271,8 @@
       </nav>
       <nav class="bh-footer-directory-column" aria-label="房源條件">
         <h3>房源條件</h3>
-        <a href="#query-dialog" data-geo-keyword="日本中古マンション">中古マンション</a>
-        <a href="#query-dialog" data-geo-keyword="日本新築マンション">新築マンション</a>
+        <a href="#query-dialog" data-geo-keyword="日本中古公寓">中古公寓</a>
+        <a href="#query-dialog" data-geo-keyword="日本新建公寓">新建公寓</a>
         <a href="#query-dialog" data-geo-keyword="日本一戶建">日本一戶建</a>
         <a href="#query-dialog" data-geo-keyword="日本公寓找房">日本公寓找房</a>
         <a href="#query-dialog" data-geo-keyword="日本房源比較">日本房源比較</a>
@@ -2525,8 +2540,8 @@
       suumo: 'SUUMO',
       homes: "LIFULL HOME'S",
       athome: 'AtHome',
-      yahoo: 'Yahoo!不動産',
-      rakuten: '楽天不動産',
+      yahoo: 'Yahoo! 不動產',
+      rakuten: '樂天不動產',
       yes1: 'YesStation',
       oheya_su: 'OHEYASU',
     };
@@ -2594,18 +2609,18 @@
     }
 
     function defaultFigureKeyword() {
-      if (activeFigureTransaction === 'rent') return '関東 賃貸';
-      if (activeFigureTransaction === 'sell') return '売却 マンション';
+      if (activeFigureTransaction === 'rent') return '關東 租屋';
+      if (activeFigureTransaction === 'sell') return '出售 公寓';
       const selected = getSelectedFigurePortals();
       if (selected.length === 1) {
-        if (selected[0] === 'athome') return '中古 マンション';
-        if (selected[0] === 'homes') return '関東 住宅';
-        if (selected[0] === 'yahoo') return '東京 マンション 比較';
-        if (selected[0] === 'rakuten') return '日本 不動産 購入';
-        if (selected[0] === 'yes1') return '地方 都市 中古 住宅';
-        if (selected[0] === 'oheya_su') return '低價 中古 物件';
+        if (selected[0] === 'athome') return '中古 公寓';
+        if (selected[0] === 'homes') return '關東 住宅';
+        if (selected[0] === 'yahoo') return '東京 公寓 比較';
+        if (selected[0] === 'rakuten') return '日本 購屋';
+        if (selected[0] === 'yes1') return '地方都市 中古住宅';
+        if (selected[0] === 'oheya_su') return '低價 中古物件';
       }
-      return '関東 不動産';
+      return '關東 不動產';
     }
 
     const FIGURE_PROPERTY_TYPE_LABELS = [
@@ -3833,6 +3848,9 @@
     let supportTgPollTimer = null;
     let supportHandoffSyncTimer = null;
     let supportHandoffSyncActive = false;
+    let supportHandoffSyncLastPayload = '';
+    let supportHandoffSyncInflight = false;
+    let supportHandoffSyncDirty = false;
     let supportTelegramThreadActive = false;
     let supportTelegramLastPullStatus = '';
     let supportChatOpen = false;
@@ -3980,6 +3998,11 @@
     let adminHandoffQuery = '';
     let adminHandoffSelectedIds = new Set();
     let adminHandoffCurrentId = 0;
+    let adminHandoffReplyFlash = '';
+    let adminHandoffDetailRefreshTimer = 0;
+    let adminHandoffListRefreshTimer = 0;
+    const ADMIN_HANDOFF_DETAIL_REFRESH_MS = 2400;
+    const ADMIN_HANDOFF_LIST_REFRESH_MS = 4200;
     let adminCasesCrawlTaskId = '';
     let adminCasesCrawlPollTimer = 0;
     let adminCasesLoadTimer = 0;
@@ -4260,7 +4283,7 @@
       return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
     }
 
-    function setSupportChatThinking(on, modelName = '') {
+    function setSupportChatThinking(on, modelName = '', hintText = '') {
       const el = document.getElementById('support-chat-thinking');
       const send = document.getElementById('support-chat-send-btn');
       const input = document.getElementById('support-chat-input');
@@ -4270,7 +4293,7 @@
       if (send) send.disabled = !!on;
       if (input) input.disabled = !!on;
       if (panel) panel.setAttribute('aria-busy', on ? 'true' : 'false');
-      if (label) label.textContent = '思考中…';
+      if (label) label.textContent = on ? (String(hintText || '').trim() || '正在安排值班顧問整理回覆…') : '思考中…';
       const wrap = document.getElementById('support-chat-messages');
       if (wrap && on) {
         requestAnimationFrame(() => {
@@ -4290,93 +4313,93 @@
         name: 'SUUMO',
         home_url: 'https://suumo.jp/kanto/',
         main_links: [
-          { label_jp: '賃貸物件', label_zh_hant: '租賃物件', url: 'https://suumo.jp/chintai/kanto/' },
-          { label_jp: '新築マンション', label_zh_hant: '新建公寓', url: 'https://suumo.jp/ms/shinchiku/kanto/' },
-          { label_jp: '中古マンション', label_zh_hant: '中古公寓', url: 'https://suumo.jp/ms/chuko/kanto/' },
-          { label_jp: '新築一戸建て', label_zh_hant: '新建透天', url: 'https://suumo.jp/ikkodate/kanto/' },
-          { label_jp: '中古一戸建て', label_zh_hant: '中古透天', url: 'https://suumo.jp/ikkodate/chuko/kanto/' },
-          { label_jp: '注文住宅', label_zh_hant: '訂製住宅', url: 'https://suumo.jp/chumon/' },
+          { label_jp: '租賃物件', label_zh_hant: '租賃物件', url: 'https://suumo.jp/chintai/kanto/' },
+          { label_jp: '新建公寓', label_zh_hant: '新建公寓', url: 'https://suumo.jp/ms/shinchiku/kanto/' },
+          { label_jp: '中古公寓', label_zh_hant: '中古公寓', url: 'https://suumo.jp/ms/chuko/kanto/' },
+          { label_jp: '新建透天', label_zh_hant: '新建透天', url: 'https://suumo.jp/ikkodate/kanto/' },
+          { label_jp: '中古透天', label_zh_hant: '中古透天', url: 'https://suumo.jp/ikkodate/chuko/kanto/' },
+          { label_jp: '訂製住宅', label_zh_hant: '訂製住宅', url: 'https://suumo.jp/chumon/' },
           { label_jp: '土地', label_zh_hant: '土地', url: 'https://suumo.jp/tochi/kanto/' },
-          { label_jp: '住宅ローンシミュレーション', label_zh_hant: '房貸試算', url: 'https://suumo.jp/edit/loan/' },
+          { label_jp: '房貸試算', label_zh_hant: '房貸試算', url: 'https://suumo.jp/edit/loan/' },
         ],
         full_links: [
-          { label_jp: '賃貸物件', label_zh_hant: '租賃物件', url: 'https://suumo.jp/chintai/kanto/' },
-          { label_jp: '新築マンション', label_zh_hant: '新建公寓', url: 'https://suumo.jp/ms/shinchiku/kanto/' },
-          { label_jp: '中古マンション', label_zh_hant: '中古公寓', url: 'https://suumo.jp/ms/chuko/kanto/' },
-          { label_jp: '新築一戸建て', label_zh_hant: '新建透天', url: 'https://suumo.jp/ikkodate/kanto/' },
-          { label_jp: '中古一戸建て', label_zh_hant: '中古透天', url: 'https://suumo.jp/ikkodate/chuko/kanto/' },
-          { label_jp: '注文住宅', label_zh_hant: '訂製住宅', url: 'https://suumo.jp/chumon/' },
+          { label_jp: '租賃物件', label_zh_hant: '租賃物件', url: 'https://suumo.jp/chintai/kanto/' },
+          { label_jp: '新建公寓', label_zh_hant: '新建公寓', url: 'https://suumo.jp/ms/shinchiku/kanto/' },
+          { label_jp: '中古公寓', label_zh_hant: '中古公寓', url: 'https://suumo.jp/ms/chuko/kanto/' },
+          { label_jp: '新建透天', label_zh_hant: '新建透天', url: 'https://suumo.jp/ikkodate/kanto/' },
+          { label_jp: '中古透天', label_zh_hant: '中古透天', url: 'https://suumo.jp/ikkodate/chuko/kanto/' },
+          { label_jp: '訂製住宅', label_zh_hant: '訂製住宅', url: 'https://suumo.jp/chumon/' },
           { label_jp: '土地', label_zh_hant: '土地', url: 'https://suumo.jp/tochi/kanto/' },
-          { label_jp: 'リフォーム', label_zh_hant: '裝修翻新', url: 'https://suumo.jp/remodel/' },
-          { label_jp: '不動産売却', label_zh_hant: '不動產出售', url: 'https://suumo.jp/baikyaku/' },
-          { label_jp: '不動産会社ガイド', label_zh_hant: '房仲公司指南', url: 'https://suumo.jp/kaisha/' },
-          { label_jp: '住まいの相談', label_zh_hant: '住家諮詢', url: 'https://suumo.jp/soudan/' },
-          { label_jp: '住活マニュアル', label_zh_hant: '購屋指南手冊', url: 'https://suumo.jp/article/' },
-          { label_jp: '住宅ローンシミュレーション', label_zh_hant: '房貸試算', url: 'https://suumo.jp/edit/loan/' },
-          { label_jp: '住宅用語大辞典', label_zh_hant: '住宅名詞辭典', url: 'https://suumo.jp/yougo/' },
-          { label_jp: 'SUUMOジャーナル', label_zh_hant: 'SUUMO 生活專欄', url: 'https://suumo.jp/journal/' },
+          { label_jp: '裝修翻新', label_zh_hant: '裝修翻新', url: 'https://suumo.jp/remodel/' },
+          { label_jp: '不動產出售', label_zh_hant: '不動產出售', url: 'https://suumo.jp/baikyaku/' },
+          { label_jp: '房仲公司指南', label_zh_hant: '房仲公司指南', url: 'https://suumo.jp/kaisha/' },
+          { label_jp: '住家諮詢', label_zh_hant: '住家諮詢', url: 'https://suumo.jp/soudan/' },
+          { label_jp: '購屋指南手冊', label_zh_hant: '購屋指南手冊', url: 'https://suumo.jp/article/' },
+          { label_jp: '房貸試算', label_zh_hant: '房貸試算', url: 'https://suumo.jp/edit/loan/' },
+          { label_jp: '住宅名詞辭典', label_zh_hant: '住宅名詞辭典', url: 'https://suumo.jp/yougo/' },
+          { label_jp: 'SUUMO 生活專欄', label_zh_hant: 'SUUMO 生活專欄', url: 'https://suumo.jp/journal/' },
         ],
       },
       homes: {
         name: 'HOMES',
         home_url: 'https://www.homes.co.jp/',
         main_links: [
-          { label_jp: '賃貸', label_zh_hant: '租賃', url: 'https://www.homes.co.jp/chintai/' },
-          { label_jp: '新築一戸建て', label_zh_hant: '新建透天', url: 'https://www.homes.co.jp/kodate/shinchiku/' },
-          { label_jp: '中古一戸建て', label_zh_hant: '中古透天', url: 'https://www.homes.co.jp/kodate/chuko/' },
-          { label_jp: '新築マンション', label_zh_hant: '新建公寓', url: 'https://www.homes.co.jp/mansion/shinchiku/' },
-          { label_jp: '中古マンション', label_zh_hant: '中古公寓', url: 'https://www.homes.co.jp/mansion/chuko/' },
+          { label_jp: '租賃', label_zh_hant: '租賃', url: 'https://www.homes.co.jp/chintai/' },
+          { label_jp: '新建透天', label_zh_hant: '新建透天', url: 'https://www.homes.co.jp/kodate/shinchiku/' },
+          { label_jp: '中古透天', label_zh_hant: '中古透天', url: 'https://www.homes.co.jp/kodate/chuko/' },
+          { label_jp: '新建公寓', label_zh_hant: '新建公寓', url: 'https://www.homes.co.jp/mansion/shinchiku/' },
+          { label_jp: '中古公寓', label_zh_hant: '中古公寓', url: 'https://www.homes.co.jp/mansion/chuko/' },
           { label_jp: '土地', label_zh_hant: '土地', url: 'https://www.homes.co.jp/tochi/' },
-          { label_jp: '注文住宅', label_zh_hant: '訂製住宅', url: 'https://www.homes.co.jp/iezukuri/' },
-          { label_jp: '不動産売却査定', label_zh_hant: '不動產售屋估價', url: 'https://www.homes.co.jp/satei/' },
+          { label_jp: '訂製住宅', label_zh_hant: '訂製住宅', url: 'https://www.homes.co.jp/iezukuri/' },
+          { label_jp: '不動產售屋估價', label_zh_hant: '不動產售屋估價', url: 'https://www.homes.co.jp/satei/' },
         ],
         full_links: [
-          { label_jp: '賃貸', label_zh_hant: '租賃', url: 'https://www.homes.co.jp/chintai/' },
-          { label_jp: '新築一戸建て', label_zh_hant: '新建透天', url: 'https://www.homes.co.jp/kodate/shinchiku/' },
-          { label_jp: '中古一戸建て', label_zh_hant: '中古透天', url: 'https://www.homes.co.jp/kodate/chuko/' },
-          { label_jp: '新築マンション', label_zh_hant: '新建公寓', url: 'https://www.homes.co.jp/mansion/shinchiku/' },
-          { label_jp: '中古マンション', label_zh_hant: '中古公寓', url: 'https://www.homes.co.jp/mansion/chuko/' },
+          { label_jp: '租賃', label_zh_hant: '租賃', url: 'https://www.homes.co.jp/chintai/' },
+          { label_jp: '新建透天', label_zh_hant: '新建透天', url: 'https://www.homes.co.jp/kodate/shinchiku/' },
+          { label_jp: '中古透天', label_zh_hant: '中古透天', url: 'https://www.homes.co.jp/kodate/chuko/' },
+          { label_jp: '新建公寓', label_zh_hant: '新建公寓', url: 'https://www.homes.co.jp/mansion/shinchiku/' },
+          { label_jp: '中古公寓', label_zh_hant: '中古公寓', url: 'https://www.homes.co.jp/mansion/chuko/' },
           { label_jp: '土地', label_zh_hant: '土地', url: 'https://www.homes.co.jp/tochi/' },
-          { label_jp: '注文住宅', label_zh_hant: '訂製住宅', url: 'https://www.homes.co.jp/iezukuri/' },
-          { label_jp: 'リフォーム', label_zh_hant: '裝修翻新', url: 'https://www.homes.co.jp/reform/' },
-          { label_jp: '不動産売却査定', label_zh_hant: '不動產售屋估價', url: 'https://www.homes.co.jp/satei/' },
-          { label_jp: '不動産投資', label_zh_hant: '不動產投資', url: 'https://toushi.homes.co.jp/' },
-          { label_jp: '住まいのお役立ち情報', label_zh_hant: '住家實用資訊', url: 'https://www.homes.co.jp/cont/' },
-          { label_jp: '住まいインデックス', label_zh_hant: '房市資料庫', url: 'https://www.homes.co.jp/smp/' },
-          { label_jp: '住宅ローン', label_zh_hant: '住宅貸款', url: 'https://www.homes.co.jp/loan/' },
-          { label_jp: '不動産会社検索', label_zh_hant: '房仲公司搜尋', url: 'https://www.homes.co.jp/realtor/' },
-          { label_jp: '引越し見積もり', label_zh_hant: '搬家估價', url: 'https://www.homes.co.jp/hikkoshi/' },
+          { label_jp: '訂製住宅', label_zh_hant: '訂製住宅', url: 'https://www.homes.co.jp/iezukuri/' },
+          { label_jp: '裝修翻新', label_zh_hant: '裝修翻新', url: 'https://www.homes.co.jp/reform/' },
+          { label_jp: '不動產售屋估價', label_zh_hant: '不動產售屋估價', url: 'https://www.homes.co.jp/satei/' },
+          { label_jp: '不動產投資', label_zh_hant: '不動產投資', url: 'https://toushi.homes.co.jp/' },
+          { label_jp: '住家實用資訊', label_zh_hant: '住家實用資訊', url: 'https://www.homes.co.jp/cont/' },
+          { label_jp: '房市資料庫', label_zh_hant: '房市資料庫', url: 'https://www.homes.co.jp/smp/' },
+          { label_jp: '住宅貸款', label_zh_hant: '住宅貸款', url: 'https://www.homes.co.jp/loan/' },
+          { label_jp: '房仲公司搜尋', label_zh_hant: '房仲公司搜尋', url: 'https://www.homes.co.jp/realtor/' },
+          { label_jp: '搬家估價', label_zh_hant: '搬家估價', url: 'https://www.homes.co.jp/hikkoshi/' },
         ],
       },
       athome: {
         name: 'AtHome',
         home_url: 'https://www.athome.co.jp/',
         main_links: [
-          { label_jp: '賃貸物件', label_zh_hant: '租賃物件', url: 'https://www.athome.co.jp/chintai/' },
-          { label_jp: '中古マンション', label_zh_hant: '中古公寓', url: 'https://www.athome.co.jp/mansion/chuko/' },
-          { label_jp: '新築マンション', label_zh_hant: '新建公寓', url: 'https://www.athome.co.jp/mansion/shinchiku/' },
-          { label_jp: '新築一戸建て', label_zh_hant: '新建透天', url: 'https://www.athome.co.jp/kodate/shinchiku/' },
-          { label_jp: '中古一戸建て', label_zh_hant: '中古透天', url: 'https://www.athome.co.jp/kodate/chuko/' },
+          { label_jp: '租賃物件', label_zh_hant: '租賃物件', url: 'https://www.athome.co.jp/chintai/' },
+          { label_jp: '中古公寓', label_zh_hant: '中古公寓', url: 'https://www.athome.co.jp/mansion/chuko/' },
+          { label_jp: '新建公寓', label_zh_hant: '新建公寓', url: 'https://www.athome.co.jp/mansion/shinchiku/' },
+          { label_jp: '新建透天', label_zh_hant: '新建透天', url: 'https://www.athome.co.jp/kodate/shinchiku/' },
+          { label_jp: '中古透天', label_zh_hant: '中古透天', url: 'https://www.athome.co.jp/kodate/chuko/' },
           { label_jp: '土地', label_zh_hant: '土地', url: 'https://www.athome.co.jp/tochi/' },
-          { label_jp: '売却査定', label_zh_hant: '售屋估價', url: 'https://www.athome.co.jp/sell/' },
-          { label_jp: '不動産会社検索', label_zh_hant: '房仲公司搜尋', url: 'https://www.athome.co.jp/estate/' },
+          { label_jp: '售屋估價', label_zh_hant: '售屋估價', url: 'https://www.athome.co.jp/sell/' },
+          { label_jp: '房仲公司搜尋', label_zh_hant: '房仲公司搜尋', url: 'https://www.athome.co.jp/estate/' },
         ],
         full_links: [
-          { label_jp: '賃貸物件', label_zh_hant: '租賃物件', url: 'https://www.athome.co.jp/chintai/' },
-          { label_jp: '貸店舗', label_zh_hant: '店面出租', url: 'https://www.athome.co.jp/jr_03/' },
-          { label_jp: '貸事務所', label_zh_hant: '辦公室出租', url: 'https://www.athome.co.jp/jr_04/' },
-          { label_jp: '中古マンション', label_zh_hant: '中古公寓', url: 'https://www.athome.co.jp/mansion/chuko/' },
-          { label_jp: '新築マンション', label_zh_hant: '新建公寓', url: 'https://www.athome.co.jp/mansion/shinchiku/' },
-          { label_jp: '新築一戸建て', label_zh_hant: '新建透天', url: 'https://www.athome.co.jp/kodate/shinchiku/' },
-          { label_jp: '中古一戸建て', label_zh_hant: '中古透天', url: 'https://www.athome.co.jp/kodate/chuko/' },
+          { label_jp: '租賃物件', label_zh_hant: '租賃物件', url: 'https://www.athome.co.jp/chintai/' },
+          { label_jp: '店面出租', label_zh_hant: '店面出租', url: 'https://www.athome.co.jp/jr_03/' },
+          { label_jp: '辦公室出租', label_zh_hant: '辦公室出租', url: 'https://www.athome.co.jp/jr_04/' },
+          { label_jp: '中古公寓', label_zh_hant: '中古公寓', url: 'https://www.athome.co.jp/mansion/chuko/' },
+          { label_jp: '新建公寓', label_zh_hant: '新建公寓', url: 'https://www.athome.co.jp/mansion/shinchiku/' },
+          { label_jp: '新建透天', label_zh_hant: '新建透天', url: 'https://www.athome.co.jp/kodate/shinchiku/' },
+          { label_jp: '中古透天', label_zh_hant: '中古透天', url: 'https://www.athome.co.jp/kodate/chuko/' },
           { label_jp: '土地', label_zh_hant: '土地', url: 'https://www.athome.co.jp/tochi/' },
-          { label_jp: '収益物件', label_zh_hant: '收益物件', url: 'https://www.athome.co.jp/toushi/' },
-          { label_jp: '売却査定', label_zh_hant: '售屋估價', url: 'https://www.athome.co.jp/sell/' },
-          { label_jp: '不動産会社検索', label_zh_hant: '房仲公司搜尋', url: 'https://www.athome.co.jp/estate/' },
-          { label_jp: '住まいを学ぶ', label_zh_hant: '住家知識學習', url: 'https://www.athome.co.jp/contents/' },
-          { label_jp: '相場情報', label_zh_hant: '價格行情資訊', url: 'https://www.athome.co.jp/souba/' },
-          { label_jp: '住宅ローン', label_zh_hant: '住宅貸款', url: 'https://www.athome.co.jp/loan/' },
-          { label_jp: '引越し・暮らしサービス', label_zh_hant: '搬家與生活服務', url: 'https://www.athome.co.jp/life/' },
+          { label_jp: '收益物件', label_zh_hant: '收益物件', url: 'https://www.athome.co.jp/toushi/' },
+          { label_jp: '售屋估價', label_zh_hant: '售屋估價', url: 'https://www.athome.co.jp/sell/' },
+          { label_jp: '房仲公司搜尋', label_zh_hant: '房仲公司搜尋', url: 'https://www.athome.co.jp/estate/' },
+          { label_jp: '住家知識學習', label_zh_hant: '住家知識學習', url: 'https://www.athome.co.jp/contents/' },
+          { label_jp: '價格行情資訊', label_zh_hant: '價格行情資訊', url: 'https://www.athome.co.jp/souba/' },
+          { label_jp: '住宅貸款', label_zh_hant: '住宅貸款', url: 'https://www.athome.co.jp/loan/' },
+          { label_jp: '搬家與生活服務', label_zh_hant: '搬家與生活服務', url: 'https://www.athome.co.jp/life/' },
         ],
       },
     };
@@ -5560,7 +5583,7 @@
       const itemUrl = String(it?.item_url || '').trim();
       const title = String(it?.title_original || it?.title_zh_hant || '').trim();
       if (isUnstableSuumoListingUrl(itemUrl)) {
-        const q = `site:suumo.jp ${title || '中古 マンション 東京'}`.trim();
+        const q = `site:suumo.jp ${title || '東京 中古公寓'}`.trim();
         return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
       }
       return '';
@@ -8668,6 +8691,7 @@
         refreshSupportHandoffSyncFlag();
         updateSupportTelegramStatusLine();
         ensureSupportChatWelcomeMessage();
+        hydrateSupportChatWelcomeMessage().catch(() => {});
         if (!supportSelectedCases.length) {
           supportSelectedCases = loadSupportSelectedCasesLocal();
         }
@@ -8801,18 +8825,49 @@
       if (!supportHandoffSyncActive) return;
       const sid = String(getSupportSalesSessionId() || '').trim();
       if (!sid) return;
+      supportHandoffSyncDirty = true;
       if (supportHandoffSyncTimer) clearTimeout(supportHandoffSyncTimer);
       supportHandoffSyncTimer = setTimeout(async () => {
         supportHandoffSyncTimer = null;
+        if (supportHandoffSyncInflight) {
+          scheduleSyncHandoffConversationToBackend();
+          return;
+        }
         try {
           const conv = supportChatHandoffConversationPayload();
+          const payloadJson = JSON.stringify({ session_id: sid, handoff_id: 0, conversation: conv });
+          if (!conv.length) {
+            supportHandoffSyncDirty = false;
+            return;
+          }
+          if (payloadJson === supportHandoffSyncLastPayload && !supportHandoffSyncDirty) return;
+          supportHandoffSyncInflight = true;
+          supportHandoffSyncDirty = false;
           await fetch('/api/support/handoff-conversation-sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sid, handoff_id: 0, conversation: conv }),
+            body: payloadJson,
           });
-        } catch (_) {}
+          supportHandoffSyncLastPayload = payloadJson;
+        } catch (_) {
+          supportHandoffSyncDirty = true;
+        } finally {
+          supportHandoffSyncInflight = false;
+          if (supportHandoffSyncDirty) scheduleSyncHandoffConversationToBackend();
+        }
       }, 1600);
+    }
+
+    function shouldCollapseSupportDuplicateRow(prev, row) {
+      if (!prev || !row) return false;
+      if (String(prev.role || '') !== 'assistant' || String(row.role || '') !== 'assistant') return false;
+      const prevText = normalizeSupportChatDisplayText(String(prev.content || '').trim());
+      const nextText = normalizeSupportChatDisplayText(String(row.content || '').trim());
+      if (!prevText || !nextText || prevText !== nextText) return false;
+      const prevStaff = String(prev.staffSource || '').trim().toLowerCase();
+      const nextStaff = String(row.staffSource || '').trim().toLowerCase();
+      if (prevStaff || nextStaff) return true;
+      return /人工顧問|人工顾问|真人顧問|真人顾问|Telegram 已通知|LINE 未發送|LINE 未发送/.test(nextText);
     }
 
     async function pollSupportTelegramInboxOnce(retryAfterCursorHeal = false) {
@@ -9134,11 +9189,10 @@
     function supportChatKnowledgeHtml(k, llmMeta) {
       if (!k) return '';
       if (k.purchase_discovery_mode) {
-        return '<p class="muted support-chat-kb-skip" style="font-size:12px;margin:4px 0 0;">已進入購買需求盤點模式：先確認用途、預算、地區與類型後，再少量推薦案件。</p>';
+        return '';
       }
       if (k.skipped_lookup && (!Array.isArray(k.items) || !k.items.length)) {
-        const fast = llmMeta && llmMeta.fast_mode ? '；已啟用較短模型逾時以加速' : '';
-        return `<p class="muted support-chat-kb-skip" style="font-size:12px;margin:4px 0 0;">本次略過站內知識庫檢索（問候或一般閒聊分流）${fast}</p>`;
+        return '';
       }
       if (!Array.isArray(k.items) || !k.items.length) {
         return buildSupportKbZeroHtml(k, llmMeta);
@@ -9861,16 +9915,57 @@
       renderPurchaseToolSchedule(selectedPlan, twdRate);
     }
 
+    function lockBodyScrollForPurchaseTool() {
+      if (document.body.classList.contains('purchase-tool-scroll-lock')) return;
+      if (document.body.classList.contains('support-chat-scroll-lock')) return;
+      if (document.body.classList.contains('support-selected-cases-scroll-lock')) return;
+      document.body.classList.add('purchase-tool-scroll-lock');
+      try {
+        const y = window.scrollY || window.pageYOffset || 0;
+        document.body.dataset.purchaseToolScrollY = String(y);
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${y}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+      } catch (_) {}
+    }
+
+    function unlockBodyScrollForPurchaseTool() {
+      if (!document.body.classList.contains('purchase-tool-scroll-lock')) return;
+      document.body.classList.remove('purchase-tool-scroll-lock');
+      try {
+        const hasStoredScroll = Object.prototype.hasOwnProperty.call(document.body.dataset, 'purchaseToolScrollY');
+        const y = parseInt(String(document.body.dataset.purchaseToolScrollY || '0'), 10) || 0;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        delete document.body.dataset.purchaseToolScrollY;
+        if (hasStoredScroll) window.scrollTo(0, y);
+      } catch (_) {}
+    }
+
     function setPurchaseToolModalOpen(open, options = {}) {
       const modal = document.getElementById('purchase-tool-modal');
       const btn = document.getElementById('purchase-tool-toggle');
       const widget = document.getElementById('support-chat-widget');
       if (!modal) return;
       const shouldOpen = !!open;
+      const root = document.documentElement;
+      const scrollbarComp = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
       if (shouldOpen && !(options && options.skipExclusive)) closeFloatingPanelsExcept('purchase');
       modal.style.display = shouldOpen ? 'flex' : 'none';
       modal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
-      document.body.classList.toggle('purchase-tool-scroll-lock', shouldOpen);
+      root.classList.toggle('purchase-tool-scroll-lock', shouldOpen);
+      if (shouldOpen) {
+        document.body.style.setProperty('--purchase-tool-scrollbar-comp', `${scrollbarComp}px`);
+        lockBodyScrollForPurchaseTool();
+      } else {
+        document.body.style.removeProperty('--purchase-tool-scrollbar-comp');
+        unlockBodyScrollForPurchaseTool();
+      }
       if (widget) widget.classList.toggle('is-purchase-tool-open', shouldOpen);
       if (btn) {
         btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
@@ -11094,13 +11189,30 @@
     function supportChatSalesMcpHtml(salesMeta, llmMeta) {
       if (!salesMeta || typeof salesMeta !== 'object') return '';
       const sessionId = String(salesMeta.session_id || '');
-      const score = Number(salesMeta.intent_score || 0);
-      const notifyReason = String(salesMeta.notify_reason || '');
       // 階段／意願／話術為後台與顧問內部參考；訪客端先走問卷，完成後才通知人工。
-      if (!salesMeta.should_notify_human || !sessionId) return '';
+      if (!salesMeta.real_handoff_ready || !sessionId) return '';
       return (
         '<div class="support-chat-sales-mcp">' +
         '<div class="support-chat-sales-actions"><button type="button" class="secondary" onclick="openSupportHumanIntakeFromSalesMcp()">填問卷轉人工</button></div>' +
+        '</div>'
+      );
+    }
+
+    function supportChatSimulatedServiceHtml(meta) {
+      if (!meta || typeof meta !== 'object' || !meta.active) return '';
+      const mode = String(meta.mode || 'serving');
+      const label = esc(String(meta.service_label || '值班顧問'));
+      const text = esc(String(meta.display_text || '').trim());
+      const modeText = mode === 'handoff_ready'
+        ? '真人接手準備'
+        : mode === 'queueing'
+          ? '排隊接待中'
+          : '顧問接待中';
+      return (
+        `<div class="support-chat-service-banner support-chat-service-banner--${esc(mode)}">` +
+        `<span class="support-chat-service-badge">${esc(modeText)}</span>` +
+        `<span class="support-chat-service-label">${label}</span>` +
+        (text ? `<div class="support-chat-service-text">${text}</div>` : '') +
         '</div>'
       );
     }
@@ -11116,17 +11228,83 @@
       return html;
     }
 
-    function supportChatWelcomeHtml() {
+    let supportChatBootstrapPromise = null;
+    let supportChatBootstrapSid = '';
+
+    function supportChatWelcomeHtml(serviceMeta, welcomeText) {
+      const serviceBlock = supportChatSimulatedServiceHtml(serviceMeta);
+      const intro = esc(String(
+        welcomeText
+        || '我會先用真人顧問接待的方式陪您聊，先把買房、租房、區域、預算、貸款與案件重點整理清楚；只有您真的準備買房或要安排看屋時，我再幫您接真人顧問。'
+      ).trim());
       return (
         '<div class="support-chat-welcome-card">' +
+        serviceBlock +
         '<strong>歡迎來到日本不動產智能客服</strong>' +
-        '<p>我可以先幫您把日本買房、租房、區域、預算、貸款與案件重點整理清楚。您可以直接聊天，我會把話題慢慢引導到可查詢、可比較或可交給顧問的下一步。</p>' +
+        `<p>${intro}</p>` +
         '<div class="support-chat-suggestion-pills" aria-label="客服推薦選項">' +
         '<button type="button" data-support-quick-prompt="我想查日本不動產案件，先從東京或大阪開始">查找案件</button>' +
-        '<button type="button" data-support-quick-prompt="我想買日本房，請先問我需要準備哪些條件">買房諮詢</button>' +
+        '<button type="button" data-support-quick-prompt="我想了解日本買房，請先幫我整理需要準備哪些條件">買房諮詢</button>' +
         '<button type="button" data-support-quick-prompt="我想比較已收藏案件的價格、交通和格局">比較收藏</button>' +
-        '<button type="button" data-support-quick-prompt="人工">顧問接手</button>' +
+        '<button type="button" data-support-quick-prompt="人工">顧問接待</button>' +
         '</div>' +
+        '</div>'
+      );
+    }
+
+    function supportChatSuggestedPromptsHtml(salesMeta, knowledgeMeta) {
+      if (!salesMeta || typeof salesMeta !== 'object') return '';
+      const picks = [];
+      const seen = new Set();
+      const push = (label, prompt) => {
+        const l = String(label || '').trim();
+        const p = String(prompt || '').trim();
+        if (!l || !p || seen.has(p) || picks.length >= 4) return;
+        seen.add(p);
+        picks.push({ label: l, prompt: p });
+      };
+
+      const purchaseDiscovery = !!(knowledgeMeta && knowledgeMeta.purchase_discovery_mode);
+      if (purchaseDiscovery) {
+        push('東京自住', '我想先看東京自住買房方向');
+        push('大阪收租', '我想了解大阪收租型買房方向');
+        push('先抓預算', '先幫我確認買房預算與貸款條件');
+        if (salesMeta.real_handoff_ready) {
+          push('安排看屋', '我準備買房，想安排看屋並接真人顧問');
+        }
+      }
+
+      const promptMap = {
+        browse_tokyo_cases: ['先看東京案件', '我想先看東京案件'],
+        buying_consult: ['先聊買房方向', '我想了解日本買房，先幫我整理方向'],
+        clarify_purchase_plan: ['顧問接待', '我想先讓顧問方式接待，慢慢整理需求'],
+        confirm_budget: ['先抓預算', '先幫我確認買房預算與貸款條件'],
+        ask_one_followup: ['補一個條件', '請先幫我補問一個最關鍵條件'],
+        confirm_one_requirement: ['補一個條件', '請先幫我確認一個最關鍵條件'],
+        narrow_region: ['縮小區域', '請先幫我縮小到區域或車站'],
+        risk_brief: ['先看風險', '我想先了解日本買房的稅費、風險與法規'],
+        handoff_human: ['真人接手', '我準備買房，想安排看屋並接真人顧問'],
+        lead_capture_after_requirements: ['整理需求', '等條件整理好後，再幫我轉真人顧問'],
+      };
+
+      const nextActions = Array.isArray(salesMeta.next_actions) ? salesMeta.next_actions : [];
+      nextActions.forEach((action) => {
+        const id = String((action && action.id) || '').trim();
+        const mapped = promptMap[id];
+        if (mapped) push(mapped[0], mapped[1]);
+      });
+
+      if (!picks.length && !purchaseDiscovery) {
+        push('查找案件', '我想先查日本不動產案件');
+        push('買房諮詢', '我想了解日本買房流程');
+        push('顧問接待', '我想先讓顧問方式接待，慢慢整理需求');
+      }
+      if (!picks.length) return '';
+      return (
+        '<div class="support-chat-suggestion-pills support-chat-suggestion-pills--inline" aria-label="客服推薦選項">' +
+        picks.map((item) => (
+          `<button type="button" data-support-quick-prompt="${esc(item.prompt)}">${esc(item.label)}</button>`
+        )).join('') +
         '</div>'
       );
     }
@@ -11139,6 +11317,34 @@
         contentHtml: supportChatWelcomeHtml(),
         supportWelcome: true,
       });
+    }
+
+    async function hydrateSupportChatWelcomeMessage() {
+      if (!Array.isArray(supportChatHistory) || !supportChatHistory.length) return;
+      const row = supportChatHistory.find((item) => item && item.supportWelcome);
+      if (!row) return;
+      const sid = String(getSupportSalesSessionId() || '').trim();
+      if (!sid) return;
+      if (row.supportWelcomeHydrated && supportChatBootstrapSid === sid) return;
+      if (supportChatBootstrapPromise && supportChatBootstrapSid === sid) return supportChatBootstrapPromise;
+      supportChatBootstrapSid = sid;
+      supportChatBootstrapPromise = (async () => {
+        try {
+          const res = await fetch('/api/ai/chat-support/bootstrap?' + new URLSearchParams({ session_id: sid }));
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data || data.ok === false) return;
+          row.content = String(data.reply || row.content || '').trim() || row.content;
+          row.sales_mcp = data.sales_mcp || null;
+          row.contentHtml = supportChatWelcomeHtml(data.sales_mcp && data.sales_mcp.simulated_service, row.content);
+          row.supportWelcomeHydrated = true;
+          renderSupportChatMessages();
+        } catch (_) {
+          // keep the local static welcome card when bootstrap fails
+        } finally {
+          supportChatBootstrapPromise = null;
+        }
+      })();
+      return supportChatBootstrapPromise;
     }
 
     function supportChatQuickPrompt(text) {
@@ -11192,7 +11398,16 @@
     }
 
     function getVisibleSupportChatRows(limit) {
-      const rows = supportChatHistory.filter((row) => !shouldHideSupportChatRow(row));
+      const rows = [];
+      for (const row of supportChatHistory) {
+        if (shouldHideSupportChatRow(row)) continue;
+        const prev = rows[rows.length - 1];
+        if (shouldCollapseSupportDuplicateRow(prev, row)) {
+          if (prev && !prev.staffSource && row && row.staffSource) rows[rows.length - 1] = row;
+          continue;
+        }
+        rows.push(row);
+      }
       const n = Number(limit || 0);
       return n > 0 ? rows.slice(-n) : rows;
     }
@@ -11202,10 +11417,9 @@
       for (const r of getVisibleSupportChatRows(60)) {
         if (!r || !r.role) continue;
         if (r.supportSelectionNotice) continue;
+        if (r.staffSource) continue;
         let c = String(r.content || '').trim();
         if (!c && r.contentHtml) c = '[表單或圖文訊息]';
-        if (r.staffSource === 'telegram' && c) c = `（Telegram 顧問）${c}`;
-        if (r.staffSource === 'line' && c) c = `（LINE 顧問）${c}`;
         out.push({ role: String(r.role), content: c.slice(0, 12000) });
       }
       return out;
@@ -11926,8 +12140,14 @@
           html += `<div class="support-chat-row support-chat-row-user"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}</div>${metaHtml}</div></div>`;
         } else {
           const staffSource = String(row.staffSource || '').toLowerCase();
-          const isStaffReply = staffSource === 'telegram' || staffSource === 'line';
-          const roleLabel = staffSource === 'line' ? '顧問（LINE）' : staffSource === 'telegram' ? '顧問（Telegram）' : '專業顧問';
+          const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
+          const roleLabel = staffSource === 'line'
+            ? '顧問（LINE）'
+            : staffSource === 'telegram'
+              ? '顧問（Telegram）'
+              : staffSource === 'admin'
+                ? '人工客服'
+                : '專業顧問';
           const roleCls = staffSource === 'line'
             ? 'support-chat-role support-chat-role--line'
             : staffSource === 'telegram'
@@ -11938,13 +12158,15 @@
           const featBlock = row.contentHtml || isStaffReply || purchaseDiscovery ? '' : supportChatFeaturedHtml(row.featured_recommendations);
           const kbBlock = row.contentHtml || isStaffReply ? '' : supportChatKnowledgeHtml(row.knowledge, row.llm);
           const salesBlock = row.contentHtml || isStaffReply ? '' : supportChatSalesMcpHtml(row.sales_mcp, row.llm);
+          const serviceBlock = row.contentHtml || isStaffReply ? '' : supportChatSimulatedServiceHtml(row.sales_mcp && row.sales_mcp.simulated_service);
           const reasonBlock = row.contentHtml || isStaffReply ? '' : supportChatMatchReasonHtml(row.matched_scene, row.matched_qa);
+          const suggestionBlock = row.contentHtml || isStaffReply ? '' : supportChatSuggestedPromptsHtml(row.sales_mcp, row.knowledge);
           const bodyHtml = row.contentHtml ? row.contentHtml : formatSupportChatRichText(row.content || '');
           const bubbleExtra = staffSource === 'line' ? ' support-chat-bubble--line-staff' : staffSource === 'telegram' ? ' support-chat-bubble--telegram-staff' : '';
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}</div></div>`;
-          html += `<div class="support-chat-row support-chat-row-assistant"><span class="support-chat-avatar-slot support-chat-avatar-slot--msg">${SUPPORT_CHAT_AVATAR_HTML}</span><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${salesBlock}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-assistant"><span class="support-chat-avatar-slot support-chat-avatar-slot--msg">${SUPPORT_CHAT_AVATAR_HTML}</span><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
       wrap.innerHTML = html || '<p class="muted">尚無對話。</p>';
@@ -11973,33 +12195,6 @@
         return;
       }
 
-      if (msg === '人工') {
-        input.value = '';
-        supportChatHistory.push({ role: 'user', content: msg });
-        if (supportHumanHandoffStep === 'form') {
-          openSupportHumanIntakeModalFromChat();
-          supportChatHistory.push({
-            role: 'assistant',
-            content:
-              '顧問諮詢表單已在獨立視窗開啟。請先填寫完整問卷與聯絡方式，按「預覽送出內容」確認後再按「確認送出」；送出後才會通知人工顧問回覆。',
-          });
-        } else {
-          supportHumanHandoffStep = 'form';
-          openSupportHumanIntakeFromSalesMcp({ silent: true });
-          supportChatHistory.push({
-            role: 'assistant',
-            content: '',
-            contentHtml: supportHumanIntakeLauncherHtml('已切換為真人顧問留單流程', '請在獨立視窗完成問卷與聯絡方式；確認送出後才會通知人工顧問回覆。'),
-          });
-        }
-        renderSupportChatMessages();
-        settleSupportMobileFormLayout();
-        if (supportChatHistory.length > 24) {
-          supportChatHistory = supportChatHistory.slice(-24);
-        }
-        return;
-      }
-
       input.value = '';
       supportChatHistory.push({ role: 'user', content: msg });
       renderSupportChatMessages();
@@ -12008,13 +12203,16 @@
       const ph = String(document.getElementById('seo-draft-gemini-model')?.placeholder || '').trim();
       const pvo = seoLlmProviderPayload().llm_provider;
       const provHint = pvo || (__llmStatusCache && __llmStatusCache.active_provider) || '預設';
-      setSupportChatThinking(true, `${geminiModel || ph || 'model'}（${provHint}）`);
+      const thinkingLabel = /人工|真人|顧問|顾问|買房|买房|看屋|看房/.test(msg)
+        ? '正在安排值班顧問整理需求…'
+        : '顧問正在整理回覆…';
+      setSupportChatThinking(true, `${geminiModel || ph || 'model'}（${provHint}）`, thinkingLabel);
       const persona_region = document.getElementById('seo-draft-persona-region')?.value || 'tw';
       // 後端會把 message 再 append 一則 user，history 勿含本則以免重複
       const hist = getVisibleSupportChatRows(14)
         .slice(0, -1)
         .slice(-12)
-        .filter((r) => r.staffSource !== 'telegram' && !r.supportSelectionNotice)
+        .filter((r) => !r.staffSource && !r.supportSelectionNotice)
         .map((r) => ({ role: r.role, content: r.content }));
       let restoreInputDraft = false;
       let apiMessage = msg;
@@ -12090,7 +12288,7 @@
             matched_scene: data.matched_scene || null,
             featured_recommendations: Array.isArray(data.featured_recommendations) ? data.featured_recommendations : [],
           });
-          if (data.sales_mcp && data.sales_mcp.human_handoff_intent && supportHumanHandoffStep !== 'form') {
+          if (data.sales_mcp && data.sales_mcp.real_handoff_ready && supportHumanHandoffStep !== 'form') {
             supportHumanHandoffStep = 'form';
             appendedHumanForm = true;
             openSupportHumanIntakeFromSalesMcp({ silent: true });
@@ -12694,6 +12892,9 @@
       }
       if (targetTab !== 'telegram') {
         stopAdminTelegramDebugPoll();
+      }
+      if (targetTab !== 'handoffs') {
+        stopAdminHandoffAutoRefresh();
       }
       if ((targetTab === 'cases' || targetTab === 'home-content') && adminPanelPassword) {
         if (targetTab === 'cases') {
@@ -15637,8 +15838,8 @@
       mainstream_portal: '主流找房',
       official_market_data: '官方價量',
       ownership_registry: '產權登記',
-      auction: '法拍競売',
-      sell_assessment: '賣房査定',
+      auction: '法拍競標',
+      sell_assessment: '賣房估價',
       developer_brand: '開發商品牌',
       kansai_local: '區域專用',
       investment_portal: '投資專用',
@@ -16053,6 +16254,10 @@
       const d = document.getElementById('admin-handoff-detail');
       const list = document.getElementById('admin-handoff-list-wrap');
       const del = document.getElementById('admin-handoff-detail-delete-btn');
+      if (adminHandoffDetailRefreshTimer) {
+        clearTimeout(adminHandoffDetailRefreshTimer);
+        adminHandoffDetailRefreshTimer = 0;
+      }
       closeAdminDetailLightbox();
       if (d) d.style.display = 'none';
       if (list) list.style.display = '';
@@ -16070,6 +16275,7 @@
           window.location.hash = next ? `#${next}` : '';
         }
       } catch (_) {}
+      scheduleAdminHandoffListRefresh(1800);
     }
 
     function readAdminHandoffIdFromHash() {
@@ -16081,6 +16287,75 @@
       } catch (_) {
         return 0;
       }
+    }
+
+    function isAdminHandoffTabActive() {
+      const drawer = document.getElementById('admin-drawer');
+      if (!drawer) return false;
+      return String(drawer.dataset.adminActiveTab || '') === 'handoffs';
+    }
+
+    function stopAdminHandoffAutoRefresh() {
+      if (adminHandoffDetailRefreshTimer) {
+        clearTimeout(adminHandoffDetailRefreshTimer);
+        adminHandoffDetailRefreshTimer = 0;
+      }
+      if (adminHandoffListRefreshTimer) {
+        clearTimeout(adminHandoffListRefreshTimer);
+        adminHandoffListRefreshTimer = 0;
+      }
+    }
+
+    function captureAdminHandoffDraftState(handoffId) {
+      const id = Number(handoffId || 0);
+      const input = document.getElementById(`admin-handoff-reply-input-${id}`);
+      const channel = document.getElementById(`admin-handoff-reply-channel-${id}`);
+      const activeEl = document.activeElement;
+      const inputFocused = !!(input && activeEl === input);
+      const channelFocused = !!(channel && activeEl === channel);
+      return {
+        value: String(input?.value || ''),
+        channel: String(channel?.value || 'auto'),
+        inputFocused,
+        channelFocused,
+        selectionStart: inputFocused && typeof input.selectionStart === 'number' ? Number(input.selectionStart) : null,
+        selectionEnd: inputFocused && typeof input.selectionEnd === 'number' ? Number(input.selectionEnd) : null,
+      };
+    }
+
+    function scheduleAdminHandoffListRefresh(delay = ADMIN_HANDOFF_LIST_REFRESH_MS) {
+      if (adminHandoffListRefreshTimer) {
+        clearTimeout(adminHandoffListRefreshTimer);
+        adminHandoffListRefreshTimer = 0;
+      }
+      if (!isAdminHandoffTabActive() || !adminPanelPassword || Number(adminHandoffCurrentId || 0) > 0) return;
+      adminHandoffListRefreshTimer = window.setTimeout(() => {
+        adminHandoffListRefreshTimer = 0;
+        if (!isAdminHandoffTabActive() || !adminPanelPassword || Number(adminHandoffCurrentId || 0) > 0) return;
+        if (typeof document !== 'undefined' && document.hidden) {
+          scheduleAdminHandoffListRefresh(delay);
+          return;
+        }
+        loadAdminHandoffRequests({ silentRefresh: true }).catch(() => {});
+      }, Math.max(800, Number(delay || ADMIN_HANDOFF_LIST_REFRESH_MS)));
+    }
+
+    function scheduleAdminHandoffDetailRefresh(handoffId, delay = ADMIN_HANDOFF_DETAIL_REFRESH_MS) {
+      if (adminHandoffDetailRefreshTimer) {
+        clearTimeout(adminHandoffDetailRefreshTimer);
+        adminHandoffDetailRefreshTimer = 0;
+      }
+      const id = Number(handoffId || 0);
+      if (!id || !isAdminHandoffTabActive() || !adminPanelPassword || Number(adminHandoffCurrentId || 0) !== id) return;
+      adminHandoffDetailRefreshTimer = window.setTimeout(() => {
+        adminHandoffDetailRefreshTimer = 0;
+        if (!isAdminHandoffTabActive() || !adminPanelPassword || Number(adminHandoffCurrentId || 0) !== id) return;
+        if (typeof document !== 'undefined' && document.hidden) {
+          scheduleAdminHandoffDetailRefresh(id, delay);
+          return;
+        }
+        openAdminHandoffDetail(id, { silentRefresh: true, preserveDraft: true }).catch(() => {});
+      }, Math.max(900, Number(delay || ADMIN_HANDOFF_DETAIL_REFRESH_MS)));
     }
 
     function updateAdminHandoffBulkControls() {
@@ -16218,16 +16493,213 @@
       }
     }
 
-    async function openAdminHandoffDetail(handoffId) {
+    function adminHandoffMultilineHtml(text) {
+      const raw = String(text || '').replace(/\r\n?/g, '\n');
+      return raw
+        .split('\n')
+        .map((line) => linkifyInlineText(line))
+        .join('<br>');
+    }
+
+    function renderAdminHandoffQuestionnaireHtml(questionnaire) {
+      const q = questionnaire && typeof questionnaire === 'object' ? questionnaire : {};
+      const rows = [
+        ['購買目的', q.purchase_purpose],
+        ['目標區域', q.target_region],
+        ['物件類型', q.property_type],
+        ['預算', q.budget_total_yen ? `${q.budget_total_yen} 日圓` : ''],
+        ['自備款', q.down_payment_yen ? `${q.down_payment_yen} 日圓` : ''],
+        ['貸款需求', q.loan_need],
+        ['購買時間', q.purchase_time],
+        ['看房意願', q.viewing_intent],
+      ].filter(([, value]) => String(value || '').trim());
+      if (!rows.length) return '';
+      return rows
+        .map(([label, value]) => {
+          return (
+            '<div class="admin-handoff-meta-pair">' +
+            `<span>${esc(String(label || ''))}</span>` +
+            `<strong>${esc(String(value || ''))}</strong>` +
+            '</div>'
+          );
+        })
+        .join('');
+    }
+
+    function renderAdminHandoffCasesMini(items) {
+      const rows = Array.isArray(items) ? items : [];
+      if (!rows.length) return '<p class="muted" style="margin:0;">尚未勾選案件。</p>';
+      let html = '<div class="admin-handoff-case-list">';
+      for (const row of rows.slice(0, 6)) {
+        const title = String(row.title || '').trim() || '案件';
+        const source = String(row.source_name || '').trim() || '來源';
+        const articleUrl = String(row.article_url || (Number(row.source_item_id || 0) > 0 ? `/case/${Number(row.source_item_id)}` : '')).trim();
+        const itemUrl = String(row.item_url || '').trim();
+        html += '<div class="admin-handoff-case-item">';
+        html += `<strong>${esc(title)}</strong>`;
+        html += `<span>${esc(source)}</span>`;
+        html += '<div class="admin-handoff-case-actions">';
+        if (articleUrl) html += `<a class="secondary" href="${esc(articleUrl)}" target="_blank" rel="noopener noreferrer">站內</a>`;
+        if (itemUrl) html += `<a class="secondary" href="${esc(itemUrl)}" target="_blank" rel="noopener noreferrer">原站</a>`;
+        html += '</div></div>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function renderAdminHandoffChannelBadges(channels) {
+      const c = channels && typeof channels === 'object' ? channels : {};
+      const rows = [];
+      if (c.web) rows.push('<span class="admin-handoff-channel-chip">網站對話</span>');
+      if (c.telegram) rows.push('<span class="admin-handoff-channel-chip">Telegram 已連線</span>');
+      if (c.line) rows.push('<span class="admin-handoff-channel-chip">LINE 已連線</span>');
+      return rows.join('');
+    }
+
+    function renderAdminHandoffConversationHtml(item) {
+      const conv = Array.isArray(item && item.conversation) ? item.conversation : [];
+      const inbox = Array.isArray(item && item.staff_inbox) ? item.staff_inbox : [];
+      if (!conv.length) {
+        if (!inbox.length) {
+          return '<div class="admin-handoff-empty-thread"><strong>尚未同步對話</strong><span>目前只有留單資料，人工回覆後會持續累積在這裡。</span></div>';
+        }
+      }
+      let html = '';
+      const customerLabel = esc(String(item && (item.name || item.phone || item.email) || '客戶'));
+      const advisorMessageQuota = new Map();
+      const stripAdvisorPrefix = (value) => String(value || '').trim().replace(/^（(?:後台人工|Telegram 顧問|LINE 顧問|人工顧問)）/, '').trim();
+      const bumpAdvisorQuota = (label, plain) => {
+        const key = `${String(label || '').trim()}||${String(plain || '').trim()}`;
+        advisorMessageQuota.set(key, Number(advisorMessageQuota.get(key) || 0) + 1);
+      };
+      const consumeAdvisorQuota = (label, plain) => {
+        const key = `${String(label || '').trim()}||${String(plain || '').trim()}`;
+        const current = Number(advisorMessageQuota.get(key) || 0);
+        if (current <= 0) return false;
+        if (current === 1) advisorMessageQuota.delete(key);
+        else advisorMessageQuota.set(key, current - 1);
+        return true;
+      };
+      for (const row of conv) {
+        const role = String(row && row.role || '').trim().toLowerCase();
+        let text = normalizeSupportChatDisplayText(String(row && row.content || '').trim());
+        if (!text) continue;
+        let tone = 'assistant';
+        let label = 'AI 客服';
+        if (role === 'user') {
+          tone = 'user';
+          label = customerLabel;
+        } else if (/^（後台人工）/.test(text)) {
+          tone = 'advisor';
+          label = '人工客服';
+          text = text.replace(/^（後台人工）/, '').trim();
+        } else if (/^（Telegram 顧問）/.test(text)) {
+          tone = 'advisor';
+          label = 'Telegram 顧問';
+          text = text.replace(/^（Telegram 顧問）/, '').trim();
+        } else if (/^（LINE 顧問）/.test(text)) {
+          tone = 'advisor';
+          label = 'LINE 顧問';
+          text = text.replace(/^（LINE 顧問）/, '').trim();
+        } else if (/^（人工顧問）/.test(text)) {
+          tone = 'advisor';
+          label = '人工顧問';
+          text = text.replace(/^（人工顧問）/, '').trim();
+        }
+        if (tone === 'advisor') bumpAdvisorQuota(label, stripAdvisorPrefix(text));
+        html +=
+          `<div class="admin-handoff-chat-msg is-${tone}">` +
+            `<div class="admin-handoff-chat-msg-label">${label}</div>` +
+            `<div class="admin-handoff-chat-msg-bubble">${adminHandoffMultilineHtml(text)}</div>` +
+          '</div>';
+      }
+      for (const row of inbox) {
+        const text = normalizeSupportChatDisplayText(String(row && row.body || '').trim());
+        if (!text) continue;
+        const plain = stripAdvisorPrefix(text);
+        if (!plain) continue;
+        const channel = String(row && row.source_channel || '').trim().toLowerCase();
+        const sender = String(row && row.source_from_id || '').trim();
+        const dedupeLabel =
+          channel === 'telegram' ? 'Telegram 顧問'
+          : channel === 'line' ? 'LINE 顧問'
+          : channel === 'admin' ? '人工客服'
+          : '';
+        const label = sender || dedupeLabel || '人工客服';
+        if (consumeAdvisorQuota(dedupeLabel || label, plain)) continue;
+        html +=
+          '<div class="admin-handoff-chat-msg is-advisor">' +
+            `<div class="admin-handoff-chat-msg-label">${esc(label)}</div>` +
+            `<div class="admin-handoff-chat-msg-bubble">${adminHandoffMultilineHtml(text)}</div>` +
+          '</div>';
+      }
+      return html || '<div class="admin-handoff-empty-thread"><strong>尚未同步對話</strong><span>目前只有留單資料，人工回覆後會持續累積在這裡。</span></div>';
+    }
+
+    async function sendAdminHandoffReply(handoffId) {
       const id = Number(handoffId);
       if (!id || !adminPanelPassword) return;
+      const input = document.getElementById(`admin-handoff-reply-input-${id}`);
+      const channelEl = document.getElementById(`admin-handoff-reply-channel-${id}`);
+      const btn = document.getElementById(`admin-handoff-reply-send-${id}`);
+      const status = document.getElementById(`admin-handoff-reply-status-${id}`);
+      const text = String(input?.value || '').trim();
+      const channel = String(channelEl?.value || 'auto').trim().toLowerCase();
+      if (!text) {
+        if (status) status.textContent = '請先輸入要回覆給客戶的訊息。';
+        input?.focus();
+        return;
+      }
+      if (btn) btn.disabled = true;
+      if (status) status.textContent = '送出中…';
+      try {
+        const res = await fetchSclawApiFirstOk([`/api/handoff-requests/${id}/reply`, `/api/admin/handoff-requests/${id}/reply`], {
+          method: 'POST',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({
+            message: text,
+            channel,
+            sender_name: '人工客服',
+          }),
+        });
+        const data = await parseApiResponseSafe(res);
+        const reply = data.reply || {};
+        const used = String(reply.channel_used || channel || 'web');
+        const label = used === 'line' ? 'LINE' : used === 'telegram' ? 'Telegram' : '網站對話';
+        adminHandoffReplyFlash = `已送出，客戶端將透過 ${label} / 網站對話同步看到。`;
+        if (input) input.value = '';
+        await openAdminHandoffDetail(id);
+      } catch (err) {
+        if (status) status.textContent = `送出失敗：${formatApiError(err)}`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function openAdminHandoffDetail(handoffId, options = {}) {
+      const id = Number(handoffId);
+      if (!id || !adminPanelPassword) return;
+      stopAdminHandoffAutoRefresh();
+      const opts = options && typeof options === 'object' ? options : {};
+      const silentRefresh = !!opts.silentRefresh;
+      const preserveDraft = !!opts.preserveDraft;
+      const previousDraft = preserveDraft ? captureAdminHandoffDraftState(id) : null;
+      const previousThread = document.getElementById(`admin-handoff-thread-${id}`);
+      const previousScrollTop = previousThread ? Number(previousThread.scrollTop || 0) : 0;
+      const previousScrollHeight = previousThread ? Number(previousThread.scrollHeight || 0) : 0;
+      const previousClientHeight = previousThread ? Number(previousThread.clientHeight || 0) : 0;
+      const stickToBottom = previousThread
+        ? previousScrollTop + previousClientHeight >= previousScrollHeight - 80
+        : true;
       adminHandoffCurrentId = id;
       try {
         const params = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
         params.set('handoff', String(id));
         window.location.hash = `#${params.toString()}`;
       } catch (_) {}
-      openAdminDetailLightbox(`留單 #${id}`, '<p class="muted">載入中…</p>');
+      if (!silentRefresh) {
+        openAdminDetailLightbox(`留單 #${id}`, '<p class="muted">載入中…</p>');
+      }
       try {
         const res = await fetchSclawApiFirstOk([`/api/handoff-requests/${id}`, `/api/admin/handoff-requests/${id}`], {
           headers: adminApiHeaders(false),
@@ -16244,27 +16716,59 @@
         const actionId = String(it.action_id || '').trim();
         const baseTitle = String(it.name || it.email || it.phone || `留單 #${it.id || id}` || '').trim();
         const shareUrl = origin ? `${origin}/#handoff=${encodeURIComponent(String(it.id || id))}` : '';
-
-        const linkifyMultiline = (s) => {
-          const raw = String(s || '').replace(/\r\n?/g, '\n');
-          return raw
-            .split('\n')
-            .map((ln) => linkifyInlineText(ln))
-            .join('<br>');
-        };
+        const interestedCases = Array.isArray(it.interested_cases) ? it.interested_cases : [];
+        const threadChannels = it.thread_channels && typeof it.thread_channels === 'object' ? it.thread_channels : {};
+        const replyFlash = adminHandoffReplyFlash ? `<span class="admin-handoff-compose-note is-success">${esc(adminHandoffReplyFlash)}</span>` : '<span id="admin-handoff-reply-status-' + id + '" class="admin-handoff-compose-note"></span>';
 
         let h = '';
+        h += '<div class="admin-handoff-workspace">';
+        h += '<aside class="admin-handoff-meta-column">';
+        h += '<div class="admin-handoff-meta-card">';
         h += '<div class="search-row-basic admin-handoff-detail-actions" style="flex-wrap:wrap;gap:0.35rem;align-items:center;margin:0 0 0.5rem;">';
         if (sessionId) {
           h += `<button type="button" class="secondary" onclick='copyTextWithFallback(${JSON.stringify(sessionId)})'>複製 Session</button>`;
-          h += `<button type="button" class="secondary" onclick='openAdminTelegramForSession(${JSON.stringify(sessionId)})'>跳到 Telegram</button>`;
+          h += `<button type="button" class="secondary" onclick='openAdminTelegramForSession(${JSON.stringify(sessionId)})'>通知通道</button>`;
         }
         if (shareUrl) {
           h += `<button type="button" class="secondary" onclick='copyTextWithFallback(${JSON.stringify(shareUrl)})'>複製連結</button>`;
         }
         h += `<button id="admin-handoff-detail-delete-btn" type="button" class="admin-btn-danger" onclick="deleteAdminHandoffRequest(${id}, true)">刪除</button>`;
         h += '</div>';
-
+        h += `<strong class="admin-handoff-meta-name">${esc(baseTitle || '')}</strong>`;
+        h += `<div class="admin-handoff-channel-row">${renderAdminHandoffChannelBadges(threadChannels)}</div>`;
+        h += '<div class="admin-handoff-meta-grid">';
+        h += `<div class="admin-handoff-meta-pair"><span>建立時間</span><strong>${esc(String(it.created_at || ''))}</strong></div>`;
+        h += `<div class="admin-handoff-meta-pair"><span>聯絡電話</span><strong>${esc(String(it.phone || '—'))}</strong></div>`;
+        h += `<div class="admin-handoff-meta-pair"><span>電子信箱</span><strong>${esc(String(it.email || '—'))}</strong></div>`;
+        h += `<div class="admin-handoff-meta-pair"><span>轉接動作</span><strong>${esc(actionId || '關鍵字轉人工')}</strong></div>`;
+        h += `<div class="admin-handoff-meta-pair"><span>命中場景</span><strong>${esc(String(it.matched_scene_label || '未分類'))}</strong></div>`;
+        h += `<div class="admin-handoff-meta-pair"><span>已選案件</span><strong>${interestedCases.length} 筆</strong></div>`;
+        h += renderAdminHandoffQuestionnaireHtml(it.questionnaire);
+        h += '</div>';
+        if (it.ai_handoff_summary) {
+          h += '<div class="admin-handoff-summary-card">';
+          h += '<span class="admin-handoff-section-kicker">AI 整理</span>';
+          h += `<div class="admin-handoff-summary-text">${adminHandoffMultilineHtml(String(it.ai_handoff_summary || ''))}</div>`;
+          h += '</div>';
+        }
+        if (it.note) {
+          h += '<div class="admin-handoff-summary-card">';
+          h += '<span class="admin-handoff-section-kicker">客戶備註</span>';
+          h += `<div class="admin-handoff-summary-text">${adminHandoffMultilineHtml(String(it.note || ''))}</div>`;
+          h += '</div>';
+        }
+        if (it.context_message || it.opinion) {
+          h += '<div class="admin-handoff-summary-card">';
+          h += '<span class="admin-handoff-section-kicker">接手重點</span>';
+          if (it.context_message) h += `<div class="admin-handoff-summary-text">${adminHandoffMultilineHtml(String(it.context_message || ''))}</div>`;
+          if (it.opinion) h += `<div class="admin-handoff-summary-text">${adminHandoffMultilineHtml(String(it.opinion || ''))}</div>`;
+          h += '</div>';
+        }
+        h += '<div class="admin-handoff-summary-card">';
+        h += `<span class="admin-handoff-section-kicker">有興趣案件</span>${renderAdminHandoffCasesMini(interestedCases)}`;
+        h += '</div>';
+        h += '<details class="admin-handoff-edit-details">';
+        h += '<summary>編輯留單資料</summary>';
         h += '<div class="admin-handoff-edit-form">';
         h += '<div class="admin-handoff-edit-grid">';
         h += `<label>姓名<input id="admin-handoff-edit-name" type="text" value="${esc(String(it.name || ''))}" maxlength="120"></label>`;
@@ -16280,113 +16784,66 @@
         h += '<div class="search-row-basic" style="gap:0.5rem;align-items:center;margin-top:0.5rem;">';
         h += `<button id="admin-handoff-edit-save-btn" type="button" class="primary" onclick="saveAdminHandoffDetailEdit(${id})">儲存編輯</button>`;
         h += '<span id="admin-handoff-edit-msg" class="muted"></span>';
+        h += '</div></div></details></div></aside>';
+
+        h += '<section class="admin-handoff-chat-column">';
+        h += '<div class="admin-handoff-chat-shell">';
+        h += '<div class="admin-handoff-chat-shell-head">';
+        h += '<div><strong>人工接手對話框</strong><span class="muted">留單後的完整聊天都會累積在這裡。</span></div>';
+        h += `<div class="admin-handoff-chat-count">${Number(it.staff_reply_count || 0)} 筆人工回覆</div>`;
         h += '</div>';
+        h += `<div class="admin-handoff-chat-thread" id="admin-handoff-thread-${id}">${renderAdminHandoffConversationHtml(it)}</div>`;
+        h += '<div class="admin-handoff-compose">';
+        h += '<div class="admin-handoff-compose-row">';
+        h += `<select id="admin-handoff-reply-channel-${id}">
+                <option value="auto">自動選擇通道</option>
+                <option value="web">只回網站對話</option>
+                <option value="telegram">優先 Telegram</option>
+                <option value="line">優先 LINE</option>
+              </select>`;
+        h += `${replyFlash}`;
         h += '</div>';
-
-        h += `<p style="margin:0 0 0.25rem;"><strong>${esc(baseTitle || '')}</strong></p>`;
-        h += '<div style="display:grid;grid-template-columns:7.25rem 1fr;gap:0.15rem 0.75rem;align-items:start;">';
-        h += `<div class="muted">建立時間</div><div>${esc(String(it.created_at || ''))}</div>`;
-        h += `<div class="muted">聯絡</div><div>電話：${esc(String(it.phone || '—'))} ｜ 信箱：${esc(String(it.email || '—'))}</div>`;
-        h += `<div class="muted">動作 / Session</div><div>${esc(actionId || '（關鍵字轉人工）')} ｜ <code>${esc(sessionId || '—')}</code></div>`;
-        h += `<div class="muted">場景</div><div>${esc(String(it.matched_scene_label || '-'))}（${esc(String(it.matched_scene_id || ''))}）</div>`;
-        if (it.context_message) {
-          h += `<div class="muted">脈絡</div><div>${linkifyMultiline(it.context_message)}</div>`;
-        }
-        if (it.opinion) {
-          h += `<div class="muted">意見</div><div>${linkifyMultiline(it.opinion)}</div>`;
-        }
+        h += '<div class="admin-handoff-compose-row is-editor">';
+        h += `<textarea id="admin-handoff-reply-input-${id}" rows="4" placeholder="輸入人工回覆內容。送出後，客戶網頁端與已綁定的通道都會同步看到。"></textarea>`;
+        h += `<button id="admin-handoff-reply-send-${id}" type="button" class="primary" onclick="sendAdminHandoffReply(${id})">送出回覆</button>`;
         h += '</div>';
-
-        if (it.note) {
-          h += '<h4 style="margin:0.75rem 0 0.25rem;">備註</h4>';
-          h += `<div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fafafa;line-height:1.5;">${linkifyMultiline(it.note)}</div>`;
-        }
-
-        if (it.ai_handoff_summary) {
-          h += '<h4 style="margin:0.75rem 0 0.25rem;">AI 整理（給人工）</h4>';
-          h += `<div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;background:#fafafa;line-height:1.5;white-space:pre-wrap;">${esc(String(it.ai_handoff_summary))}</div>`;
-        }
-
-        const interestedCases = Array.isArray(it.interested_cases) ? it.interested_cases : [];
-        if (interestedCases.length) {
-          h += `<h4 style="margin:0.75rem 0 0.25rem;">客戶有興趣案件（${interestedCases.length} 筆）</h4>`;
-          h += '<table class="admin-cases-table"><thead><tr><th>案件</th><th>摘要</th><th>連結</th></tr></thead><tbody>';
-          for (const row of interestedCases.slice(0, 30)) {
-            const title = String(row.title || '').trim() || '案件';
-            const src = String(row.source_name || '').trim() || '來源';
-            const sid = Number(row.source_item_id || 0);
-            const cid = Number(row.content_id || 0);
-            const tx = String(row.transaction_label_zh || '').trim();
-            const reg = String(row.jp_region_display_zh || '').trim();
-            const tr = String(row.transit_line_zh || '').trim();
-            const price = String(row.price_text_hant || '').trim();
-            const layout = String(row.layout_text_hant || '').trim();
-            const area = String(row.area_text_hant || '').trim();
-            const itemUrl = String(row.item_url || '').trim();
-            let articleUrl = String(row.article_url || '').trim();
-            if (!articleUrl && sid > 0) articleUrl = `/case/${sid}`;
-            const articleHref = articleUrl ? esc(articleUrl) : '';
-            const itemHref = itemUrl ? esc(itemUrl) : '';
-            let meta = '';
-            const bits = [];
-            if (tx) bits.push(tx);
-            if (reg) bits.push(reg);
-            if (tr) bits.push(tr);
-            if (price) bits.push(price);
-            if (layout) bits.push(layout);
-            if (area) bits.push(area);
-            meta = bits.length ? esc(bits.slice(0, 6).join('｜')) : '—';
-            h += '<tr>';
-            h += `<td><strong>${esc(title)}</strong><div class="muted" style="font-size:12px;">${esc(src)}${sid ? `｜#${sid}` : ''}${cid ? `｜內容ID:${cid}` : ''}</div></td>`;
-            h += `<td class="muted" style="font-size:12px;line-height:1.5;">${meta}</td>`;
-            h += '<td class="admin-cases-actions">';
-            if (cid > 0) h += `<button type="button" class="secondary" onclick="previewAdminCase(${cid})">預覽</button>`;
-            if (articleHref) h += `<a class="secondary" href="${articleHref}" target="_blank" rel="noopener noreferrer">站內</a>`;
-            if (itemHref) h += `<a class="secondary" href="${itemHref}" target="_blank" rel="noopener noreferrer">原站</a>`;
-            h += '</td>';
-            h += '</tr>';
-          }
-          h += '</tbody></table>';
-        }
-
-        const conv = Array.isArray(it.conversation) ? it.conversation : [];
-        h += '<h4 style="margin:0.75rem 0 0.25rem;">對話紀錄</h4>';
-        if (!conv.length) {
-          h += '<p class="muted" style="margin:0;">（無附帶對話摘要）</p>';
-        } else {
-          h += '<div class="admin-handoff-detail-log">';
-          for (const row of conv) {
-            const role = String(row.role || '').trim().toLowerCase();
-            const who = role === 'user' ? '使用者' : role === 'assistant' ? '顧問' : role || 'unknown';
-            const text = normalizeSupportChatDisplayText(String(row.content || '').trim());
-            h += `<div style="margin:0.35rem 0;"><strong>${esc(who)}：</strong>${linkifyMultiline(text)}</div>`;
-          }
-          h += '</div>';
-        }
-
-        const staffInbox = Array.isArray(it.staff_inbox) ? it.staff_inbox : [];
-        h += '<h4 style="margin:0.75rem 0 0.25rem;">歷史回覆紀錄（Telegram / LINE / 後台）</h4>';
-        if (!staffInbox.length) {
-          h += '<p class="muted" style="margin:0;">（尚無人工回覆紀錄）</p>';
-        } else {
-          h += '<div class="admin-handoff-detail-log">';
-          for (const row of staffInbox.slice(-120)) {
-            const ch = String(row.source_channel || '').trim() || 'advisor';
-            const from = String(row.source_from_id || '').trim();
-            const ts = String(row.created_at || '').trim();
-            const bodyText = normalizeSupportChatDisplayText(String(row.body || '').trim());
-            const head = `${ts}${ch ? `｜${ch}` : ''}${from ? `｜${from}` : ''}`;
-            h += `<div style="margin:0.35rem 0;"><div class="muted" style="font-size:12px;margin-bottom:0.1rem;">${esc(head)}</div><div>${linkifyMultiline(bodyText)}</div></div>`;
-          }
-          h += '</div>';
-        }
+        h += '</div></div></section></div>';
 
         const finalHtml = h || '<p class="muted">（無內容）</p>';
         const lbBody = document.getElementById('admin-detail-lightbox-body');
         if (lbBody) lbBody.innerHTML = finalHtml;
+        const nextChannel = document.getElementById(`admin-handoff-reply-channel-${id}`);
+        const nextInput = document.getElementById(`admin-handoff-reply-input-${id}`);
+        const nextThread = document.getElementById(`admin-handoff-thread-${id}`);
+        if (preserveDraft && previousDraft && nextChannel) nextChannel.value = previousDraft.channel || 'auto';
+        if (preserveDraft && previousDraft && nextInput) nextInput.value = previousDraft.value || '';
+        if (nextThread) {
+          if (stickToBottom) nextThread.scrollTop = nextThread.scrollHeight;
+          else nextThread.scrollTop = Math.max(0, previousScrollTop);
+        }
+        if (preserveDraft && previousDraft) {
+          if (previousDraft.inputFocused && nextInput) {
+            nextInput.focus({ preventScroll: true });
+            if (
+              typeof previousDraft.selectionStart === 'number' &&
+              typeof previousDraft.selectionEnd === 'number' &&
+              typeof nextInput.setSelectionRange === 'function'
+            ) {
+              const maxLen = String(nextInput.value || '').length;
+              const start = Math.max(0, Math.min(previousDraft.selectionStart, maxLen));
+              const end = Math.max(start, Math.min(previousDraft.selectionEnd, maxLen));
+              nextInput.setSelectionRange(start, end);
+            }
+          } else if (previousDraft.channelFocused && nextChannel) {
+            nextChannel.focus({ preventScroll: true });
+          }
+        }
+        adminHandoffReplyFlash = '';
+        scheduleAdminHandoffDetailRefresh(id);
       } catch (err) {
         const lbBody = document.getElementById('admin-detail-lightbox-body');
         if (lbBody) lbBody.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
+        scheduleAdminHandoffDetailRefresh(id, ADMIN_HANDOFF_LIST_REFRESH_MS);
       }
     }
 
@@ -16562,11 +17019,17 @@
       }
     }
 
-    async function loadAdminHandoffRequests() {
+    async function loadAdminHandoffRequests(options = {}) {
       const wrap = document.getElementById('admin-handoff-list-wrap');
       const msg = document.getElementById('admin-handoff-msg');
       const lab = document.getElementById('admin-handoff-page-label');
       if (!wrap) return;
+      if (adminHandoffListRefreshTimer) {
+        clearTimeout(adminHandoffListRefreshTimer);
+        adminHandoffListRefreshTimer = 0;
+      }
+      const opts = options && typeof options === 'object' ? options : {};
+      const silentRefresh = !!opts.silentRefresh;
       if (!adminPanelPassword) {
         wrap.innerHTML = '<p class="muted">請先登入。</p>';
         if (lab) lab.textContent = '第 1 頁';
@@ -16576,7 +17039,7 @@
       }
       closeAdminHandoffDetail();
       const ps = Math.max(5, Math.min(100, parseInt(String(document.getElementById('admin-handoff-page-size')?.value || '15'), 10) || 15));
-      wrap.textContent = '載入中…';
+      if (!silentRefresh) wrap.textContent = '載入中…';
       try {
         const qEl = document.getElementById('admin-handoff-q');
         const q = String(qEl?.value || '').trim();
@@ -16601,6 +17064,7 @@
           wrap.innerHTML = `<p class="muted">${q ? '查無符合條件的留單。' : '尚無留單紀錄。'}</p>`;
           syncAdminHandoffSelectAllCheckbox();
           updateAdminHandoffBulkControls();
+          scheduleAdminHandoffListRefresh();
           return;
         }
         if (page > totalPages && totalPages >= 1) {
@@ -16616,18 +17080,19 @@
           updateAdminHandoffPagerControls(page, totalPages, false);
           syncAdminHandoffSelectAllCheckbox();
           updateAdminHandoffBulkControls();
+          scheduleAdminHandoffListRefresh();
           return;
         }
         let html =
           '<table class="admin-cases-table"><thead><tr>' +
           '<th style="width:3rem;text-align:center;"><input type="checkbox" id="admin-handoff-select-all" title="全選本頁" onchange="toggleAdminHandoffSelectAll(this.checked)"></th>' +
-          '<th>ID</th><th>時間</th><th>聯絡</th><th>動作</th><th>興趣案件</th><th>對話</th><th>詳情</th><th>刪除</th></tr></thead><tbody>';
+          '<th>ID</th><th>時間</th><th>聯絡</th><th>動作</th><th>興趣案件</th><th>對話</th><th>接手</th><th>刪除</th></tr></thead><tbody>';
         for (const it of items) {
           const id = Number(it.id);
           const nm = esc(String(it.name || it.email || it.phone || '未填').slice(0, 40));
           const ck = adminHandoffSelectedIds.has(id) ? ' checked' : '';
           html += `<tr><td style="text-align:center;"><input type="checkbox" data-handoff-id="${id}" onchange="toggleAdminHandoffSelected(${id}, this.checked)"${ck}></td><td>${id}</td><td class="muted">${esc(String(it.created_at || ''))}</td><td>${nm}</td><td>${esc(String(it.action_id || '-'))}</td><td>${Number(it.interested_case_count || 0)} 筆</td><td>${Number(it.conversation_chars || 0)} 字</td>`;
-          html += `<td class="admin-cases-actions"><button type="button" class="secondary" onclick="openAdminHandoffDetail(${id})">詳情</button></td>`;
+          html += `<td class="admin-cases-actions"><button type="button" class="secondary" onclick="openAdminHandoffDetail(${id})">接手對話</button></td>`;
           html += `<td class="admin-cases-actions"><button type="button" class="admin-btn-danger" onclick="deleteAdminHandoffRequest(${id})">刪除</button></td></tr>`;
         }
         html += '</tbody></table>';
@@ -16635,11 +17100,13 @@
         syncAdminHandoffSelectAllCheckbox();
         updateAdminHandoffBulkControls();
         if (msg) msg.textContent = '';
+        scheduleAdminHandoffListRefresh();
       } catch (err) {
         wrap.innerHTML = `<p class="muted">載入失敗：${esc(formatApiError(err))}</p>`;
         updateAdminHandoffPagerControls(1, 0, false);
         syncAdminHandoffSelectAllCheckbox();
         updateAdminHandoffBulkControls();
+        scheduleAdminHandoffListRefresh(ADMIN_HANDOFF_LIST_REFRESH_MS + 1800);
       }
     }
 
@@ -19418,17 +19885,29 @@
         const full = document.getElementById('admin-support-crm-full');
         const compact = document.getElementById('admin-support-crm-compact');
         const ex = document.getElementById('admin-support-crm-examples');
+        const sa = document.getElementById('admin-support-crm-simulated-advisors');
+        const sq = document.getElementById('admin-support-crm-queue-templates');
+        const ss = document.getElementById('admin-support-crm-service-templates');
+        const sh = document.getElementById('admin-support-crm-handoff-templates');
         if (en) en.checked = Boolean(data.enabled);
         if (mode) mode.value = String(data.inject_mode || 'both');
         if (full) full.value = String(data.full_prompt || '');
         if (compact) compact.value = String(data.compact_prompt || '');
         if (ex) ex.value = String(data.examples || '');
+        if (sa) sa.value = String(data.simulated_advisors || '');
+        if (sq) sq.value = String(data.queue_templates || '');
+        if (ss) ss.value = String(data.service_templates || '');
+        if (sh) sh.value = String(data.handoff_templates || '');
         if (meta) {
           const se = data.stored_empty || {};
           const bits = [];
           if (se.full) bits.push('完整：內建預設');
           if (se.compact) bits.push('精簡：內建預設');
           if (se.examples) bits.push('範例：內建預設');
+          if (se.simulated_advisors) bits.push('顧問名單：內建預設');
+          if (se.queue_templates) bits.push('排隊模板：內建預設');
+          if (se.service_templates) bits.push('接待模板：內建預設');
+          if (se.handoff_templates) bits.push('轉接模板：內建預設');
           meta.textContent = (bits.length ? bits.join('；') : '後台已覆寫（非空鍵）') + `｜注入約 ${Number(data.injected_char_count || 0)} 字`;
         }
         if (msg) msg.textContent = '已載入。';
@@ -19449,6 +19928,10 @@
         full_prompt: String(document.getElementById('admin-support-crm-full')?.value || ''),
         compact_prompt: String(document.getElementById('admin-support-crm-compact')?.value || ''),
         examples: String(document.getElementById('admin-support-crm-examples')?.value || ''),
+        simulated_advisors: String(document.getElementById('admin-support-crm-simulated-advisors')?.value || ''),
+        queue_templates: String(document.getElementById('admin-support-crm-queue-templates')?.value || ''),
+        service_templates: String(document.getElementById('admin-support-crm-service-templates')?.value || ''),
+        handoff_templates: String(document.getElementById('admin-support-crm-handoff-templates')?.value || ''),
       };
       if (msg) msg.textContent = '儲存中…';
       try {
@@ -19825,8 +20308,8 @@
 
     function advisorOpenHousingPortal(portal) {
       const map = {
-        suumo: '関東 不動産',
-        homes: '関東 住宅',
+        suumo: '關東 不動產',
+        homes: '關東 住宅',
       };
       const key = String(portal || 'suumo');
       activateFigureTab(key === 'homes' ? 'homes' : 'suumo');
@@ -20055,7 +20538,6 @@
               </div>
             </div>
             <h3><a href="${detailUrl}">${esc(item.title_zh_hant || item.title_jp)}</a></h3>
-            <p class="muted">JP：${esc(item.title_jp || '')}</p>
             <p>${esc(cleanSnippetHant)}</p>
             <p class="muted">簡中：${esc(cleanSnippetHans)}</p>
             <p><a href="${esc(item.url)}" target="_blank" rel="nofollow noopener">原始連結</a> ｜ <a href="${detailUrl}">詳細翻譯頁</a></p>
@@ -20369,7 +20851,7 @@
       revealMorePagesSourcesAfterQuery();
       const input = document.getElementById('market_keyword');
       const wrap = document.getElementById('market-result');
-      const keyword = (input?.value || '').trim() || '関東 不動産';
+      const keyword = (input?.value || '').trim() || '關東 不動產';
       wrap.innerHTML = '<p class="muted">三站資料查詢中...</p>';
       let data = {};
       try {
@@ -20944,7 +21426,7 @@
       'suumo.jp': 'SUUMO',
       'homes.co.jp': "HOMES",
       'athome.co.jp': 'at home',
-      'realestate.yahoo.co.jp': 'Yahoo!不動産',
+      'realestate.yahoo.co.jp': 'Yahoo! 不動產',
       'realestate.rakuten.co.jp': '楽天',
       'yes1.co.jp': 'YesStation',
       'oheya-su.jp': 'OHEYASU',
@@ -22250,7 +22732,6 @@
               </div>
             </div>
             <h3><a href="${detailUrl}">${esc(item.title_zh_hant || item.title_jp || '')}</a></h3>
-            <p class="muted">JP：${esc(item.title_jp || '')}</p>
             <p>${linkifyText(cleanSnippetHant)}</p>
             <p class="muted">簡中：${linkifyText(cleanSnippetHans)}</p>
             <p><a href="${esc(item.url)}" target="_blank" rel="nofollow noopener">原始網址</a> ｜ <a href="${detailUrl}">詳細翻譯頁</a>${sourceQueryUrl ? ` ｜ <a href="${esc(sourceQueryUrl)}" target="_blank" rel="nofollow noopener">原站搜尋</a>` : ''}</p>
@@ -22263,12 +22744,11 @@
     function renderFeatureLinks(featureLinks) {
       const links = featureLinks || [];
       if (!links.length) return '';
-      let html = '<div class="panel"><p class="muted">來源案件入口（中文翻譯）</p><div class="feature-links-grid">';
+      let html = '<div class="panel"><p class="muted">來源案件入口</p><div class="feature-links-grid">';
       for (const row of links) {
         html += `
           <a class="feature-link-card" href="${esc(row.url)}" target="_blank" rel="nofollow noopener">
             <strong>${esc(row.label_zh_hant || row.label_jp || '')}</strong>
-            <span class="muted">JP：${esc(row.label_jp || '')}</span>
           </a>
         `;
       }
@@ -22284,8 +22764,8 @@
       const translatedHomeFallback = homeTranslate.fallback;
       let html = `
         <div class="panel">
-          <p><strong>${esc(portal.name)} ${figureLinkMode === 'full' ? '全部案件入口' : '精選案件入口'}（中文翻譯）</strong></p>
-          <p class="muted">原站首頁：<a href="${esc(portal.home_url)}" target="_blank" rel="nofollow noopener">${esc(portal.home_url)}</a> ｜ 中文翻譯頁A：<a href="${esc(translatedHome)}" target="_blank" rel="nofollow noopener">開啟翻譯</a> ｜ 中文翻譯頁B：<a href="${esc(translatedHomeFallback)}" target="_blank" rel="nofollow noopener">備援翻譯</a></p>
+          <p><strong>${esc(portal.name)} ${figureLinkMode === 'full' ? '全部案件入口' : '精選案件入口'}／中文入口</strong></p>
+          <p class="muted">原站首頁：<a href="${esc(portal.home_url)}" target="_blank" rel="nofollow noopener">${esc(portal.home_url)}</a> ｜ 中文頁 A：<a href="${esc(translatedHome)}" target="_blank" rel="nofollow noopener">開啟翻譯</a> ｜ 中文頁 B：<a href="${esc(translatedHomeFallback)}" target="_blank" rel="nofollow noopener">備援翻譯</a></p>
           ${portal.name === 'AtHome' ? '<p class="muted">AtHome 可能會出現「Click to verify」驗證，請確保瀏覽器已啟用 JavaScript 與 Cookie 後再重整。</p>' : ''}
           <div class="feature-links-grid">
       `;
@@ -22294,8 +22774,7 @@
         html += `
           <article class="feature-link-card">
             <strong>${esc(row.label_zh_hant)}</strong>
-            <span class="muted">JP：${esc(row.label_jp)}</span>
-            <span><a href="${esc(row.url)}" target="_blank" rel="nofollow noopener">原站案件入口</a> ｜ <a href="${esc(translated.primary)}" target="_blank" rel="nofollow noopener">中文翻譯操作</a> ｜ <a href="${esc(translated.fallback)}" target="_blank" rel="nofollow noopener">備援翻譯</a></span>
+            <span><a href="${esc(row.url)}" target="_blank" rel="nofollow noopener">原站案件入口</a> ｜ <a href="${esc(translated.primary)}" target="_blank" rel="nofollow noopener">中文查看</a> ｜ <a href="${esc(translated.fallback)}" target="_blank" rel="nofollow noopener">備援翻譯</a></span>
           </article>
         `;
       }
@@ -22736,7 +23215,7 @@
       startQueryProgress(`案件查詢中：${portalLabel}`);
       const regionHint = regionSel && regionSel.value ? String(regionSel.value).trim() : '';
       const keywordRaw = (input.value || '').trim();
-      // 區域「不限」且未輸入關鍵字：勿自動代入「関東 不動産」（會大幅縮筆並與後台矩陣列合計無法對照）
+      // 區域「不限」且未輸入關鍵字：勿自動代入「關東 不動產」（會大幅縮筆並與後台矩陣列合計無法對照）
       let keyword = keywordRaw || (regionHint ? defaultFigureKeyword() : '');
       const maxAgeDays = Number(ageSel && ageSel.value !== '' ? ageSel.value : 180);
       const tx = activeFigureTransaction || 'buy';
@@ -22754,7 +23233,7 @@
       const limitLabel = limitReqRaw <= 0
         ? (hasJpTransitFilter ? '快速模式上限 600' : '快速模式上限 10')
         : `${limitReq}`;
-      if (!keyword && (jptSta > 0 || jptLine > 0 || jptWalk > 0)) keyword = '不動産';
+      if (!keyword && (jptSta > 0 || jptLine > 0 || jptWalk > 0)) keyword = '不動產';
       const jptDesc =
         jptSta > 0
           ? `車站 ID ${jptSta}${jptWalk ? `、徒步≤${jptWalk} 分` : ''}`
@@ -22774,7 +23253,7 @@
       const kwLine =
         (keyword || keywordRaw)
           ? esc(keyword || keywordRaw)
-          : `<span class="muted">無（區域不限：不強制預設「関東 不動産」，利於對齊庫存口徑）</span>`;
+          : `<span class="muted">無（區域不限：不強制預設「關東 不動產」，利於對齊庫存口徑）</span>`;
       summary.innerHTML = `<p><strong>條件</strong>：${esc(txLabel)} ｜ 來源：${esc(portalLabel)} ｜ 區域：${regionHint ? esc(regionHint) : '不限'} ｜ 最新：${maxAgeDays ? `${maxAgeDays} 天內` : '不限制'} ｜ 請求筆數：${esc(limitLabel)}</p><p class="muted">關鍵字：${kwLine} ｜ 交通分層：${esc(jptDesc)}${alignTag}</p>`;
 
       let data = {};
@@ -22804,7 +23283,7 @@
         data = payload;
         let probeItems = Array.isArray(data.items) ? data.items : [];
         if (!matAligned && !probeItems.length && regionHint) {
-          const relaxKw = `${regionHint} 不動産`.replace(/\s+/g, ' ').trim();
+          const relaxKw = `${regionHint} 不動產`.replace(/\s+/g, ' ').trim();
           const resRelax = await fetchPortalCaseSearch(buildLegacyPortalSearchBody({
             region_hint: regionHint,
             keyword: relaxKw,
@@ -23726,7 +24205,7 @@
       const dealEl = document.getElementById('jp-map-hub-crumb-deal');
       const tailEl = document.getElementById('jp-map-hub-crumb-tail');
       const isRent = getJpMapHubDealRent();
-      if (dealEl) dealEl.textContent = '買屋・中古マンション系';
+      if (dealEl) dealEl.textContent = '買屋・中古公寓類';
       if (tailEl) tailEl.textContent = tailText || (isRent ? '地圖／區域' : '地圖／區域');
     }
 

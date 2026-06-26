@@ -44,7 +44,7 @@
 
 <section class="portal-suumo-listing" id="portal-suumo-detail" aria-label="物件詳情（SUUMO 版型）">
   {% if f.homes_site_trail_jp %}
-  <nav class="portal-homes-breadcrumb" aria-label="LIFULL HOME'S サイト階層（参考編排）">{{ f.homes_site_trail_jp }}</nav>
+  <nav class="portal-homes-breadcrumb" aria-label="LIFULL HOME'S 站點階層（參考編排）">{{ f.homes_site_trail_jp }}</nav>
   {% endif %}
 
   <div class="portal-suumo-kvhead">
@@ -97,7 +97,7 @@
     <figure class="portal-suumo-herofig portal-suumo-herofig--empty" role="img" aria-label="暫無物件主圖">
       <div class="portal-suumo-no-img portal-suumo-no-img--detail">
         <span class="portal-suumo-no-img-title">暫無物件主圖</span>
-        <span class="portal-suumo-no-img-hint">資料庫未擷取到可用物件相片時會顯示此區；請開啟原站查看相簿，或見下方「掲載写真」。</span>
+        <span class="portal-suumo-no-img-hint">資料庫未擷取到可用物件相片時會顯示此區；請開啟原站查看相簿，或見下方「案件圖片」。</span>
       </div>
     </figure>
     {% endif %}
@@ -123,21 +123,21 @@
   </div>
 
   <nav class="portal-suumo-detail-tabs" role="tablist" aria-label="物件分頁（SUUMO 對齊）">
-    <button type="button" class="portal-suumo-dtab is-active" role="tab" aria-selected="true" data-suumo-dtab="tokucho">物件の特徴</button>
-    <button type="button" class="portal-suumo-dtab" role="tab" aria-selected="false" data-suumo-dtab="map">周辺環境・地図</button>
-    <button type="button" class="portal-suumo-dtab" role="tab" aria-selected="false" data-suumo-dtab="setsubi">設備・構造</button>
+    <button type="button" class="portal-suumo-dtab is-active" role="tab" aria-selected="true" data-suumo-dtab="tokucho">物件特色</button>
+    <button type="button" class="portal-suumo-dtab" role="tab" aria-selected="false" data-suumo-dtab="map">周邊環境與地圖</button>
+    <button type="button" class="portal-suumo-dtab" role="tab" aria-selected="false" data-suumo-dtab="setsubi">設備與結構</button>
     <button type="button" class="portal-suumo-dtab" role="tab" aria-selected="false" data-suumo-dtab="gaiyo">物件概要</button>
-    <button type="button" class="portal-suumo-dtab" role="tab" aria-selected="false" data-suumo-dtab="area">エリア情報</button>
+    <button type="button" class="portal-suumo-dtab" role="tab" aria-selected="false" data-suumo-dtab="area">區域資訊</button>
   </nav>
 
   <div class="portal-suumo-tabpanels portal-suumo-tabpanels--stacked">
       <section class="portal-suumo-tabpanel is-active" role="tabpanel" data-suumo-panel="tokucho">
-        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>物件の特徴</h4>
+        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>物件特色</h4>
         {% if narrative_raw and narrative_raw.strip() %}
         <div class="portal-suumo-narrative {% if nar_zh|trim and narrative_raw|trim == nar_zh|trim %}portal-suumo-narrative--zh{% else %}portal-suumo-narrative--jp{% endif %}">{{ narrative_raw|e }}</div>
         {% if nar_zh|trim and nar_jp|trim and (nar_zh|trim != nar_jp|trim) %}
         <details class="portal-suumo-jp-source" style="margin-top:0.65rem;">
-          <summary class="muted" style="cursor:pointer;font-size:0.9rem;">日文原文（選開）</summary>
+          <summary class="muted" style="cursor:pointer;font-size:0.9rem;">原文（日語，展開查看）</summary>
           <div class="portal-suumo-narrative portal-suumo-narrative--jp portal-suumo-narrative--subsource" style="margin-top:0.45rem;">{{ nar_jp|e }}</div>
         </details>
         {% endif %}
@@ -148,7 +148,7 @@
         {% endif %}
         {% if f.staff_message_jp and narrative_raw and (f.staff_message_jp not in narrative_raw) %}
         <div class="portal-suumo-subblock">
-          <p class="portal-suumo-subhead">担当者より</p>
+          <p class="portal-suumo-subhead">顧問補充</p>
           <p class="portal-suumo-narrative portal-suumo-narrative--sub">{{ f.staff_message_jp|e }}</p>
         </div>
         {% endif %}
@@ -157,13 +157,13 @@
 
       <section class="portal-suumo-tabpanel" role="tabpanel" data-suumo-panel="map" hidden>
         {% set map_q_raw = (f.address_line_jp or m.address_line_zh_read or m.jp_region_display_zh or '')|trim %}
-        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>周辺環境・地図</h4>
+        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>周邊環境與地圖</h4>
         <dl class="portal-suumo-dlcompact">
-          <div><dt>所在地</dt><dd>{% if m.address_line_zh_read %}{{ m.address_line_zh_read }}{% elif f.address_line_jp %}{{ f.address_line_jp }}{% else %}{{ emdash }}{% endif %}{% if m.address_line_zh_read and f.address_line_jp and m.address_line_zh_read != f.address_line_jp %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.9em">{{ f.address_line_jp }}</span>{% endif %}</dd></div>
-          <div><dt>交通・沿線</dt><dd>{% if m.access_line_zh_read or m.transit_line_zh_read %}{{ m.access_line_zh_read or m.transit_line_zh_read }}{% elif f.access_line_jp %}{{ f.access_line_jp }}{% elif m.transit_line_zh %}{{ m.transit_line_zh }}{% else %}{{ emdash }}{% endif %}{% if (f.access_line_jp or m.transit_line_zh) and (m.access_line_zh_read or m.transit_line_zh_read) %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.9em">{% if f.access_line_jp %}{{ f.access_line_jp }}{% else %}{{ m.transit_line_zh }}{% endif %}</span>{% endif %}</dd></div>
+          <div><dt>地址</dt><dd>{% if m.address_line_zh_read %}{{ m.address_line_zh_read }}{% elif f.address_line_jp %}{{ f.address_line_jp }}{% else %}{{ emdash }}{% endif %}{% if m.address_line_zh_read and f.address_line_jp and m.address_line_zh_read != f.address_line_jp %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.9em">{{ f.address_line_jp }}</span>{% endif %}</dd></div>
+          <div><dt>交通／沿線</dt><dd>{% if m.access_line_zh_read or m.transit_line_zh_read %}{{ m.access_line_zh_read or m.transit_line_zh_read }}{% elif f.access_line_jp %}{{ f.access_line_jp }}{% elif m.transit_line_zh %}{{ m.transit_line_zh }}{% else %}{{ emdash }}{% endif %}{% if (f.access_line_jp or m.transit_line_zh) and (m.access_line_zh_read or m.transit_line_zh_read) %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.9em">{% if f.access_line_jp %}{{ f.access_line_jp }}{% else %}{{ m.transit_line_zh }}{% endif %}</span>{% endif %}</dd></div>
         </dl>
         <div class="portal-suumo-map-placeholder">
-          <p class="portal-suumo-map-placeholder-title">地図・周邊環境</p>
+          <p class="portal-suumo-map-placeholder-title">地圖與周邊環境</p>
           <p class="muted">站內僅列摘要；街景與精確座標以<strong>原站</strong>為準。下列連結以<strong>日文／中文所在地</strong>為關鍵字，方便在常用地圖服務快速查看位置。</p>
           {% if map_q_raw %}
           <nav class="portal-suumo-map-ext-grid" aria-label="Google／高德／百度地圖（另開新分頁）">
@@ -175,20 +175,20 @@
           {% else %}
           <p class="muted portal-suumo-map-query-hint">尚無可用地址欄位，請直接於原站查看互動地圖。</p>
           {% endif %}
-          <a class="portal-suumo-cta portal-suumo-cta--ghost portal-suumo-map-origin-cta" href="{{ item_url }}" target="_blank" rel="nofollow noopener noreferrer">於原站開啟周邊・地圖</a>
+          <a class="portal-suumo-cta portal-suumo-cta--ghost portal-suumo-map-origin-cta" href="{{ item_url }}" target="_blank" rel="nofollow noopener noreferrer">前往原站查看周邊地圖</a>
         </div>
       </section>
 
       <section class="portal-suumo-tabpanel" role="tabpanel" data-suumo-panel="setsubi" hidden>
-        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>設備・構造</h4>
+        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>設備與結構</h4>
         <dl class="portal-suumo-dlcompact">
           <div><dt>專有面積</dt><dd class="portal-suumo-cell-jp">{% if f.exclusive_area_jp %}{{ f.exclusive_area_jp }}{% else %}{{ f.area_text_hant or emdash }}{% endif %}</dd></div>
           <div><dt>格局</dt><dd class="portal-suumo-cell-jp">{% if f.layout_line_jp %}{{ f.layout_line_jp }}{% else %}{{ f.layout_text_hant or emdash }}{% endif %}</dd></div>
-          <div><dt>陽台・其他面積</dt><dd class="portal-suumo-cell-jp">{{ f.other_area_jp or f.balcony_line_jp or emdash }}</dd></div>
-          <div><dt>完成時期（築年月）</dt><dd class="portal-suumo-cell-jp">{% if f.built_ym_jp %}{{ f.built_ym_jp }}{% elif f.age_text_hant %}{{ f.age_text_hant }}{% else %}{{ emdash }}{% endif %}</dd></div>
-          <div><dt>所在階／結構・階建</dt><dd class="portal-suumo-cell-jp">{{ f.floor_structure_jp or emdash }}</dd></div>
-          <div><dt>建物構造</dt><dd class="portal-suumo-cell-jp">{{ f.structure_jp or emdash }}</dd></div>
-          <div><dt>駐車場</dt><dd class="portal-suumo-cell-jp">{{ f.parking_jp or emdash }}</dd></div>
+          <div><dt>陽台／其他面積</dt><dd class="portal-suumo-cell-jp">{{ f.other_area_jp or f.balcony_line_jp or emdash }}</dd></div>
+          <div><dt>完成時間（建築年月）</dt><dd class="portal-suumo-cell-jp">{% if f.built_ym_jp %}{{ f.built_ym_jp }}{% elif f.age_text_hant %}{{ f.age_text_hant }}{% else %}{{ emdash }}{% endif %}</dd></div>
+          <div><dt>所在樓層／結構層數</dt><dd class="portal-suumo-cell-jp">{{ f.floor_structure_jp or emdash }}</dd></div>
+          <div><dt>建築結構</dt><dd class="portal-suumo-cell-jp">{{ f.structure_jp or emdash }}</dd></div>
+          <div><dt>停車資訊</dt><dd class="portal-suumo-cell-jp">{{ f.parking_jp or emdash }}</dd></div>
           <div><dt>管理費</dt><dd class="portal-suumo-cell-jp">{{ f.manage_fee_jp or emdash }}</dd></div>
           <div><dt>修繕積立金</dt><dd class="portal-suumo-cell-jp">{{ f.reserve_fee_jp or emdash }}</dd></div>
         </dl>
@@ -200,7 +200,7 @@
           <table class="portal-suumo-spec-table portal-suumo-spec-table--fixed portal-suumo-spec-table--pair">
             <tbody>
               <tr>
-                <th scope="row">物件名</th>
+                <th scope="row">物件名稱</th>
                 <td colspan="3" class="portal-suumo-cell-jp">{{ f.building_name_jp or emdash }}</td>
               </tr>
               <tr>
@@ -210,20 +210,20 @@
                 <td class="portal-suumo-cell-jp">{% if f.layout_line_jp %}{{ f.layout_line_jp }}{% else %}{{ f.layout_text_hant or emdash }}{% endif %}</td>
               </tr>
               <tr>
-                <th scope="row">販賣戶數</th>
+                <th scope="row">在售戶數</th>
                 <td class="portal-suumo-cell-jp">{{ f.sales_units_jp or emdash }}</td>
                 <th scope="row">總戶數</th>
                 <td class="portal-suumo-cell-jp">{{ f.total_units_jp or emdash }}</td>
               </tr>
               <tr>
-                <th scope="row">所在地</th>
+                <th scope="row">地址</th>
                 <td>{% if m.address_line_zh_read %}{{ m.address_line_zh_read }}{% else %}{{ f.address_line_jp or emdash }}{% endif %}{% if m.address_line_zh_read and f.address_line_jp and m.address_line_zh_read != f.address_line_jp %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.88em">{{ f.address_line_jp }}</span>{% endif %}</td>
                 <th scope="row">交通</th>
                 <td>{% if m.access_line_zh_read or m.transit_line_zh_read %}{{ m.access_line_zh_read or m.transit_line_zh_read }}{% elif f.access_line_jp %}{{ f.access_line_jp }}{% elif m.transit_line_zh %}{{ m.transit_line_zh }}{% else %}{{ emdash }}{% endif %}{% if (f.access_line_jp or m.transit_line_zh) and (m.access_line_zh_read or m.transit_line_zh_read) %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.88em">{% if f.access_line_jp %}{{ f.access_line_jp }}{% else %}{{ m.transit_line_zh }}{% endif %}</span>{% endif %}</td>
               </tr>
-              <tr><th scope="row">現況</th><td class="portal-suumo-cell-jp">{{ f.status_jp or emdash }}</td><th scope="row">引渡時期</th><td class="portal-suumo-cell-jp">{{ f.handover_jp or emdash }}</td></tr>
-              <tr><th scope="row">物件番號</th><td colspan="3" class="portal-suumo-cell-jp">{{ f.property_no_jp or emdash }}</td></tr>
-              <tr><th scope="row">情報提供／公開</th><td class="portal-suumo-cell-jp">{{ f.info_open_jp or emdash }}</td><th scope="row">次回更新予定</th><td class="portal-suumo-cell-jp">{{ f.next_update_jp or emdash }}</td></tr>
+              <tr><th scope="row">目前狀態</th><td class="portal-suumo-cell-jp">{{ f.status_jp or emdash }}</td><th scope="row">交屋時間</th><td class="portal-suumo-cell-jp">{{ f.handover_jp or emdash }}</td></tr>
+              <tr><th scope="row">物件編號</th><td colspan="3" class="portal-suumo-cell-jp">{{ f.property_no_jp or emdash }}</td></tr>
+              <tr><th scope="row">資料公開</th><td class="portal-suumo-cell-jp">{{ f.info_open_jp or emdash }}</td><th scope="row">下次更新</th><td class="portal-suumo-cell-jp">{{ f.next_update_jp or emdash }}</td></tr>
               <tr><th scope="row">類型</th><td>{{ f.building_type_zh or emdash }}</td><th scope="row">樓層（摘要）</th><td>{{ f.floor_text_hant or emdash }}</td></tr>
               {% if f.related_links_jp %}
               <tr>
@@ -233,7 +233,7 @@
               {% endif %}
               {% if f.inquiry_contact_jp %}
               <tr>
-                <th scope="row">問合せ先</th>
+                <th scope="row">聯絡窗口</th>
                 <td colspan="3" class="portal-suumo-cell-jp portal-suumo-cell-preline">{{ f.inquiry_contact_jp }}</td>
               </tr>
               {% endif %}
@@ -243,7 +243,7 @@
       </section>
 
       <section class="portal-suumo-tabpanel" role="tabpanel" data-suumo-panel="area" hidden>
-        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>エリア情報</h4>
+        <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>區域資訊</h4>
         <dl class="portal-suumo-dlcompact">
           <div><dt>站內區域標示</dt><dd>{{ m.jp_region_display_zh or emdash }}</dd></div>
           <div><dt>交通摘要（中文助讀）</dt><dd>{% if m.transit_line_zh_read %}{{ m.transit_line_zh_read }}{% else %}{{ m.transit_line_zh or emdash }}{% endif %}{% if m.transit_line_zh and m.transit_line_zh_read and m.transit_line_zh_read != m.transit_line_zh %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.9em">{{ m.transit_line_zh }}</span>{% elif m.transit_line_zh and not m.transit_line_zh_read %}<br><span class="muted" style="font-size:0.88em">（擷取自原文，站名／線名多為日文）</span>{% endif %}</dd></div>
@@ -256,7 +256,7 @@
         </div>
         {% endif %}
         {% if not m.jp_region_display_zh and not m.transit_line_zh and not f.company_guide_jp %}
-        <p class="muted">エリア情報詳細請以原站「エリア情報」與周邊設施為準。</p>
+        <p class="muted">區域資訊詳細請以原站「區域資訊」與周邊設施為準。</p>
         {% endif %}
       </section>
   </div>

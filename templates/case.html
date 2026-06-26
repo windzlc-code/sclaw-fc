@@ -34,7 +34,7 @@
         <a class="portal-suumo-cta portal-suumo-cta--ghost" href="{{ case_article_path }}">站內整理文章</a>
         {% endif %}
         <a class="portal-suumo-cta portal-suumo-cta--ghost" href="#case-zh">繁簡原文切換</a>
-        <a class="portal-suumo-cta portal-suumo-cta--ghost" href="#case-gallery">掲載写真</a>
+        <a class="portal-suumo-cta portal-suumo-cta--ghost" href="#case-gallery">案件圖片</a>
         <a class="portal-suumo-cta portal-suumo-cta--orange" href="{{ item.item_url }}" target="_blank" rel="nofollow noopener" title="資料請求、見學預約等">開啟原站洽詢</a>
       </div>
       {% set listing_panel = case_listing_panel %}
@@ -48,7 +48,7 @@
       {% set translation_tab_href = '#case-zh' %}
       {% set more_tab_href = '#case-gallery' %}
       {% set translation_tab_label = '中文整理對照' %}
-      {% set more_tab_label = '掲載写真' %}
+      {% set more_tab_label = '案件圖片' %}
       {% include 'partials/portal_suumo_listing.html' %}
       {% set f = listing_panel.fields %}
       {% set m = listing_panel.meta %}
@@ -68,7 +68,7 @@
       {% endfor %}
       {% if is_yahoo_case %}
       <section class="portal-yahoo-block">
-        <h2 class="portal-yahoo-block-title">Yahoo!不動産 物件概要（對齊原站分組）{% if '/land/' in (item.item_url or '') %}<span class="muted" style="font-size:0.88em;font-weight:400">（含土地物件／搜尋列表展開摘要）</span>{% endif %}</h2>
+        <h2 class="portal-yahoo-block-title">Yahoo! 不動產案件概要（對齊原站分組）{% if '/land/' in (item.item_url or '') %}<span class="muted" style="font-size:0.88em;font-weight:400">（含土地物件／搜尋列表展開摘要）</span>{% endif %}</h2>
         <div class="portal-yahoo-grid">
           <section class="portal-yahoo-card">
             <h3>費用與建物資訊</h3>
@@ -78,24 +78,24 @@
               <div><dt>修繕積立金</dt><dd>{{ f.reserve_fee_jp or '—' }}</dd></div>
               <div><dt>專有面積</dt><dd>{{ f.area_text_hant or '—' }}</dd></div>
               <div><dt>格局</dt><dd>{{ f.layout_text_hant or '—' }}</dd></div>
-              <div><dt>築年月</dt><dd>{{ f.built_ym_jp or f.age_text_hant or '—' }}</dd></div>
+              <div><dt>建築年月</dt><dd>{{ f.built_ym_jp or f.age_text_hant or '—' }}</dd></div>
               <div><dt>樓層</dt><dd>{{ f.floor_text_hant or '—' }}</dd></div>
               <div><dt>總戶數</dt><dd>{{ f.total_units_jp or '—' }}</dd></div>
-              <div><dt>建物構造</dt><dd>{{ f.structure_jp or '—' }}</dd></div>
-              <div><dt>駐車場</dt><dd>{{ f.parking_jp or '—' }}</dd></div>
+              <div><dt>建築結構</dt><dd>{{ f.structure_jp or '—' }}</dd></div>
+              <div><dt>停車資訊</dt><dd>{{ f.parking_jp or '—' }}</dd></div>
             </dl>
           </section>
           <section class="portal-yahoo-card portal-yahoo-card--contact">
             <h3>位置與聯絡／更新資訊</h3>
             <dl class="portal-yahoo-dl">
-              <div><dt>物件名</dt><dd>{{ f.building_name_jp or '—' }}</dd></div>
-              <div><dt>所在地</dt><dd>{{ f.address_line_jp or '—' }}</dd></div>
+              <div><dt>案件名稱</dt><dd>{{ f.building_name_jp or '—' }}</dd></div>
+              <div><dt>地址</dt><dd>{{ f.address_line_jp or '—' }}</dd></div>
               <div><dt>交通</dt><dd>{{ f.access_line_jp or m.transit_line_zh or '—' }}</dd></div>
-              <div><dt>現況</dt><dd>{{ f.status_jp or '—' }}</dd></div>
-              <div><dt>引渡時期</dt><dd>{{ f.handover_jp or '—' }}</dd></div>
-              <div><dt>物件管理番號</dt><dd>{{ f.property_no_jp or '—' }}</dd></div>
-              <div><dt>情報公開日</dt><dd>{{ f.info_open_jp or '—' }}</dd></div>
-              <div><dt>次回更新予定日</dt><dd>{{ f.next_update_jp or '—' }}</dd></div>
+              <div><dt>目前狀態</dt><dd>{{ f.status_jp or '—' }}</dd></div>
+              <div><dt>交屋時間</dt><dd>{{ f.handover_jp or '—' }}</dd></div>
+              <div><dt>物件管理編號</dt><dd>{{ f.property_no_jp or '—' }}</dd></div>
+              <div><dt>資料公開日</dt><dd>{{ f.info_open_jp or '—' }}</dd></div>
+              <div><dt>下次更新日</dt><dd>{{ f.next_update_jp or '—' }}</dd></div>
             </dl>
             {% include 'partials/case_smart_cs_and_advisor_strip.html' %}
           </section>
@@ -113,7 +113,7 @@
 
     {% if item.case_gallery_cells %}
     <section id="case-gallery" class="panel case-suumo-gallery">
-      <h2 class="case-suumo-gallery-title">掲載写真</h2>
+      <h2 class="case-suumo-gallery-title">案件圖片</h2>
       <div class="case-image-grid case-image-grid--suumo">
         {% for cell in item.case_gallery_cells %}
           <figure class="case-image-cell{% if cell.is_agent %} case-image-cell--agent{% endif %}">
@@ -134,7 +134,7 @@
     {% if _agent_imgs %}
     <section class="panel slim portal-suumo-agent-block" aria-label="智慧房仲參考圖" style="margin-top:0.65rem;">
       <h3 class="portal-suumo-agent-title" style="margin:0 0 0.35rem;font-size:1.05rem;">智慧房仲｜當地仲介參考</h3>
-      <p class="muted" style="margin:0 0 0.5rem;font-size:0.88rem;line-height:1.45;">以下為原站店舖／擔當風格參考圖，置於物件實景之後；完整外觀、內裝、格局請以掲載写真與原站為準。</p>
+      <p class="muted" style="margin:0 0 0.5rem;font-size:0.88rem;line-height:1.45;">以下為原站店舖／擔當風格參考圖，置於物件實景之後；完整外觀、內裝、格局請以案件圖片與原站為準。</p>
       <div class="portal-suumo-agent-row">
         {% for u in _agent_imgs %}
         <figure class="portal-suumo-agent-figure">
@@ -153,7 +153,7 @@
     {% endif %}
     {% if _aux_imgs %}
     <details class="panel slim case-suumo-aux">
-      <summary class="muted">その他写真（來源附圖）</summary>
+      <summary class="muted">其他圖片（來源附圖）</summary>
       <div class="case-image-grid case-image-grid--suumo" style="margin-top:0.5rem;">
         {% for u in _aux_imgs %}
           <figure class="case-image-cell">
