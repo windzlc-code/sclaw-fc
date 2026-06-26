@@ -1,0 +1,110 @@
+{% set footer_hash_prefix = site_footer_hash_prefix | default('', true) %}
+{% set footer_support_onclick = site_footer_support_onclick | default('toggleSupportChat(true)', true) %}
+  <footer class="bh-site-footer{% if site_footer_extra_class is defined and site_footer_extra_class %} {{ site_footer_extra_class }}{% endif %}" aria-label="網站頁尾" style="--bh-enter-delay: 350ms;">
+    <section class="bh-footer-directory" aria-label="網站頁尾導覽">
+      <div class="bh-footer-logo-column">
+        <img src="/static/brand-logo1.png" width="58" height="58" alt="{{ site_name }}" loading="lazy" decoding="async">
+        <p>{{ site_name }}</p>
+      </div>
+      <nav class="bh-footer-directory-column" aria-label="地區找房">
+        <h3>地區找房</h3>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="東京不動產">東京不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="大阪不動產">大阪不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="京都不動產">京都不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="福岡不動產">福岡不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="北海道不動產">北海道不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="沖繩不動產">沖繩不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="名古屋不動產">名古屋不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="橫濱不動產">橫濱不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="札幌不動產">札幌不動產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="神戶不動產">神戶不動產</a>
+      </nav>
+      <nav class="bh-footer-directory-column" aria-label="買家需求">
+        <h3>買家需求</h3>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="海外買家日本不動產">海外買家日本房</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="台灣人買日本房">台灣人買日本房</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="香港人買日本房">香港人買日本房</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="外國人日本買房">外國人日本買房</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本投資房產">日本投資房產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本自住房產">日本自住房產</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本收租物件">日本收租物件</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本遠端看房">日本遠端看房</a>
+      </nav>
+      <nav class="bh-footer-directory-column" aria-label="房源條件">
+        <h3>房源條件</h3>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本中古公寓">中古公寓</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本新建公寓">新建公寓</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本一戶建">日本一戶建</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本公寓找房">日本公寓找房</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本房源比較">日本房源比較</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="車站周邊物件">車站周邊物件</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="徒步可達物件">徒步可達物件</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="價格篩選找房">價格篩選找房</a>
+      </nav>
+      <nav class="bh-footer-directory-column" aria-label="流程知識">
+        <h3>流程知識</h3>
+        <a href="/guide/tw-buy-japan-property" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">日本買房流程</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本買房費用">日本買房費用</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本買房稅務">日本買房稅務</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本房貸外國人">日本房貸外國人</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本投資報酬">日本投資報酬</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本租賃管理">日本租賃管理</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本不動產法規">日本不動產法規</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本房產顧問">日本房產顧問</a>
+      </nav>
+      <nav class="bh-footer-directory-column" aria-label="平台來源">
+        <h3>平台來源</h3>
+        <a href="https://suumo.jp/" target="_blank" rel="noopener noreferrer">SUUMO 房源查詢</a>
+        <a href="https://www.homes.co.jp/" target="_blank" rel="noopener noreferrer">LIFULL HOME'S</a>
+        <a href="https://www.athome.co.jp/" target="_blank" rel="noopener noreferrer">at home 房源查詢</a>
+        <a href="https://realestate.yahoo.co.jp/" target="_blank" rel="noopener noreferrer">Yahoo! 不動產</a>
+        <a href="https://realestate.rakuten.co.jp/" target="_blank" rel="noopener noreferrer">樂天不動產案件</a>
+        <a href="https://www.yes1.co.jp/" target="_blank" rel="noopener noreferrer">Yes! 房源查詢</a>
+        <a href="https://www.oheya-su.jp/" target="_blank" rel="noopener noreferrer">OHEYASU</a>
+      </nav>
+      <nav class="bh-footer-directory-column" aria-label="服務幫助">
+        <h3>服務幫助</h3>
+        <a href="{{ footer_hash_prefix }}#jp-map-hub">日本找房工作台</a>
+        <a href="{{ footer_hash_prefix }}#query-dialog">智慧查詢</a>
+        <a href="/company" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">公司背景</a>
+      </nav>
+    </section>
+
+    <section class="bh-footer-apps" aria-label="通訊軟體入口">
+      <h3>聯絡諮詢</h3>
+      <div class="bh-footer-app-list">
+        <button class="bh-footer-app-button bh-footer-app-button--support" type="button" onclick="{{ footer_support_onclick }}">
+          <span class="bh-footer-app-icon" aria-hidden="true">AI</span>
+          <span class="bh-footer-app-copy"><strong>智能客服</strong><small>線上對話</small></span>
+          <span class="bh-footer-contact-popover" role="tooltip">
+            <strong>智能客服</strong>
+            <small>點擊開啟站內 AI 對話；登入號碼後可同步顧問接手。</small>
+          </span>
+        </button>
+        <a class="bh-footer-app-button bh-footer-app-button--line" href="/static/human-handoff/line.png" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
+          <span class="bh-footer-app-icon" aria-hidden="true">LINE</span>
+          <span class="bh-footer-app-copy"><strong>LINE</strong><small>專人 QR</small></span>
+          <span class="bh-footer-contact-popover" role="tooltip">
+            <strong>LINE 專人 QR</strong>
+            <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
+            <img src="/static/human-handoff/line.png" width="92" height="92" alt="LINE 專人 QR" loading="eager" decoding="async">
+          </span>
+        </a>
+        <a class="bh-footer-app-button bh-footer-app-button--wechat" href="/static/human-handoff/wechat.png" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
+          <span class="bh-footer-app-icon" aria-hidden="true">微信</span>
+          <span class="bh-footer-app-copy"><strong>WeChat</strong><small>專人 QR</small></span>
+          <span class="bh-footer-contact-popover" role="tooltip">
+            <strong>WeChat 專人 QR</strong>
+            <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
+            <img src="/static/human-handoff/wechat.png" width="92" height="92" alt="WeChat 專人 QR" loading="eager" decoding="async">
+          </span>
+        </a>
+      </div>
+    </section>
+
+    <section class="bh-footer-legal" aria-label="網站聲明">
+      <p class="bh-footer-copyright">© 2026 {{ site_name }}. 日本不動產全球指定搜尋網。</p>
+      <p>本站整理日本公開房源、地區條件、購屋流程與顧問接手資訊，協助海外買家快速定位需求；實際房源狀態、價格、稅費與貸款條件以官方來源及顧問確認為準。</p>
+      <p class="bh-footer-fineprint">使用本網站即表示同意本站服務條款與隱私政策；房源資料可能因平台更新、業者調整或成交狀態而變動，查詢結果僅供初步比較與諮詢參考。</p>
+    </section>
+  </footer>

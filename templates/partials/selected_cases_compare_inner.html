@@ -1,0 +1,63 @@
+{% set selected_compare_inline = selected_compare_inline | default(false, true) %}
+<section id="{% if selected_compare_inline %}selected-compare-inline-view{% else %}selected-compare-standalone-view{% endif %}" class="selected-compare-page{% if selected_compare_inline %} selected-compare-page--inline{% endif %}"{% if selected_compare_inline %} hidden{% endif %} aria-label="已選房源對比">
+  <header class="suumo-case-brandbar selected-compare-brandbar">
+    <span class="suumo-case-brandbar-logo">案件對比</span>
+    <span class="suumo-case-brandbar-src">站內收藏清單 ｜ 條件比較 ｜ public</span>
+  </header>
+  <header class="selected-compare-hero">
+    <div class="selected-compare-title">
+      <h1>已選房源對比</h1>
+      <p><strong id="selected-compare-count">0</strong> 筆房源 · <strong id="selected-compare-field-count">0</strong> 個欄位 · <span id="selected-compare-status">讀取中</span></p>
+    </div>
+    <div class="selected-compare-actions">
+      <label class="selected-compare-annotation-toggle">
+        <input id="selected-compare-annotation-toggle" type="checkbox" checked>
+        <span>顯示優勢標註</span>
+      </label>
+      {% if selected_compare_inline %}
+      <button type="button" class="secondary" onclick="closeHomeSelectedCompareView()">返回首頁</button>
+      {% else %}
+      <button type="button" class="secondary" onclick="window.location.href='/'">返回首頁</button>
+      {% endif %}
+      <button id="selected-compare-refresh" type="button" class="primary" onclick="hydrateAndRenderSelectedCompare(true)">重新整理資料</button>
+    </div>
+  </header>
+
+  <section id="selected-compare-empty" class="selected-compare-empty" hidden>
+    <strong>暫無收藏案件</strong>
+    <p>請回到首頁智慧查詢結果中點選心型收藏，再點右側收藏清單的「開始對比」。</p>
+    {% if selected_compare_inline %}
+    <button type="button" class="primary" onclick="closeHomeSelectedCompareView()">回首頁選案件</button>
+    {% else %}
+    <button type="button" class="primary" onclick="window.location.href='/'">回首頁選案件</button>
+    {% endif %}
+  </section>
+
+  <section class="selected-compare-section selected-compare-advantage-section">
+    <div class="selected-compare-section-head">
+      <div><h2>優勢項</h2></div>
+    </div>
+    <div id="selected-compare-advantage-list" class="selected-compare-advantage-list"></div>
+  </section>
+
+  <section id="selected-compare-gallery-section" class="selected-compare-section selected-compare-gallery-section">
+    <div class="selected-compare-section-head">
+      <div><h2>圖片對比</h2></div>
+    </div>
+    <div id="selected-compare-cards" class="selected-compare-cards" aria-label="已選房源圖片對照"></div>
+  </section>
+
+  <section id="selected-compare-floorplan-section" class="selected-compare-section selected-compare-floorplan-section" hidden>
+    <div class="selected-compare-section-head">
+      <div><h2>房型圖對比</h2></div>
+    </div>
+    <div id="selected-compare-floorplans" class="selected-compare-floorplans" aria-label="房型圖對照"></div>
+  </section>
+
+  <section id="selected-compare-detail-section" class="selected-compare-section">
+    <div class="selected-compare-section-head">
+      <div><h2>詳細參數</h2></div>
+    </div>
+    <div id="selected-compare-table-groups" class="selected-compare-table-groups"></div>
+  </section>
+</section>

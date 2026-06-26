@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>日本購房工具｜{{ site_name }}</title>
+  <meta name="description" content="日本購房工具：房貸月付、頭期款、購置成本、租金收益與購房資格快速評估。">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="stylesheet" href="/static/site.css?v=20260627-inner-tools-a">
+</head>
+<body class="site-home site-case-standalone purchase-tools-body site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container purchase-tools-page">
+    <header class="suumo-case-brandbar purchase-tools-brandbar">
+      <span class="suumo-case-brandbar-logo">買房工具</span>
+      <span class="suumo-case-brandbar-src">房貸估算 ｜ 資格評估 ｜ public</span>
+    </header>
+    <section class="panel case-suumo-hero-card purchase-tools-shell" aria-label="日本購房工具">
+      {% include 'partials/purchase_tool.html' %}
+    </section>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+  {% include 'partials/site_footer.html' %}
+  <script src="/static/purchase-tool.js?v=20260627-inner-tools-a"></script>
+</body>
+</html>

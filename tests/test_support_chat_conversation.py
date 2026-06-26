@@ -25,6 +25,21 @@ class SupportChatConversationTests(unittest.TestCase):
             conn.execute("DELETE FROM human_handoff_requests WHERE session_id = ?", (session_id,))
             conn.commit()
 
+    def test_bootstrap_welcome_is_short_and_not_queueing(self):
+        resp = self.client.get("/api/ai/chat-support/bootstrap", params={"session_id": "sess-test-bootstrap"})
+        self.assertEqual(resp.status_code, 200, resp.text)
+        data = resp.json()
+
+        self.assertTrue(data["ok"])
+        self.assertIn("日本不動產智能客服", data["reply"])
+        self.assertIn("站內案件", data["reply"])
+        self.assertNotIn("工單", data["reply"])
+        self.assertNotIn("排隊", data["reply"])
+        self.assertNotIn("接待等待", data["reply"])
+        service = data["sales_mcp"]["simulated_service"]
+        self.assertFalse(service["active"])
+        self.assertEqual(service["mode"], "welcome")
+
     def test_greeting_returns_project_welcome_and_options(self):
         resp = app_module.api_ai_chat_support(
             app_module.ChatSupportRequest(message="hello", sales_session_id="sess-test-welcome")
@@ -32,9 +47,9 @@ class SupportChatConversationTests(unittest.TestCase):
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertIn("顧問", data["reply"])
-        self.assertIn("日本房產", data["reply"])
-        self.assertIn("真人顧問", data["reply"])
+        self.assertIn("智能客服", data["reply"])
+        self.assertIn("日本不動產", data["reply"])
+        self.assertNotIn("顧問接待", data["reply"])
         self.assertTrue(data["llm"]["knowledge_skipped"])
 
     def test_small_talk_is_natural_but_guides_back_to_site_journey(self):
@@ -44,7 +59,7 @@ class SupportChatConversationTests(unittest.TestCase):
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertIn("真人顧問", data["reply"])
+        self.assertIn("日本買房", data["reply"])
         self.assertTrue("東京" in data["reply"] or "大阪" in data["reply"])
         self.assertTrue("自住" in data["reply"] or "投資" in data["reply"])
         self.assertNotIn("離線模式", data["reply"])
@@ -52,6 +67,17 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertTrue(data["llm"]["light_chat_only"])
 
     def test_purchase_discovery_only_turns_real_handoff_on_direct_buy_intent(self):
+        self.assertFalse(app_module._support_message_is_guidance_question("東京 5000萬 自住 公寓"))
+        self.assertTrue(app_module._support_message_is_guidance_question("日本買房流程怎麼開始"))
+        self.assertFalse(
+            app_module._support_should_enter_purchase_discovery(
+                "日本買房流程怎麼開始",
+                raw_user_message="日本買房流程怎麼開始",
+            )
+        )
+        self.assertFalse(app_module._support_has_direct_buying_commitment("我想買日本房"))
+        self.assertTrue(app_module._support_has_direct_buying_commitment("我準備三個月內在東京買房，想安排看屋"))
+
         soft = app_module.api_ai_chat_support(
             app_module.ChatSupportRequest(message="我想先了解日本买房流程，预算还没定", sales_session_id="sess-soft-intent")
         )

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>收藏案件｜{{ site_name }}</title>
+  <meta name="description" content="查看已收藏的日本不動產案件，快速進入站內明細或移除收藏。">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="stylesheet" href="/static/site.css?v=20260627-saved-cases-a">
+</head>
+<body class="site-home site-case-standalone saved-cases-body site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container saved-cases-page">
+    <header class="suumo-case-brandbar saved-cases-brandbar">
+      <span class="suumo-case-brandbar-logo">收藏案件</span>
+      <span class="suumo-case-brandbar-src">站內收藏清單 ｜ 明細直達 ｜ public</span>
+    </header>
+    <section class="saved-cases-hero" aria-label="收藏案件總覽">
+      <div class="saved-cases-title">
+        <h1>收藏案件</h1>
+        <p><strong id="saved-cases-count">0</strong> 筆收藏 · <span id="saved-cases-status">讀取中</span></p>
+      </div>
+      <div class="saved-cases-actions">
+        <button type="button" class="secondary" onclick="window.location.href='/'">返回首頁</button>
+        <button id="saved-cases-refresh" type="button" class="primary" onclick="renderSavedCasesPage()">重新整理</button>
+      </div>
+    </section>
+    <section id="saved-cases-empty" class="saved-cases-empty" hidden>
+      <strong>暫無收藏案件</strong>
+      <p>請回到首頁智慧查詢結果中點選心型收藏，收藏後會出現在這裡。</p>
+      <button type="button" class="primary" onclick="window.location.href='/'">回首頁選案件</button>
+    </section>
+    <section class="saved-cases-section" aria-label="收藏案件列表">
+      <div id="saved-cases-list" class="saved-cases-list"></div>
+    </section>
+    {% include 'partials/seo_site_keywords_strip.html' %}
+  </main>
+  {% include 'partials/site_footer.html' %}
+  <script src="/static/saved-cases.js?v=20260627-saved-cases-a"></script>
+</body>
+</html>

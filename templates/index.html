@@ -165,106 +165,11 @@
   <script>window.__SUPPORT_AVATAR_ALT__={{ (seo_phrase_brand ~ '｜' ~ seo_phrase_entry ~ '｜智能助理') | tojson }};</script>
 </head>
 <body class="site-home site-lang-hant{% if admin_standalone %} site-admin-standalone site-admin-locked{% endif %}">
-  <header class="bh-site-header" aria-label="日本不動產產品站導覽">
-    <nav class="bh-site-nav" aria-label="首頁主導覽">
-      <a class="bh-site-brand" href="#home-hero-heading" aria-label="{{ site_name }}" data-home-view-switch="home">
-        <img src="/static/brand-logo1.png" width="48" height="48" alt="{{ site_name }}" loading="eager" decoding="async">
-        <span>
-          <strong>{{ seo_phrase_brand }}</strong>
-          <small>{{ seo_phrase_entry }}</small>
-        </span>
-      </a>
-      <div class="bh-site-nav-links bh-nav-keywords" aria-label="導航關鍵詞">
-      <div class="bh-nav-keyword-tabs" role="tablist" aria-label="關鍵詞分組">
-        <button type="button" class="bh-nav-keyword-tab bh-nav-workbench-tab" data-home-view-switch="workbench" aria-pressed="false">找房工作台</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region">地區找房</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-buyer" data-bh-nav-keyword-tab="buyer">買家需求</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-property" data-bh-nav-keyword-tab="property">房源條件</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-process" data-bh-nav-keyword-tab="process">流程知識</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-source" data-bh-nav-keyword-tab="source">平台來源</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-help" data-bh-nav-keyword-tab="help">服務幫助</button>
-      </div>
-      <div class="bh-nav-keyword-panels">
-        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-region" role="tabpanel" aria-label="地區找房關鍵詞" data-bh-nav-keyword-panel="region" data-bh-panel-title="地區找房" hidden>
-          <div class="bh-nav-keyword-list">
-          <a href="#query-dialog" data-geo-keyword="東京不動產">東京不動產</a>
-          <a href="#query-dialog" data-geo-keyword="大阪不動產">大阪不動產</a>
-          <a href="#query-dialog" data-geo-keyword="京都不動產">京都不動產</a>
-          <a href="#query-dialog" data-geo-keyword="福岡不動產">福岡不動產</a>
-          <a href="#query-dialog" data-geo-keyword="北海道不動產">北海道不動產</a>
-          <a href="#query-dialog" data-geo-keyword="沖繩不動產">沖繩不動產</a>
-          <a href="#query-dialog" data-geo-keyword="名古屋不動產">名古屋不動產</a>
-          <a href="#query-dialog" data-geo-keyword="橫濱不動產">橫濱不動產</a>
-          <a href="#query-dialog" data-geo-keyword="札幌不動產">札幌不動產</a>
-          <a href="#query-dialog" data-geo-keyword="神戶不動產">神戶不動產</a>
-          </div>
-        </nav>
-        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-buyer" role="tabpanel" aria-label="買家需求關鍵詞" data-bh-nav-keyword-panel="buyer" data-bh-panel-title="買家需求" hidden>
-          <div class="bh-nav-keyword-list">
-          <a href="#query-dialog" data-geo-keyword="海外買家日本不動產">海外買家日本房</a>
-          <a href="#query-dialog" data-geo-keyword="台灣人買日本房">台灣人買日本房</a>
-          <a href="#query-dialog" data-geo-keyword="香港人買日本房">香港人買日本房</a>
-          <a href="#query-dialog" data-geo-keyword="外國人日本買房">外國人日本買房</a>
-          <a href="#query-dialog" data-geo-keyword="日本投資房產">日本投資房產</a>
-          <a href="#query-dialog" data-geo-keyword="日本自住房產">日本自住房產</a>
-          <a href="#query-dialog" data-geo-keyword="日本收租物件">日本收租物件</a>
-          <a href="#query-dialog" data-geo-keyword="日本遠端看房">日本遠端看房</a>
-          </div>
-        </nav>
-        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-property" role="tabpanel" aria-label="房源條件關鍵詞" data-bh-nav-keyword-panel="property" data-bh-panel-title="房源條件" hidden>
-          <div class="bh-nav-keyword-list">
-          <a href="#query-dialog" data-geo-keyword="日本中古公寓">中古公寓</a>
-          <a href="#query-dialog" data-geo-keyword="日本新建公寓">新建公寓</a>
-          <a href="#query-dialog" data-geo-keyword="日本一戶建">日本一戶建</a>
-          <a href="#query-dialog" data-geo-keyword="日本公寓找房">日本公寓找房</a>
-          <a href="#query-dialog" data-geo-keyword="日本房源比較">日本房源比較</a>
-          <a href="#query-dialog" data-geo-keyword="車站周邊物件">車站周邊物件</a>
-          <a href="#query-dialog" data-geo-keyword="徒步可達物件">徒步可達物件</a>
-          <a href="#query-dialog" data-geo-keyword="價格篩選找房">價格篩選找房</a>
-          </div>
-        </nav>
-        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-process" role="tabpanel" aria-label="流程知識關鍵詞" data-bh-nav-keyword-panel="process" data-bh-panel-title="流程知識" hidden>
-          <div class="bh-nav-keyword-list">
-          <a href="/guide/tw-buy-japan-property" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">日本買房流程</a>
-          <a href="#query-dialog" data-geo-keyword="日本買房費用">日本買房費用</a>
-          <a href="#query-dialog" data-geo-keyword="日本買房稅務">日本買房稅務</a>
-          <a href="#query-dialog" data-geo-keyword="日本房貸外國人">日本房貸外國人</a>
-          <a href="#query-dialog" data-geo-keyword="日本投資報酬">日本投資報酬</a>
-          <a href="#query-dialog" data-geo-keyword="日本租賃管理">日本租賃管理</a>
-          <a href="#query-dialog" data-geo-keyword="日本不動產法規">日本不動產法規</a>
-          <a href="#query-dialog" data-geo-keyword="日本房產顧問">日本房產顧問</a>
-          </div>
-        </nav>
-        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-source" role="tabpanel" aria-label="平台來源關鍵詞" data-bh-nav-keyword-panel="source" data-bh-panel-title="平台來源" hidden>
-          <div class="bh-nav-keyword-list">
-          <a href="https://suumo.jp/" target="_blank" rel="noopener noreferrer">SUUMO 房源查詢</a>
-          <a href="https://www.homes.co.jp/" target="_blank" rel="noopener noreferrer">LIFULL HOME'S</a>
-          <a href="https://www.athome.co.jp/" target="_blank" rel="noopener noreferrer">at home 房源查詢</a>
-          <a href="https://realestate.yahoo.co.jp/" target="_blank" rel="noopener noreferrer">Yahoo! 不動產</a>
-          <a href="https://realestate.rakuten.co.jp/" target="_blank" rel="noopener noreferrer">樂天不動產案件</a>
-          <a href="https://www.yes1.co.jp/" target="_blank" rel="noopener noreferrer">Yes! 房源查詢</a>
-          <a href="https://www.oheya-su.jp/" target="_blank" rel="noopener noreferrer">OHEYASU</a>
-          </div>
-        </nav>
-        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-help" role="tabpanel" aria-label="服務幫助關鍵詞" data-bh-nav-keyword-panel="help" data-bh-panel-title="服務幫助" hidden>
-          <div class="bh-nav-keyword-list">
-          <a href="#jp-map-hub">日本找房工作台</a>
-          <a href="#query-dialog">智慧查詢</a>
-          <a href="/company" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">公司背景</a>
-          </div>
-        </nav>
-      </div>
-      </div>
-      <div class="bh-site-titlebar-actions" aria-label="首頁工具列">
-        {% include 'partials/site_language_switch.html' %}
-        <button id="bh-nav-phone-login-btn" type="button" class="bh-nav-phone-login-btn" onclick="toggleSupportPhoneLoginModal(true)" aria-label="號碼登入" aria-haspopup="dialog" aria-controls="support-phone-login-modal" title="號碼登入">
-          <span id="bh-nav-phone-login-text" class="bh-nav-phone-login-text">未登录</span>
-        </button>
-      </div>
-    </nav>
-  </header>
+  {% include 'partials/site_header.html' %}
   {% include 'partials/support_chat_widget.html' %}
   <main class="container">
+    {% set selected_compare_inline = true %}
+    {% include 'partials/selected_cases_compare_inner.html' %}
     <div id="query-progress" class="query-progress" style="display:none;">
       <div class="query-progress-track"><div class="query-progress-bar"></div></div>
       <span id="query-progress-text" class="muted">查詢中...</span>
@@ -2241,114 +2146,7 @@
 
   </main>
 
-  <footer class="bh-site-footer" aria-label="網站頁尾">
-    <section class="bh-footer-directory" aria-label="網站頁尾導覽">
-      <div class="bh-footer-logo-column">
-        <img src="/static/brand-logo1.png" width="58" height="58" alt="{{ site_name }}" loading="lazy" decoding="async">
-        <p>{{ site_name }}</p>
-      </div>
-      <nav class="bh-footer-directory-column" aria-label="地區找房">
-        <h3>地區找房</h3>
-        <a href="#query-dialog" data-geo-keyword="東京不動產">東京不動產</a>
-        <a href="#query-dialog" data-geo-keyword="大阪不動產">大阪不動產</a>
-        <a href="#query-dialog" data-geo-keyword="京都不動產">京都不動產</a>
-        <a href="#query-dialog" data-geo-keyword="福岡不動產">福岡不動產</a>
-        <a href="#query-dialog" data-geo-keyword="北海道不動產">北海道不動產</a>
-        <a href="#query-dialog" data-geo-keyword="沖繩不動產">沖繩不動產</a>
-        <a href="#query-dialog" data-geo-keyword="名古屋不動產">名古屋不動產</a>
-        <a href="#query-dialog" data-geo-keyword="橫濱不動產">橫濱不動產</a>
-        <a href="#query-dialog" data-geo-keyword="札幌不動產">札幌不動產</a>
-        <a href="#query-dialog" data-geo-keyword="神戶不動產">神戶不動產</a>
-      </nav>
-      <nav class="bh-footer-directory-column" aria-label="買家需求">
-        <h3>買家需求</h3>
-        <a href="#query-dialog" data-geo-keyword="海外買家日本不動產">海外買家日本房</a>
-        <a href="#query-dialog" data-geo-keyword="台灣人買日本房">台灣人買日本房</a>
-        <a href="#query-dialog" data-geo-keyword="香港人買日本房">香港人買日本房</a>
-        <a href="#query-dialog" data-geo-keyword="外國人日本買房">外國人日本買房</a>
-        <a href="#query-dialog" data-geo-keyword="日本投資房產">日本投資房產</a>
-        <a href="#query-dialog" data-geo-keyword="日本自住房產">日本自住房產</a>
-        <a href="#query-dialog" data-geo-keyword="日本收租物件">日本收租物件</a>
-        <a href="#query-dialog" data-geo-keyword="日本遠端看房">日本遠端看房</a>
-      </nav>
-      <nav class="bh-footer-directory-column" aria-label="房源條件">
-        <h3>房源條件</h3>
-        <a href="#query-dialog" data-geo-keyword="日本中古公寓">中古公寓</a>
-        <a href="#query-dialog" data-geo-keyword="日本新建公寓">新建公寓</a>
-        <a href="#query-dialog" data-geo-keyword="日本一戶建">日本一戶建</a>
-        <a href="#query-dialog" data-geo-keyword="日本公寓找房">日本公寓找房</a>
-        <a href="#query-dialog" data-geo-keyword="日本房源比較">日本房源比較</a>
-        <a href="#query-dialog" data-geo-keyword="車站周邊物件">車站周邊物件</a>
-        <a href="#query-dialog" data-geo-keyword="徒步可達物件">徒步可達物件</a>
-        <a href="#query-dialog" data-geo-keyword="價格篩選找房">價格篩選找房</a>
-      </nav>
-      <nav class="bh-footer-directory-column" aria-label="流程知識">
-        <h3>流程知識</h3>
-        <a href="/guide/tw-buy-japan-property" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">日本買房流程</a>
-        <a href="#query-dialog" data-geo-keyword="日本買房費用">日本買房費用</a>
-        <a href="#query-dialog" data-geo-keyword="日本買房稅務">日本買房稅務</a>
-        <a href="#query-dialog" data-geo-keyword="日本房貸外國人">日本房貸外國人</a>
-        <a href="#query-dialog" data-geo-keyword="日本投資報酬">日本投資報酬</a>
-        <a href="#query-dialog" data-geo-keyword="日本租賃管理">日本租賃管理</a>
-        <a href="#query-dialog" data-geo-keyword="日本不動產法規">日本不動產法規</a>
-        <a href="#query-dialog" data-geo-keyword="日本房產顧問">日本房產顧問</a>
-      </nav>
-      <nav class="bh-footer-directory-column" aria-label="平台來源">
-        <h3>平台來源</h3>
-        <a href="https://suumo.jp/" target="_blank" rel="noopener noreferrer">SUUMO 房源查詢</a>
-        <a href="https://www.homes.co.jp/" target="_blank" rel="noopener noreferrer">LIFULL HOME'S</a>
-        <a href="https://www.athome.co.jp/" target="_blank" rel="noopener noreferrer">at home 房源查詢</a>
-        <a href="https://realestate.yahoo.co.jp/" target="_blank" rel="noopener noreferrer">Yahoo! 不動產</a>
-        <a href="https://realestate.rakuten.co.jp/" target="_blank" rel="noopener noreferrer">樂天不動產案件</a>
-        <a href="https://www.yes1.co.jp/" target="_blank" rel="noopener noreferrer">Yes! 房源查詢</a>
-        <a href="https://www.oheya-su.jp/" target="_blank" rel="noopener noreferrer">OHEYASU</a>
-      </nav>
-      <nav class="bh-footer-directory-column" aria-label="服務幫助">
-        <h3>服務幫助</h3>
-        <a href="#jp-map-hub">日本找房工作台</a>
-        <a href="#query-dialog">智慧查詢</a>
-        <a href="/company" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">公司背景</a>
-      </nav>
-    </section>
-
-    <section class="bh-footer-apps" aria-label="通訊軟體入口">
-      <h3>聯絡諮詢</h3>
-      <div class="bh-footer-app-list">
-        <button class="bh-footer-app-button bh-footer-app-button--support" type="button" onclick="toggleSupportChat(true)">
-          <span class="bh-footer-app-icon" aria-hidden="true">AI</span>
-          <span class="bh-footer-app-copy"><strong>智能客服</strong><small>線上對話</small></span>
-          <span class="bh-footer-contact-popover" role="tooltip">
-            <strong>智能客服</strong>
-            <small>點擊開啟站內 AI 對話；登入號碼後可同步顧問接手。</small>
-          </span>
-        </button>
-        <a class="bh-footer-app-button bh-footer-app-button--line" href="/static/human-handoff/line.png" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
-          <span class="bh-footer-app-icon" aria-hidden="true">LINE</span>
-          <span class="bh-footer-app-copy"><strong>LINE</strong><small>專人 QR</small></span>
-          <span class="bh-footer-contact-popover" role="tooltip">
-            <strong>LINE 專人 QR</strong>
-            <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
-            <img src="/static/human-handoff/line.png" width="92" height="92" alt="LINE 專人 QR" loading="eager" decoding="async">
-          </span>
-        </a>
-        <a class="bh-footer-app-button bh-footer-app-button--wechat" href="/static/human-handoff/wechat.png" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">
-          <span class="bh-footer-app-icon" aria-hidden="true">微信</span>
-          <span class="bh-footer-app-copy"><strong>WeChat</strong><small>專人 QR</small></span>
-          <span class="bh-footer-contact-popover" role="tooltip">
-            <strong>WeChat 專人 QR</strong>
-            <small>滑鼠停留可查看入口；點擊會另開完整 QR。</small>
-            <img src="/static/human-handoff/wechat.png" width="92" height="92" alt="WeChat 專人 QR" loading="eager" decoding="async">
-          </span>
-        </a>
-      </div>
-    </section>
-
-    <section class="bh-footer-legal" aria-label="網站聲明">
-      <p class="bh-footer-copyright">© 2026 {{ site_name }}. 日本不動產全球指定搜尋網。</p>
-      <p>本站整理日本公開房源、地區條件、購屋流程與顧問接手資訊，協助海外買家快速定位需求；實際房源狀態、價格、稅費與貸款條件以官方來源及顧問確認為準。</p>
-      <p class="bh-footer-fineprint">使用本網站即表示同意本站服務條款與隱私政策；房源資料可能因平台更新、業者調整或成交狀態而變動，查詢結果僅供初步比較與諮詢參考。</p>
-    </section>
-  </footer>
+  {% include 'partials/site_footer.html' %}
 
   <div id="image-lightbox" class="image-lightbox" aria-hidden="true">
     <div class="image-lightbox-inner">
@@ -3866,6 +3664,8 @@
     let supportSelectedCasesDetailEnrichPending = false;
     let supportSelectedCasesDetailEnrichSig = '';
     let supportSelectedCasesSyncChannel = null;
+    let supportSavedCases = [];
+    let supportSavedCasesDrawerOpen = false;
     let supportTelegramInboxBootstrapped = false;
     let latestFigureCaseItems = [];
     let latestFigureResultMeta = null;
@@ -3876,6 +3676,7 @@
     const SUPPORT_KB_HISTORY_KEY = 'sclaw_support_kb_history_v1';
     const SUPPORT_SALES_SESSION_KEY = 'sclaw_support_sales_session_v1';
     const SUPPORT_SELECTED_CASES_KEY = 'sclaw_support_selected_cases_v1';
+    const SUPPORT_SAVED_CASES_KEY = 'sclaw_support_saved_cases_v1';
     const SUPPORT_SELECTED_CASES_CHANNEL = 'sclaw_support_selected_cases_channel_v1';
     const SUPPORT_SELECTED_CASES_COLLAPSED_KEY = 'sclaw_support_selected_cases_collapsed_v1';
     const SUPPORT_CHAT_TTS_ENABLED_KEY = 'sclaw_support_chat_tts_enabled_v1';
@@ -8151,6 +7952,7 @@
       }
       latestFigureCaseItems = Array.isArray(items) ? items : [];
       syncFigureCaseFavoriteButtons();
+      syncFigureCaseSavedButtons();
       if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
       if (typeof syncPortalCaseCardImageLoadStates === 'function') syncPortalCaseCardImageLoadStates(page);
       bindPagedFigureResultsMediaGuard(state, page);
@@ -8503,6 +8305,7 @@
         }
         resultWrap.innerHTML = renderPortalCaseCards(initialItems);
         syncFigureCaseFavoriteButtons();
+        syncFigureCaseSavedButtons();
         if (typeof bindPortalCaseCardImageDots === 'function') bindPortalCaseCardImageDots();
         if (typeof syncPortalCaseCardImageLoadStates === 'function') syncPortalCaseCardImageLoadStates(resultWrap);
         enhanceFigureResultsCarousel();
@@ -8692,6 +8495,7 @@
       if (open) {
         refreshSupportHandoffSyncFlag();
         updateSupportTelegramStatusLine();
+        refreshSupportChatWelcomeForOpen();
         ensureSupportChatWelcomeMessage();
         hydrateSupportChatWelcomeMessage().catch(() => {});
         if (!supportSelectedCases.length) {
@@ -8699,6 +8503,10 @@
         }
         supportSelectedCasesCollapsed = loadSupportSelectedCasesCollapsedLocal();
         renderSupportSelectedCasesPanel();
+        if (!supportSavedCases.length) {
+          supportSavedCases = loadSupportSavedCasesLocal();
+        }
+        renderSupportSavedCasesState();
         hydrateSupportSelectedCasesRemote();
         renderSupportChatMessages();
         renderSupportKbHistoryList();
@@ -9197,7 +9005,7 @@
         return '';
       }
       if (!Array.isArray(k.items) || !k.items.length) {
-        return buildSupportKbZeroHtml(k, llmMeta);
+        return '';
       }
       const qe = esc(k.query || '（沿用您的訊息）');
       const days = esc(String(k.days != null ? k.days : ''));
@@ -9439,6 +9247,7 @@
       if (keep !== 'phone') setSupportPhoneLoginModalOpen(false, { skipExclusive: true, restoreFocus: false });
       if (keep !== 'support') toggleSupportChat(false, { skipExclusive: true });
       if (keep !== 'selected') setSupportSelectedCasesDrawerOpen(false, { skipExclusive: true, restoreFocus: false });
+      if (keep !== 'saved') setSupportSavedCasesDrawerOpen(false, { skipExclusive: true, restoreFocus: false });
       if (keep !== 'admin') toggleAdminDrawer(false, { skipExclusive: true });
     }
 
@@ -10313,6 +10122,8 @@
     function supportSelectedCasePrimaryLink(it) {
       const article = String((it && it.article_url) || '').trim();
       if (article) return article;
+      const sid = Number((it && it.source_item_id) || 0);
+      if (sid > 0) return `/case/${sid}`;
       return String((it && it.item_url) || '').trim();
     }
 
@@ -10418,6 +10229,57 @@
         localStorage.setItem(SUPPORT_SELECTED_CASES_KEY, JSON.stringify(supportSelectedCases));
         notifySupportSelectedCasesChanged('home');
       } catch (_) {}
+    }
+
+    function loadSupportSavedCasesLocal() {
+      try {
+        const raw = localStorage.getItem(SUPPORT_SAVED_CASES_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(arr)) return [];
+        return dedupeSupportSelectedCaseList(arr);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function saveSupportSavedCasesLocal() {
+      try {
+        supportSavedCases = dedupeSupportSelectedCaseList(supportSavedCases).slice(0, 60);
+        localStorage.setItem(SUPPORT_SAVED_CASES_KEY, JSON.stringify(supportSavedCases));
+      } catch (_) {}
+    }
+
+    function renderSupportSavedCasesState() {
+      const total = supportSavedCases.length;
+      const fab = document.getElementById('support-saved-cases-fab');
+      const countEl = document.getElementById('support-saved-cases-fab-count');
+      const drawerCountEl = document.getElementById('support-saved-cases-drawer-count');
+      if (countEl) {
+        countEl.textContent = String(total);
+        countEl.hidden = total === 0;
+      }
+      if (drawerCountEl) drawerCountEl.textContent = `${total} 筆`;
+      if (fab) {
+        fab.setAttribute('aria-label', total ? `收藏案件（${total} 筆）` : '收藏案件（尚未收藏）');
+        fab.setAttribute('aria-expanded', supportSavedCasesDrawerOpen ? 'true' : 'false');
+        fab.classList.toggle('is-active', total > 0);
+      }
+      syncFigureCaseSavedButtons();
+    }
+
+    function upsertSupportSavedCase(norm) {
+      const n = normalizeSupportSelectedCase(norm);
+      if (!n) return { added: false, item: null };
+      const key = supportSelectedCaseStableKey(n);
+      if (!key) return { added: false, item: null };
+      const existingIdx = supportSavedCases.findIndex((x) => supportSelectedCaseStableKey(x) === key);
+      if (existingIdx >= 0) {
+        supportSavedCases[existingIdx] = { ...supportSavedCases[existingIdx], ...n };
+        return { added: false, item: supportSavedCases[existingIdx] };
+      }
+      supportSavedCases.push(n);
+      supportSavedCases = dedupeSupportSelectedCaseList(supportSavedCases).slice(-60);
+      return { added: true, item: n };
     }
 
     function getSupportSelectedCasesSignature(list) {
@@ -10724,6 +10586,7 @@
       if (drawerCountEl) drawerCountEl.textContent = `${total} 筆`;
       if (drawerWrap) renderSupportSelectedCasesDrawerList();
       syncFigureCaseFavoriteButtons();
+      renderSupportSavedCasesState();
       if (!wrap) return;
       if (panel) {
         panel.classList.toggle('is-empty', total === 0);
@@ -10750,9 +10613,10 @@
           const titleShort = esc(String(it.title || '').slice(0, 48) || '案件');
           const src = esc(String(it.source_name || '來源'));
           const primaryRaw = String(supportSelectedCasePrimaryLink(it) || '').trim();
+          const inlineDetailAttr = /^\/case\/\d+\/?$/i.test(primaryRaw) ? ' onclick="openSupportCaseInlineDetailLink(event, this)"' : '';
           const titleInner =
             primaryRaw && !/^javascript:/i.test(primaryRaw)
-              ? `<a class="support-selected-cases-summary-link" href="${esc(primaryRaw)}"${/^https?:\/\//i.test(primaryRaw) ? ' target="_blank" rel="nofollow noopener"' : ''}>${titleShort}</a>`
+              ? `<a class="support-selected-cases-summary-link" href="${esc(primaryRaw)}"${/^https?:\/\//i.test(primaryRaw) ? ' target="_blank" rel="nofollow noopener"' : ''}${inlineDetailAttr}>${titleShort}</a>`
               : `<strong>${titleShort}</strong>`;
           html += `<div class="support-selected-cases-summary-item">${titleInner}<span class="muted">${src}</span></div>`;
         }
@@ -10864,6 +10728,95 @@
       setSupportSelectedCasesDrawerOpen(!supportSelectedCasesDrawerOpen);
     }
 
+    function setSupportSavedCasesDrawerOpen(open, options = {}) {
+      const shouldOpen = !!open;
+      const restoreFocus = options && typeof options === 'object' ? options.restoreFocus !== false : true;
+      const drawer = document.getElementById('support-saved-cases-drawer');
+      const backdrop = document.getElementById('support-saved-cases-drawer-backdrop');
+      supportSavedCasesDrawerOpen = shouldOpen;
+      if (drawer) drawer.style.display = shouldOpen ? 'flex' : 'none';
+      if (backdrop) {
+        backdrop.style.display = shouldOpen ? 'block' : 'none';
+        backdrop.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+      }
+      document.body.classList.toggle('support-saved-cases-open', shouldOpen);
+      if (shouldOpen) {
+        unlockBodyScrollForSupportSelectedCasesDrawer();
+        if (!(options && options.skipExclusive)) closeFloatingPanelsExcept('saved');
+        renderSupportSavedCasesDrawerList();
+        try {
+          const focusTarget = drawer && drawer.querySelector ? drawer.querySelector('button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])') : null;
+          if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();
+        } catch (_) {}
+      } else if (restoreFocus) {
+        try {
+          const fab = document.getElementById('support-saved-cases-fab');
+          if (fab && typeof fab.focus === 'function') fab.focus();
+        } catch (_) {}
+      }
+      renderSupportSavedCasesState();
+      const fab = document.getElementById('support-saved-cases-fab');
+      if (fab) fab.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    }
+
+    function toggleSupportSavedCasesDrawer(force) {
+      if (typeof force === 'boolean') {
+        setSupportSavedCasesDrawerOpen(force);
+        return;
+      }
+      setSupportSavedCasesDrawerOpen(!supportSavedCasesDrawerOpen);
+    }
+
+    function renderSupportSavedCasesDrawerList() {
+      const wrap = document.getElementById('support-saved-cases-drawer-list');
+      if (!wrap) return;
+      const total = supportSavedCases.length;
+      renderSupportSavedCasesState();
+      if (!total) {
+        wrap.innerHTML = '<div class="support-selected-cases-cart-empty"><strong>尚未收藏案件</strong><span>可在智慧查詢結果卡片右上角點選愛心，收藏後會出現在這裡。</span></div>';
+        return;
+      }
+      let html = '<div class="support-selected-cases-cart support-saved-cases-cart">';
+      for (const [idx, it] of supportSavedCases.slice(0, 60).entries()) {
+        const titleShown = esc(String(it.title || '').slice(0, 96) || '案件');
+        const sourceText = esc(String(it.source_name || '日本房產').trim());
+        const metaText = esc(supportSelectedCaseMetaText(it));
+        const priceText = esc(supportSelectedCasePriceText(it));
+        const caseKey = esc(String(it.case_key || ''));
+        const primaryRaw = String(supportSelectedCasePrimaryLink(it) || '').trim();
+        const safeHref = primaryRaw && !/^javascript:/i.test(primaryRaw) ? primaryRaw : '';
+        const externalAttrs = /^https?:\/\//i.test(safeHref) ? ' target="_blank" rel="nofollow noopener"' : '';
+        const inlineDetailAttr = /^\/case\/\d+\/?$/i.test(safeHref) ? ' onclick="openSupportCaseInlineDetailLink(event, this)"' : '';
+        const thumb = supportSelectedCaseThumbUrl(it);
+        const imageCount = Number(it.image_count || (Array.isArray(it.gallery_urls) ? it.gallery_urls.length : 0) || 0);
+        const imageLoading = idx < 3 ? 'eager' : 'lazy';
+        const imageFetchPriority = idx < 2 ? 'high' : 'low';
+        const imgHtml = thumb
+          ? `<img src="${esc(thumb)}" alt="${titleShown}" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" onload="this.parentNode.classList.add('is-loaded');" onerror="this.style.display='none';this.parentNode.classList.add('is-empty');">`
+          : '';
+        const placeholderText = thumb ? '圖片載入中' : '暫無配圖';
+        const thumbInner = `${imgHtml}<span class="support-selected-cases-card-source">${sourceText}</span><span class="support-selected-cases-card-placeholder">${placeholderText}</span>`;
+        const thumbHtml = safeHref
+          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${thumbInner}</a>`
+          : `<div class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}">${thumbInner}</div>`;
+        const titleHtml = safeHref
+          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${titleShown}</a>`
+          : `<strong class="support-selected-cases-cart-link">${titleShown}</strong>`;
+        html += '<article class="support-selected-cases-cart-item support-saved-cases-cart-item">';
+        html += thumbHtml;
+        html += '<div class="support-selected-cases-cart-main">';
+        html += titleHtml;
+        html += `<div class="support-selected-cases-cart-meta">${metaText}</div>`;
+        html += `<div class="support-selected-cases-cart-price">${priceText}</div>`;
+        if (imageCount > 1) html += `<div class="support-selected-cases-cart-media-count">含 ${esc(String(imageCount))} 張原站圖片</div>`;
+        html += '</div>';
+        html += `<button type="button" class="support-selected-cases-cart-remove" data-case-key="${caseKey}" onclick="removeSupportSavedCaseByBtn(this)" aria-label="移除收藏 ${titleShown}">移除</button>`;
+        html += '</article>';
+      }
+      html += '</div>';
+      wrap.innerHTML = html;
+    }
+
     function renderSupportSelectedCasesDrawerList() {
       const wrap = document.getElementById('support-selected-cases-drawer-list');
       if (!wrap) return;
@@ -10882,6 +10835,7 @@
         const primaryRaw = String(supportSelectedCasePrimaryLink(it) || '').trim();
         const safeHref = primaryRaw && !/^javascript:/i.test(primaryRaw) ? primaryRaw : '';
         const externalAttrs = /^https?:\/\//i.test(safeHref) ? ' target="_blank" rel="nofollow noopener"' : '';
+        const inlineDetailAttr = /^\/case\/\d+\/?$/i.test(safeHref) ? ' onclick="openSupportCaseInlineDetailLink(event, this)"' : '';
         const thumb = supportSelectedCaseThumbUrl(it);
         const imageCount = Number(it.image_count || (Array.isArray(it.gallery_urls) ? it.gallery_urls.length : 0) || 0);
         const imageLoading = idx < 3 ? 'eager' : 'lazy';
@@ -10892,10 +10846,10 @@
         const placeholderText = thumb ? '圖片載入中' : '暫無配圖';
         const thumbInner = `${imgHtml}<span class="support-selected-cases-card-source">${sourceText}</span><span class="support-selected-cases-card-placeholder">${placeholderText}</span>`;
         const thumbHtml = safeHref
-          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}>${thumbInner}</a>`
+          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${thumbInner}</a>`
           : `<div class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}">${thumbInner}</div>`;
         const titleHtml = safeHref
-          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}>${titleShown}</a>`
+          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${titleShown}</a>`
           : `<strong class="support-selected-cases-cart-link">${titleShown}</strong>`;
         html += '<article class="support-selected-cases-cart-item">';
         html += thumbHtml;
@@ -10913,10 +10867,55 @@
     }
 
     async function openSupportSelectedCasesComparePage() {
-      const opened = window.open('/selected-cases-compare', '_blank');
-      if (opened) {
-        try { opened.opener = null; } catch (_) {}
+      toggleSupportSelectedCasesDrawer(false);
+      toggleSupportSavedCasesDrawer(false);
+      document.body.classList.add('home-selected-compare-mode');
+      const view = document.getElementById('selected-compare-inline-view');
+      if (view) {
+        view.hidden = false;
+        view.setAttribute('aria-hidden', 'false');
       }
+      try {
+        if (typeof hydrateAndRenderSelectedCompare === 'function') await hydrateAndRenderSelectedCompare(true);
+      } catch (_) {}
+      window.requestAnimationFrame(() => {
+        const header = document.querySelector('.bh-site-header');
+        const headerH = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
+        const y = view ? Math.max(0, view.getBoundingClientRect().top + window.scrollY - headerH - 14) : 0;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      });
+    }
+
+    function closeHomeSelectedCompareView() {
+      document.body.classList.remove('home-selected-compare-mode');
+      const view = document.getElementById('selected-compare-inline-view');
+      if (view) {
+        view.hidden = true;
+        view.setAttribute('aria-hidden', 'true');
+      }
+      window.requestAnimationFrame(() => {
+        const target = document.getElementById('figure-results') || document.getElementById('query-dialog') || document.querySelector('.top-feature-nav');
+        if (!target) return;
+        const header = document.querySelector('.bh-site-header');
+        const headerH = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
+        const y = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerH - 14);
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      });
+    }
+
+    async function openSupportCaseInlineDetailLink(event, link) {
+      const href = String(link && link.getAttribute ? link.getAttribute('href') : '').trim();
+      if (!/^\/case\/\d+\/?$/i.test(href)) return true;
+      if (event) event.preventDefault();
+      toggleSupportSelectedCasesDrawer(false);
+      toggleSupportSavedCasesDrawer(false);
+      closeHomeSelectedCompareView();
+      if (typeof openPortalCaseInlineDetail === 'function') {
+        const opened = await openPortalCaseInlineDetail(href, link);
+        if (opened) return false;
+      }
+      window.location.href = href;
+      return false;
     }
 
     function openSupportChatForSelectedCases() {
@@ -10934,7 +10933,7 @@
       toggleSupportChat(true);
       const input = document.getElementById('support-chat-input');
       if (input && sid) {
-        const prefix = `案件編號 ${sid}：請協助聯繫顧問／填單引導。`;
+        const prefix = `案件編號 ${sid}：我想了解這個案件，請先幫我整理重點。`;
         const cur = String(input.value || '').trim();
         input.value = cur && !cur.includes(String(sid)) ? `${prefix}\n${cur}` : cur || prefix;
       }
@@ -10964,6 +10963,7 @@
         if (btn) {
           btn.classList.remove('is-active');
           btn.setAttribute('aria-pressed', 'false');
+          syncFigureCaseActionPinnedState(btn);
         }
         return;
       }
@@ -10987,6 +10987,7 @@
       if (btn) {
         btn.classList.add('is-active');
         btn.setAttribute('aria-pressed', 'true');
+        syncFigureCaseActionPinnedState(btn);
       }
     }
 
@@ -10999,8 +11000,104 @@
         const on = key && active.has(key);
         btn.classList.toggle('is-active', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.setAttribute('title', on ? '已收藏（點一下取消）' : '收藏此案件');
+        btn.setAttribute('title', on ? '已加入對比（點一下移除）' : '加入案件對比');
+        syncFigureCaseActionPinnedState(btn);
       });
+    }
+
+    async function toggleFigureCaseSavedByKey(caseKey, btn) {
+      const key = String(caseKey || '').trim();
+      if (!key) return;
+      const stableKey = key.toLowerCase();
+      const exists = supportSavedCases.some((x) => supportSelectedCaseStableKey(x) === stableKey);
+      if (exists) {
+        supportSavedCases = supportSavedCases.filter((x) => supportSelectedCaseStableKey(x) !== stableKey);
+        saveSupportSavedCasesLocal();
+        renderSupportSavedCasesState();
+        renderSupportSavedCasesDrawerList();
+        if (btn) {
+          btn.classList.remove('is-active');
+          btn.setAttribute('aria-pressed', 'false');
+          syncFigureCaseActionPinnedState(btn);
+        }
+        return;
+      }
+      const src = latestFigureCaseItems.find((x) => supportCaseKeyFromItem(x) === key);
+      if (!src) return;
+      const norm = normalizeSupportSelectedCase({
+        ...src,
+        case_key: key,
+        title: src.title_zh_hant || src.title_original || '',
+        article_url: Number(src.source_item_id || 0) > 0 ? `/case/${Number(src.source_item_id || 0)}` : '',
+        region: src.jp_region_display_zh || '',
+        transit: src.transit_line_zh || '',
+      });
+      if (!norm) return;
+      upsertSupportSavedCase(norm);
+      saveSupportSavedCasesLocal();
+      renderSupportSavedCasesState();
+      renderSupportSavedCasesDrawerList();
+      if (btn) {
+        btn.classList.add('is-active');
+        btn.setAttribute('aria-pressed', 'true');
+        syncFigureCaseActionPinnedState(btn);
+      }
+    }
+
+    function syncFigureCaseSavedButtons() {
+      const btns = document.querySelectorAll('[data-support-save-case-key]');
+      if (!btns || !btns.length) return;
+      const active = new Set(supportSavedCases.map((it) => supportSelectedCaseStableKey(it)));
+      btns.forEach((btn) => {
+        const key = String(btn.getAttribute('data-support-save-case-key') || '').trim().toLowerCase();
+        const on = key && active.has(key);
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('title', on ? '已收藏（點一下取消）' : '收藏此案件');
+        syncFigureCaseActionPinnedState(btn);
+      });
+    }
+
+    function syncFigureCaseActionPinnedState(source) {
+      const actions = source instanceof Element ? source.closest('.figure-case-actions') : null;
+      if (!actions) return;
+      const pinned = !!actions.querySelector('.figure-case-fav-btn.is-active, .figure-case-fav-btn[aria-pressed="true"]');
+      actions.classList.toggle('is-pinned', pinned);
+    }
+
+    function focusFigureSavedCasesHint() {
+      renderSupportSavedCasesState();
+      const summary = document.getElementById('figure-summary');
+      if (summary) {
+        let el = document.getElementById('figure-saved-cases-status');
+        if (!el) {
+          el = document.createElement('p');
+          el.id = 'figure-saved-cases-status';
+          el.className = 'muted';
+          summary.appendChild(el);
+        }
+        el.textContent = supportSavedCases.length
+          ? `目前已收藏 ${supportSavedCases.length} 筆案件，可在卡片右上角愛心取消或繼續收藏。`
+          : '目前尚未收藏案件，可在搜索結果卡片右上角點選愛心收藏。';
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function removeSupportSavedCaseByBtn(btn) {
+      if (!btn) return;
+      const stableKey = String(btn.getAttribute('data-case-key') || '').trim().toLowerCase();
+      if (!stableKey) return;
+      supportSavedCases = supportSavedCases.filter((x) => supportSelectedCaseStableKey(x) !== stableKey);
+      saveSupportSavedCasesLocal();
+      renderSupportSavedCasesState();
+      renderSupportSavedCasesDrawerList();
+    }
+
+    function clearSupportSavedCases() {
+      supportSavedCases = [];
+      saveSupportSavedCasesLocal();
+      renderSupportSavedCasesState();
+      renderSupportSavedCasesDrawerList();
     }
 
     async function addFigureCaseToSupportByKey(caseKey) {
@@ -11203,6 +11300,7 @@
     function supportChatSimulatedServiceHtml(meta) {
       if (!meta || typeof meta !== 'object' || !meta.active) return '';
       const mode = String(meta.mode || 'serving');
+      if (mode !== 'handoff_ready') return '';
       const label = esc(String(meta.service_label || '值班顧問'));
       const text = esc(String(meta.display_text || '').trim());
       const modeText = mode === 'handoff_ready'
@@ -11220,35 +11318,31 @@
     }
 
     function supportChatMatchReasonHtml(scene, qa) {
-      const sk = scene && Array.isArray(scene.hit_keywords) ? scene.hit_keywords : [];
-      const qk = qa && Array.isArray(qa.hit_keywords) ? qa.hit_keywords : [];
-      if (!sk.length && !qk.length) return '';
-      let html = '<div class="muted" style="font-size:12px;margin:0 0 0.35rem;">';
-      if (sk.length) html += `場景命中關鍵字：${esc(sk.join(' / '))}<br>`;
-      if (qk.length) html += `Q&A 命中關鍵字：${esc(qk.join(' / '))}`;
-      html += '</div>';
-      return html;
+      void scene;
+      void qa;
+      return '';
     }
 
     let supportChatBootstrapPromise = null;
     let supportChatBootstrapSid = '';
+    const SUPPORT_CHAT_DEFAULT_WELCOME_TEXT = '您好，這裡是日本不動產智能客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。先告訴我想看的地區、預算或用途就可以。';
 
     function supportChatWelcomeHtml(serviceMeta, welcomeText) {
-      const serviceBlock = supportChatSimulatedServiceHtml(serviceMeta);
+      const serviceBlock = '';
       const intro = esc(String(
         welcomeText
-        || '我會先用真人顧問接待的方式陪您聊，先把買房、租房、區域、預算、貸款與案件重點整理清楚；只有您真的準備買房或要安排看屋時，我再幫您接真人顧問。'
+        || SUPPORT_CHAT_DEFAULT_WELCOME_TEXT
       ).trim());
       return (
         '<div class="support-chat-welcome-card">' +
         serviceBlock +
-        '<strong>歡迎來到日本不動產智能客服</strong>' +
+        '<strong>日本不動產智能客服</strong>' +
         `<p>${intro}</p>` +
         '<div class="support-chat-suggestion-pills" aria-label="客服推薦選項">' +
         '<button type="button" data-support-quick-prompt="我想查日本不動產案件，先從東京或大阪開始">查找案件</button>' +
         '<button type="button" data-support-quick-prompt="我想了解日本買房，請先幫我整理需要準備哪些條件">買房諮詢</button>' +
         '<button type="button" data-support-quick-prompt="我想比較已收藏案件的價格、交通和格局">比較收藏</button>' +
-        '<button type="button" data-support-quick-prompt="人工">顧問接待</button>' +
+        '<button type="button" data-support-quick-prompt="我想聯絡真人顧問，請先告訴我需要準備哪些資訊">聯絡顧問</button>' +
         '</div>' +
         '</div>'
       );
@@ -11315,10 +11409,24 @@
       if (!Array.isArray(supportChatHistory) || supportChatHistory.length) return;
       supportChatHistory.push({
         role: 'assistant',
-        content: '歡迎來到日本不動產智能客服。我可以先幫您整理日本買房、租房、區域、預算、貸款與案件重點。',
+        content: SUPPORT_CHAT_DEFAULT_WELCOME_TEXT,
         contentHtml: supportChatWelcomeHtml(),
         supportWelcome: true,
       });
+    }
+
+    function refreshSupportChatWelcomeForOpen() {
+      if (!Array.isArray(supportChatHistory) || !supportChatHistory.length) return;
+      const staleRe = /(排隊|工單|今天值班|顧問接待的方式|人工接待|值班顧問|真人顧問)/;
+      for (const row of supportChatHistory) {
+        if (!row || !row.supportWelcome) continue;
+        const blob = `${row.content || ''} ${row.contentHtml || ''} ${JSON.stringify(row.sales_mcp || {})}`;
+        if (!staleRe.test(blob) && row.content === SUPPORT_CHAT_DEFAULT_WELCOME_TEXT) continue;
+        row.content = SUPPORT_CHAT_DEFAULT_WELCOME_TEXT;
+        row.contentHtml = supportChatWelcomeHtml(null, SUPPORT_CHAT_DEFAULT_WELCOME_TEXT);
+        row.sales_mcp = null;
+        row.supportWelcomeHydrated = false;
+      }
     }
 
     async function hydrateSupportChatWelcomeMessage() {
@@ -11332,7 +11440,7 @@
       supportChatBootstrapSid = sid;
       supportChatBootstrapPromise = (async () => {
         try {
-          const res = await fetch('/api/ai/chat-support/bootstrap?' + new URLSearchParams({ session_id: sid }));
+          const res = await fetch('/api/ai/chat-support/bootstrap?' + new URLSearchParams({ session_id: sid, t: String(Date.now()) }), { cache: 'no-store' });
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data || data.ok === false) return;
           row.content = String(data.reply || row.content || '').trim() || row.content;
@@ -12136,10 +12244,16 @@
       ensureSupportChatWelcomeMessage();
       const fieldSnap = snapshotSupportEmbeddedFormFields(wrap);
       let html = '';
+      const renderedRows = [];
+      const now = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
       for (const row of getVisibleSupportChatRows()) {
+        if (row && typeof row === 'object' && !row.__supportChatEnterAt) row.__supportChatEnterAt = now;
+        const shouldEnter = row && typeof row === 'object' && (now - Number(row.__supportChatEnterAt || 0)) < 720;
+        const enterClass = shouldEnter ? ' support-chat-row--enter' : '';
+        renderedRows.push(row);
         if (row.role === 'user') {
           const metaHtml = supportTelegramDeliveryMetaHtml(row.telegramDelivery);
-          html += `<div class="support-chat-row support-chat-row-user"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}</div>${metaHtml}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-user${enterClass}"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}</div>${metaHtml}</div></div>`;
         } else {
           const staffSource = String(row.staffSource || '').toLowerCase();
           const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
@@ -12147,9 +12261,9 @@
             ? '顧問（LINE）'
             : staffSource === 'telegram'
               ? '顧問（Telegram）'
-              : staffSource === 'admin'
-                ? '人工客服'
-                : '專業顧問';
+            : staffSource === 'admin'
+              ? '人工客服'
+              : '智能客服';
           const roleCls = staffSource === 'line'
             ? 'support-chat-role support-chat-role--line'
             : staffSource === 'telegram'
@@ -12168,10 +12282,13 @@
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}</div></div>`;
-          html += `<div class="support-chat-row support-chat-row-assistant"><span class="support-chat-avatar-slot support-chat-avatar-slot--msg">${SUPPORT_CHAT_AVATAR_HTML}</span><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${suggestionBlock}${salesBlock}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><span class="support-chat-avatar-slot support-chat-avatar-slot--msg">${SUPPORT_CHAT_AVATAR_HTML}</span><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
       wrap.innerHTML = html || '<p class="muted">尚無對話。</p>';
+      renderedRows.forEach((row) => {
+        if (row && typeof row === 'object') row.__supportChatRendered = true;
+      });
       restoreSupportEmbeddedFormFields(wrap, fieldSnap);
       wrap.scrollTop = wrap.scrollHeight;
     }
@@ -20549,6 +20666,245 @@
       return html || '<div class="panel">此分頁目前無資料。</div>';
     }
 
+    let portalCaseInlineDetailSeq = 0;
+    let portalCaseInlineDetailController = null;
+
+    function getPortalCaseInlineDetailShell() {
+      let shell = document.getElementById('portal-case-inline-detail');
+      if (shell) return shell;
+      shell = document.createElement('section');
+      shell.id = 'portal-case-inline-detail';
+      shell.className = 'portal-case-inline-detail';
+      shell.hidden = true;
+      shell.setAttribute('aria-live', 'polite');
+      shell.innerHTML = `
+        <div class="portal-case-inline-detail-head">
+          <div>
+            <span class="portal-case-inline-detail-kicker">站內明細</span>
+            <strong class="portal-case-inline-detail-title">案件資料</strong>
+          </div>
+          <button type="button" class="portal-case-inline-detail-close" aria-label="返回案件列表" onclick="closePortalCaseInlineDetail()">返回案件列表</button>
+        </div>
+        <div class="portal-case-inline-detail-body"></div>
+      `;
+      const main = document.querySelector('main.container');
+      const queryDialog = document.getElementById('query-dialog');
+      if (main && queryDialog && queryDialog.parentNode === main) {
+        queryDialog.insertAdjacentElement('afterend', shell);
+      } else if (main) {
+        main.appendChild(shell);
+      } else {
+        document.body.appendChild(shell);
+      }
+      return shell;
+    }
+
+    function normalizePortalCaseInlineUrl(url) {
+      const raw = String(url || '').trim();
+      if (!raw || raw === '#') return '';
+      try {
+        const u = new URL(raw, window.location.origin);
+        if (u.origin !== window.location.origin || !/^\/case\/\d+\/?$/u.test(u.pathname)) return '';
+        return `${u.pathname}${u.search || ''}`;
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function portalCssEscape(value) {
+      if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(String(value || ''));
+      return String(value || '').replace(/["\\#.:,[\]()]/g, '\\$&');
+    }
+
+    function preparePortalCaseInlineDocument(main, sourceUrl) {
+      if (!(main instanceof Element)) return null;
+      const clone = main.cloneNode(true);
+      clone.querySelectorAll('script, style, link[rel="stylesheet"], .case-smart-cs-dock, .site-language-switch, .suumo-case-itemurl').forEach((node) => node.remove());
+      clone.querySelectorAll('a').forEach((a) => {
+        const text = String(a.textContent || '').replace(/\s+/g, '');
+        const href = String(a.getAttribute('href') || '').trim();
+        const cls = String(a.className || '');
+        if (text.includes('返回查詢首頁') || cls.includes('portal-suumo-cta--orange')) {
+          a.remove();
+          return;
+        }
+        if (href === '/' || href === sourceUrl) {
+          a.remove();
+          return;
+        }
+        if (href.startsWith('/?open_support=1') || href.startsWith('/#advisor-workbench-panel')) {
+          a.setAttribute('onclick', 'event.preventDefault(); openSupportChatFromInlineCaseLink(this);');
+        }
+        if (href.startsWith('#')) {
+          const id = href.slice(1);
+          a.setAttribute('href', `#inline-${id}`);
+        }
+      });
+      clone.querySelectorAll('img').forEach((img) => {
+        img.classList.add('zoomable-image');
+        img.setAttribute('loading', 'lazy');
+        img.setAttribute('decoding', 'async');
+      });
+      clone.querySelectorAll('[onclick*="setCaseContentTab"]').forEach((node) => {
+        node.removeAttribute('onclick');
+      });
+      clone.querySelectorAll('[id]').forEach((node) => {
+        const id = String(node.getAttribute('id') || '').trim();
+        if (id) node.setAttribute('id', `inline-${id}`);
+      });
+      return clone;
+    }
+
+    function bindPortalCaseInlineDetailBehaviors(shell) {
+      if (!(shell instanceof Element)) return;
+      shell.querySelectorAll('[data-case-content-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const root = btn.closest('.case-content-switcher');
+          if (!root) return;
+          const key = String(btn.getAttribute('data-case-content-tab') || 'hant');
+          root.querySelectorAll('[data-case-content-tab]').forEach((tab) => {
+            const active = String(tab.getAttribute('data-case-content-tab') || '') === key;
+            tab.classList.toggle('is-active', active);
+            tab.setAttribute('aria-selected', active ? 'true' : 'false');
+          });
+          root.querySelectorAll('[data-case-content-pane]').forEach((pane) => {
+            const active = String(pane.getAttribute('data-case-content-pane') || '') === key;
+            pane.hidden = !active;
+            pane.classList.toggle('is-active', active);
+          });
+        });
+      });
+      shell.querySelectorAll('a[href^="#inline-"]').forEach((a) => {
+        a.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          scrollPortalCaseInlineAnchor(String(a.getAttribute('href') || '').replace(/^#inline-/u, ''));
+        });
+      });
+      shell.querySelectorAll('.rich-media-from-text').forEach((el) => {
+        try {
+          if (typeof renderRichMediaFromText === 'function') renderRichMediaFromText(el);
+        } catch (_) {}
+      });
+    }
+
+    function markPortalCaseCardActive(sourceEl, activeUrl) {
+      document.querySelectorAll('.portal-suumo-card.is-inline-detail-active').forEach((card) => {
+        card.classList.remove('is-inline-detail-active');
+        card.removeAttribute('aria-current');
+      });
+      const url = normalizePortalCaseInlineUrl(activeUrl);
+      const card = sourceEl instanceof Element
+        ? sourceEl.closest('.portal-suumo-card')
+        : document.querySelector(`.portal-suumo-card[data-case-detail-url="${portalCssEscape(url)}"]`);
+      if (card) {
+        card.classList.add('is-inline-detail-active');
+        card.setAttribute('aria-current', 'true');
+      }
+    }
+
+    function closePortalCaseInlineDetail() {
+      const shell = document.getElementById('portal-case-inline-detail');
+      if (!shell) return;
+      if (portalCaseInlineDetailController) {
+        try { portalCaseInlineDetailController.abort(); } catch (_) {}
+        portalCaseInlineDetailController = null;
+      }
+      shell.hidden = true;
+      shell.classList.remove('is-open', 'is-loading', 'is-error');
+      document.body.classList.remove('portal-case-detail-mode');
+      shell.querySelector('.portal-case-inline-detail-body')?.replaceChildren();
+      document.querySelectorAll('.portal-suumo-card.is-inline-detail-active').forEach((card) => {
+        card.classList.remove('is-inline-detail-active');
+        card.removeAttribute('aria-current');
+      });
+      const resultWrap = document.getElementById('figure-results');
+      if (resultWrap && resultWrap.innerHTML.trim()) {
+        resultWrap.style.display = 'block';
+        window.requestAnimationFrame(() => resultWrap.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
+    }
+
+    function openSupportChatFromInlineCaseLink(link) {
+      const href = String(link && link.getAttribute ? link.getAttribute('href') : '').trim();
+      const sid = Number(new URL(href || '/', window.location.origin).searchParams.get('case_sid') || 0);
+      if (sid > 0 && typeof openSupportChatForCaseFromCard === 'function') {
+        openSupportChatForCaseFromCard({ getAttribute: (name) => name === 'data-case-sid' ? String(sid) : '' });
+      } else if (typeof toggleSupportChat === 'function') {
+        toggleSupportChat(true);
+      }
+    }
+
+    function scrollPortalCaseInlineAnchor(id) {
+      const shell = document.getElementById('portal-case-inline-detail');
+      if (!shell) return;
+      const target = shell.querySelector(`#inline-${portalCssEscape(String(id || ''))}`);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    async function openPortalCaseInlineDetail(rawUrl, sourceEl) {
+      const url = normalizePortalCaseInlineUrl(rawUrl);
+      if (!url) return false;
+      const shell = getPortalCaseInlineDetailShell();
+      const body = shell.querySelector('.portal-case-inline-detail-body');
+      const titleEl = shell.querySelector('.portal-case-inline-detail-title');
+      if (!body) return false;
+      const seq = ++portalCaseInlineDetailSeq;
+      if (portalCaseInlineDetailController) {
+        try { portalCaseInlineDetailController.abort(); } catch (_) {}
+      }
+      portalCaseInlineDetailController = new AbortController();
+      shell.hidden = false;
+      shell.classList.add('is-open', 'is-loading');
+      shell.classList.remove('is-error');
+      document.body.classList.add('portal-case-detail-mode');
+      const queryDialog = document.getElementById('query-dialog');
+      if (queryDialog) queryDialog.style.display = 'block';
+      if (typeof setSmartQueryMainTab === 'function') setSmartQueryMainTab('cases');
+      markPortalCaseCardActive(sourceEl, url);
+      body.innerHTML = '<div class="portal-case-inline-detail-loading">站內明細載入中...</div>';
+      try {
+        const res = await fetch(url, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          cache: 'no-store',
+          signal: portalCaseInlineDetailController.signal,
+        });
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (seq !== portalCaseInlineDetailSeq) return true;
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        const main = doc.querySelector('main.case-page-suumo') || doc.querySelector('main');
+        const prepared = preparePortalCaseInlineDocument(main, url);
+        if (!prepared) throw new Error('detail root missing');
+        const title = prepared.querySelector('.suumo-case-catch')?.textContent?.trim() || '案件資料';
+        if (titleEl) titleEl.textContent = title;
+        body.replaceChildren(prepared);
+        bindPortalCaseInlineDetailBehaviors(shell);
+        shell.classList.remove('is-loading');
+        window.requestAnimationFrame(() => {
+          shell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        return true;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return true;
+        if (seq !== portalCaseInlineDetailSeq) return false;
+        shell.classList.remove('is-loading');
+        shell.classList.add('is-error');
+        body.innerHTML = '<div class="portal-case-inline-detail-error">站內明細暫時無法載入，請稍後再試。</div>';
+        return false;
+      }
+    }
+
+    function portalCaseCardOpenDetail(event, card) {
+      const target = event && event.target instanceof Element ? event.target : null;
+      if (target && target.closest('a, button, input, textarea, select, [role="button"], .portal-suumo-card-image-dots')) return;
+      const url = String(card?.dataset?.caseDetailUrl || '').trim();
+      if (!url || url === '#') return;
+      if (event) event.preventDefault();
+      openPortalCaseInlineDetail(url, card).then((opened) => {
+        if (!opened) window.location.href = url;
+      });
+    }
+
     function renderPortalCaseCards(items) {
       const htmlParts = [];
       for (const [index, it] of items.entries()) {
@@ -20559,10 +20915,6 @@
         const title = esc(compactTitle || '案件');
         const sub = esc(it.jp_region_display_zh || '');
         const sid = Number(it.source_item_id || 0);
-        const rawItemUrl = String(it.item_url || '').trim();
-        const isSuumoUnstable = isUnstableSuumoListingUrl(rawItemUrl);
-        const sourceFallbackUrl = buildSourceFallbackUrl(it);
-        const sourceMainHref = isSuumoUnstable && sourceFallbackUrl ? sourceFallbackUrl : (rawItemUrl || '');
         const internal = sid ? `/case/${sid}` : '#';
         const av = (it.source_name || '?').slice(0, 1);
         const galsProp = portalCaseGalleryUrlsPropertyOnly(it);
@@ -20615,8 +20967,8 @@
         const caseSidAttr = sid > 0 ? ` data-case-sid="${sid}"` : '';
         const mediaBlock = mainSrc
           ? `<div class="figure-case-thumb portal-suumo-card-media${hasReferenceImage ? ' portal-suumo-card-media--loading' : ''}${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>
-              <a href="${esc(mainFullSrc || mainSrc)}" class="portal-suumo-lightbox-link" rel="nofollow">
-                <img class="portal-suumo-card-heroimg zoomable-image" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" data-gallery-full="${galleryFullAttr}"${caseSidAttr} alt="" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onload="portalCaseHeroImgOnLoad(this)" onerror="portalCaseHeroImgOnError(this)">
+              <a href="${esc(internal)}" class="portal-suumo-detail-link" aria-label="開啟站內明細">
+                <img class="portal-suumo-card-heroimg" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" data-gallery-full="${galleryFullAttr}"${caseSidAttr} alt="" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onload="portalCaseHeroImgOnLoad(this)" onerror="portalCaseHeroImgOnError(this)">
               </a>
               <div class="portal-suumo-media-loading"${hasReferenceImage ? '' : ' hidden'}>${portalCaseLoadingCopyHtml(index < 3 ? '正在優先載入本頁主圖，請稍候。' : '正在取得房屋縮圖，若原圖較大會稍晚顯示。')}</div>
               <div class="portal-suumo-no-img portal-suumo-no-img--hero-replace"${hasReferenceImage ? ' hidden' : ''}>${noImageCopyHtml}</div>
@@ -20632,10 +20984,10 @@
             </div>`
           : '';
         const emptyMediaBlock = sid
-          ? `<a class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty portal-suumo-no-img-link" href="${esc(internal)}" target="_blank" rel="noopener noreferrer" aria-label="暫無縮圖，開啟站內明細"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">請至站內明細或原站查看相簿</span></span></a>`
+          ? `<a class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty portal-suumo-no-img-link" href="${esc(internal)}" aria-label="暫無縮圖，開啟站內明細"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">請至站內明細查看相簿</span></span></a>`
           : `<div class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty" role="img" aria-label="暫無物件縮圖"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">資料庫未擷取到可用相簿網址</span></span></div>`;
         htmlParts.push(`
-          <article class="market-item-card figure-case-card portal-suumo-card">
+          <article class="market-item-card figure-case-card portal-suumo-card" data-case-detail-url="${esc(internal)}" onclick="portalCaseCardOpenDetail(event, this)">
             <div class="portal-suumo-compact-card">
               <div class="portal-suumo-card-media-col">
                 ${mediaBlock || emptyMediaBlock}
@@ -20650,22 +21002,27 @@
                     </div>
                   </div>
                 </div>
-                <h3 class="portal-suumo-card-title"><a href="${esc(internal)}" target="_blank" rel="noopener noreferrer">${title}</a></h3>
+                <h3 class="portal-suumo-card-title"><a href="${esc(internal)}">${title}</a></h3>
                 ${addr ? `<p class="portal-suumo-card-jpline portal-suumo-cell-jp">${addr}</p>` : ''}
                 ${accessLine ? `<p class="portal-suumo-card-jpline portal-suumo-cell-jp">${accessLine}</p>` : ''}
                 <div class="portal-suumo-card-cta-row">
-                  ${
-                    sourceMainHref
-                      ? `<a class="portal-suumo-cta portal-suumo-cta--primary" href="${esc(sourceMainHref)}" target="_blank" rel="nofollow noopener">${isSuumoUnstable ? '來源搜尋' : '原站（資料請求）'}</a>`
-                      : '<span class="muted">來源連結暫無</span>'
-                  }
-                  ${isSuumoUnstable && rawItemUrl ? `<a class="portal-suumo-cta portal-suumo-cta--ghost" href="${esc(rawItemUrl)}" target="_blank" rel="nofollow noopener">嘗試原站</a>` : ''}
-                  <a class="portal-suumo-cta portal-suumo-cta--ghost" href="${esc(internal)}" target="_blank" rel="noopener noreferrer">站內明細</a>
                   ${sid ? `<button type="button" class="portal-suumo-cta portal-suumo-cta--consult portal-suumo-cta--compact" data-case-sid="${sid}" onclick="openSupportChatForCaseFromCard(this)">智能客服</button>` : ''}
                 </div>
                 <div class="figure-case-actions">
-                  <button type="button" class="secondary figure-case-fav-btn" data-support-fav-case-key="${esc(caseKey)}" onclick='toggleFigureCaseFavoriteByKey(${caseKeyJs}, this)' aria-pressed="false">
-                    <span class="figure-case-fav-icon" aria-hidden="true">♥</span>
+                  <button type="button" class="secondary figure-case-fav-btn figure-case-compare-btn" data-support-fav-case-key="${esc(caseKey)}" onclick='toggleFigureCaseFavoriteByKey(${caseKeyJs}, this)' aria-pressed="false" aria-label="加入案件對比">
+                    <span class="figure-case-fav-icon" aria-hidden="true">
+                      <svg class="figure-case-action-svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                        <path d="M12 5.5v13M5.5 12h13" />
+                      </svg>
+                    </span>
+                    <span class="figure-case-fav-label">對比</span>
+                  </button>
+                  <button type="button" class="secondary figure-case-fav-btn figure-case-save-btn" data-support-save-case-key="${esc(caseKey)}" onclick='toggleFigureCaseSavedByKey(${caseKeyJs}, this)' aria-pressed="false" aria-label="收藏此案件">
+                    <span class="figure-case-fav-icon" aria-hidden="true">
+                      <svg class="figure-case-action-svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                        <path d="M12 20.25c-2.82-2.45-5.16-4.61-6.8-6.55C3.7 11.91 3 10.35 3 8.75 3 6.1 5.06 4 7.72 4c1.55 0 3.06.74 4 1.9L12 6.25l.28-.35c.94-1.16 2.45-1.9 4-1.9C18.94 4 21 6.1 21 8.75c0 1.6-.7 3.16-2.2 4.95-1.64 1.94-3.98 4.1-6.8 6.55Z" />
+                      </svg>
+                    </span>
                     <span class="figure-case-fav-label">收藏</span>
                   </button>
                 </div>
@@ -23985,6 +24342,10 @@
     window.toggleSupportChatMenu = toggleSupportChatMenu;
     window.openSupportChatMenuCases = openSupportChatMenuCases;
     window.openSupportChatForCaseFromCard = openSupportChatForCaseFromCard;
+    window.openPortalCaseInlineDetail = openPortalCaseInlineDetail;
+    window.closePortalCaseInlineDetail = closePortalCaseInlineDetail;
+    window.openSupportChatFromInlineCaseLink = openSupportChatFromInlineCaseLink;
+    window.scrollPortalCaseInlineAnchor = scrollPortalCaseInlineAnchor;
     window.openSupportChatHistoryPanel = openSupportChatHistoryPanel;
     window.toggleSupportChatHistoryPanel = toggleSupportChatHistoryPanel;
     window.toggleSupportChatSpeech = toggleSupportChatSpeech;
@@ -24112,13 +24473,16 @@
     toggleQueryDialog(true);
     supportSelectedCasesCollapsed = loadSupportSelectedCasesCollapsedLocal();
     supportSelectedCases = loadSupportSelectedCasesLocal();
+    supportSavedCases = loadSupportSavedCasesLocal();
     renderSupportSelectedCasesPanel();
+    renderSupportSavedCasesState();
     syncSupportPhoneLoginUiState();
     bindSupportSelectedCasesSharedSync();
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (!isAdminStandalonePage()) toggleAdminDrawer(false);
         toggleSupportSelectedCasesDrawer(false);
+        toggleSupportSavedCasesDrawer(false);
         toggleSupportPhoneLoginModal(false);
         toggleSupportHumanIntakeModal(false);
         toggleSupportChatHistoryPanel(false);
@@ -25322,7 +25686,7 @@
         toggleSupportChat(true);
         const input = document.getElementById('support-chat-input');
         if (input && sid) {
-          const prefix = `案件編號 ${sid}：請協助聯繫顧問／填單引導。`;
+          const prefix = `案件編號 ${sid}：我想了解這個案件，請先幫我整理重點。`;
           const cur = String(input.value || '').trim();
           input.value = cur && !cur.includes(String(sid)) ? `${prefix}\n${cur}` : cur || prefix;
           focusSupportChatInput();
@@ -25892,5 +26256,6 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runSclawStartupChecks);
     else runSclawStartupChecks();
   </script>
+  <script src="/static/selected-cases-compare.js?v=20260627-inner-switch-a"></script>
 </body>
 </html>

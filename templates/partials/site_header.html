@@ -1,0 +1,292 @@
+{% set nav_hash_prefix = site_nav_hash_prefix | default('', true) %}
+{% set nav_home_href = site_nav_home_href | default('#home-hero-heading', true) %}
+{% set nav_workbench_onclick = site_nav_workbench_onclick | default('', true) %}
+{% set nav_query_onclick = site_nav_query_onclick | default('', true) %}
+{% set nav_process_onclick = site_nav_process_onclick | default('', true) %}
+{% set nav_login_onclick = site_nav_login_onclick | default('toggleSupportPhoneLoginModal(true)', true) %}
+  <header class="bh-site-header" aria-label="日本不動產產品站導覽">
+    <nav class="bh-site-nav" aria-label="首頁主導覽">
+      <a class="bh-site-brand is-home-view-active" href="{{ nav_home_href }}" aria-label="{{ site_name }}" data-home-view-switch="home">
+        <img src="/static/brand-logo1.png" width="48" height="48" alt="{{ site_name }}" loading="eager" decoding="async">
+        <span>
+          <strong>{{ seo_phrase_brand }}</strong>
+          <small>{{ seo_phrase_entry }}</small>
+        </span>
+      </a>
+      <div class="bh-site-nav-links bh-nav-keywords" aria-label="導航關鍵詞">
+      <div class="bh-nav-keyword-tabs" role="tablist" aria-label="關鍵詞分組">
+        <button type="button" class="bh-nav-keyword-tab bh-nav-workbench-tab" data-home-view-switch="workbench" aria-pressed="false"{% if nav_workbench_onclick %} onclick="{{ nav_workbench_onclick }}"{% endif %}>找房工作台</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>地區找房</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-buyer" data-bh-nav-keyword-tab="buyer"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>買家需求</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-property" data-bh-nav-keyword-tab="property"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>房源條件</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-process" data-bh-nav-keyword-tab="process"{% if nav_process_onclick %} onclick="{{ nav_process_onclick }}"{% endif %}>流程知識</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-source" data-bh-nav-keyword-tab="source"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>平台來源</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-help" data-bh-nav-keyword-tab="help"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>服務幫助</button>
+      </div>
+      <div class="bh-nav-keyword-panels">
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-region" role="tabpanel" aria-label="地區找房關鍵詞" data-bh-nav-keyword-panel="region" data-bh-panel-title="地區找房" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="東京不動產">東京不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="大阪不動產">大阪不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="京都不動產">京都不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="福岡不動產">福岡不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="北海道不動產">北海道不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="沖繩不動產">沖繩不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="名古屋不動產">名古屋不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="橫濱不動產">橫濱不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="札幌不動產">札幌不動產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="神戶不動產">神戶不動產</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-buyer" role="tabpanel" aria-label="買家需求關鍵詞" data-bh-nav-keyword-panel="buyer" data-bh-panel-title="買家需求" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="海外買家日本不動產">海外買家日本房</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="台灣人買日本房">台灣人買日本房</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="香港人買日本房">香港人買日本房</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="外國人日本買房">外國人日本買房</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本投資房產">日本投資房產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本自住房產">日本自住房產</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本收租物件">日本收租物件</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本遠端看房">日本遠端看房</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-property" role="tabpanel" aria-label="房源條件關鍵詞" data-bh-nav-keyword-panel="property" data-bh-panel-title="房源條件" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本中古公寓">中古公寓</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本新建公寓">新建公寓</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本一戶建">日本一戶建</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本公寓找房">日本公寓找房</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本房源比較">日本房源比較</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="車站周邊物件">車站周邊物件</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="徒步可達物件">徒步可達物件</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="價格篩選找房">價格篩選找房</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-process" role="tabpanel" aria-label="流程知識關鍵詞" data-bh-nav-keyword-panel="process" data-bh-panel-title="流程知識" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="/guide/tw-buy-japan-property" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">日本買房流程</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本買房費用">日本買房費用</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本買房稅務">日本買房稅務</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本房貸外國人">日本房貸外國人</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本投資報酬">日本投資報酬</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本租賃管理">日本租賃管理</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本不動產法規">日本不動產法規</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本房產顧問">日本房產顧問</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-source" role="tabpanel" aria-label="平台來源關鍵詞" data-bh-nav-keyword-panel="source" data-bh-panel-title="平台來源" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="https://suumo.jp/" target="_blank" rel="noopener noreferrer">SUUMO 房源查詢</a>
+          <a href="https://www.homes.co.jp/" target="_blank" rel="noopener noreferrer">LIFULL HOME'S</a>
+          <a href="https://www.athome.co.jp/" target="_blank" rel="noopener noreferrer">at home 房源查詢</a>
+          <a href="https://realestate.yahoo.co.jp/" target="_blank" rel="noopener noreferrer">Yahoo! 不動產</a>
+          <a href="https://realestate.rakuten.co.jp/" target="_blank" rel="noopener noreferrer">樂天不動產案件</a>
+          <a href="https://www.yes1.co.jp/" target="_blank" rel="noopener noreferrer">Yes! 房源查詢</a>
+          <a href="https://www.oheya-su.jp/" target="_blank" rel="noopener noreferrer">OHEYASU</a>
+          </div>
+        </nav>
+        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-help" role="tabpanel" aria-label="服務幫助關鍵詞" data-bh-nav-keyword-panel="help" data-bh-panel-title="服務幫助" hidden>
+          <div class="bh-nav-keyword-list">
+          <a href="{{ nav_hash_prefix }}#jp-map-hub">日本找房工作台</a>
+          <a href="{{ nav_hash_prefix }}#query-dialog">智慧查詢</a>
+          <a href="/company" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">公司背景</a>
+          </div>
+        </nav>
+      </div>
+      </div>
+      <div class="bh-site-titlebar-actions" aria-label="首頁工具列">
+        {% include 'partials/site_language_switch.html' %}
+        <button id="bh-nav-phone-login-btn" type="button" class="bh-nav-phone-login-btn" onclick="{{ nav_login_onclick }}" aria-label="未登录" aria-haspopup="dialog" aria-controls="support-phone-login-modal" title="未登录">
+          <span id="bh-nav-phone-login-text" class="bh-nav-phone-login-text">未登录</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+  <script>
+    (function () {
+      const SUPPORT_PHONE_LOGIN_KEY = 'sclaw_support_phone_login';
+
+      function getSupportPhoneLoginValue() {
+        try {
+          return String(window.localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '').trim();
+        } catch (_) {
+          return '';
+        }
+      }
+
+      function syncSharedPhoneLoginState() {
+        const logged = !!getSupportPhoneLoginValue();
+        const label = logged ? '已登录' : '未登录';
+        const navBtn = document.getElementById('bh-nav-phone-login-btn');
+        const navText = document.getElementById('bh-nav-phone-login-text');
+        const floatingBtn = document.getElementById('support-phone-login-toggle');
+        if (navText) {
+          navText.textContent = label;
+          if (navText.firstChild) navText.firstChild.__sclawHantText = label;
+        }
+        [navBtn, floatingBtn].forEach((btn) => {
+          if (!btn) return;
+          btn.classList.toggle('is-logged-in', logged);
+          btn['sclawHantAttr_aria-label'] = label;
+          btn.sclawHantAttr_title = label;
+          btn.setAttribute('aria-label', label);
+          btn.setAttribute('title', label);
+        });
+      }
+
+      function scheduleSharedPhoneLoginStateSync() {
+        syncSharedPhoneLoginState();
+        window.setTimeout(syncSharedPhoneLoginState, 0);
+        window.setTimeout(syncSharedPhoneLoginState, 120);
+      }
+
+      function initSharedHeaderKeywordTabs() {
+        const roots = Array.from(document.querySelectorAll('.bh-nav-keywords'));
+        roots.forEach((root) => {
+          if (!root || root.dataset.bound === '1') return;
+          root.dataset.bound = '1';
+          const tabs = Array.from(root.querySelectorAll('[data-bh-nav-keyword-tab]'));
+          const panels = Array.from(root.querySelectorAll('[data-bh-nav-keyword-panel]'));
+          const internalSwitches = Array.from(root.querySelectorAll('[data-home-view-switch]'));
+          let closeTimer = 0;
+          const clearCloseTimer = () => {
+            if (closeTimer) {
+              window.clearTimeout(closeTimer);
+              closeTimer = 0;
+            }
+          };
+          const setActive = (key, allowCollapse) => {
+            const current = tabs.find((tab) => tab.classList.contains('is-active'));
+            const currentKey = current ? String(current.getAttribute('data-bh-nav-keyword-tab') || '') : '';
+            const shouldCollapse = Boolean(allowCollapse) && currentKey === key;
+            root.classList.toggle('is-open', !shouldCollapse);
+            tabs.forEach((tab) => {
+              const on = !shouldCollapse && String(tab.getAttribute('data-bh-nav-keyword-tab') || '') === key;
+              tab.classList.toggle('is-active', on);
+              tab.setAttribute('aria-selected', on ? 'true' : 'false');
+              tab.setAttribute('aria-expanded', on ? 'true' : 'false');
+            });
+            panels.forEach((panel) => {
+              const on = !shouldCollapse && String(panel.getAttribute('data-bh-nav-keyword-panel') || '') === key;
+              panel.classList.toggle('is-active', on);
+              panel.hidden = !on;
+            });
+          };
+          const closeMenu = () => {
+            root.classList.remove('is-open');
+            tabs.forEach((tab) => {
+              tab.classList.remove('is-active');
+              tab.setAttribute('aria-selected', 'false');
+              tab.setAttribute('aria-expanded', 'false');
+            });
+            panels.forEach((panel) => {
+              panel.classList.remove('is-active');
+              panel.hidden = true;
+            });
+          };
+          tabs.forEach((tab) => {
+            tab.addEventListener('pointerup', (evt) => {
+              if (evt.pointerType === 'mouse') return;
+              clearCloseTimer();
+              const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+              if (!key) return;
+              evt.preventDefault();
+              setActive(key, false);
+            });
+            tab.addEventListener('mouseenter', () => {
+              clearCloseTimer();
+              const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+              if (key) setActive(key, false);
+            });
+            tab.addEventListener('focus', () => {
+              clearCloseTimer();
+              const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+              if (key) setActive(key, false);
+            });
+            tab.addEventListener('click', () => {
+              clearCloseTimer();
+              const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
+              if (key) setActive(key, false);
+            });
+          });
+          internalSwitches.forEach((btn) => {
+            if (btn.hasAttribute('data-bh-nav-keyword-tab')) return;
+            const syncStandaloneState = () => {
+              clearCloseTimer();
+              closeMenu();
+            };
+            btn.addEventListener('mouseenter', syncStandaloneState);
+            btn.addEventListener('focus', syncStandaloneState);
+            btn.addEventListener('click', syncStandaloneState);
+          });
+          root.addEventListener('mouseenter', clearCloseTimer);
+          root.addEventListener('mouseleave', () => {
+            clearCloseTimer();
+            closeTimer = window.setTimeout(closeMenu, 180);
+          });
+          panels.forEach((panel) => {
+            panel.addEventListener('mouseenter', clearCloseTimer);
+            panel.addEventListener('mouseleave', () => {
+              clearCloseTimer();
+              closeTimer = window.setTimeout(closeMenu, 220);
+            });
+          });
+          root.addEventListener('click', (evt) => {
+            const link = evt.target instanceof Element ? evt.target.closest('.bh-nav-keyword-panel a') : null;
+            if (!link || !root.contains(link)) return;
+            window.setTimeout(closeMenu, 160);
+          });
+          document.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Escape') closeMenu();
+          });
+        });
+      }
+
+      function initSharedHeaderHomeRouting() {
+        if (document.documentElement.dataset.sharedHomeRoutingBound === '1') return;
+        document.documentElement.dataset.sharedHomeRoutingBound = '1';
+        document.addEventListener('click', (event) => {
+          const target = event.target instanceof Element
+            ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]')
+            : null;
+          if (!target) return;
+          if (target.matches('.bh-site-brand')) {
+            const href = target.getAttribute('href') || '#home-hero-heading';
+            if (href.charAt(0) === '#' && !document.querySelector(href)) {
+              event.preventDefault();
+              window.location.href = '/' + href;
+            }
+            return;
+          }
+          if (target.getAttribute('data-home-view-switch') === 'workbench') {
+            if (!document.getElementById('jp-map-hub')) {
+              event.preventDefault();
+              window.location.href = '/';
+            }
+            return;
+          }
+          const hashHref = target.getAttribute('href') || '';
+          if (hashHref.charAt(0) === '#' && !document.querySelector(hashHref)) {
+            event.preventDefault();
+            window.location.href = '/' + hashHref;
+          }
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          initSharedHeaderKeywordTabs();
+          initSharedHeaderHomeRouting();
+          scheduleSharedPhoneLoginStateSync();
+        });
+      } else {
+        initSharedHeaderKeywordTabs();
+        initSharedHeaderHomeRouting();
+        scheduleSharedPhoneLoginStateSync();
+      }
+      window.addEventListener('storage', (evt) => {
+        if (!evt || evt.key === SUPPORT_PHONE_LOGIN_KEY) syncSharedPhoneLoginState();
+      });
+      window.syncSharedPhoneLoginState = syncSharedPhoneLoginState;
+    })();
+  </script>

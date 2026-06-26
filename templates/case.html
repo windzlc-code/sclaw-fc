@@ -6,37 +6,23 @@
   <title>來源案例詳情｜{{ site_name }}</title>
   <meta name="description" content="日本不動產來源案例詳情與站內對照。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260603-case-media-borrow">
+  <link rel="stylesheet" href="/static/site.css?v=20260626-case-standalone">
 </head>
-<body class="site-case site-case-suumo site-lang-hant">
+<body class="site-home site-case site-case-suumo site-case-standalone site-lang-hant">
+  {% include 'partials/site_header.html' %}
   <main class="container case-page-suumo">
-    {% include 'partials/site_language_switch.html' %}
     <header class="suumo-case-brandbar">
       <span class="suumo-case-brandbar-logo">SUUMO 參考版型</span>
       <span class="suumo-case-brandbar-src">{{ item.source_name }} ｜ {{ item.source_category }} ｜ {{ item.access_status }}</span>
     </header>
 
     <section class="panel case-suumo-hero-card">
-      <p class="muted" style="margin:0 0 0.5rem;"><a href="/">← 返回查詢首頁</a></p>
+      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">← 返回查詢首頁</a></p>
       <h1 class="suumo-case-catch">{% if item.title_zh_hant|trim %}{{ item.title_zh_hant|trim }}{% else %}{{ item.title_original }}{% endif %}</h1>
       {% if item.title_zh_hant|trim and item.title_original and (item.title_zh_hant|trim != item.title_original) %}
       <p class="muted suumo-case-title-jp" style="margin:0.25rem 0 0;font-size:0.95rem;line-height:1.45;">{{ item.title_original }}</p>
       {% endif %}
       <p class="suumo-case-itemurl"><a href="{{ item.item_url }}" target="_blank" rel="nofollow noopener">{{ item.item_url }}</a></p>
-      <div class="suumo-case-cta-row">
-        {% if item.source_item_id %}
-        <a class="case-advisor-avatar-cta" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" title="開啟智能顧問並帶入本案">
-          <img src="{{ support_avatar_url }}" alt="" loading="lazy" decoding="async" width="58" height="58">
-          <span class="sr-only">智能顧問</span>
-        </a>
-        {% endif %}
-        {% if case_article_path %}
-        <a class="portal-suumo-cta portal-suumo-cta--ghost" href="{{ case_article_path }}">站內整理文章</a>
-        {% endif %}
-        <a class="portal-suumo-cta portal-suumo-cta--ghost" href="#case-zh">繁簡原文切換</a>
-        <a class="portal-suumo-cta portal-suumo-cta--ghost" href="#case-gallery">案件圖片</a>
-        <a class="portal-suumo-cta portal-suumo-cta--orange" href="{{ item.item_url }}" target="_blank" rel="nofollow noopener" title="資料請求、見學預約等">開啟原站洽詢</a>
-      </div>
       {% set listing_panel = case_listing_panel %}
       {% set restrict_hero_to_property_urls = true %}
       {% set item_url = item.item_url %}
@@ -47,7 +33,7 @@
       {% set source_item_id = item.source_item_id %}
       {% set translation_tab_href = '#case-zh' %}
       {% set more_tab_href = '#case-gallery' %}
-      {% set translation_tab_label = '中文整理對照' %}
+      {% set translation_tab_label = '中文整理' %}
       {% set more_tab_label = '案件圖片' %}
       {% include 'partials/portal_suumo_listing.html' %}
       {% set f = listing_panel.fields %}
@@ -97,18 +83,13 @@
               <div><dt>資料公開日</dt><dd>{{ f.info_open_jp or '—' }}</dd></div>
               <div><dt>下次更新日</dt><dd>{{ f.next_update_jp or '—' }}</dd></div>
             </dl>
+            {% set case_hide_smart_contact = true %}
             {% include 'partials/case_smart_cs_and_advisor_strip.html' %}
           </section>
         </div>
       </section>
       {% endif %}
-      {% if not is_yahoo_case %}
-      <section class="portal-case-advisor-panel panel" aria-label="智能客服與顧問示意">
-        <h3 class="portal-case-advisor-panel-title">聯絡與顧問</h3>
-        {% include 'partials/case_smart_cs_and_advisor_strip.html' %}
-      </section>
-      {% endif %}
-      <p class="muted suumo-case-footnote">版型對齊 <a href="https://suumo.jp/ms/chuko/tokyo/ek_28780/" target="_blank" rel="nofollow noopener">SUUMO 列表</a> 與 <a href="https://suumo.jp/ms/chuko/tokyo/sc_meguro/nc_20581704/" target="_blank" rel="nofollow noopener">個別物件頁</a>；數據以原站為準。</p>
+      <p class="muted suumo-case-footnote">資料為站內整理版本；實際房源狀態、價格與交易條件請以顧問確認為準。</p>
     </section>
 
     {% if item.case_gallery_cells %}
@@ -120,9 +101,6 @@
             <img class="zoomable-image" src="{{ cell.url|case_static_image_url }}" data-full-src="{{ cell.url }}" alt="案件圖片 {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
             <figcaption class="case-image-cell-caption">
               <a href="{{ cell.url }}" target="_blank" rel="nofollow noopener">另開原圖</a>
-              {% if item.source_item_id and cell.is_agent %}
-              <a class="case-image-smart-cs" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}">把這個案件送給智能客服</a>
-              {% endif %}
             </figcaption>
           </figure>
         {% endfor %}
@@ -141,11 +119,6 @@
           <a class="portal-suumo-agent-thumb" href="{{ u }}" target="_blank" rel="nofollow noopener" title="仲介參考圖">
             <img class="zoomable-image" src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="仲介參考 {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer" width="120" height="90">
           </a>
-          {% if item.source_item_id %}
-          <figcaption class="portal-suumo-agent-caption">
-            <a class="case-image-smart-cs" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}">把這個案件送給智能客服</a>
-          </figcaption>
-          {% endif %}
         </figure>
         {% endfor %}
       </div>
@@ -165,16 +138,12 @@
     </details>
     {% endif %}
 
-    <section class="panel case-suumo-meta">
-      <p class="muted" style="margin:0;"><strong>案件時間：</strong>{{ item.published_at or item.crawled_at or item.last_checked_at or "-" }}</p>
-      <p class="muted" style="margin:0;"><strong>最近檢查：</strong>{{ item.last_checked_at }}</p>
+    <details class="panel slim case-source-data">
+      <summary>來源資料</summary>
+      <p class="muted" style="margin:0.75rem 0 0;"><strong>案件時間：</strong>{{ item.published_at or item.crawled_at or item.last_checked_at or "-" }} ｜ <strong>最近檢查：</strong>{{ item.last_checked_at }}</p>
       {% if item.access_note %}
       <p class="muted" style="margin:0.35rem 0 0;"><strong>備註：</strong>{{ item.access_note }}</p>
       {% endif %}
-    </section>
-
-    <section class="panel">
-      <h2>數據欄位檢視</h2>
       <table class="data-table">
         <tr><th>來源名稱</th><td>{{ item.source_name }}</td></tr>
         <tr><th>來源分類</th><td>{{ item.source_category }}</td></tr>
@@ -185,21 +154,7 @@
         <tr><th>案件時間</th><td>{{ item.published_at or item.crawled_at or item.last_checked_at or "-" }}</td></tr>
         <tr><th>整理更新時間</th><td>{{ item.updated_at or "-" }}</td></tr>
       </table>
-    </section>
-
-    <div class="case-smart-cs-dock" aria-label="智能顧問">
-      {% if item.source_item_id %}
-      <a class="case-advisor-avatar-fab" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" title="開啟對話並帶入本案；可向顧問／客服洽詢後續">
-        <img src="{{ support_avatar_url }}" alt="" loading="lazy" decoding="async" width="58" height="58">
-        <span class="sr-only">智能顧問</span>
-      </a>
-      {% else %}
-      <a class="case-advisor-avatar-fab" href="/#advisor-workbench-panel" title="首頁顧問工作台">
-        <img src="{{ support_avatar_url }}" alt="" loading="lazy" decoding="async" width="58" height="58">
-        <span class="sr-only">智能顧問</span>
-      </a>
-      {% endif %}
-    </div>
+    </details>
 
     {% set xhs_f = case_listing_panel.fields if case_listing_panel else {} %}
     {% set xhs_m = case_listing_panel.meta if case_listing_panel else {} %}
@@ -300,6 +255,7 @@
     {% endif %}
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
+  {% include 'partials/site_footer.html' %}
   <div id="image-lightbox" class="image-lightbox" aria-hidden="true">
     <div class="image-lightbox-inner">
       <button id="image-lightbox-prev" class="image-lightbox-nav image-lightbox-prev" type="button" aria-label="上一張">‹</button>
@@ -310,6 +266,32 @@
     </div>
   </div>
   <script>
+    window.toggleSupportPhoneLoginModal = window.toggleSupportPhoneLoginModal || function () {
+      window.location.href = '/';
+    };
+    window.toggleSupportChat = window.toggleSupportChat || function () {
+      window.location.href = '/?open_support=1{% if item.source_item_id %}&case_sid={{ item.source_item_id }}{% endif %}';
+    };
+    document.addEventListener('click', function (event) {
+      const target = event.target && event.target.closest ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]') : null;
+      if (!target) return;
+      const hashHref = target.getAttribute('href') || '';
+      if (target.matches('.bh-site-brand')) {
+        event.preventDefault();
+        window.location.href = '/#home-hero-heading';
+        return;
+      }
+      if (target.getAttribute('data-home-view-switch') === 'workbench') {
+        event.preventDefault();
+        window.location.href = '/';
+        return;
+      }
+      if (hashHref && hashHref.charAt(0) === '#') {
+        event.preventDefault();
+        window.location.href = '/' + hashHref;
+      }
+    });
+
     function suumoResizeUrlLooksSafe(u) {
       const x = String(u || '').trim();
       if (!/^https:\/\//i.test(x)) return false;
