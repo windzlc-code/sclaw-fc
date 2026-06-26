@@ -23,7 +23,7 @@ body.site-home {
 }
 
 body.site-home .bh-site-header {
-  position: absolute;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
@@ -4989,8 +4989,16 @@ body.support-chat-scroll-lock {
   overscroll-behavior: none;
 }
 
+html.purchase-tool-scroll-lock,
 body.purchase-tool-scroll-lock {
   overflow: hidden;
+}
+
+body.purchase-tool-scroll-lock {
+  height: 100dvh;
+  min-height: 100dvh;
+  padding-right: var(--purchase-tool-scrollbar-comp, 0px);
+  overscroll-behavior: none;
 }
 
 .support-chat-widget {
@@ -5213,7 +5221,7 @@ a.support-chat-toggle {
   position: fixed;
   inset: 0;
   z-index: 73;
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(9, 22, 42, 0.14);
   pointer-events: none;
 }
 
@@ -5508,13 +5516,15 @@ a.support-chat-toggle {
   justify-content: center;
   padding: max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
   box-sizing: border-box;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .purchase-tool-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(9, 22, 42, 0.58);
-  backdrop-filter: blur(5px);
+  background: rgba(9, 22, 42, 0.14);
+  backdrop-filter: none;
 }
 
 .purchase-tool-dialog {
@@ -5524,11 +5534,14 @@ a.support-chat-toggle {
   max-height: min(86dvh, 760px);
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
   border: 1px solid rgba(174, 197, 231, 0.76);
   border-radius: 22px;
   background: #f7fafc;
   box-shadow: 0 30px 88px rgba(6, 18, 38, 0.36);
   color: #172033;
+  display: flex;
+  flex-direction: column;
 }
 
 .purchase-tool-head {
@@ -6330,22 +6343,16 @@ a.support-chat-toggle {
 }
 
 body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) {
-  inset: 0 !important;
-  width: 100vw !important;
-  height: 100dvh !important;
-  max-width: none !important;
-  max-height: none !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
   pointer-events: none !important;
 }
 
-body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
 body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
 body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-chat-toggle,
 body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-selected-cases-fab {
+  display: inline-flex !important;
+}
+
+body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
   display: none !important;
 }
 
@@ -6358,6 +6365,38 @@ body.site-home.support-selected-cases-open .support-selected-cases-drawer-backdr
   inset: 0 !important;
   width: auto !important;
   height: auto !important;
+}
+
+body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) {
+  pointer-events: auto !important;
+  z-index: 10066 !important;
+}
+
+body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
+body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-chat-toggle,
+body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-selected-cases-fab {
+  display: inline-flex !important;
+  pointer-events: auto !important;
+}
+
+body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.site-home.support-selected-cases-open .support-selected-cases-drawer {
+  left: auto !important;
+  right: calc(max(34px, env(safe-area-inset-right)) + 88px) !important;
+  top: 50% !important;
+  bottom: auto !important;
+  width: min(520px, 94vw) !important;
+  max-width: min(520px, 94vw) !important;
+  transform: translateY(-50%) !important;
+  z-index: 10065 !important;
+}
+
+body.site-home.support-selected-cases-open .support-selected-cases-drawer-backdrop {
+  background: rgba(9, 22, 42, 0.14) !important;
 }
 
 body.selected-compare-body {
@@ -7996,6 +8035,53 @@ body.selected-compare-body {
 
 .support-chat-advisor-bubble {
   margin-top: 0;
+}
+
+.support-chat-service-banner {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(88, 112, 136, 0.18);
+  background: linear-gradient(180deg, #f8fbfd 0%, #eef4f7 100%);
+  color: #334155;
+}
+
+.support-chat-service-banner--queueing {
+  background: linear-gradient(180deg, #f8fbfd 0%, #edf5fa 100%);
+  border-color: rgba(86, 129, 163, 0.2);
+}
+
+.support-chat-service-banner--handoff_ready {
+  background: linear-gradient(180deg, #f6fbf8 0%, #ebf7ef 100%);
+  border-color: rgba(43, 124, 82, 0.24);
+}
+
+.support-chat-service-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(72, 102, 126, 0.12);
+  color: #24425a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.support-chat-service-label {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #203246;
+}
+
+.support-chat-service-text {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #42536a;
 }
 
 .support-chat-welcome-card {
@@ -19602,6 +19688,22 @@ body.site-home .bh-site-header {
   box-shadow: 0 18px 42px rgba(16, 31, 48, 0.22);
 }
 
+body.site-home:not(.bh-scrolled) .bh-site-header {
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+body.site-home:not(.bh-scrolled) .bh-site-nav {
+  background: transparent !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
 body.site-home .bh-site-header-top {
   display: none;
   min-height: 28px;
@@ -19663,6 +19765,10 @@ body.site-home .bh-site-titlebar-actions {
 
 body.site-home .bh-site-header {
   z-index: 180;
+}
+
+body.site-home #jp-map-hub {
+  padding-top: 18px;
 }
 
 body.site-home .bh-nav-keywords {
@@ -19956,6 +20062,46 @@ body.site-home .bh-site-titlebar-actions .site-language-select {
   color: #253246;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
+}
+
+body.site-home:not(.bh-scrolled) .bh-nav-keyword-tab {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: transparent;
+  box-shadow: none;
+}
+
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .home-hero-sound-toggle,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .config-launcher,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-site-nav-cta,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select-wrap,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .home-hero-sound-toggle,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .config-launcher,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-site-nav-cta,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select-wrap {
+  border-color: rgba(255, 255, 255, 0.34) !important;
+}
+
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select {
+  color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+}
+
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
+body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
+  color: #d7fff1 !important;
+  border: 1px solid rgba(150, 243, 214, 0.88) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 1px solid rgba(150, 243, 214, 0.58) !important;
+  outline-offset: 0 !important;
 }
 
 body.site-home .hero-video-chrome,
@@ -26983,6 +27129,410 @@ body.site-admin-standalone .admin-detail-lightbox-body {
   padding: 16px 18px 18px !important;
 }
 
+body.site-admin-standalone .admin-handoff-workspace {
+  display: grid !important;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-column,
+body.site-admin-standalone .admin-handoff-chat-column {
+  min-width: 0 !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-card,
+body.site-admin-standalone .admin-handoff-summary-card,
+body.site-admin-standalone .admin-handoff-chat-shell {
+  border: 1px solid #e5edf7 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%) !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08) !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-card {
+  padding: 16px !important;
+}
+
+body.site-admin-standalone .admin-handoff-detail-actions .secondary,
+body.site-admin-standalone .admin-handoff-detail-actions .admin-btn-danger {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-name {
+  display: block !important;
+  margin-bottom: 10px !important;
+  color: #14243b !important;
+  font-size: 18px !important;
+  line-height: 1.35 !important;
+}
+
+body.site-admin-standalone .admin-handoff-channel-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-bottom: 12px !important;
+}
+
+body.site-admin-standalone .admin-handoff-channel-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: #eef4fb !important;
+  color: #40546b !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-pair {
+  display: grid !important;
+  gap: 3px !important;
+  padding: 10px 12px !important;
+  border: 1px solid #edf2f8 !important;
+  border-radius: 12px !important;
+  background: #fbfdff !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-pair span {
+  color: #6b7b8f !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+body.site-admin-standalone .admin-handoff-meta-pair strong {
+  color: #1b2d45 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  font-weight: 800 !important;
+}
+
+body.site-admin-standalone .admin-handoff-summary-card {
+  margin-top: 14px !important;
+  padding: 14px 16px !important;
+}
+
+body.site-admin-standalone .admin-handoff-section-kicker {
+  display: inline-block !important;
+  margin-bottom: 8px !important;
+  color: #526780 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+body.site-admin-standalone .admin-handoff-summary-text {
+  color: #334155 !important;
+  font-size: 13px !important;
+  line-height: 1.7 !important;
+}
+
+body.site-admin-standalone .admin-handoff-summary-text + .admin-handoff-summary-text {
+  margin-top: 8px !important;
+}
+
+body.site-admin-standalone .admin-handoff-case-list {
+  display: grid !important;
+  gap: 10px !important;
+}
+
+body.site-admin-standalone .admin-handoff-case-item {
+  display: grid !important;
+  gap: 4px !important;
+  padding: 10px 12px !important;
+  border: 1px solid #edf2f8 !important;
+  border-radius: 12px !important;
+  background: #fbfdff !important;
+}
+
+body.site-admin-standalone .admin-handoff-case-item strong {
+  color: #1f2a44 !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+body.site-admin-standalone .admin-handoff-case-item span {
+  color: #6b7b8f !important;
+  font-size: 12px !important;
+}
+
+body.site-admin-standalone .admin-handoff-case-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-top: 2px !important;
+}
+
+body.site-admin-standalone .admin-handoff-case-actions .secondary {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  text-decoration: none !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-details {
+  margin-top: 14px !important;
+  border: 1px dashed #d8e2ef !important;
+  border-radius: 14px !important;
+  background: #fcfdff !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-details > summary {
+  padding: 12px 14px !important;
+  color: #37506a !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  list-style: none !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-details > summary::-webkit-details-marker {
+  display: none !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-form {
+  padding: 0 14px 14px !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-form label {
+  display: grid !important;
+  gap: 6px !important;
+  color: #516174 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-form input,
+body.site-admin-standalone .admin-handoff-edit-form textarea,
+body.site-admin-standalone .admin-handoff-compose textarea,
+body.site-admin-standalone .admin-handoff-compose select {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border: 1px solid #d7e2ef !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #1f2a44 !important;
+  font-size: 13px !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-form input,
+body.site-admin-standalone .admin-handoff-compose select {
+  min-height: 40px !important;
+  padding: 0 12px !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-form textarea,
+body.site-admin-standalone .admin-handoff-compose textarea {
+  padding: 10px 12px !important;
+  resize: vertical !important;
+}
+
+body.site-admin-standalone .admin-handoff-edit-wide {
+  margin-top: 12px !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-shell {
+  overflow: hidden !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-shell-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 16px 18px !important;
+  border-bottom: 1px solid #e8eef7 !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-shell-head strong {
+  display: block !important;
+  color: #14243b !important;
+  font-size: 18px !important;
+  line-height: 1.35 !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-shell-head .muted {
+  display: block !important;
+  margin-top: 3px !important;
+  color: #6b7b8f !important;
+  font-size: 12px !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-count {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  background: #eef4fb !important;
+  color: #40546b !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-thread {
+  display: grid !important;
+  gap: 10px !important;
+  min-height: 420px !important;
+  max-height: 560px !important;
+  padding: 18px !important;
+  overflow: auto !important;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fc 100%) !important;
+}
+
+body.site-admin-standalone .admin-handoff-empty-thread {
+  display: grid !important;
+  place-items: center !important;
+  min-height: 220px !important;
+  gap: 8px !important;
+  padding: 18px !important;
+  text-align: center !important;
+  border: 1px dashed #d8e2ef !important;
+  border-radius: 14px !important;
+  color: #6b7b8f !important;
+  background: rgba(255, 255, 255, 0.75) !important;
+}
+
+body.site-admin-standalone .admin-handoff-empty-thread strong {
+  color: #1f2a44 !important;
+  font-size: 15px !important;
+}
+
+body.site-admin-standalone .admin-handoff-empty-thread span {
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg {
+  display: grid !important;
+  gap: 5px !important;
+  justify-items: start !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-user {
+  justify-items: end !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg-label {
+  color: #6b7b8f !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg-bubble {
+  max-width: min(100%, 560px) !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  color: #1f2a44 !important;
+  font-size: 14px !important;
+  line-height: 1.7 !important;
+  border: 1px solid #e6edf7 !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-user .admin-handoff-chat-msg-bubble {
+  background: linear-gradient(135deg, #5c7488 0%, #4a6278 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(74, 98, 120, 0.96) !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-advisor .admin-handoff-chat-msg-bubble {
+  background: linear-gradient(135deg, #edf5ff 0%, #f8fbff 100%) !important;
+  border-color: #d9e6f7 !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose {
+  padding: 16px 18px 18px !important;
+  border-top: 1px solid #e8eef7 !important;
+  background: #ffffff !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose-row.is-editor {
+  align-items: flex-end !important;
+  margin-top: 10px !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose-row.is-editor textarea {
+  min-height: 104px !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose-row.is-editor .primary {
+  min-width: 120px !important;
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose-note {
+  color: #6b7b8f !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose-note.is-success {
+  color: #1f7a55 !important;
+  font-weight: 700 !important;
+}
+
+@media (max-width: 1080px) {
+  body.site-admin-standalone .admin-handoff-workspace {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.site-admin-standalone .admin-handoff-edit-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body.site-admin-standalone .admin-handoff-chat-thread {
+    min-height: 320px !important;
+    max-height: 48vh !important;
+    padding: 14px !important;
+  }
+
+  body.site-admin-standalone .admin-handoff-compose-row,
+  body.site-admin-standalone .admin-handoff-compose-row.is-editor {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  body.site-admin-standalone .admin-handoff-compose-row.is-editor .primary {
+    width: 100% !important;
+  }
+}
+
 body.site-admin-standalone .admin-detail-block {
   margin: 0 0 14px !important;
 }
@@ -29383,12 +29933,6 @@ body.site-home .support-chat-panel,
   }
 
   body.site-home.support-selected-cases-open .support-chat-widget {
-    inset: 0 !important;
-    width: auto !important;
-    height: auto !important;
-    border: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
     pointer-events: none !important;
   }
 
@@ -29758,31 +30302,32 @@ body.site-home .support-chat-panel,
   }
 
   body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) {
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100dvh !important;
-    max-width: none !important;
-    max-height: none !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    pointer-events: none !important;
+    pointer-events: auto !important;
+    z-index: 10066 !important;
   }
 
-  body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
   body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
   body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-chat-toggle,
   body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-selected-cases-fab {
+    display: inline-flex !important;
+    pointer-events: auto !important;
+  }
+
+  body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
     display: none !important;
+    pointer-events: none !important;
   }
 
   body.site-home.support-selected-cases-open .support-selected-cases-drawer {
-    left: max(12px, env(safe-area-inset-left)) !important;
-    right: max(12px, env(safe-area-inset-right)) !important;
-    width: auto !important;
-    max-width: none !important;
+    left: auto !important;
+    right: calc(max(34px, env(safe-area-inset-right)) + 88px) !important;
+    top: 50% !important;
+    bottom: auto !important;
+    width: min(520px, 94vw) !important;
+    max-width: min(520px, 94vw) !important;
+    transform: translateY(-50%) !important;
     pointer-events: auto !important;
+    z-index: 10065 !important;
   }
 
   body.site-home.support-selected-cases-open .support-selected-cases-drawer-backdrop {
@@ -29790,5 +30335,234 @@ body.site-home .support-chat-panel,
     width: auto !important;
     height: auto !important;
     pointer-events: auto !important;
+    background: rgba(9, 22, 42, 0.14) !important;
   }
+}
+
+@media (min-width: 821px) {
+  body.site-home .support-selected-cases-drawer {
+    left: auto !important;
+    right: calc(max(34px, env(safe-area-inset-right)) + 88px) !important;
+    top: 50% !important;
+    bottom: auto !important;
+    width: min(520px, 94vw) !important;
+    max-width: min(520px, 94vw) !important;
+    transform: translateY(-50%) !important;
+  }
+}
+
+/* 2026-06-26: admin desktop layout scale-up for clearer sidebar and roomier content gap. */
+body.site-admin-standalone .admin-drawer {
+  --admin-sidebar-width: 248px !important;
+  --admin-content-gap: 34px !important;
+}
+
+body.site-admin-standalone .admin-drawer .config-drawer-head {
+  min-height: 60px !important;
+  padding: 9px 16px !important;
+}
+
+body.site-admin-standalone .admin-head-brand {
+  gap: 14px !important;
+}
+
+body.site-admin-standalone .admin-head-brand > strong {
+  font-size: 22px !important;
+  font-weight: 900 !important;
+}
+
+body.site-admin-standalone .admin-head-console {
+  min-height: 24px !important;
+  padding-left: 14px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-bar {
+  top: 60px !important;
+  left: 8px !important;
+  bottom: 12px !important;
+  width: var(--admin-sidebar-width) !important;
+  padding: 14px 0 22px !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group {
+  padding: 14px 0 !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-group-label {
+  min-height: 50px !important;
+  padding: 10px 22px !important;
+  color: #c6d0dd !important;
+  font-size: 17px !important;
+  font-weight: 850 !important;
+  line-height: 1.3 !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn {
+  min-height: 50px !important;
+  padding: 0 22px 0 52px !important;
+  font-size: 16px !important;
+  font-weight: 760 !important;
+  line-height: 1.2 !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn::after {
+  left: 22px !important;
+  width: 13px !important;
+  height: 13px !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn span,
+body.site-admin-standalone .admin-drawer .admin-tab-btn strong,
+body.site-admin-standalone .admin-drawer .admin-tab-btn small {
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-btn:hover,
+body.site-admin-standalone .admin-drawer .admin-tab-btn:focus-visible {
+  padding-left: 56px !important;
+}
+
+body.site-admin-standalone .admin-console-path,
+body.site-admin-standalone .admin-console-hero,
+body.site-admin-standalone .admin-console-module-tabs,
+body.site-admin-standalone .admin-console-toolbar,
+body.site-admin-standalone .admin-console-notice,
+body.site-admin-standalone .admin-drawer .admin-tab-panel {
+  margin-left: calc(var(--admin-sidebar-width) + var(--admin-content-gap)) !important;
+  margin-right: 34px !important;
+}
+
+body.site-admin-standalone .admin-console-module-tabs,
+body.site-admin-standalone .admin-console-toolbar,
+body.site-admin-standalone .admin-console-notice,
+body.site-admin-standalone .admin-drawer .admin-tab-panel {
+  font-size: 14px !important;
+}
+
+body.site-admin-standalone .admin-console-module-tabs button,
+body.site-admin-standalone .admin-drawer .admin-console-module-tabs button,
+body.site-admin-standalone .admin-console-toolbar button,
+body.site-admin-standalone .admin-drawer .admin-console-toolbar button {
+  font-size: 17px !important;
+  font-weight: 800 !important;
+}
+
+body.site-admin-standalone .admin-console-hero {
+  min-height: 100px !important;
+  padding: 20px 24px !important;
+}
+
+body.site-admin-standalone .admin-console-hero h2 {
+  font-size: 26px !important;
+}
+
+body.site-admin-standalone .admin-console-hero p,
+body.site-admin-standalone .admin-drawer .admin-tab-panel p,
+body.site-admin-standalone .admin-drawer .admin-tab-panel li,
+body.site-admin-standalone .admin-drawer .admin-tab-panel td {
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+
+body.site-admin-standalone .admin-console-notice p,
+body.site-admin-standalone .admin-drawer .muted,
+body.site-admin-standalone .admin-drawer label.muted,
+body.site-admin-standalone .admin-drawer .admin-inline-hint,
+body.site-admin-standalone .admin-drawer .admin-ui-chipline span,
+body.site-admin-standalone .admin-drawer .admin-tab-panel small {
+  font-size: 12.5px !important;
+  line-height: 1.55 !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel th {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+body.site-admin-standalone .admin-drawer .config-subhead,
+body.site-admin-standalone .admin-drawer .admin-tab-panel h3,
+body.site-admin-standalone .admin-drawer .admin-tab-panel h4,
+body.site-admin-standalone .admin-drawer .admin-management-section > summary strong,
+body.site-admin-standalone #admin-tab-cases .admin-case-settings-details > summary strong {
+  font-size: 18px !important;
+}
+
+body.site-admin-standalone .admin-console-notice > span,
+body.site-admin-standalone .admin-console-toolbar > span,
+body.site-admin-standalone .admin-drawer .admin-panel-title-row .config-subhead,
+body.site-admin-standalone .admin-drawer .admin-tab-panel label:not(.muted),
+body.site-admin-standalone .admin-drawer .admin-tab-panel strong:not(.muted),
+body.site-admin-standalone .admin-drawer .admin-tab-panel summary,
+body.site-admin-standalone .admin-drawer .admin-management-section > summary,
+body.site-admin-standalone #admin-tab-cases .admin-case-settings-details > summary {
+  font-size: 16px !important;
+  font-weight: 750 !important;
+}
+
+body.site-admin-standalone .admin-drawer button,
+body.site-admin-standalone .admin-drawer .secondary,
+body.site-admin-standalone .admin-drawer .chip,
+body.site-admin-standalone .admin-drawer input,
+body.site-admin-standalone .admin-drawer select,
+body.site-admin-standalone .admin-drawer textarea {
+  font-size: 16px !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel button,
+body.site-admin-standalone .admin-drawer .admin-tab-panel .secondary,
+body.site-admin-standalone .admin-drawer .admin-tab-panel .chip {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+
+body.site-admin-standalone .admin-drawer input,
+body.site-admin-standalone .admin-drawer select,
+body.site-admin-standalone .admin-drawer textarea {
+  min-height: 44px !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel > .panel,
+body.site-admin-standalone .admin-drawer .admin-tab-panel > details.panel,
+body.site-admin-standalone .admin-drawer .admin-management-section,
+body.site-admin-standalone .admin-drawer .support-bot-status-panel {
+  padding: 20px 24px !important;
+}
+
+@media (max-width: 1180px) and (min-width: 761px) {
+  body.site-admin-standalone .admin-drawer {
+    --admin-sidebar-width: 228px !important;
+    --admin-content-gap: 26px !important;
+  }
+
+  body.site-admin-standalone .admin-console-path,
+  body.site-admin-standalone .admin-console-hero,
+  body.site-admin-standalone .admin-console-module-tabs,
+  body.site-admin-standalone .admin-console-toolbar,
+  body.site-admin-standalone .admin-console-notice,
+  body.site-admin-standalone .admin-drawer .admin-tab-panel {
+    margin-right: 26px !important;
+  }
+}
+
+/* 2026-06-26: keep the homepage titlebar truly transparent at the top of the
+   hero. Placed at EOF so it wins over legacy home shell layers. */
+body.site-home:not(.bh-scrolled) .bh-site-header {
+  background: transparent !important;
+  background-image: none !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.24) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+body.site-home:not(.bh-scrolled) .bh-site-nav {
+  background: transparent !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
