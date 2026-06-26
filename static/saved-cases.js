@@ -100,10 +100,10 @@
   }
 
   function primaryLink(it) {
-    const article = String((it && it.article_url) || '').trim();
-    if (article) return article;
     const sid = Number((it && it.source_item_id) || 0);
-    if (sid > 0) return `/case/${sid}`;
+    if (sid > 0) return `/case/${sid}?return_to=${encodeURIComponent('/saved-cases')}`;
+    const article = String((it && it.article_url) || '').trim();
+    if (article && !/^javascript:/i.test(article)) return article;
     return String((it && it.item_url) || '').trim();
   }
 

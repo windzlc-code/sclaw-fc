@@ -4023,6 +4023,47 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
     }
 
 
+def _site_standalone_context(request: Request) -> dict[str, Any]:
+    return {
+        "request": request,
+        "site_name": SITE_NAME,
+        "brand_name": BRAND_NAME,
+        "site_url": get_effective_site_url(),
+        "support_avatar_url": get_support_avatar_url(),
+        "site_nav_hash_prefix": "/",
+        "site_footer_hash_prefix": "/",
+        "site_nav_home_href": "/#home-hero-heading",
+        "site_nav_workbench_onclick": "window.location.href='/#jp-map-hub'",
+        "site_nav_query_onclick": "window.location.href='/#query-dialog'",
+        "site_nav_process_onclick": "window.location.href='/#query-dialog'",
+        "site_nav_login_onclick": "window.location.href='/?open_support=1'",
+        "site_footer_support_onclick": "window.location.href='/?open_support=1'",
+    }
+
+
+def _safe_case_return_to(raw_value: Any) -> tuple[str, str]:
+    default_target = "/#query-dialog"
+    default_label = "返回查詢首頁"
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return default_target, default_label
+    if len(raw) > 300:
+        return default_target, default_label
+    parsed = urlparse(raw)
+    if parsed.scheme or parsed.netloc or not raw.startswith("/") or raw.startswith("//"):
+        return default_target, default_label
+    path = parsed.path or "/"
+    allowed_paths = {"/", "/saved-cases", "/selected-cases-compare", "/purchase-tools"}
+    if path not in allowed_paths:
+        return default_target, default_label
+    labels = {
+        "/saved-cases": "返回收藏案件",
+        "/selected-cases-compare": "返回案件對比",
+        "/purchase-tools": "返回購房工具",
+    }
+    return raw, labels.get(path, default_label)
+
+
 @app.get("/")
 def index(request: Request):
     return templates.TemplateResponse(
@@ -4037,12 +4078,7 @@ def selected_cases_compare_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="selected_cases_compare.html",
-        context={
-            "request": request,
-            "site_name": SITE_NAME,
-            "brand_name": BRAND_NAME,
-            "site_url": get_effective_site_url(),
-        },
+        context=_site_standalone_context(request),
     )
 
 
@@ -4051,12 +4087,7 @@ def purchase_tools_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="purchase_tools.html",
-        context={
-            "request": request,
-            "site_name": SITE_NAME,
-            "brand_name": BRAND_NAME,
-            "site_url": get_effective_site_url(),
-        },
+        context=_site_standalone_context(request),
     )
 
 
@@ -4065,12 +4096,7 @@ def saved_cases_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="saved_cases.html",
-        context={
-            "request": request,
-            "site_name": SITE_NAME,
-            "brand_name": BRAND_NAME,
-            "site_url": get_effective_site_url(),
-        },
+        context=_site_standalone_context(request),
     )
 
 
@@ -24942,6 +24968,8 @@ def source_case_page(request: Request, source_item_id: int):
     item["source_item_id"] = int(source_item_id)
     # 頁面模板多處使用 item.source_item_id；查詢欄位為 s.id，需顯式帶入以免按鈕／連結不渲染
     item["source_item_id"] = int(source_item_id)
+    case_return_to, case_return_label = _safe_case_return_to(request.query_params.get("return_to"))
+    has_case_return_to = bool(str(request.query_params.get("return_to") or "").strip()) and case_return_to != "/#query-dialog"
     case_page_fp = _case_page_fingerprint(item)
     access_status_clean = str(item.get("access_status") or "public").strip().lower()
     restricted_reason = ""
@@ -24962,19 +24990,18 @@ def source_case_page(request: Request, source_item_id: int):
             request=request,
             name="case_unavailable.html",
             context={
-                "request": request,
-                "site_name": SITE_NAME,
-                "brand_name": BRAND_NAME,
+                **_site_standalone_context(request),
                 "item": item,
                 "source_item_id": int(source_item_id),
                 "source_url": str(item.get("item_url") or ""),
                 "search_url": "/?" + urlencode({"dialog_keyword": q}) if q else "/",
+                "case_return_to": case_return_to,
+                "case_return_label": case_return_label,
                 "unavailable_reason": unavailable_reason,
-                "support_avatar_url": get_support_avatar_url(),
             },
         )
     item = _ensure_case_listing_media_json_for_display(item)
-    cached_case_html = _case_page_html_cache_get(int(source_item_id), case_page_fp)
+    cached_case_html = None if has_case_return_to else _case_page_html_cache_get(int(source_item_id), case_page_fp)
     if cached_case_html is not None:
         return Response(content=cached_case_html, media_type="text/html")
     case_listing_panel = _build_portal_listing_panel(item)
@@ -25003,15 +25030,14 @@ def source_case_page(request: Request, source_item_id: int):
             request=request,
             name="case_unavailable.html",
             context={
-                "request": request,
-                "site_name": SITE_NAME,
-                "brand_name": BRAND_NAME,
+                **_site_standalone_context(request),
                 "item": item,
                 "source_item_id": int(source_item_id),
                 "source_url": str(item.get("item_url") or ""),
                 "search_url": "/?" + urlencode({"dialog_keyword": q}) if q else "/",
+                "case_return_to": case_return_to,
+                "case_return_label": case_return_label,
                 "unavailable_reason": missing_gallery_reason,
-                "support_avatar_url": get_support_avatar_url(),
             },
         )
     primary_imgs, video_urls = extract_media_urls_from_row(item)
@@ -25162,17 +25188,17 @@ def source_case_page(request: Request, source_item_id: int):
             if case_related_item:
                 case_related_news = _related_articles_lite_for_item(conn, case_related_item, limit=6)
     context = {
-        "request": request,
-        "site_name": SITE_NAME,
-        "brand_name": BRAND_NAME,
+        **_site_standalone_context(request),
         "item": item,
+        "case_return_to": case_return_to,
+        "case_return_label": case_return_label,
         "case_article_path": case_article_path,
         "case_related_news": case_related_news,
         "case_listing_panel": case_listing_panel,
-        "support_avatar_url": get_support_avatar_url(),
     }
     html = templates.env.get_template("case.html").render(context)
-    _case_page_html_cache_set(int(source_item_id), case_page_fp, html)
+    if not has_case_return_to:
+        _case_page_html_cache_set(int(source_item_id), case_page_fp, html)
     return Response(content=html, media_type="text/html")
 
 

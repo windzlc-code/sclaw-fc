@@ -3654,6 +3654,7 @@
     let supportTelegramThreadActive = false;
     let supportTelegramLastPullStatus = '';
     let supportChatOpen = false;
+    let supportChatPanelMotionTimer = null;
     let supportChatTtsEnabled = false;
     let supportChatSpeechPrimed = false;
     let supportChatSpeechScript = '';
@@ -8453,7 +8454,7 @@
       const backdrop = document.getElementById('support-chat-backdrop');
       const widget = document.getElementById('support-chat-widget');
       if (!panel) return;
-      const open = typeof force === 'boolean' ? force : panel.style.display === 'none';
+      const open = typeof force === 'boolean' ? force : !supportChatOpen;
       if (open && !(options && options.skipPhoneGate) && !isSupportPhoneLoggedIn()) {
         supportPhoneLoginReturnToChat = true;
         setSupportPhoneLoginModalOpen(true, { returnToChat: true });
@@ -8461,7 +8462,30 @@
       }
       if (open) ensureSupportChatPanelInViewportLayer();
       if (open && !(options && options.skipExclusive)) closeFloatingPanelsExcept('support');
-      panel.style.display = open ? 'flex' : 'none';
+      if (supportChatPanelMotionTimer) {
+        window.clearTimeout(supportChatPanelMotionTimer);
+        supportChatPanelMotionTimer = null;
+      }
+      if (open) {
+        panel.style.display = 'flex';
+        panel.classList.remove('is-chat-hiding');
+        panel.setAttribute('aria-hidden', 'false');
+        void panel.offsetHeight;
+        window.requestAnimationFrame(() => {
+          if (supportChatOpen) panel.classList.add('is-chat-visible');
+        });
+      } else {
+        panel.classList.remove('is-chat-visible');
+        panel.classList.add('is-chat-hiding');
+        panel.setAttribute('aria-hidden', 'true');
+        supportChatPanelMotionTimer = window.setTimeout(() => {
+          if (!supportChatOpen) {
+            panel.style.display = 'none';
+            panel.classList.remove('is-chat-hiding');
+          }
+          supportChatPanelMotionTimer = null;
+        }, 460);
+      }
       supportChatOpen = open;
       const mobile = isSupportMobileUi();
       if (btn) {
@@ -10120,10 +10144,10 @@
     }
 
     function supportSelectedCasePrimaryLink(it) {
-      const article = String((it && it.article_url) || '').trim();
-      if (article) return article;
       const sid = Number((it && it.source_item_id) || 0);
-      if (sid > 0) return `/case/${sid}`;
+      if (sid > 0) return `/case/${sid}?return_to=${encodeURIComponent('/#jp-map-hub')}`;
+      const article = String((it && it.article_url) || '').trim();
+      if (article && !/^javascript:/i.test(article)) return article;
       return String((it && it.item_url) || '').trim();
     }
 
@@ -10613,10 +10637,9 @@
           const titleShort = esc(String(it.title || '').slice(0, 48) || '案件');
           const src = esc(String(it.source_name || '來源'));
           const primaryRaw = String(supportSelectedCasePrimaryLink(it) || '').trim();
-          const inlineDetailAttr = /^\/case\/\d+\/?$/i.test(primaryRaw) ? ' onclick="openSupportCaseInlineDetailLink(event, this)"' : '';
           const titleInner =
             primaryRaw && !/^javascript:/i.test(primaryRaw)
-              ? `<a class="support-selected-cases-summary-link" href="${esc(primaryRaw)}"${/^https?:\/\//i.test(primaryRaw) ? ' target="_blank" rel="nofollow noopener"' : ''}${inlineDetailAttr}>${titleShort}</a>`
+              ? `<a class="support-selected-cases-summary-link" href="${esc(primaryRaw)}"${/^https?:\/\//i.test(primaryRaw) ? ' target="_blank" rel="nofollow noopener"' : ''}>${titleShort}</a>`
               : `<strong>${titleShort}</strong>`;
           html += `<div class="support-selected-cases-summary-item">${titleInner}<span class="muted">${src}</span></div>`;
         }
@@ -10786,7 +10809,6 @@
         const primaryRaw = String(supportSelectedCasePrimaryLink(it) || '').trim();
         const safeHref = primaryRaw && !/^javascript:/i.test(primaryRaw) ? primaryRaw : '';
         const externalAttrs = /^https?:\/\//i.test(safeHref) ? ' target="_blank" rel="nofollow noopener"' : '';
-        const inlineDetailAttr = /^\/case\/\d+\/?$/i.test(safeHref) ? ' onclick="openSupportCaseInlineDetailLink(event, this)"' : '';
         const thumb = supportSelectedCaseThumbUrl(it);
         const imageCount = Number(it.image_count || (Array.isArray(it.gallery_urls) ? it.gallery_urls.length : 0) || 0);
         const imageLoading = idx < 3 ? 'eager' : 'lazy';
@@ -10797,10 +10819,10 @@
         const placeholderText = thumb ? '圖片載入中' : '暫無配圖';
         const thumbInner = `${imgHtml}<span class="support-selected-cases-card-source">${sourceText}</span><span class="support-selected-cases-card-placeholder">${placeholderText}</span>`;
         const thumbHtml = safeHref
-          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${thumbInner}</a>`
+          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}>${thumbInner}</a>`
           : `<div class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}">${thumbInner}</div>`;
         const titleHtml = safeHref
-          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${titleShown}</a>`
+          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}>${titleShown}</a>`
           : `<strong class="support-selected-cases-cart-link">${titleShown}</strong>`;
         html += '<article class="support-selected-cases-cart-item support-saved-cases-cart-item">';
         html += thumbHtml;
@@ -10835,7 +10857,6 @@
         const primaryRaw = String(supportSelectedCasePrimaryLink(it) || '').trim();
         const safeHref = primaryRaw && !/^javascript:/i.test(primaryRaw) ? primaryRaw : '';
         const externalAttrs = /^https?:\/\//i.test(safeHref) ? ' target="_blank" rel="nofollow noopener"' : '';
-        const inlineDetailAttr = /^\/case\/\d+\/?$/i.test(safeHref) ? ' onclick="openSupportCaseInlineDetailLink(event, this)"' : '';
         const thumb = supportSelectedCaseThumbUrl(it);
         const imageCount = Number(it.image_count || (Array.isArray(it.gallery_urls) ? it.gallery_urls.length : 0) || 0);
         const imageLoading = idx < 3 ? 'eager' : 'lazy';
@@ -10846,10 +10867,10 @@
         const placeholderText = thumb ? '圖片載入中' : '暫無配圖';
         const thumbInner = `${imgHtml}<span class="support-selected-cases-card-source">${sourceText}</span><span class="support-selected-cases-card-placeholder">${placeholderText}</span>`;
         const thumbHtml = safeHref
-          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${thumbInner}</a>`
+          ? `<a class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}" href="${esc(safeHref)}"${externalAttrs}>${thumbInner}</a>`
           : `<div class="support-selected-cases-card-thumb${thumb ? '' : ' is-empty'}">${thumbInner}</div>`;
         const titleHtml = safeHref
-          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}${inlineDetailAttr}>${titleShown}</a>`
+          ? `<a class="support-selected-cases-cart-link" href="${esc(safeHref)}"${externalAttrs}>${titleShown}</a>`
           : `<strong class="support-selected-cases-cart-link">${titleShown}</strong>`;
         html += '<article class="support-selected-cases-cart-item">';
         html += thumbHtml;
@@ -10869,21 +10890,7 @@
     async function openSupportSelectedCasesComparePage() {
       toggleSupportSelectedCasesDrawer(false);
       toggleSupportSavedCasesDrawer(false);
-      document.body.classList.add('home-selected-compare-mode');
-      const view = document.getElementById('selected-compare-inline-view');
-      if (view) {
-        view.hidden = false;
-        view.setAttribute('aria-hidden', 'false');
-      }
-      try {
-        if (typeof hydrateAndRenderSelectedCompare === 'function') await hydrateAndRenderSelectedCompare(true);
-      } catch (_) {}
-      window.requestAnimationFrame(() => {
-        const header = document.querySelector('.bh-site-header');
-        const headerH = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
-        const y = view ? Math.max(0, view.getBoundingClientRect().top + window.scrollY - headerH - 14) : 0;
-        window.scrollTo({ top: y, behavior: 'smooth' });
-      });
+      window.location.href = '/selected-cases-compare';
     }
 
     function closeHomeSelectedCompareView() {
@@ -10901,21 +10908,6 @@
         const y = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerH - 14);
         window.scrollTo({ top: y, behavior: 'smooth' });
       });
-    }
-
-    async function openSupportCaseInlineDetailLink(event, link) {
-      const href = String(link && link.getAttribute ? link.getAttribute('href') : '').trim();
-      if (!/^\/case\/\d+\/?$/i.test(href)) return true;
-      if (event) event.preventDefault();
-      toggleSupportSelectedCasesDrawer(false);
-      toggleSupportSavedCasesDrawer(false);
-      closeHomeSelectedCompareView();
-      if (typeof openPortalCaseInlineDetail === 'function') {
-        const opened = await openPortalCaseInlineDetail(href, link);
-        if (opened) return false;
-      }
-      window.location.href = href;
-      return false;
     }
 
     function openSupportChatForSelectedCases() {

@@ -17,7 +17,7 @@
     </header>
 
     <section class="panel case-suumo-hero-card">
-      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">← 返回查詢首頁</a></p>
+      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="{{ case_return_to | default('/#query-dialog', true) }}">← {{ case_return_label | default('返回查詢首頁', true) }}</a></p>
       <h1 class="suumo-case-catch">{% if item.title_zh_hant|trim %}{{ item.title_zh_hant|trim }}{% else %}{{ item.title_original }}{% endif %}</h1>
       {% if item.title_zh_hant|trim and item.title_original and (item.title_zh_hant|trim != item.title_original) %}
       <p class="muted suumo-case-title-jp" style="margin:0.25rem 0 0;font-size:0.95rem;line-height:1.45;">{{ item.title_original }}</p>

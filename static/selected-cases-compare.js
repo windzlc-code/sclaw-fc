@@ -252,10 +252,11 @@ function scThumb(it) {
 }
 
 function scLocalLink(it) {
+  const sid = Number(it.source_item_id || 0);
+  if (sid > 0) return `/case/${sid}?return_to=${encodeURIComponent('/selected-cases-compare')}`;
   const article = scText(it.article_url);
   if (article && article.startsWith('/')) return article;
-  const sid = Number(it.source_item_id || 0);
-  return sid > 0 ? `/case/${sid}` : '';
+  return '';
 }
 
 function scExternalLink(it) {
