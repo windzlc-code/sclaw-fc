@@ -8275,6 +8275,12 @@ body.selected-compare-body {
   border-color: #86efac;
 }
 
+.support-chat-bubble--admin-staff {
+  background: linear-gradient(180deg, #fffaf0 0%, #fff7ed 100%);
+  border-color: #fdba74;
+  box-shadow: inset 3px 0 0 #f97316;
+}
+
 .support-chat-role--tg {
   color: #0369a1;
   font-weight: 600;
@@ -8283,6 +8289,11 @@ body.selected-compare-body {
 .support-chat-role--line {
   color: #15803d;
   font-weight: 600;
+}
+
+.support-chat-role--admin-staff {
+  color: #b45309;
+  font-weight: 700;
 }
 
 .support-chat-telegram-status {
@@ -27931,6 +27942,63 @@ body.site-admin-standalone .admin-handoff-chat-msg.is-advisor .admin-handoff-cha
   border-color: #d9e6f7 !important;
 }
 
+body.site-admin-standalone .admin-handoff-chat-msg.is-assistant .admin-handoff-chat-msg-label {
+  color: #64748b !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-assistant .admin-handoff-chat-msg-bubble {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-user .admin-handoff-chat-msg-label {
+  color: #31556f !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-advisor .admin-handoff-chat-msg-label {
+  color: #0f766e !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-advisor .admin-handoff-chat-msg-bubble {
+  border-width: 1px 1px 1px 5px !important;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f7fee7 100%) !important;
+  border-color: #86efac !important;
+  color: #14352d !important;
+  box-shadow: 0 10px 22px rgba(20, 83, 45, 0.08) !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-channel-admin .admin-handoff-chat-msg-label {
+  color: #b45309 !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-channel-admin .admin-handoff-chat-msg-bubble {
+  background: linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%) !important;
+  border-color: #fb923c !important;
+  color: #43280f !important;
+  box-shadow: 0 10px 22px rgba(194, 65, 12, 0.09) !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-channel-telegram .admin-handoff-chat-msg-label {
+  color: #0369a1 !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-channel-telegram .admin-handoff-chat-msg-bubble {
+  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%) !important;
+  border-color: #38bdf8 !important;
+  color: #0c344d !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-channel-line .admin-handoff-chat-msg-label {
+  color: #15803d !important;
+}
+
+body.site-admin-standalone .admin-handoff-chat-msg.is-channel-line .admin-handoff-chat-msg-bubble {
+  background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%) !important;
+  border-color: #4ade80 !important;
+  color: #12351e !important;
+}
+
 body.site-admin-standalone .admin-handoff-compose {
   padding: 16px 18px 18px !important;
   border-top: 1px solid #e8eef7 !important;
@@ -32598,4 +32666,19 @@ body.site-home #support-chat-panel #support-chat-selected-cases-count {
     top: 48px !important;
     width: min(214px, calc(100% - 24px)) !important;
   }
+}
+
+/* 2026-06-27: web-side admin staff replies must not look like AI bubbles. */
+body.site-home #support-chat-panel .support-chat-bubble--admin-staff,
+.support-chat-bubble--admin-staff {
+  background: linear-gradient(180deg, #fffaf0 0%, #fff7ed 100%) !important;
+  border-color: #fdba74 !important;
+  color: #43280f !important;
+  box-shadow: inset 3px 0 0 #f97316 !important;
+}
+
+body.site-home #support-chat-panel .support-chat-role--admin-staff,
+.support-chat-role--admin-staff {
+  color: #b45309 !important;
+  font-weight: 800 !important;
 }

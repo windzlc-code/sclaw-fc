@@ -12260,6 +12260,8 @@
             ? 'support-chat-role support-chat-role--line'
             : staffSource === 'telegram'
               ? 'support-chat-role support-chat-role--tg'
+              : staffSource === 'admin'
+                ? 'support-chat-role support-chat-role--admin-staff'
               : 'support-chat-role';
           const managedBlock = row.contentHtml || isStaffReply ? '' : supportChatManagedCasesHtml(row.knowledge);
           const purchaseDiscovery = row.knowledge && row.knowledge.purchase_discovery_mode;
@@ -12270,7 +12272,13 @@
           const reasonBlock = row.contentHtml || isStaffReply ? '' : supportChatMatchReasonHtml(row.matched_scene, row.matched_qa);
           const suggestionBlock = row.contentHtml || isStaffReply ? '' : supportChatSuggestedPromptsHtml(row.sales_mcp, row.knowledge);
           const bodyHtml = row.contentHtml ? row.contentHtml : formatSupportChatRichText(row.content || '');
-          const bubbleExtra = staffSource === 'line' ? ' support-chat-bubble--line-staff' : staffSource === 'telegram' ? ' support-chat-bubble--telegram-staff' : '';
+          const bubbleExtra = staffSource === 'line'
+            ? ' support-chat-bubble--line-staff'
+            : staffSource === 'telegram'
+              ? ' support-chat-bubble--telegram-staff'
+              : staffSource === 'admin'
+                ? ' support-chat-bubble--admin-staff'
+                : '';
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}</div></div>`;
@@ -16697,29 +16705,34 @@
         if (!text) continue;
         let tone = 'assistant';
         let label = 'AI 客服';
+        let channelClass = '';
         if (role === 'user') {
           tone = 'user';
           label = customerLabel;
         } else if (/^（後台人工）/.test(text)) {
           tone = 'advisor';
           label = '人工客服';
+          channelClass = ' is-channel-admin';
           text = text.replace(/^（後台人工）/, '').trim();
         } else if (/^（Telegram 顧問）/.test(text)) {
           tone = 'advisor';
           label = 'Telegram 顧問';
+          channelClass = ' is-channel-telegram';
           text = text.replace(/^（Telegram 顧問）/, '').trim();
         } else if (/^（LINE 顧問）/.test(text)) {
           tone = 'advisor';
           label = 'LINE 顧問';
+          channelClass = ' is-channel-line';
           text = text.replace(/^（LINE 顧問）/, '').trim();
         } else if (/^（人工顧問）/.test(text)) {
           tone = 'advisor';
           label = '人工顧問';
+          channelClass = ' is-channel-advisor';
           text = text.replace(/^（人工顧問）/, '').trim();
         }
         if (tone === 'advisor') bumpAdvisorQuota(label, stripAdvisorPrefix(text));
         html +=
-          `<div class="admin-handoff-chat-msg is-${tone}">` +
+          `<div class="admin-handoff-chat-msg is-${tone}${channelClass}">` +
             `<div class="admin-handoff-chat-msg-label">${label}</div>` +
             `<div class="admin-handoff-chat-msg-bubble">${adminHandoffMultilineHtml(text)}</div>` +
           '</div>';
@@ -16738,8 +16751,13 @@
           : '';
         const label = sender || dedupeLabel || '人工客服';
         if (consumeAdvisorQuota(dedupeLabel || label, plain)) continue;
+        const channelClass =
+          channel === 'telegram' ? ' is-channel-telegram'
+          : channel === 'line' ? ' is-channel-line'
+          : channel === 'admin' ? ' is-channel-admin'
+          : ' is-channel-advisor';
         html +=
-          '<div class="admin-handoff-chat-msg is-advisor">' +
+          `<div class="admin-handoff-chat-msg is-advisor${channelClass}">` +
             `<div class="admin-handoff-chat-msg-label">${esc(label)}</div>` +
             `<div class="admin-handoff-chat-msg-bubble">${adminHandoffMultilineHtml(text)}</div>` +
           '</div>';
