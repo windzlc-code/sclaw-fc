@@ -21277,6 +21277,9 @@
     }
 
     const HOME_FEATURED_PAGE_SIZE = 12;
+    const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v3.';
+    const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     let homeFeaturedCases = [];
     let homeFeaturedCaseMap = new Map();
     let homeFeaturedOffset = 0;
@@ -21287,6 +21290,35 @@
     const homeFeaturedTypeCache = new Map();
     let homeFeaturedLoading = false;
     let homeFeaturedTypeLoading = false;
+
+    function homeFeaturedStorageKey(type, offset = 0) {
+      return `${HOME_FEATURED_STORAGE_PREFIX}${homeFeaturedCacheKey(type)}.${Number(offset || 0)}`;
+    }
+
+    function homeFeaturedStorageGet(type, offset = 0) {
+      try {
+        const raw = sessionStorage.getItem(homeFeaturedStorageKey(type, offset));
+        if (!raw) return null;
+        const payload = JSON.parse(raw);
+        if (!payload || !payload.ts || Date.now() - Number(payload.ts) > HOME_FEATURED_STORAGE_TTL) return null;
+        return payload.data && Array.isArray(payload.data.items) ? payload.data : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function homeFeaturedStorageSet(type, offset = 0, data = null) {
+      try {
+        if (!data || !Array.isArray(data.items)) return;
+        sessionStorage.setItem(homeFeaturedStorageKey(type, offset), JSON.stringify({ ts: Date.now(), data }));
+      } catch (_) {}
+    }
+
+    function homeFeaturedPayloadItems(payload) {
+      return payload && Array.isArray(payload.items)
+        ? payload.items.map(homeFeaturedNormalizeCase).filter(Boolean)
+        : [];
+    }
 
     function homeFeaturedNormalizeCase(raw) {
       if (!raw || typeof raw !== 'object') return null;
@@ -21515,12 +21547,42 @@
       syncFigureCaseSavedButtons();
     }
 
+    function hydrateHomeFeaturedInitial() {
+      const preloadItems = homeFeaturedPayloadItems(HOME_FEATURED_PRELOAD);
+      const cachedHot = homeFeaturedStorageGet('', 0);
+      const cachedItems = homeFeaturedPayloadItems(cachedHot);
+      const sourcePayload = preloadItems.length ? HOME_FEATURED_PRELOAD : cachedHot;
+      const sourceItems = preloadItems.length ? preloadItems : cachedItems;
+      if (!sourceItems.length) return false;
+      homeFeaturedCases = sourceItems.slice(0, HOME_FEATURED_PAGE_SIZE);
+      homeFeaturedOffset = Number(sourcePayload?.next_offset || homeFeaturedCases.length || 0);
+      homeFeaturedBatchOffset = 0;
+      renderHomeFeaturedCases();
+      homeFeaturedSetStatus(`本批已推薦 ${homeFeaturedCases.length} 筆房源，可換一批或點卡片查看站內明細。`);
+
+      if (!homeFeaturedTypeCases.length) {
+        homeFeaturedTypeCases = sourceItems.slice(0, HOME_FEATURED_PAGE_SIZE);
+        homeFeaturedTypeOffset = Number(sourcePayload?.next_offset || homeFeaturedTypeCases.length || 0);
+        homeFeaturedTypeCache.set(homeFeaturedCacheKey(''), {
+          items: homeFeaturedTypeCases.slice(),
+          offset: homeFeaturedTypeOffset,
+          hasMore: sourcePayload?.has_more !== false,
+        });
+        renderHomeFeaturedTypeCases();
+        homeFeaturedSetTypeStatus(`已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。`);
+      }
+      if (preloadItems.length) {
+        homeFeaturedStorageSet('', 0, HOME_FEATURED_PRELOAD);
+      }
+      return true;
+    }
+
     async function refreshHomeFeaturedSpotlight() {
       homeFeaturedBatchOffset += HOME_FEATURED_PAGE_SIZE;
-      await loadHomeFeaturedCases({ append: false, offset: homeFeaturedBatchOffset });
+      await loadHomeFeaturedCases({ append: false, offset: homeFeaturedBatchOffset, keepExisting: true });
       if (homeFeaturedCases.length === 0 && homeFeaturedBatchOffset > 0) {
         homeFeaturedBatchOffset = 0;
-        await loadHomeFeaturedCases({ append: false, offset: 0 });
+        await loadHomeFeaturedCases({ append: false, offset: 0, keepExisting: true });
       }
     }
 
@@ -21528,12 +21590,23 @@
       const flow = document.getElementById('home-featured-flow');
       if (!flow || homeFeaturedLoading) return;
       const requestOffset = Number.isFinite(Number(options.offset)) ? Math.max(0, Number(options.offset)) : 0;
-      homeFeaturedCases = [];
+      const keepExisting = !!options.keepExisting || !!options.background;
+      const storagePayload = requestOffset === 0 ? homeFeaturedStorageGet('', 0) : null;
+      if (!keepExisting && storagePayload) {
+        const stored = homeFeaturedPayloadItems(storagePayload);
+        if (stored.length) {
+          homeFeaturedCases = stored.slice(0, HOME_FEATURED_PAGE_SIZE);
+          homeFeaturedOffset = Number(storagePayload.next_offset || homeFeaturedCases.length || 0);
+          renderHomeFeaturedCases();
+          homeFeaturedSetStatus(`本批已推薦 ${homeFeaturedCases.length} 筆房源，可換一批或點卡片查看站內明細。`);
+        }
+      }
+      if (!keepExisting && !homeFeaturedCases.length) homeFeaturedCases = [];
       homeFeaturedOffset = requestOffset;
-      renderHomeFeaturedCases();
+      if (!keepExisting || !homeFeaturedCases.length) renderHomeFeaturedCases();
       homeFeaturedLoading = true;
       flow.classList.add('is-loading');
-      homeFeaturedSetStatus('正在載入精選房源...');
+      homeFeaturedSetStatus(homeFeaturedCases.length ? '正在更新精選房源...' : '正在載入精選房源...');
       const refreshBtn = document.getElementById('home-featured-refresh');
       if (refreshBtn) refreshBtn.disabled = true;
       try {
@@ -21542,17 +21615,20 @@
           offset: String(homeFeaturedOffset),
           category: 'hot',
         });
-        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'no-store' });
+        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data || data.ok === false) throw new Error('featured cases unavailable');
         const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
-        homeFeaturedCases = next.slice(0, HOME_FEATURED_PAGE_SIZE);
-        homeFeaturedOffset = Number(data.next_offset || (homeFeaturedOffset + next.length) || homeFeaturedOffset);
-        renderHomeFeaturedCases();
+        if (next.length || !homeFeaturedCases.length) {
+          homeFeaturedCases = next.slice(0, HOME_FEATURED_PAGE_SIZE);
+          homeFeaturedOffset = Number(data.next_offset || (requestOffset + next.length) || requestOffset);
+          renderHomeFeaturedCases();
+          homeFeaturedStorageSet('', requestOffset, data);
+        }
         const count = homeFeaturedCases.length;
         homeFeaturedSetStatus(count ? `本批已推薦 ${count} 筆房源，可換一批或點卡片查看站內明細。` : '目前沒有可推薦的精選房源。');
       } catch (_) {
-        homeFeaturedSetStatus('精選房源暫時無法載入，請稍後再試。');
+        homeFeaturedSetStatus(homeFeaturedCases.length ? `已顯示上次載入的 ${homeFeaturedCases.length} 筆房源。` : '精選房源暫時無法載入，請稍後再試。');
       } finally {
         homeFeaturedLoading = false;
         flow.classList.remove('is-loading');
@@ -21578,13 +21654,29 @@
           homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '目前沒有符合條件的物件類型房源。');
           return;
         }
-        homeFeaturedTypeCases = [];
-        homeFeaturedTypeOffset = 0;
-        renderHomeFeaturedTypeCases();
+        const storedPayload = homeFeaturedStorageGet(propertyType, 0);
+        const storedItems = homeFeaturedPayloadItems(storedPayload);
+        if (storedItems.length) {
+          homeFeaturedType = propertyType;
+          homeFeaturedTypeCases = storedItems;
+          homeFeaturedTypeOffset = Number(storedPayload.next_offset || storedItems.length || 0);
+          renderHomeFeaturedTypeCases();
+          const moreBtn = document.getElementById('home-featured-type-more');
+          if (moreBtn) moreBtn.hidden = storedPayload.has_more === false;
+          homeFeaturedSetTypeStatus(`已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。`);
+        } else {
+          homeFeaturedTypeCases = [];
+          homeFeaturedTypeOffset = 0;
+        }
+        if (!storedItems.length) renderHomeFeaturedTypeCases();
       }
       homeFeaturedTypeLoading = true;
       flow.classList.add('is-loading');
-      homeFeaturedSetTypeStatus(append ? '正在載入更多物件類型房源...' : '正在載入物件類型房源...');
+      homeFeaturedSetTypeStatus(
+        append
+          ? '正在載入更多物件類型房源...'
+          : (homeFeaturedTypeCases.length ? '正在更新物件類型房源...' : '正在載入物件類型房源...')
+      );
       const moreBtn = document.getElementById('home-featured-type-more');
       if (moreBtn) moreBtn.disabled = true;
       try {
@@ -21594,7 +21686,7 @@
           category: 'hot',
         });
         if (propertyType) params.set('property_type', propertyType);
-        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'no-store' });
+        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data || data.ok === false) throw new Error('featured type cases unavailable');
         const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
@@ -21607,6 +21699,7 @@
         }
         homeFeaturedTypeOffset = Number(data.next_offset || (homeFeaturedTypeOffset + next.length) || homeFeaturedTypeOffset);
         renderHomeFeaturedTypeCases();
+        homeFeaturedStorageSet(propertyType, Number(params.get('offset') || 0), data);
         homeFeaturedTypeCache.set(cacheKey, {
           items: homeFeaturedTypeCases.slice(),
           offset: homeFeaturedTypeOffset,
@@ -21615,7 +21708,7 @@
         homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '目前沒有符合條件的物件類型房源。');
         if (moreBtn) moreBtn.hidden = data.has_more === false || next.length === 0;
       } catch (_) {
-        homeFeaturedSetTypeStatus('物件類型房源暫時無法載入，請稍後再試。');
+        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已顯示上次載入的 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '物件類型房源暫時無法載入，請稍後再試。');
       } finally {
         homeFeaturedTypeLoading = false;
         flow.classList.remove('is-loading');
@@ -26999,11 +27092,12 @@
       installHomeHeroSoundToggle();
 	      installGeoKeywordEntrances();
 	      initHeaderKeywordTabs();
-	      installHomeInternalViewSwitch();
-	      consumeInboundGeoKeywordSearch();
+      installHomeInternalViewSwitch();
+      consumeInboundGeoKeywordSearch();
       installMobileHeaderMetrics();
-      Promise.resolve(loadHomeFeaturedCases({ append: false }))
-        .finally(() => loadHomeFeaturedTypeCases({ append: false }));
+      const homeFeaturedHydrated = hydrateHomeFeaturedInitial();
+      Promise.resolve(loadHomeFeaturedCases({ append: false, background: homeFeaturedHydrated }))
+        .finally(() => loadHomeFeaturedTypeCases({ append: false, background: homeFeaturedHydrated }));
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       scheduleAfterMobileFirstIntent(initHomeHeroCarousel, 12000);
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);
