@@ -21637,7 +21637,7 @@ def _build_handoff_telegram_body(
         parts.append(_format_interest_cases_for_tg(interest_cases, max_items=6))
         parts.append("")
     if ai:
-        parts.append("【AI 整理給人工】")
+        parts.append("【系統整理給客服】")
         parts.append(ai)
         parts.append("")
     parts.append("【場景權重（後台優先序＋關鍵字命中）】")
@@ -21657,7 +21657,7 @@ def _build_handoff_telegram_body(
             parts.append("【客戶有興趣案件】")
             parts.append(_format_interest_cases_for_tg(interest_cases, max_items=6))
             parts.append("")
-        parts.append("【AI 整理給人工】")
+        parts.append("【系統整理給客服】")
         parts.append(ai)
         parts.append("")
         parts.append("【場景權重（後台優先序＋關鍵字命中）】")

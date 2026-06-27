@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260623-mobile-layout-fit-b">
+  <link rel="stylesheet" href="/static/site.css?v=20260627-workbench-tabs-a">
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
@@ -241,6 +241,20 @@
       <button type="button" class="bh-search-dock-button" data-query-action="smart-query-run">查詢日本不動產案件</button>
     </section>
 
+    <section class="jp-workbench-suite" id="jp-workbench-suite" aria-labelledby="jp-workbench-suite-title" data-active-tab="map">
+      <div class="jp-workbench-suite-head">
+        <div>
+          <p class="jp-workbench-suite-kicker">日本不動產 Geo 工作台</p>
+          <h2 id="jp-workbench-suite-title">地圖選點與智慧查詢</h2>
+          <p>可先用地圖鎖定大區／都道府縣，也可以直接切到智慧查詢輸入條件。</p>
+        </div>
+        <div class="jp-workbench-tabs" role="tablist" aria-label="找房工作台切換">
+          <button type="button" class="jp-workbench-tab is-active" id="jp-workbench-tab-map" data-jp-workbench-tab="map" role="tab" aria-selected="true" aria-controls="jp-workbench-panel-map" onclick="setJpWorkbenchTab('map', { persist: true, scroll: false })">地圖選點找房</button>
+          <button type="button" class="jp-workbench-tab" id="jp-workbench-tab-query" data-jp-workbench-tab="query" role="tab" aria-selected="false" aria-controls="jp-workbench-panel-query" onclick="setJpWorkbenchTab('query', { persist: true, scroll: false })">直接智慧查詢</button>
+        </div>
+      </div>
+      <div class="jp-workbench-panels">
+        <div class="jp-workbench-panel is-active" id="jp-workbench-panel-map" data-jp-workbench-panel="map" role="tabpanel" aria-labelledby="jp-workbench-tab-map">
     <section class="panel jp-map-hub jp-map-hub--integrated-suite" id="jp-map-hub" aria-label="日本找房工作台：區域圖、都道府縣進階、通勤與案件查詢">
       <div class="jp-map-hub-collapsible" id="jp-map-hub-collapsible">
       <div class="jp-map-hub-shell jp-map-hub-shell--integrated">
@@ -340,6 +354,8 @@
       </div>
     </section>
 
+        </div>
+        <div class="jp-workbench-panel" id="jp-workbench-panel-query" data-jp-workbench-panel="query" role="tabpanel" aria-labelledby="jp-workbench-tab-query" hidden>
     <section id="query-dialog" class="panel query-dialog jp-map-hub-smart-dock" style="display:block;margin-top:0;border-top-left-radius:0;border-top-right-radius:0;border-top:1px solid #dbe4f0;" aria-busy="false" aria-labelledby="query-dialog-main-title">
       <h2 id="query-dialog-main-title">日本不動產案件｜ 智慧查詢</h2>
       <div class="search-row-basic smart-query-run-row">
@@ -354,16 +370,6 @@
       </div>
 
       <div id="smart-query-tab-panel-ai" class="smart-query-tab-panel" data-smart-query-panel="ai">
-      <details class="smart-query-ai-voice-details" style="margin:0 0 0.5rem;">
-        <summary style="cursor:pointer;font-size:0.9rem;color:#4a5568;">播報語音（選開）</summary>
-        <div class="search-row-basic" style="grid-template-columns:auto auto 1fr;margin-top:0.45rem;">
-        <button id="dialog-speak-toggle" type="button" class="secondary" onclick="toggleDialogSummarySpeech()">播報 AI 摘要</button>
-        <label class="muted" style="display:flex;align-items:center;gap:0.35rem;">
-          <input id="dialog-auto-speak" type="checkbox" checked> 自動播報
-        </label>
-        <span class="muted">與下方摘要連動。</span>
-        </div>
-      </details>
       <div id="dialog-summary" class="panel muted">尚未執行查詢。請先選區域、類型、總價、格局，系統會依條件整理案件方向。</div>
       <section id="dialog-keyword-hub-panel" class="panel dialog-keyword-hub" style="display:none;">
         <h3>① AI 摘要關鍵字</h3>
@@ -557,6 +563,9 @@
       <div id="figure-results"></div>
       </div>
       </section>
+      </div>
+    </section>
+        </div>
       </div>
     </section>
 
@@ -771,7 +780,7 @@
         </div>
         <div class="admin-head-search" role="search" aria-label="後台全域搜尋">
           <span aria-hidden="true">⌕</span>
-          <input id="admin-global-search" type="search" placeholder="案件 ID、客戶、知識庫關鍵字" autocomplete="off" aria-label="搜尋案件 ID、客戶訊息、知識庫關鍵字">
+          <input id="admin-global-search" type="search" placeholder="搜尋功能、客戶、案件" autocomplete="off" aria-label="搜尋功能、客戶訊息、案件或知識庫">
           <button id="admin-global-search-btn" type="button" aria-label="執行後台搜尋">搜索</button>
           <small id="admin-global-search-status" aria-live="polite"></small>
           <div id="admin-global-search-menu" class="admin-global-search-menu" role="listbox" aria-label="後台搜尋建議"></div>
@@ -802,7 +811,7 @@
           <button class="ui-close-btn" type="button" onclick="toggleAdminDrawer(false)" aria-label="關閉後台管理" title="關閉">×</button>
         </div>
       </div>
-      <p class="muted admin-drawer-note">登入後選擇入口即可管理。</p>
+      <p class="muted admin-drawer-note">先選擇要處理的事情；常用操作已放在第一屏。</p>
       <div class="panel admin-auth-panel">
         <div class="admin-panel-title-row">
           <h3 class="config-subhead">管理權限</h3>
@@ -815,26 +824,26 @@
       </div>
       <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
         <div class="admin-tab-group" data-admin-group="daily">
-          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="daily" aria-expanded="true">日常運營</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">案件</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">留單</button>
+          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="daily" aria-expanded="true">日常操作</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">房源案件</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶諮詢</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
         </div>
         <div class="admin-tab-group" data-admin-group="support">
-          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="support" aria-expanded="true">客服 AI</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="support-hub">客服訓練</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">通知</button>
+          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="support" aria-expanded="true">客服管理</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="support-hub">智能客服</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="telegram">通知通道</button>
         </div>
         <div class="admin-tab-group" data-admin-group="maintenance">
-          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="maintenance" aria-expanded="true">數據維護</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="home-content">首頁內容</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">首頁報表</button>
+          <button type="button" class="admin-tab-group-label" data-admin-group-toggle="maintenance" aria-expanded="true">網站內容</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="home-content">網站首頁</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="portal-matrix">資料檢查</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="leads">社群雷達</button>
         </div>
         <div class="admin-tab-group" data-admin-group="system">
           <button type="button" class="admin-tab-group-label" data-admin-group-toggle="system" aria-expanded="true">系統設定</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="llm">AI 供應商</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">密碼</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="llm">AI 設定</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-advanced" data-admin-tab="password">登入密碼</button>
         </div>
       </div>
       <nav class="admin-console-path" aria-label="後台路徑">
@@ -848,6 +857,7 @@
           <h2 id="admin-console-title">案件管理</h2>
           <p id="admin-console-desc">查詢、篩選與維護日本不動產案件資料。</p>
         </div>
+        <ol id="admin-console-steps" class="admin-console-steps" aria-label="目前模組操作步驟"></ol>
       </section>
       <nav class="admin-console-module-tabs admin-console-status" aria-label="目前模組頁籤">
         <button type="button" id="admin-console-primary" data-admin-console-anchor="0" class="is-active">案件資料</button>
@@ -876,17 +886,16 @@
       </div>
       <div class="panel admin-quick-map">
         <div class="admin-quick-map-head">
-          <h3 class="config-subhead">常用入口</h3>
-          <span class="muted">日常管理</span>
+          <h3 class="config-subhead">今天要做什麼？</h3>
+          <span class="muted">常用操作</span>
         </div>
         <div class="search-row-basic admin-quick-map-grid">
-          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>案件</strong><small>列表與維護</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">02</span><span><strong>留單</strong><small>客戶跟進</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">03</span><span><strong>客服 AI</strong><small>訓練與提示詞</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('knowledge')"><span class="admin-flow-index">04</span><span><strong>知識庫</strong><small>問答素材</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>通知</strong><small>LINE / TG</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('home-content')"><span class="admin-flow-index">06</span><span><strong>首頁內容</strong><small>輪播與口播</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">07</span><span><strong>首頁報表</strong><small>七站數據</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('cases')"><span class="admin-flow-index">01</span><span><strong>管理房源案件</strong><small>查看、篩選、整理上架資料</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('handoffs')"><span class="admin-flow-index">02</span><span><strong>跟進客戶諮詢</strong><small>查看留單與對話摘要</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('home-content')"><span class="admin-flow-index">03</span><span><strong>更新網站首頁</strong><small>影片輪播與首頁內容</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">04</span><span><strong>調整智能客服</strong><small>客服頭像、回覆素材與話術</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>設定通知通道</strong><small>LINE / Telegram 顧問接手</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">06</span><span><strong>檢查資料狀態</strong><small>七大門戶缺口與補齊進度</small></span></button>
         </div>
         <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
       </div>
@@ -1291,7 +1300,7 @@
       <div id="admin-tab-cases" class="admin-tab-panel is-active" role="tabpanel">
       <div class="panel">
         <div class="admin-panel-title-row admin-panel-title-row--compact">
-          <h3 class="config-subhead">案件管理</h3>
+          <h3 class="config-subhead">房源案件管理</h3>
           <div class="admin-ui-chipline" aria-label="案件管理摘要">
             <span>日本不動產</span>
             <span>七大門戶</span>
@@ -1299,11 +1308,31 @@
             <span>列表精簡</span>
           </div>
         </div>
+        <div class="admin-beginner-guide" aria-label="案件管理常用步驟">
+          <div class="admin-beginner-guide__intro">
+            <strong>新手先看這裡</strong>
+            <span>不知道從哪裡開始時，按下面的常用步驟操作即可。</span>
+          </div>
+          <div class="admin-beginner-guide__grid">
+            <button type="button" class="admin-beginner-card" onclick="scrollAdminConsoleAnchor(0)">
+              <span class="admin-beginner-card__num">1</span>
+              <span><strong>看房源列表</strong><small>先查看目前有哪些案件，再決定是否篩選或編輯。</small></span>
+            </button>
+            <button type="button" class="admin-beginner-card" onclick="scrollAdminConsoleAnchor(1)">
+              <span class="admin-beginner-card__num">2</span>
+              <span><strong>按條件找案件</strong><small>用地區、價格、格局快速縮小範圍。</small></span>
+            </button>
+            <button type="button" class="admin-beginner-card" onclick="scrollAdminConsoleAnchor(3)">
+              <span class="admin-beginner-card__num">3</span>
+              <span><strong>補齊資料圖片</strong><small>缺圖或資料不完整時，再執行補圖與補全。</small></span>
+            </button>
+          </div>
+        </div>
         <div id="admin-cases-maintenance-panel" class="admin-case-maintenance-panel">
-        <details class="panel slim admin-case-settings-details" open style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f0f5ff 0%,#fff 100%);border:1px solid #d1ddf5;border-radius:10px;">
+        <details class="panel slim admin-case-settings-details admin-case-settings-details--advanced" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f0f5ff 0%,#fff 100%);border:1px solid #d1ddf5;border-radius:10px;">
           <summary>
-            <strong>七大站分段補全（固定順序）</strong>
-            <span class="muted">前四站連跑、後三站補齊</span>
+            <strong>高級維護：七大站資料補齊</strong>
+            <span class="muted">平時不用動；資料缺口明顯時再執行</span>
           </summary>
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
             設定輪數後，系統會依序補前四站，再補後三站。
@@ -1319,10 +1348,10 @@
             </div>
           </div>
         </details>
-        <details class="panel slim admin-case-settings-details" open style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f5f0ff 0%,#fff 100%);border:1px solid #e0d5f5;border-radius:10px;">
+        <details class="panel slim admin-case-settings-details admin-case-settings-details--advanced" style="margin:0.45rem 0 0.65rem;padding:0.65rem 0.85rem;background:linear-gradient(120deg,#f5f0ff 0%,#fff 100%);border:1px solid #e0d5f5;border-radius:10px;">
           <summary>
-            <strong>首頁智慧查詢：缺圖／人像自動補物件照</strong>
-            <span class="muted">縮圖補齊、每日品質批次</span>
+            <strong>高級維護：智慧查詢圖片補齊</strong>
+            <span class="muted">結果缺圖時使用；可先預覽再執行</span>
           </summary>
           <p class="muted" style="margin:0 0 0.55rem;font-size:0.88rem;line-height:1.55;">
             查詢結果缺圖時，自動補抓物件照並可寫回資料庫。
@@ -1907,8 +1936,8 @@
 
       <div id="admin-tab-handoffs" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
-        <h3 class="config-subhead">人工接手對話框</h3>
-        <p class="muted">查看 AI 轉人工的留單、完整對話與人工接手回覆。</p>
+        <h3 class="config-subhead">人工客服對話通道</h3>
+        <p class="muted">查看系統轉接的留單、客戶對話與客服回覆；此區是客服直接面向客戶的訊息通道。</p>
         <div class="search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
           <label class="muted">查詢
             <input
@@ -3088,7 +3117,10 @@
     }
 
     function scrollToJpMapHub() {
-      const el = document.getElementById('jp-map-hub');
+      if (typeof setJpWorkbenchTab === 'function') {
+        setJpWorkbenchTab('map', { persist: true, scroll: false });
+      }
+      const el = document.getElementById('jp-workbench-suite') || document.getElementById('jp-map-hub');
       if (!el || typeof el.scrollIntoView !== 'function') return;
       try {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3096,6 +3128,75 @@
         el.scrollIntoView(true);
       }
     }
+
+    function reactivateJpWorkbenchMap() {
+      try {
+        if (typeof initJpMapHub === 'function') initJpMapHub();
+        const leafletHost = document.getElementById('jp-leaflet-map');
+        const map = window.__sclawJpLeafletMap || leafletHost?.__sclawLeafletMap;
+        if (map && typeof map.invalidateSize === 'function') {
+          map.invalidateSize();
+          if (typeof map.setMinZoom === 'function') map.setMinZoom(3);
+          if (typeof map.setMaxZoom === 'function') map.setMaxZoom(9);
+          if (window.L && typeof window.L.latLngBounds === 'function' && typeof map.fitBounds === 'function') {
+            map.fitBounds(window.L.latLngBounds([[24.0, 122.4], [45.9, 146.2]]), {
+              animate: false,
+              paddingTopLeft: [42, 34],
+              paddingBottomRight: [42, 34],
+            });
+          }
+          if (typeof map.getZoom === 'function' && typeof map.setMinZoom === 'function') map.setMinZoom(map.getZoom());
+        }
+        const rect = leafletHost && leafletHost.getBoundingClientRect();
+        if (rect && rect.width > 80 && rect.height > 80) {
+          document.querySelector('.jp-map-hub-map--raster')?.classList.add('is-leaflet-ready');
+        }
+      } catch (_) {}
+    }
+
+    function setJpWorkbenchTab(tab, options = {}) {
+      const key = tab === 'query' ? 'query' : 'map';
+      const suite = document.getElementById('jp-workbench-suite');
+      if (!suite) return;
+      suite.setAttribute('data-active-tab', key);
+      suite.querySelectorAll('[data-jp-workbench-tab]').forEach((btn) => {
+        const active = String(btn.getAttribute('data-jp-workbench-tab') || '') === key;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      suite.querySelectorAll('[data-jp-workbench-panel]').forEach((panel) => {
+        const active = String(panel.getAttribute('data-jp-workbench-panel') || '') === key;
+        panel.classList.toggle('is-active', active);
+        panel.hidden = !active;
+      });
+      if (key === 'map') {
+        window.setTimeout(reactivateJpWorkbenchMap, 60);
+        window.setTimeout(reactivateJpWorkbenchMap, 220);
+      } else if (typeof setSmartQueryMainTab === 'function') {
+        try {
+          setSmartQueryMainTab('cases');
+        } catch (_) {}
+      }
+      if (options.scroll) {
+        const target = document.getElementById(key === 'query' ? 'query-dialog' : 'jp-map-hub') || suite;
+        if (target && typeof target.scrollIntoView === 'function') {
+          try {
+            target.scrollIntoView({ behavior: options.instant ? 'auto' : 'smooth', block: 'start' });
+          } catch (_) {
+            target.scrollIntoView(true);
+          }
+        }
+      }
+      if (options.persist && window.history && window.location) {
+        const base = `${window.location.pathname}${window.location.search}`;
+        const nextHash = key === 'query' ? '#query-dialog' : '#jp-map-hub';
+        try {
+          window.history.replaceState(null, '', `${base}${nextHash}`);
+        } catch (_) {}
+      }
+    }
+    window.setJpWorkbenchTab = setJpWorkbenchTab;
+    window.reactivateJpWorkbenchMap = reactivateJpWorkbenchMap;
 
     function setFigureMapSelectionSummary(selection) {
       const summary = document.getElementById('figure-map-selection-summary');
@@ -3643,7 +3744,6 @@
     }
     let figureResultsHidden = false;
     let activeQueryCount = 0;
-    let speechHandle = null;
     let supportChatHistory = [];
     let supportTgPollTimer = null;
     let supportHandoffSyncTimer = null;
@@ -3672,8 +3772,6 @@
     let latestFigureResultMeta = null;
     let latestFigureExactCountPollSeq = 0;
     let scheduledFigureExactCountPollTimer = 0;
-    let dialogAutoSpeakEnabled = true;
-    let dialogAutoSpeakLastKey = '';
     const SUPPORT_KB_HISTORY_KEY = 'sclaw_support_kb_history_v1';
     const SUPPORT_SALES_SESSION_KEY = 'sclaw_support_sales_session_v1';
     const SUPPORT_SELECTED_CASES_KEY = 'sclaw_support_selected_cases_v1';
@@ -3681,20 +3779,11 @@
     const SUPPORT_SELECTED_CASES_CHANNEL = 'sclaw_support_selected_cases_channel_v1';
     const SUPPORT_SELECTED_CASES_COLLAPSED_KEY = 'sclaw_support_selected_cases_collapsed_v1';
     const SUPPORT_CHAT_TTS_ENABLED_KEY = 'sclaw_support_chat_tts_enabled_v1';
-    const DIALOG_AUTO_SPEAK_KEY = 'sclaw_dialog_auto_speak_v1';
     const ADVISOR_RESOURCE_COLLAPSED_KEY = 'sclaw_advisor_resource_collapsed_v1';
     const ADMIN_PASSWORD_CACHE_KEY = 'sclaw_admin_panel_pwd_v1';
     try {
       const cached = String(localStorage.getItem(SUPPORT_CHAT_TTS_ENABLED_KEY) || '').trim();
       supportChatTtsEnabled = cached === '1';
-    } catch (_) {
-      // ignore
-    }
-    try {
-      const cached = String(localStorage.getItem(DIALOG_AUTO_SPEAK_KEY) || '').trim();
-      if (cached === '0' || cached === '1') {
-        dialogAutoSpeakEnabled = cached === '1';
-      }
     } catch (_) {
       // ignore
     }
@@ -3832,76 +3921,126 @@
     const ADMIN_PANEL_TRANSITION_MS = 320;
     const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'home-content', 'portal-matrix', 'leads', 'llm', 'password']);
     const ADMIN_TAB_LABEL_MAP = {
-      cases: '案件管理',
-      handoffs: '客戶留單',
-      'support-hub': '客服 AI 訓練',
+      cases: '房源案件',
+      handoffs: '客戶諮詢',
+      'support-hub': '智能客服',
       knowledge: '知識庫',
-      telegram: 'LINE/TG 通知',
-      'home-content': '首頁內容管理',
-      'portal-matrix': '首頁報表',
+      telegram: '通知通道',
+      'home-content': '網站首頁',
+      'portal-matrix': '資料檢查',
       leads: '社群雷達',
-      llm: 'AI 供應商設定',
-      password: '密碼管理',
+      llm: 'AI 設定',
+      password: '登入密碼',
     };
     const ADMIN_TAB_META_MAP = {
       cases: {
-        desc: '查詢、篩選與維護日本不動產案件資料。',
-        chips: ['案件資料', '條件查詢', '列表管理'],
-        notice: '案件資料量較大，請先用來源、地區、價格等條件縮小範圍；批量補圖與補全工具只影響案件資料。',
+        desc: '查看、篩選、補齊日本不動產房源案件。',
+        chips: ['房源列表', '條件篩選', '資料補齊'],
+        notice: '日常先看案件列表；只有缺圖、缺資料或需要刷新來源時，再使用高級維護工具。',
+        steps: [
+          ['看列表', '先確認目前有哪些房源案件。'],
+          ['用條件縮小', '按地區、來源或價格篩選。'],
+          ['再維護', '缺圖缺資料時再補齊。'],
+        ],
       },
       handoffs: {
-        desc: '查看客戶留單、對話摘要與人工跟進狀態。',
+        desc: '查看客戶留下的需求、對話摘要與跟進狀態。',
         chips: ['客戶需求', '顧問跟進', '對話紀錄'],
         notice: '留單詳情會以燈箱開啟；可在列表勾選清理測試資料，刪除前請確認不是有效客戶需求。',
+        steps: [
+          ['看新留言', '先查看最新客戶需求。'],
+          ['打開詳情', '確認預算、地區與聯絡方式。'],
+          ['標記跟進', '處理後更新狀態，避免漏單。'],
+        ],
       },
       'support-hub': {
-        desc: '維護客服頭像、場景問答與 CRM 提示詞。',
+        desc: '調整前台智能客服的頭像、常見問題與回覆話術。',
         chips: ['客服訓練', 'Q&A', '提示詞'],
         notice: '客服訓練會影響前台智能客服回覆，新增場景或 Q&A 後請用測試訊息確認命中效果。',
+        steps: [
+          ['看狀態', '先確認客服是否正常運行。'],
+          ['補問答', '加入常見問題與標準答案。'],
+          ['測回覆', '用測試訊息確認回答方向。'],
+        ],
       },
       knowledge: {
         desc: '按來源、主題與意圖快速檢視知識庫內容。',
         chips: ['知識庫', '主題篩選', '內容預覽'],
         notice: '知識庫用於客服與查詢輔助；可先篩選來源、主題與意圖，再點詳情查看完整片段。',
+        steps: [
+          ['選主題', '先按來源或意圖縮小資料。'],
+          ['看內容', '打開片段確認是否準確。'],
+          ['補素材', '缺少資訊時再更新素材。'],
+        ],
       },
       telegram: {
-        desc: '設定 LINE／Telegram 通知與人工回覆通道。',
+        desc: '設定顧問收到通知、接手客戶的 LINE／Telegram 通道。',
         chips: ['通知通道', '顧問收件', '人工接手'],
         notice: '通知通道會影響人工接手與顧問提醒；儲存後可直接用測試按鈕確認是否能收到訊息。',
+        steps: [
+          ['檢查連線', '先看 LINE / TG 是否可用。'],
+          ['填收件人', '設定顧問帳號或群組。'],
+          ['發測試', '儲存後發一則測試通知。'],
+        ],
       },
       'home-content': {
-        desc: '管理首頁影片輪播、主視覺素材與 16:9 口播介紹影片。',
+        desc: '管理網站首頁的影片輪播、主視覺素材與介紹影片。',
         chips: ['影片輪播', '口播介紹', '首頁套用'],
         notice: '首頁素材會直接影響前台展示；更換影片或輪播前，請先預覽縮圖與標題是否完整。',
+        steps: [
+          ['選素材', '先選首頁影片或圖片。'],
+          ['預覽效果', '確認標題、比例與順序。'],
+          ['儲存套用', '沒有問題後再發布到首頁。'],
+        ],
       },
       'portal-matrix': {
-        desc: '查看七大門戶案件數、資料缺口與補齊流程。',
+        desc: '查看七大門戶的案件數量、缺圖缺口與補齊狀態。',
         chips: ['七站報表', '資料補齊', '刷新統計'],
         notice: '報表用來判斷七大站資料缺口；補齊任務可能耗時，建議先看缺口再執行批次。',
+        steps: [
+          ['刷新報表', '先取得最新七站狀態。'],
+          ['看缺口', '找出缺圖或案件少的來源。'],
+          ['再補齊', '只針對缺口執行維護。'],
+        ],
       },
       leads: {
         desc: '整理社群互動名單，辨識高意願客戶。',
         chips: ['社群名單', '意願分級', '顧問跟進'],
         notice: '社群雷達適合先貼入公開互動名單做分析；建立留單後會進入客戶跟進流程。',
+        steps: [
+          ['貼名單', '匯入公開互動資料。'],
+          ['看分級', '找出高意願客戶。'],
+          ['轉跟進', '需要聯絡時建立留單。'],
+        ],
       },
       llm: {
-        desc: '設定 AI 供應商、模型、Base URL 與金鑰狀態。',
+        desc: '設定後台與客服使用的 AI 供應商、模型與金鑰狀態。',
         chips: ['AI 供應商', '模型設定', '金鑰狀態'],
         notice: 'AI 供應商設定會影響客服與後台分析；儲存後請確認金鑰狀態已顯示為已設定。',
+        steps: [
+          ['選供應商', '確認使用哪個 AI 服務。'],
+          ['填模型金鑰', '輸入模型、Base URL 與 Key。'],
+          ['保存檢查', '確認狀態顯示已設定。'],
+        ],
       },
       password: {
         desc: '更新後台登入密碼與管理權限。',
         chips: ['登入安全', '密碼更新', '權限管理'],
         notice: '密碼更新後會影響後台登入，請確認新密碼已妥善儲存再登出。',
+        steps: [
+          ['輸入舊密碼', '先確認目前管理權限。'],
+          ['設定新密碼', '填入並再次確認。'],
+          ['保存測試', '登出前確認新密碼可用。'],
+        ],
       },
     };
     const ADMIN_TAB_SECTION_MAP = {
       cases: [
-        { label: '資料維護', selector: '#admin-cases-maintenance-panel' },
-        { label: '來源管理', selector: '#admin-cases-subtab-general .admin-case-settings-details--sources' },
-        { label: '條件查詢', selector: '#admin-cases-subtab-general .admin-case-settings-details--filters' },
-        { label: '批量工具', selector: '#admin-cases-subtab-general .admin-case-settings-details--tools' },
         { label: '案件列表', selector: '#admin-cases-list-wrap' },
+        { label: '條件篩選', selector: '#admin-cases-subtab-general .admin-case-settings-details--filters' },
+        { label: '來源設定', selector: '#admin-cases-subtab-general .admin-case-settings-details--sources' },
+        { label: '資料補齊', selector: '#admin-cases-maintenance-panel' },
+        { label: '批量操作', selector: '#admin-cases-subtab-general .admin-case-settings-details--tools' },
       ],
       handoffs: [
         { label: '客戶留單', selector: '#admin-tab-handoffs > .panel' },
@@ -5565,9 +5704,13 @@
         ? readingPack.knowledge.items
         : (Array.isArray(readingPack?.knowledge_items) ? readingPack.knowledge_items : []);
       const knowledgeDigest = readingPack?.knowledge?.digest || readingPack?.digest || null;
-      let html = `<p><strong>${esc(title || '查詢結果')}</strong></p>`;
+      let html = '<div class="dialog-summary-shell">';
+      html += '<div class="dialog-summary-head">';
+      html += '<span class="dialog-summary-tag">AI 摘要</span>';
+      html += `<h3>${esc(title || '查詢結果')}</h3>`;
+      html += '</div>';
       if (textLines.length) {
-        html += '<ul>';
+        html += '<ul class="dialog-summary-list">';
         for (const row of textLines) {
           html += `<li>${formatDialogLineWithSuumoImages(row)}</li>`;
         }
@@ -5607,13 +5750,15 @@
           }))
         ).filter((row) => row.url && !shouldHideExternalSourceUrl(row.url));
         if (merged.length) {
-          html += '<p class="muted">關鍵來源連結：</p><ul>';
+          html += '<div class="dialog-summary-links">';
+          html += '<p class="muted">關鍵來源連結</p><ul>';
           for (const row of merged) {
             html += `<li><a href="${esc(row.url)}" target="_blank" rel="nofollow noopener">${esc(row.label)}</a></li>`;
           }
-          html += '</ul>';
+          html += '</ul></div>';
         }
       }
+      html += '</div>';
       box.innerHTML = html;
     }
 
@@ -5713,108 +5858,6 @@
       if (summary) {
         summary.innerHTML = `<p><strong>顯示模式已切換</strong>：${figureLinkMode === 'full' ? '全部案件入口' : '精選案件入口'}，請按「查詢案件」取得結果。</p>`;
       }
-    }
-
-    function stopDialogSpeech() {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      speechHandle = null;
-      updateDialogSpeakToggleLabel();
-    }
-
-    function dialogSpeechIsSpeaking() {
-      if (!('speechSynthesis' in window)) return false;
-      return Boolean(window.speechSynthesis.speaking || speechHandle);
-    }
-
-    function updateDialogSpeakToggleLabel() {
-      const btn = document.getElementById('dialog-speak-toggle');
-      if (!btn) return;
-      btn.textContent = dialogSpeechIsSpeaking() ? '停止播報' : '播報 AI 摘要';
-    }
-
-    function speakDialogScript(text) {
-      const raw = String(text || '').trim();
-      if (!raw) return;
-      if (!('speechSynthesis' in window)) return;
-      stopDialogSpeech();
-      const maxLen = 820;
-      const cooked = raw.length > maxLen ? raw.slice(0, maxLen) + '…' : raw;
-      speechHandle = new SpeechSynthesisUtterance(cooked);
-      speechHandle.lang = 'zh-TW';
-      speechHandle.rate = 1;
-      speechHandle.pitch = 1;
-      speechHandle.onend = () => {
-        speechHandle = null;
-        updateDialogSpeakToggleLabel();
-      };
-      speechHandle.onerror = () => {
-        speechHandle = null;
-        updateDialogSpeakToggleLabel();
-      };
-      updateDialogSpeakToggleLabel();
-      window.speechSynthesis.speak(speechHandle);
-    }
-
-    function speakDialogSummary() {
-      const box = document.getElementById('dialog-summary');
-      if (!box) return;
-      const script = typeof window.__dialogVoiceScript === 'string' ? window.__dialogVoiceScript.trim() : '';
-      const text = script || (box.innerText || '').trim();
-      if (!text) return;
-      if (!('speechSynthesis' in window)) {
-        box.insertAdjacentHTML('beforeend', '<p class="muted">此瀏覽器不支援語音播報。</p>');
-        return;
-      }
-      speakDialogScript(text);
-    }
-
-    function toggleDialogSummarySpeech() {
-      if (dialogSpeechIsSpeaking()) {
-        stopDialogSpeech();
-        return;
-      }
-      speakDialogSummary();
-    }
-
-    function dialogAutoSpeakIsEnabled() {
-      const ck = document.getElementById('dialog-auto-speak');
-      if (ck) return Boolean(ck.checked);
-      return Boolean(dialogAutoSpeakEnabled);
-    }
-
-    function syncDialogAutoSpeakCheckbox() {
-      const ck = document.getElementById('dialog-auto-speak');
-      if (!ck) return;
-      ck.checked = dialogAutoSpeakEnabled;
-    }
-
-    function installDialogAutoSpeakControls() {
-      const ck = document.getElementById('dialog-auto-speak');
-      if (!ck || ck.dataset.bound === '1') return;
-      ck.dataset.bound = '1';
-      syncDialogAutoSpeakCheckbox();
-      ck.addEventListener('change', () => {
-        dialogAutoSpeakEnabled = Boolean(ck.checked);
-        try {
-          localStorage.setItem(DIALOG_AUTO_SPEAK_KEY, dialogAutoSpeakEnabled ? '1' : '0');
-        } catch (_) {}
-      });
-    }
-
-    function maybeAutoSpeakDialogVoiceScript(options = {}) {
-      const force = !!(options && options.force);
-      if (!dialogAutoSpeakIsEnabled()) return;
-      if (!('speechSynthesis' in window)) return;
-      const box = document.getElementById('dialog-summary');
-      const script = typeof window.__dialogVoiceScript === 'string' ? window.__dialogVoiceScript.trim() : '';
-      const text = (script || (box ? (box.innerText || '').trim() : '')).trim();
-      if (!text) return;
-      const key = text.slice(0, 420);
-      if (!force && key === dialogAutoSpeakLastKey) return;
-      dialogAutoSpeakLastKey = key;
-      speakDialogScript(text);
     }
 
     function clearDialogKeywordFilter() {
@@ -7179,8 +7222,6 @@
         updateDialogOptionalModuleVisibility();
         loadDialogSourceLinks();
         loadDialogCaseLinks();
-      } else {
-        stopDialogSpeech();
       }
     }
 
@@ -7295,7 +7336,6 @@
     async function runDialogQuery() {
       if (smartQueryInFlight) return;
       revealMorePagesSourcesAfterQuery();
-      window.__dialogVoiceScript = '';
       smartQueryRunBatch = true;
       smartQueryInFlight = true;
       setSmartQueryRunButtonsBusy(true);
@@ -7313,6 +7353,9 @@
     }
 
     function scrollToFigureResults() {
+      if (typeof setJpWorkbenchTab === 'function') {
+        setJpWorkbenchTab('query', { persist: true, scroll: false });
+      }
       const el = document.getElementById('figure-results');
       if (!el) return;
       try {
@@ -9132,7 +9175,7 @@
       if (title) title.textContent = logged ? '已登入' : '號碼登入';
       if (subtitle) {
         subtitle.textContent = logged
-          ? '此號碼已通過格式檢查，智能客服與顧問接手已同步。'
+            ? '此號碼已通過格式檢查，智能客服已同步。'
           : '輸入合規聯絡號碼後，即可使用智能客服與顧問接手。';
       }
       if (logged) {
@@ -9966,7 +10009,7 @@
         refreshSupportPhoneLoginHint();
         if (msg && !String(msg.textContent || '').trim()) {
           msg.textContent = supportPhoneLoginReturnToChat
-            ? '請先完成號碼登入，登入後會自動開啟 AI 智能客服。'
+            ? '請先完成號碼登入，登入後會自動開啟智能客服。'
             : '請選擇號碼所屬國家 / 地區，並輸入符合當地規範的電話號碼。';
         }
         setTimeout(() => {
@@ -12249,20 +12292,8 @@
         } else {
           const staffSource = String(row.staffSource || '').toLowerCase();
           const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
-          const roleLabel = staffSource === 'line'
-            ? '顧問（LINE）'
-            : staffSource === 'telegram'
-              ? '顧問（Telegram）'
-            : staffSource === 'admin'
-              ? '人工客服'
-              : '智能客服';
-          const roleCls = staffSource === 'line'
-            ? 'support-chat-role support-chat-role--line'
-            : staffSource === 'telegram'
-              ? 'support-chat-role support-chat-role--tg'
-              : staffSource === 'admin'
-                ? 'support-chat-role support-chat-role--admin-staff'
-              : 'support-chat-role';
+          const roleLabel = '智能客服';
+          const roleCls = 'support-chat-role';
           const managedBlock = row.contentHtml || isStaffReply ? '' : supportChatManagedCasesHtml(row.knowledge);
           const purchaseDiscovery = row.knowledge && row.knowledge.purchase_discovery_mode;
           const featBlock = row.contentHtml || isStaffReply || purchaseDiscovery ? '' : supportChatFeaturedHtml(row.featured_recommendations);
@@ -12272,13 +12303,7 @@
           const reasonBlock = row.contentHtml || isStaffReply ? '' : supportChatMatchReasonHtml(row.matched_scene, row.matched_qa);
           const suggestionBlock = row.contentHtml || isStaffReply ? '' : supportChatSuggestedPromptsHtml(row.sales_mcp, row.knowledge);
           const bodyHtml = row.contentHtml ? row.contentHtml : formatSupportChatRichText(row.content || '');
-          const bubbleExtra = staffSource === 'line'
-            ? ' support-chat-bubble--line-staff'
-            : staffSource === 'telegram'
-              ? ' support-chat-bubble--telegram-staff'
-              : staffSource === 'admin'
-                ? ' support-chat-bubble--admin-staff'
-                : '';
+          const bubbleExtra = '';
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}</div></div>`;
@@ -13114,8 +13139,22 @@
       const noticeBox = document.querySelector('.admin-console-notice');
       const title = document.getElementById('admin-console-title');
       const desc = document.getElementById('admin-console-desc');
+      const steps = document.getElementById('admin-console-steps');
       const pathCurrent = document.getElementById('admin-console-path-current');
       const notice = document.getElementById('admin-console-notice-text');
+      const renderSteps = () => {
+        if (!steps) return;
+        const items = Array.isArray(meta.steps) && meta.steps.length ? meta.steps : [
+          ['查看', '先確認目前資料狀態。'],
+          ['調整', '按畫面提示修改設定。'],
+          ['保存', '最後儲存並檢查結果。'],
+        ];
+        steps.innerHTML = items.slice(0, 4).map((item, index) => {
+          const title = Array.isArray(item) ? item[0] : item?.title;
+          const text = Array.isArray(item) ? item[1] : item?.text;
+          return `<li><span>${index + 1}</span><strong>${esc(title || `步驟 ${index + 1}`)}</strong><small>${esc(text || '')}</small></li>`;
+        }).join('');
+      };
       const clearTitleRefreshState = () => {
         hero.classList.remove('is-admin-title-refreshing');
         if (path) path.classList.remove('is-admin-title-refreshing');
@@ -13127,6 +13166,7 @@
         if (pathCurrent) pathCurrent.textContent = titleText;
         if (desc) desc.textContent = descText;
         if (notice) notice.textContent = noticeText;
+        renderSteps();
         return;
       }
       const sameText =
@@ -13154,6 +13194,7 @@
       replaceTextCleanly(pathCurrent, titleText);
       replaceTextCleanly(desc, descText);
       replaceTextCleanly(notice, noticeText);
+      renderSteps();
       if (hero._adminTitleRefreshToken === token) clearTitleRefreshState();
     }
 
@@ -13255,7 +13296,7 @@
       const idx = Number(index) || 0;
       if (key === 'cases') {
         if (!adminPanelPassword) return;
-        if (idx === 0 || idx === 1) await loadCrawlSettings();
+        if (idx === 2 || idx === 3) await loadCrawlSettings();
         return;
       }
       if (key === 'handoffs') {
@@ -13528,7 +13569,7 @@
         {
           type: 'handoff-search',
           title: `搜索客戶留單：${q}`,
-          desc: '查詢姓名、電話、信箱、Session、備註、AI 整理與對話關鍵字。',
+          desc: '查詢姓名、電話、信箱、Session、備註、系統整理與對話關鍵字。',
           tab: 'handoffs',
           section: 0,
           score: /客|戶|客户|留單|留单|電話|电话|session|對話|对话|顧問|顾问/i.test(q) ? 940 : 520,
@@ -16680,7 +16721,7 @@
       const inbox = Array.isArray(item && item.staff_inbox) ? item.staff_inbox : [];
       if (!conv.length) {
         if (!inbox.length) {
-          return '<div class="admin-handoff-empty-thread"><strong>尚未同步對話</strong><span>目前只有留單資料，人工回覆後會持續累積在這裡。</span></div>';
+          return '<div class="admin-handoff-empty-thread"><strong>尚未同步人工對話</strong><span>目前只有留單資料；客服送出回覆後，會作為客服與客戶的對話累積在這裡。</span></div>';
         }
       }
       let html = '';
@@ -16704,7 +16745,7 @@
         let text = normalizeSupportChatDisplayText(String(row && row.content || '').trim());
         if (!text) continue;
         let tone = 'assistant';
-        let label = 'AI 客服';
+        let label = '轉接提示';
         let channelClass = '';
         if (role === 'user') {
           tone = 'user';
@@ -16762,7 +16803,7 @@
             `<div class="admin-handoff-chat-msg-bubble">${adminHandoffMultilineHtml(text)}</div>` +
           '</div>';
       }
-      return html || '<div class="admin-handoff-empty-thread"><strong>尚未同步對話</strong><span>目前只有留單資料，人工回覆後會持續累積在這裡。</span></div>';
+      return html || '<div class="admin-handoff-empty-thread"><strong>尚未同步人工對話</strong><span>目前只有留單資料；客服送出回覆後，會作為客服與客戶的對話累積在這裡。</span></div>';
     }
 
     async function sendAdminHandoffReply(handoffId) {
@@ -16795,7 +16836,7 @@
         const reply = data.reply || {};
         const used = String(reply.channel_used || channel || 'web');
         const label = used === 'line' ? 'LINE' : used === 'telegram' ? 'Telegram' : '網站對話';
-        adminHandoffReplyFlash = `已送出，客戶端將透過 ${label} / 網站對話同步看到。`;
+        adminHandoffReplyFlash = `已發送給客戶，將透過 ${label} / 網站對話同步呈現。`;
         if (input) input.value = '';
         await openAdminHandoffDetail(id);
       } catch (err) {
@@ -16876,7 +16917,7 @@
         h += '</div>';
         if (it.ai_handoff_summary) {
           h += '<div class="admin-handoff-summary-card">';
-          h += '<span class="admin-handoff-section-kicker">AI 整理</span>';
+          h += '<span class="admin-handoff-section-kicker">系統整理</span>';
           h += `<div class="admin-handoff-summary-text">${adminHandoffMultilineHtml(String(it.ai_handoff_summary || ''))}</div>`;
           h += '</div>';
         }
@@ -16918,8 +16959,8 @@
         h += '<section class="admin-handoff-chat-column">';
         h += '<div class="admin-handoff-chat-shell">';
         h += '<div class="admin-handoff-chat-shell-head">';
-        h += '<div><strong>人工接手對話框</strong><span class="muted">留單後的完整聊天都會累積在這裡。</span></div>';
-        h += `<div class="admin-handoff-chat-count">${Number(it.staff_reply_count || 0)} 筆人工回覆</div>`;
+        h += '<div><strong>人工客服對話通道</strong><span class="muted">這裡是客服與客戶的真人對話；系統只負責轉接、同步與提示。</span></div>';
+        h += `<div class="admin-handoff-chat-count">${Number(it.staff_reply_count || 0)} 筆客服回覆</div>`;
         h += '</div>';
         h += `<div class="admin-handoff-chat-thread" id="admin-handoff-thread-${id}">${renderAdminHandoffConversationHtml(it)}</div>`;
         h += '<div class="admin-handoff-compose">';
@@ -16933,8 +16974,8 @@
         h += `${replyFlash}`;
         h += '</div>';
         h += '<div class="admin-handoff-compose-row is-editor">';
-        h += `<textarea id="admin-handoff-reply-input-${id}" rows="4" placeholder="輸入人工回覆內容。送出後，客戶網頁端與已綁定的通道都會同步看到。"></textarea>`;
-        h += `<button id="admin-handoff-reply-send-${id}" type="button" class="primary" onclick="sendAdminHandoffReply(${id})">送出回覆</button>`;
+        h += `<textarea id="admin-handoff-reply-input-${id}" rows="4" placeholder="輸入要發送給客戶的客服訊息。送出後，客戶網頁端與已綁定的通道都會同步看到。"></textarea>`;
+        h += `<button id="admin-handoff-reply-send-${id}" type="button" class="primary" onclick="sendAdminHandoffReply(${id})">發送給客戶</button>`;
         h += '</div>';
         h += '</div></div></section></div>';
 
@@ -20108,8 +20149,8 @@
       if (authMsg) authMsg.textContent = String(message || (loggedIn ? '已登入' : '尚未登入'));
       if (note) {
         note.textContent = loggedIn
-          ? '已登入，可開始管理。'
-          : '登入後選擇入口即可管理。';
+          ? '已登入，先從常用操作開始管理。'
+          : '先選擇要處理的事情；常用操作已放在第一屏。';
       }
       setStandaloneAdminLocked(!loggedIn);
     }
@@ -23853,13 +23894,11 @@
       ];
       setDialogSummary('智慧查詢中', baseLines, links);
       if (!caseItems.length) {
-        window.__dialogVoiceScript = '目前沒有符合條件的案件，建議放寬區域、總價、類型或格局後再查詢。';
         setDialogSummary('智慧查詢', [
           conditionLine,
           '目前沒有符合條件的案件。',
           '下一步建議：放寬區域、總價、類型或格局，或請客戶留下可接受的替代區域讓顧問追蹤。',
         ], links);
-        maybeAutoSpeakDialogVoiceScript();
         return;
       }
       try {
@@ -23888,18 +23927,14 @@
               `本次回傳 ${Number(count || 0)} 筆／上限 ${Number(appliedLimit || 0)} 筆，已完成初步條件判斷。`,
               '建議先詢問客戶最重視的地區、總價上限與房數，再分批推薦 3-6 筆案件。',
             ];
-        window.__dialogVoiceScript = String(data.voice_script || lines.join(' '));
         setDialogSummary(data.title || '智慧查詢', lines, links, { knowledge: data.knowledge || null });
-        maybeAutoSpeakDialogVoiceScript();
       } catch (err) {
-        window.__dialogVoiceScript = `已依 ${conditionLine} 找到 ${Number(count || 0)} 筆案件。建議先確認客戶最想看的地區、總價上限、物件類型與格局，再分批推薦案件。`;
         setDialogSummary('智慧查詢', [
           conditionLine,
           `本次回傳 ${Number(count || 0)} 筆／上限 ${Number(appliedLimit || 0)} 筆。`,
           '下一步建議：先問清楚客戶自住或投資、首選區域、最高總價與房數，再分批推薦最接近的案件。',
           '若客戶提到人工、顧問、專人或需要解析，BOT 會把條件整理成留單交給顧問。',
         ], links);
-        maybeAutoSpeakDialogVoiceScript();
       }
     }
 
@@ -24409,6 +24444,9 @@
       bindFigureTabs();
       syncFigureQueryDefaultsFromConfig();
       initFigureSmartFilters();
+    }
+    if (typeof updateDialogSpeakToggleLabel !== 'function') {
+      window.updateDialogSpeakToggleLabel = function updateDialogSpeakToggleLabel() {};
     }
     setSmartQueryMainTab('ai');
     updateDialogOptionalModuleVisibility();
@@ -26117,14 +26155,23 @@
 	        if (btn.tagName === 'BUTTON') btn.setAttribute('aria-pressed', active ? 'true' : 'false');
 	      });
 	      if (showWorkbench) {
-	        document.querySelectorAll('#jp-map-hub, #query-dialog').forEach((el) => {
-	          el.classList.add('is-bh-inview');
-	        });
-	        window.setTimeout(() => {
-	          try {
-	            if (typeof initJpMapHub === 'function') initJpMapHub();
-	            const leafletHost = document.getElementById('jp-leaflet-map');
-	            const map = window.__sclawJpLeafletMap || leafletHost?.__sclawLeafletMap;
+		        document.querySelectorAll('#jp-workbench-suite, #jp-map-hub, #query-dialog').forEach((el) => {
+		          el.classList.add('is-bh-inview');
+		        });
+		        if (typeof setJpWorkbenchTab === 'function') {
+		          const tabTarget = options.targetId === 'query-dialog' || options.targetId === 'figure-results' ? 'query' : 'map';
+		          setJpWorkbenchTab(tabTarget, { persist: false, scroll: false, instant: options.instant });
+		        }
+		        window.setTimeout(() => {
+		          try {
+		            if (options.targetId === 'query-dialog' || options.targetId === 'figure-results') return;
+		            if (typeof reactivateJpWorkbenchMap === 'function') {
+		              reactivateJpWorkbenchMap();
+		              return;
+		            }
+		            if (typeof initJpMapHub === 'function') initJpMapHub();
+		            const leafletHost = document.getElementById('jp-leaflet-map');
+		            const map = window.__sclawJpLeafletMap || leafletHost?.__sclawLeafletMap;
 	            const reactivateMap = () => {
 	              if (!map || typeof map.invalidateSize !== 'function') return;
 	              map.invalidateSize();
@@ -26149,8 +26196,10 @@
 	        }, 90);
 	      }
 	      if (options.scroll !== false) {
-	        const target = document.getElementById(showWorkbench ? (options.targetId || 'jp-map-hub') : 'home-hero-heading')
-	          || document.querySelector(showWorkbench ? '#jp-map-hub' : '.site-home-hero');
+		        const targetId = showWorkbench && (options.targetId === 'figure-results') ? 'figure-results' : (showWorkbench ? 'jp-workbench-suite' : 'home-hero-heading');
+		        const target = document.getElementById(targetId)
+		          || document.getElementById(showWorkbench ? 'jp-map-hub' : 'home-hero-heading')
+		          || document.querySelector(showWorkbench ? '#jp-workbench-suite' : '.site-home-hero');
 	        if (target) {
 	          window.requestAnimationFrame(() => {
 	            const header = document.querySelector('.bh-site-header');
@@ -26160,8 +26209,9 @@
 	          });
 	        }
 	      }
-	      if (options.persist !== false && window.history && window.location) {
-	        const nextHash = showWorkbench ? '#jp-map-hub' : '#home-hero-heading';
+		      if (options.persist !== false && window.history && window.location) {
+		        const workbenchTarget = options.targetId === 'query-dialog' || options.targetId === 'figure-results' ? `#${options.targetId}` : '#jp-map-hub';
+		        const nextHash = showWorkbench ? workbenchTarget : '#home-hero-heading';
 	        const base = `${window.location.pathname}${window.location.search}`;
 	        try {
 	          window.history.replaceState(null, '', `${base}${nextHash}`);
@@ -26197,9 +26247,12 @@
 		        }
 		        const href = String(trigger.getAttribute('href') || '').trim();
 		        if (workbenchHashes.has(href)) {
+		          evt.preventDefault();
 		          setHomeInternalView('workbench', { targetId: href.slice(1), scroll: false });
 		          window.requestAnimationFrame(() => {
-		            const target = document.getElementById(href.slice(1));
+		            const rawTargetId = href.slice(1);
+		            const target = document.getElementById(rawTargetId === 'figure-results' ? rawTargetId : 'jp-workbench-suite')
+		              || document.getElementById(rawTargetId);
 		            if (target) {
 	              const header = document.querySelector('.bh-site-header');
 	              const headerH = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
@@ -26208,12 +26261,17 @@
 		            }
 		          });
 		        } else if (href === '#home-hero-heading') {
+		          evt.preventDefault();
 		          setHomeInternalView('home', { scroll: false });
 		        }
 		      });
-		      window.addEventListener('hashchange', () => syncFromHash(false));
-		      setHomeInternalView('home', { instant: true, scroll: false, persist: true });
-		    }
+			      window.addEventListener('hashchange', () => syncFromHash(false));
+			      if (workbenchHashes.has(String(window.location.hash || ''))) {
+			        syncFromHash(true);
+			      } else {
+			        setHomeInternalView('home', { instant: true, scroll: false, persist: true });
+			      }
+			    }
 
 	    function updateMobileHeaderMetrics() {
       try {
@@ -26257,7 +26315,6 @@
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);
       initBhomelandSeoMotion();
       scheduleAfterMobileFirstIntent(initHomeIntroCasePicker, 12000);
-      scheduleAfterMobileFirstIntent(installDialogAutoSpeakControls, 12000);
       handleInboundSupportDeepLink();
       refreshSupportChatMicHint();
       scheduleNonCriticalStartup(initJpMapHub, isMobileStartupPerfMode() ? 600 : 1000);
