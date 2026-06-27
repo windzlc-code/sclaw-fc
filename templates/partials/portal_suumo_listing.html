@@ -164,7 +164,7 @@
         </dl>
         <div class="portal-suumo-map-placeholder">
           <p class="portal-suumo-map-placeholder-title">地圖與周邊環境</p>
-          <p class="muted">站內僅列摘要；街景與精確座標以<strong>原站</strong>為準。下列連結以<strong>日文／中文所在地</strong>為關鍵字，方便在常用地圖服務快速查看位置。</p>
+          <p class="muted">站內僅列摘要；街景與精確座標以<strong>原站</strong>為準。下列連結以<strong>站內地址</strong>為關鍵字，方便在常用地圖服務快速查看位置。</p>
           {% if map_q_raw %}
           <nav class="portal-suumo-map-ext-grid" aria-label="Google／高德／百度地圖（另開新分頁）">
             <a class="portal-suumo-cta portal-suumo-cta--map-ext portal-suumo-cta--map-google" href="https://www.google.com/maps/search/?api=1&amp;query={{ map_q_raw|urlencode }}" target="_blank" rel="nofollow noopener noreferrer" title="Google Maps 搜尋：{{ map_q_raw|e }}">Google 地圖</a>

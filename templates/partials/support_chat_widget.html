@@ -16,7 +16,7 @@
               </svg>
             </span>
             <strong id="support-phone-login-title">號碼登入</strong>
-            <p id="support-phone-login-subtitle" class="muted">輸入合規聯絡號碼後，即可使用智能客服與顧問接手。</p>
+            <p id="support-phone-login-subtitle" class="muted">輸入合規聯絡號碼後，即可使用線上客服與顧問接手。</p>
           </div>
           <button type="button" class="ui-close-btn" onclick="toggleSupportPhoneLoginModal(false)" aria-label="關閉號碼登入" title="關閉">×</button>
         </div>
@@ -55,11 +55,11 @@
             <div>
               <span class="support-phone-login-profile-eyebrow">目前登入帳號</span>
               <strong id="support-phone-login-profile-phone">--</strong>
-              <p id="support-phone-login-profile-meta" class="muted">智能客服已同步此號碼。</p>
+              <p id="support-phone-login-profile-meta" class="muted">線上客服已同步此號碼。</p>
             </div>
           </div>
           <div class="support-phone-login-profile-actions">
-            <button type="button" class="primary" onclick="toggleSupportPhoneLoginModal(false); toggleSupportChat(true)">開啟智能客服</button>
+            <button type="button" class="primary" onclick="toggleSupportPhoneLoginModal(false); toggleSupportChat(true)">開啟線上客服</button>
             <button type="button" class="secondary" onclick="logoutSupportPhoneLogin()">退出登入</button>
           </div>
         </div>
@@ -85,7 +85,14 @@
             <span id="support-selected-cases-drawer-count" class="support-selected-cases-count">0 筆</span>
           </div>
           <div class="support-selected-cases-drawer-head-actions">
-            <button type="button" class="secondary" onclick="clearSupportSelectedCases()">清空</button>
+            <button type="button" class="secondary support-drawer-clear-btn" onclick="clearSupportSelectedCases()" aria-label="清空已選案件清單" title="清空">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M8 7V5.8A2.8 2.8 0 0 1 10.8 3h2.4A2.8 2.8 0 0 1 16 5.8V7" />
+                <path d="M5.5 7h13" />
+                <path d="M8.2 10.2 9 19.1A2.1 2.1 0 0 0 11.1 21h1.8a2.1 2.1 0 0 0 2.1-1.9l.8-8.9" />
+                <path d="M10.5 11.2v6.2M13.5 11.2v6.2" />
+              </svg>
+            </button>
             <button type="button" class="ui-close-btn" onclick="toggleSupportSelectedCasesDrawer(false)" aria-label="關閉已選案件清單" title="關閉">×</button>
           </div>
         </div>
@@ -101,7 +108,14 @@
             <span id="support-saved-cases-drawer-count" class="support-selected-cases-count">0 筆</span>
           </div>
           <div class="support-selected-cases-drawer-head-actions">
-            <button type="button" class="secondary" onclick="clearSupportSavedCases()">清空</button>
+            <button type="button" class="secondary support-drawer-clear-btn" onclick="clearSupportSavedCases()" aria-label="清空收藏案件" title="清空">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M8 7V5.8A2.8 2.8 0 0 1 10.8 3h2.4A2.8 2.8 0 0 1 16 5.8V7" />
+                <path d="M5.5 7h13" />
+                <path d="M8.2 10.2 9 19.1A2.1 2.1 0 0 0 11.1 21h1.8a2.1 2.1 0 0 0 2.1-1.9l.8-8.9" />
+                <path d="M10.5 11.2v6.2M13.5 11.2v6.2" />
+              </svg>
+            </button>
             <button type="button" class="ui-close-btn" onclick="toggleSupportSavedCasesDrawer(false)" aria-label="關閉收藏案件" title="關閉">×</button>
           </div>
         </div>
@@ -116,7 +130,10 @@
             <span class="support-chat-avatar-slot support-chat-avatar-slot--head" aria-hidden="true">
               <img src="{{ support_avatar_url }}" width="30" height="30" class="support-chat-avatar-photo" alt="{{ seo_phrase_brand }}｜{{ seo_phrase_entry }}" loading="lazy">
             </span>
-            <strong>線上智能客服</strong>
+            <span class="support-chat-head-copy">
+              <span id="support-chat-telegram-status" class="support-chat-telegram-status" style="display:none;"></span>
+              <strong>線上客服</strong>
+            </span>
           </div>
           <div class="support-chat-head-actions">
             <button id="support-chat-menu-toggle" type="button" class="support-chat-menu-toggle" onclick="toggleSupportChatMenu()" aria-label="客服功能選單" aria-haspopup="menu" aria-expanded="false" title="客服功能選單">
@@ -124,7 +141,7 @@
               <span aria-hidden="true"></span>
               <span aria-hidden="true"></span>
             </button>
-            <button type="button" class="ui-close-btn" onclick="toggleSupportChat(false)" aria-label="收起線上智能客服" title="收起">×</button>
+            <button type="button" class="ui-close-btn" onclick="toggleSupportChat(false)" aria-label="收起線上客服" title="收起">×</button>
           </div>
         </div>
         <div id="support-chat-menu" class="support-chat-menu" role="menu" hidden>
@@ -155,7 +172,6 @@
             <span id="support-chat-thinking-label">思考中…</span>
           </button>
         </div>
-        <p id="support-chat-telegram-status" class="support-chat-telegram-status muted" style="display:none;"></p>
         </div>
         <div class="support-chat-input-row">
           <input id="support-chat-input" type="text" placeholder="輸入訊息…" maxlength="2000" autocomplete="off" enterkeyhint="send" inputmode="text" onkeydown="if(event.key==='Enter'){event.preventDefault();sendSupportChat();}">
@@ -190,6 +206,11 @@
         <span id="support-saved-cases-fab-count" class="support-selected-cases-fab-count" aria-hidden="true" hidden>0</span>
       </button>
     </div>
-    <button id="support-chat-toggle" type="button" class="support-chat-toggle support-chat-toggle--bottom floating-action-btn" onclick="toggleSupportChat()" aria-label="號碼登入後開啟線上智能客服對話" aria-controls="support-chat-panel" aria-expanded="false" title="線上智能客服" data-floating-label="線上客服">
-      <img src="{{ support_avatar_url }}" width="58" height="58" class="support-chat-toggle-avatar support-chat-toggle-avatar--bottom support-chat-avatar-photo" alt="{{ seo_phrase_brand }}｜{{ seo_phrase_entry }}" loading="lazy" decoding="async">
+    <button id="support-chat-toggle" type="button" class="support-chat-toggle support-chat-toggle--bottom floating-action-btn" onclick="toggleSupportChat()" aria-label="號碼登入後開啟線上客服對話" aria-controls="support-chat-panel" aria-expanded="false" title="線上客服" data-floating-label="線上客服">
+      <span class="support-chat-toggle-bubble-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32" focusable="false">
+          <path d="M7.2 9.2a5 5 0 0 1 5-5h7.6a5 5 0 0 1 5 5v5.5a5 5 0 0 1-5 5h-6.1l-5.3 4.2v-4.5a5 5 0 0 1-1.2-3.2Z" />
+          <path d="M12.1 11.5h7.8M12.1 15.4h5.6" />
+        </svg>
+      </span>
     </button>

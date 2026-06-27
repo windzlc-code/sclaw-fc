@@ -789,6 +789,349 @@ def _listing_value_present(value: Any) -> bool:
     return True
 
 
+_JP_KANA_RE = re.compile(r"[\u3040-\u30ff]")
+
+
+_PORTAL_CASE_TEXT_HANT_REPL: tuple[tuple[str, str], ...] = (
+    ("【アットホーム】", ""),
+    ("【ホームズ】", ""),
+    ("LIFULL HOME'S", "LIFULL HOME'S"),
+    ("アットホーム", "AtHome"),
+    ("ホームズ", "LIFULL HOME'S"),
+    ("ザ・マークス", "The Marks"),
+    ("グランドパレス", "Grand Palace"),
+    ("シーズガーデン", "Seeds Garden"),
+    ("サンシャイン", "Sunshine"),
+    ("マンション", "公寓"),
+    ("新築公寓", "新建公寓"),
+    ("新築", "新建"),
+    ("分譲", "分售"),
+    ("中古", "中古"),
+    ("一戸建て", "一戶建"),
+    ("戸建て", "戶建"),
+    ("戸建", "戶建"),
+    ("物件名", "物件名稱"),
+    ("価格", "價格"),
+    ("所在地", "所在地"),
+    ("間取り", "格局"),
+    ("専有面積", "專有面積"),
+    ("建物階数", "建物層數"),
+    ("階数", "層數"),
+    ("販売価格", "銷售價格"),
+    ("販売開始", "開始銷售"),
+    ("価格未定", "價格未定"),
+    ("万円", "萬日圓"),
+    ("円", "日圓"),
+    ("東京メトロ", "東京地鐵"),
+    ("大阪メトロ", "大阪地鐵"),
+    ("名古屋市営", "名古屋市營"),
+    ("北九州モノレール", "北九州單軌電車"),
+    ("モノレール", "單軌電車"),
+    ("地下鉄", "地下鐵"),
+    ("都営", "都營"),
+    ("ＪＲ", "JR"),
+    ("バス停下車", "巴士站下車"),
+    ("バス停", "巴士站"),
+    ("バス", "巴士"),
+    ("徒歩", "步行"),
+    ("歩", "步行"),
+    ("駅", "站"),
+    ("鉄骨鉄筋コンクリート", "鋼骨鋼筋混凝土"),
+    ("鉄筋コンクリート", "鋼筋混凝土"),
+    ("鉄骨", "鋼骨"),
+    ("階建", "層樓建築"),
+    ("階部分", "樓層"),
+    ("階", "樓"),
+    ("築年月", "建築年月"),
+    ("築年", "屋齡"),
+    ("予定", "預定"),
+    ("総戸数", "總戶數"),
+    ("管理員室", "管理員室"),
+    ("集会室", "集會室"),
+    ("店舗", "店鋪"),
+    ("他に", "另有"),
+    ("他、", "另有"),
+    ("の一部", "的一部分"),
+    ("全", "共"),
+    ("邸", "戶"),
+    ("戸", "戶"),
+    ("枚", "張"),
+    ("駐車場", "停車場"),
+    ("駐車施設", "停車位"),
+    ("設置", "設置"),
+    ("現況", "目前狀態"),
+    ("予告広告", "預告廣告"),
+    ("販売予定時期", "銷售預定時期"),
+    ("販売予定", "銷售預定"),
+    ("販売", "銷售"),
+    ("引渡し", "交屋"),
+    ("引渡", "交屋"),
+    ("月額使用料", "月租費"),
+    ("管理費等", "管理費"),
+    ("修繕積立金", "修繕準備金"),
+    ("敷地内", "基地內"),
+    ("内に", "內設有"),
+    ("機械式", "機械式"),
+    ("平置き", "平面式"),
+    ("来客用", "訪客用"),
+    ("車椅子使用者用", "輪椅使用者用"),
+    ("号棟", "號棟"),
+    ("号", "號"),
+    ("県", "縣"),
+    ("区", "區"),
+    ("ヶ", "之"),
+    ("ヶ所", "處"),
+    ("ケ所", "處"),
+    ("地番", "地號"),
+)
+
+
+_PORTAL_PREFECTURE_REPL: tuple[tuple[str, str], ...] = (
+    ("北海道", "北海道"),
+    ("青森県", "青森縣"),
+    ("岩手県", "岩手縣"),
+    ("宮城県", "宮城縣"),
+    ("秋田県", "秋田縣"),
+    ("山形県", "山形縣"),
+    ("福島県", "福島縣"),
+    ("茨城県", "茨城縣"),
+    ("栃木県", "栃木縣"),
+    ("群馬県", "群馬縣"),
+    ("埼玉県", "埼玉縣"),
+    ("千葉県", "千葉縣"),
+    ("東京都", "東京都"),
+    ("神奈川県", "神奈川縣"),
+    ("新潟県", "新潟縣"),
+    ("富山県", "富山縣"),
+    ("石川県", "石川縣"),
+    ("福井県", "福井縣"),
+    ("山梨県", "山梨縣"),
+    ("長野県", "長野縣"),
+    ("岐阜県", "岐阜縣"),
+    ("静岡県", "靜岡縣"),
+    ("愛知県", "愛知縣"),
+    ("三重県", "三重縣"),
+    ("滋賀県", "滋賀縣"),
+    ("京都府", "京都府"),
+    ("大阪府", "大阪府"),
+    ("兵庫県", "兵庫縣"),
+    ("奈良県", "奈良縣"),
+    ("和歌山県", "和歌山縣"),
+    ("鳥取県", "鳥取縣"),
+    ("島根県", "島根縣"),
+    ("岡山県", "岡山縣"),
+    ("広島県", "廣島縣"),
+    ("山口県", "山口縣"),
+    ("徳島県", "德島縣"),
+    ("香川県", "香川縣"),
+    ("愛媛県", "愛媛縣"),
+    ("高知県", "高知縣"),
+    ("福岡県", "福岡縣"),
+    ("佐賀県", "佐賀縣"),
+    ("長崎県", "長崎縣"),
+    ("熊本県", "熊本縣"),
+    ("大分県", "大分縣"),
+    ("宮崎県", "宮崎縣"),
+    ("鹿児島県", "鹿兒島縣"),
+    ("沖縄県", "沖繩縣"),
+)
+
+
+def _portal_case_text_hant(raw: Any, *, max_len: int = 260) -> str:
+    out = _clean_translation_noise(str(raw or "")).strip()
+    if not out:
+        return ""
+    out = re.sub(r"^\s*日本房[產产]案源[:：]\s*", "", out)
+    out = re.sub(r"^\s*日本不動產案件[:：]\s*", "", out)
+    out = re.sub(r"^\s*(?:\[在家\]|【在家】|在家)\s*", "", out)
+    for jp, zh in _PORTAL_PREFECTURE_REPL:
+        out = out.replace(jp, zh)
+    for jp, zh in _PORTAL_CASE_TEXT_HANT_REPL:
+        out = out.replace(jp, zh)
+    out = out.replace("｜", " | ")
+    out = re.sub(r"\s+", " ", out)
+    out = re.sub(r"\s*([|/・、，,])\s*", r"\1", out)
+    out = re.sub(r"\b(AtHome|LIFULL HOME'S)（\1）", r"\1", out)
+    out = out.strip(" ：:-|")
+    return out[:max_len].strip()
+
+
+def _portal_case_source_name_display(raw: Any, item_url: Any = "") -> str:
+    text = str(raw or "").strip()
+    hay = f"{text} {item_url or ''}".lower()
+    if "athome.co.jp" in hay or "athome" in hay or "at home" in hay or "アットホーム" in text:
+        return "AtHome"
+    if "homes.co.jp" in hay or "lifull" in hay or "home's" in hay or "ホームズ" in text:
+        return "LIFULL HOME'S"
+    if "suumo.jp" in hay or "suumo" in hay or "スーモ" in text:
+        return "SUUMO"
+    if "realestate.yahoo.co.jp" in hay or "yahoo" in hay or "不動産" in text:
+        return "Yahoo! 不動產"
+    if "realestate.rakuten.co.jp" in hay or "rakuten" in hay or "楽天" in text:
+        return "樂天不動產"
+    if "yes1.co.jp" in hay or "yes-station" in hay or "イエステーション" in text:
+        return "YesStation"
+    if "oheya-su.jp" in hay or "oheyasu" in hay or "お部屋探す" in text:
+        return "OHEYASU"
+    return _portal_case_text_hant(text, max_len=80)
+
+
+def _portal_case_has_kana(raw: Any) -> bool:
+    return bool(_JP_KANA_RE.search(str(raw or "")))
+
+
+def _portal_case_display_line_is_noisy(raw: Any) -> bool:
+    t = str(raw or "").strip()
+    if not t:
+        return False
+    if len(t) > 150:
+        return True
+    noisy_terms = (
+        "日本房產案源",
+        "日本房产案源",
+        "產案源",
+        "产案源",
+        "資料請求",
+        "资料请求",
+        "見学予約",
+        "問合せ",
+        "会社情報",
+        "掲載画像",
+        "閲覧済",
+        "Pick up",
+        "災害リスク",
+        "構造/樓数",
+        "構造/階数",
+    )
+    return any(term in t for term in noisy_terms)
+
+
+def _portal_case_display_access(raw: Any, d: dict[str, Any], meta: dict[str, Any]) -> str:
+    source_blob = "\n".join([str(d.get("title_original") or ""), str(d.get("body_original") or "")])
+    access_raw = str(raw or "").strip()
+    segments = _homes_station_segments(access_raw, max_items=2) if access_raw else []
+    if segments:
+        access_raw = " / ".join(segments)
+    if _portal_case_display_line_is_noisy(access_raw):
+        access_raw = _extract_jp_access_fallback(source_blob)
+        segments = _homes_station_segments(access_raw, max_items=2) if access_raw else []
+        if segments:
+            access_raw = " / ".join(segments)
+    access_hant = _portal_case_text_hant(access_raw or meta.get("transit_line_zh") or "", max_len=180)
+    if _portal_case_display_line_is_noisy(access_hant):
+        access_hant = _portal_case_text_hant(meta.get("transit_line_zh") or "", max_len=120)
+    return "" if _portal_case_display_line_is_noisy(access_hant) else access_hant
+
+
+def _portal_case_display_address(raw: Any, d: dict[str, Any], meta: dict[str, Any]) -> str:
+    source_blob = "\n".join([str(d.get("title_original") or ""), str(d.get("body_original") or "")])
+    address_raw = str(raw or "").strip()
+    if _portal_case_display_line_is_noisy(address_raw) or re.search(r"(?:駅|站|徒歩|步行)\s*\d", address_raw):
+        address_raw = _extract_jp_address_fallback(source_blob)
+    address_hant = _portal_case_text_hant(address_raw, max_len=160)
+    if _portal_case_display_line_is_noisy(address_hant) or re.search(r"(?:站|步行)\s*\d", address_hant):
+        address_hant = str(meta.get("jp_region_display_zh") or "").strip()
+    return address_hant
+
+
+def _portal_case_property_type_hant(d: dict[str, Any], listing_fields: dict[str, Any]) -> str:
+    blob = "\n".join(
+        [
+            str(d.get("title_original") or ""),
+            str(d.get("title_zh_hant") or ""),
+            str(d.get("item_url") or ""),
+            str(listing_fields.get("building_type_zh") or ""),
+        ]
+    )
+    if re.search(r"新築|新建", blob):
+        if re.search(r"マンション|公寓|mansion", blob, re.I):
+            return "新建公寓"
+    if re.search(r"中古", blob) and re.search(r"マンション|公寓|mansion", blob, re.I):
+        return "中古公寓"
+    if re.search(r"一戸建て|戸建|kodate|ikkodate|透天|一戶建", blob, re.I):
+        return "戶建"
+    if re.search(r"マンション|公寓|mansion|ms/", blob, re.I):
+        return "公寓"
+    return str(listing_fields.get("building_type_zh") or "房源").strip() or "房源"
+
+
+def _portal_case_short_address(address_hant: str, region: str) -> str:
+    addr = _portal_case_text_hant(address_hant, max_len=120)
+    if not addr:
+        return str(region or "").strip()
+    addr = re.sub(r"[0-9０-９].*$", "", addr).strip(" -－、，,")
+    return addr[:48].strip() or address_hant[:48].strip()
+
+
+def _portal_case_display_title(
+    d: dict[str, Any],
+    listing_fields: dict[str, Any],
+    *,
+    title_hant_clean: str,
+    title_original_clean: str,
+    meta: dict[str, Any],
+) -> str:
+    base = _portal_case_text_hant(title_hant_clean or title_original_clean, max_len=120)
+    base = re.sub(r"^(?:AtHome|LIFULL HOME'S)\s*", "", base).strip(" ：:-|")
+    base = re.sub(r"^\s*(?:\[在家\]|【在家】|在家)\s*", "", base).strip(" ：:-|")
+    base = re.sub(r"\s*交通\s*$", "", base).strip()
+    address_hant = _portal_case_display_address(listing_fields.get("address_line_jp") or "", d, meta)
+    needs_synth = (
+        not base
+        or _portal_case_has_kana(base)
+        or len(base) > 72
+        or base.lower().startswith(("http://", "https://"))
+    )
+    if not needs_synth:
+        return base
+    region = str(meta.get("jp_region_display_zh") or "")
+    short_addr = _portal_case_short_address(address_hant, region)
+    layout = str(listing_fields.get("layout_text_hant") or "").strip()
+    ptype = _portal_case_property_type_hant(d, listing_fields)
+    right = " ".join(x for x in (layout, ptype) if x).strip()
+    if short_addr and right:
+        return f"{short_addr}｜{right}"[:96]
+    if short_addr:
+        return f"{short_addr}｜{ptype}"[:96]
+    return (right or ptype or "日本不動產案件")[:96]
+
+
+def _portal_case_display_fields(
+    d: dict[str, Any],
+    listing_fields: dict[str, Any],
+    *,
+    meta: dict[str, Any],
+    title_hant_clean: str,
+    title_hans_clean: str,
+    title_original_clean: str,
+    body_hant_preview: str,
+    body_hans_preview: str,
+) -> dict[str, str]:
+    title_display_hant = _portal_case_display_title(
+        d,
+        listing_fields,
+        title_hant_clean=title_hant_clean,
+        title_original_clean=title_original_clean,
+        meta=meta,
+    )
+    address_hant = _portal_case_display_address(listing_fields.get("address_line_jp") or "", d, meta)
+    access_hant = _portal_case_display_access(listing_fields.get("access_line_jp") or "", d, meta)
+    preview_source = body_hant_preview or _clean_portal_case_preview(d, listing_fields, script="hant")
+    preview_hant = _portal_case_text_hant(preview_source, max_len=320)
+    preview_hans = _portal_case_text_hant(body_hans_preview or preview_source, max_len=320)
+    title_display_hans = _portal_case_text_hant(title_hans_clean, max_len=120) if title_hans_clean else title_display_hant
+    if not title_display_hans or _portal_case_has_kana(title_display_hans):
+        title_display_hans = title_display_hant
+    return {
+        "title_display_hant": title_display_hant,
+        "title_display_hans": title_display_hans,
+        "address_line_hant": address_hant,
+        "access_line_hant": access_hant,
+        "body_display_hant_preview": preview_hant,
+        "body_display_hans_preview": preview_hans,
+    }
+
+
 def _preview_text_looks_stale(text: str) -> bool:
     t = str(text or "").strip()
     if not t:
@@ -3895,6 +4238,16 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
         body_hant_preview = clean_hant_preview
     if clean_hans_preview and _preview_text_looks_stale(body_hans_preview):
         body_hans_preview = clean_hans_preview
+    display_fields = _portal_case_display_fields(
+        d,
+        listing_fields,
+        meta=meta,
+        title_hant_clean=title_hant_clean,
+        title_hans_clean=title_hans_clean,
+        title_original_clean=title_original_clean,
+        body_hant_preview=body_hant_preview,
+        body_hans_preview=body_hans_preview,
+    )
     return {
         "content_id": d.get("id"),
         "source_item_id": d.get("source_item_id"),
@@ -3909,6 +4262,7 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
         "case_transit_override": str(d.get("case_transit_override") or ""),
         "featured_weight": int(d.get("featured_weight") or 0),
         "source_name": d.get("source_name") or "",
+        "source_name_display": _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or ""),
         "item_url": d.get("item_url") or "",
         "title_original": title_original_clean,
         "snippet_jp": _clean_snippet_text(str(d.get("body_original") or ""))[:260],
@@ -3930,6 +4284,7 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
         "portal_host": host,
         **_case_time_fields(d, listing_fields),
         **listing_fields,
+        **display_fields,
     }
 
 
@@ -3953,6 +4308,11 @@ def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
     title_hans_clean = _clean_translation_noise(str(d.get("title_zh_hans") or "")) or title_hant_clean
     body_hant_preview = _clean_translation_noise(str(d.get("body_zh_hant") or ""))[:320]
     body_hans_preview = _clean_translation_noise(str(d.get("body_zh_hans") or ""))[:320]
+    display_title = _portal_case_text_hant(title_hant_clean or title_original_clean, max_len=120)
+    if _portal_case_has_kana(display_title):
+        display_title = re.sub(r"^\s*日本房[產产]案源[:：]\s*", "", title_original_clean).strip()[:96]
+    display_preview_hant = _portal_case_text_hant(body_hant_preview, max_len=320)
+    display_preview_hans = _portal_case_text_hant(body_hans_preview or body_hant_preview, max_len=320)
     gallery = [thumb] if thumb else []
     return {
         "content_id": d.get("id"),
@@ -3960,6 +4320,8 @@ def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
         "seo_slug": d.get("seo_slug") or "",
         "title_zh_hant": title_hant_clean,
         "title_zh_hans": title_hans_clean,
+        "title_display_hant": display_title,
+        "title_display_hans": display_title,
         "region_code": d.get("region_code") or "",
         "keyword_type": d.get("keyword_type") or "",
         "topic_category": d.get("topic_category") or "",
@@ -3968,11 +4330,14 @@ def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
         "case_transit_override": str(d.get("case_transit_override") or ""),
         "featured_weight": int(d.get("featured_weight") or 0),
         "source_name": d.get("source_name") or "",
+        "source_name_display": _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or ""),
         "item_url": d.get("item_url") or "",
         "title_original": title_original_clean,
         "snippet_jp": _clean_snippet_text(str(d.get("body_original") or ""))[:260],
         "body_zh_hant_preview": body_hant_preview,
         "body_zh_hans_preview": body_hans_preview,
+        "body_display_hant_preview": display_preview_hant,
+        "body_display_hans_preview": display_preview_hans,
         "updated_at": str(d.get("updated_at") or ""),
         "published_at": str(d.get("published_at") or ""),
         "crawled_at": str(d.get("crawled_at") or ""),
@@ -3999,6 +4364,8 @@ def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
         "price_text_hant": "",
         "address_line_jp": "",
         "access_line_jp": "",
+        "address_line_hant": "",
+        "access_line_hant": "",
         "area_text_hant": "",
         "layout_text_hant": "",
         "built_ym_jp": "",
@@ -4090,12 +4457,15 @@ def _row_to_portal_case_item_matrix_fast(r: Any) -> dict[str, Any]:
     title_original = str(d.get("title_original") or "").strip()
     title_hant = str(d.get("title_zh_hant") or "").strip() or title_original
     title_hans = str(d.get("title_zh_hans") or "").strip() or title_hant
+    title_display = _portal_case_text_hant(title_hant or title_original, max_len=120)
     return {
         "content_id": d.get("id"),
         "source_item_id": d.get("source_item_id"),
         "seo_slug": d.get("seo_slug") or "",
         "title_zh_hant": title_hant,
         "title_zh_hans": title_hans,
+        "title_display_hant": title_display,
+        "title_display_hans": title_display,
         "region_code": d.get("region_code") or "",
         "keyword_type": d.get("keyword_type") or "",
         "topic_category": d.get("topic_category") or "",
@@ -4104,6 +4474,7 @@ def _row_to_portal_case_item_matrix_fast(r: Any) -> dict[str, Any]:
         "case_transit_override": str(d.get("case_transit_override") or ""),
         "featured_weight": int(d.get("featured_weight") or 0),
         "source_name": d.get("source_name") or "",
+        "source_name_display": _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or ""),
         "item_url": d.get("item_url") or "",
         "title_original": title_original,
         "updated_at": updated_at,
@@ -4174,7 +4545,7 @@ def _paged_portal_case_items_from_rows_fast(
 _COVERAGE_HOST_SOURCE_NAME_ALIASES: dict[str, tuple[str, ...]] = {
     "suumo.jp": ("SUUMO", "SUUMO（スーモ）"),
     "homes.co.jp": ("LIFULL HOME'S", "LIFULL HOME'S（ライフルホームズ）"),
-    "athome.co.jp": ("at home", "アットホーム（AtHome）"),
+    "athome.co.jp": ("AtHome", "at home", "アットホーム（AtHome）"),
     "realestate.yahoo.co.jp": ("Yahoo!不動産",),
     "realestate.rakuten.co.jp": ("楽天不動産",),
     "yes1.co.jp": ("イエステーション", "イエステーション YesStation"),
@@ -4318,7 +4689,10 @@ def _search_portal_cases_coverage_matrix_mode(
             )
             count_region_params = []
             count_region_where = "1=1"
-            from_sql_fetch = from_sql_count
+            from_sql_fetch = (
+                "FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked\n"
+                f"        {latest_content_join}"
+            )
             fetch_region_params = []
             fetch_region_where = "1=1"
             order_by_sql = "s.last_checked_at DESC, s.id DESC"

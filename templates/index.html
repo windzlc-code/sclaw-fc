@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260627-workbench-tabs-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-hero-mask-a">
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
@@ -162,7 +162,7 @@
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
-  <script>window.__SUPPORT_AVATAR_ALT__={{ (seo_phrase_brand ~ '｜' ~ seo_phrase_entry ~ '｜智能助理') | tojson }};</script>
+  <script>window.__SUPPORT_AVATAR_ALT__={{ (seo_phrase_brand ~ '｜' ~ seo_phrase_entry ~ '｜線上客服') | tojson }};</script>
 </head>
 <body class="site-home site-lang-hant{% if admin_standalone %} site-admin-standalone site-admin-locked{% endif %}">
   {% include 'partials/site_header.html' %}
@@ -211,6 +211,7 @@
         <div class="hero-media-overlay">
           <div class="hero-video-chrome" aria-hidden="true"></div>
           <div class="hero-media-overlay-copy">
+            <p class="hero-english-title">Japan Real Estate Global Smart Search</p>
             <p class="hero-kicker">{{ seo_phrase_hero_kicker }}</p>
             <div class="bh-hero-proof-row" aria-label="核心功能快速入口">
               <a href="#jp-map-hub">日本地圖選點</a>
@@ -239,6 +240,49 @@
         <small>橫向查看站內房源卡片</small>
       </a>
       <button type="button" class="bh-search-dock-button" data-query-action="smart-query-run">查詢日本不動產案件</button>
+    </section>
+
+    <section class="home-featured-flow" id="home-featured-flow" aria-labelledby="home-featured-title">
+      <div class="home-featured-flow-head">
+        <div>
+          <p class="home-featured-kicker">REAL CASE INSPIRATION</p>
+          <h2 id="home-featured-title">精選日本房源靈感</h2>
+          <p>從資料庫挑選高圖文完整、價格與交通更有參考價值的日本房源。</p>
+        </div>
+        <button type="button" id="home-featured-refresh" class="home-featured-refresh-btn" onclick="refreshHomeFeaturedSpotlight()">換一批推薦</button>
+      </div>
+      <div class="home-featured-board home-featured-board--spotlight">
+        <div id="home-featured-hero" class="home-featured-hero" hidden></div>
+        <div id="home-featured-grid" class="home-featured-grid" aria-live="polite"></div>
+        <p id="home-featured-status" class="home-featured-status">正在載入精選房源...</p>
+      </div>
+
+      <div class="home-featured-board home-featured-board--types" aria-labelledby="home-featured-type-title">
+        <div class="home-featured-board-head">
+          <div>
+            <p class="home-featured-kicker">PROPERTY TYPE PICKS</p>
+            <h3 id="home-featured-type-title">按物件類型看精選</h3>
+          </div>
+          <p>依照智慧查詢的物件類型分類，只載入目前分欄需要的房源。</p>
+        </div>
+        <div class="home-featured-type-tabs" role="tablist" aria-label="精選房源物件類型">
+          <button type="button" class="is-active" data-home-featured-type="" onclick="homeFeaturedApplyType('', this)">綜合推薦</button>
+          <button type="button" data-home-featured-type="公寓" onclick="homeFeaturedApplyType('公寓', this)">公寓</button>
+          <button type="button" data-home-featured-type="大樓" onclick="homeFeaturedApplyType('大樓', this)">大樓</button>
+          <button type="button" data-home-featured-type="華廈" onclick="homeFeaturedApplyType('華廈', this)">華廈</button>
+          <button type="button" data-home-featured-type="套房" onclick="homeFeaturedApplyType('套房', this)">套房</button>
+          <button type="button" data-home-featured-type="別墅/透天" onclick="homeFeaturedApplyType('別墅/透天', this)">別墅/透天</button>
+          <button type="button" data-home-featured-type="辦公" onclick="homeFeaturedApplyType('辦公', this)">辦公</button>
+          <button type="button" data-home-featured-type="店面" onclick="homeFeaturedApplyType('店面', this)">店面</button>
+          <button type="button" data-home-featured-type="土地" onclick="homeFeaturedApplyType('土地', this)">土地</button>
+          <button type="button" data-home-featured-type="其他" onclick="homeFeaturedApplyType('其他', this)">其他</button>
+        </div>
+        <div id="home-featured-type-grid" class="home-featured-grid home-featured-type-grid" aria-live="polite"></div>
+        <div class="home-featured-flow-foot">
+          <p id="home-featured-type-status" class="home-featured-status">正在載入物件類型房源...</p>
+          <button type="button" id="home-featured-type-more" class="home-featured-more-btn" onclick="loadHomeFeaturedTypeCases({ append: true })">載入更多房源</button>
+        </div>
+      </div>
     </section>
 
     <section class="jp-workbench-suite" id="jp-workbench-suite" aria-labelledby="jp-workbench-suite-title" data-active-tab="map">
@@ -555,7 +599,7 @@
           </div>
           <p class="muted" style="font-size:12px;margin:0.35rem 0 0;">房數不含加蓋；日本 1LDK / 2DK 會換算為 1房 / 2房。</p>
         </div>
-        <div class="search-row-basic" style="grid-template-columns: minmax(220px, 420px); margin: 0;">
+        <div class="search-row-basic figure-smart-submit-row">
           <button type="button" data-query-action="smart-query-run">查詢日本不動產案件</button>
         </div>
       </div>
@@ -2967,11 +3011,28 @@
       };
     }
 
+    function isHomesGeoPlaceholderLabel(label) {
+      const text = String(label || '').trim();
+      if (!text) return true;
+      return (
+        text === '（可選）不限' ||
+        text === '載入中…' ||
+        text === '載入都道府縣中…' ||
+        text === '先選地區' ||
+        text === '先選大區' ||
+        text === '先選都道府縣' ||
+        text === '日本全域（不限區域）' ||
+        text === '日本全域' ||
+        text === '不限區域' ||
+        /^（/.test(text)
+      );
+    }
+
     function homesGeoKeywordForSearch() {
       const sel = getHomesGeoSelection();
       // keyword 保持日文原字（對應 HOMES slug / 原文摘要較易命中）
-      if (sel.prefLabelJp && sel.prefLabelJp !== '（可選）不限') {
-        if (sel.cityId && sel.cityLabelJp && sel.cityLabelJp !== '（可選）不限') return `${sel.prefLabelJp} ${sel.cityLabelJp}`.trim();
+      if (!isHomesGeoPlaceholderLabel(sel.prefLabelJp)) {
+        if (sel.cityId && !isHomesGeoPlaceholderLabel(sel.cityLabelJp)) return `${sel.prefLabelJp} ${sel.cityLabelJp}`.trim();
         return sel.prefLabelJp.trim();
       }
       return '';
@@ -2981,8 +3042,8 @@
       const sel = getHomesGeoSelection();
       const prefLabel = sel.prefLabelZh || sel.prefLabelUi || sel.prefLabelJp || '';
       const cityLabel = sel.cityLabelZh || sel.cityLabelUi || sel.cityLabelJp || '';
-      if (prefLabel && prefLabel !== '（可選）不限') {
-        if (sel.cityId && cityLabel && cityLabel !== '（可選）不限') return `${prefLabel} › ${cityLabel}`.trim();
+      if (!isHomesGeoPlaceholderLabel(prefLabel)) {
+        if (sel.cityId && !isHomesGeoPlaceholderLabel(cityLabel)) return `${prefLabel} › ${cityLabel}`.trim();
         return prefLabel.trim();
       }
       return '';
@@ -5213,6 +5274,12 @@
         if (!media) return;
         evt.preventDefault();
         evt.stopPropagation();
+        const card = dot.closest('[data-case-detail-url]');
+        const detailUrl = String(card && card.getAttribute ? card.getAttribute('data-case-detail-url') : '').trim();
+        if (detailUrl && detailUrl !== '#') {
+          openPortalCaseInlineDetail(detailUrl, card || dot);
+          return;
+        }
         const img = media.querySelector('.portal-suumo-card-heroimg');
         const link = media.querySelector('.portal-suumo-lightbox-link');
         const src = String(dot.getAttribute('data-card-img-src') || '').trim();
@@ -5243,6 +5310,32 @@
       };
       document.addEventListener('pointerover', warmFromDot, { passive: true });
       document.addEventListener('focusin', warmFromDot);
+    }
+
+    function bindPortalCaseCardDetailDelegation() {
+      if (window.__sclawPortalCaseDetailDelegationBound) return;
+      window.__sclawPortalCaseDetailDelegationBound = true;
+      document.addEventListener('click', (evt) => {
+        const target = evt.target instanceof Element ? evt.target : null;
+        if (!target) return;
+        const card = target.closest('.portal-suumo-card[data-case-detail-url], .home-featured-card[data-case-detail-url], .home-featured-hero-card[data-case-detail-url]');
+        if (!card) return;
+        if (evt.metaKey || evt.ctrlKey || evt.shiftKey || evt.altKey || evt.button === 1) return;
+        const isImageDot = Boolean(target.closest('.portal-suumo-card-image-dot'));
+        if (
+          !isImageDot &&
+          target.closest('button, input, textarea, select, [role="button"], .figure-case-actions, .home-featured-card-actions, .home-featured-hero-actions')
+        ) {
+          return;
+        }
+        const link = target.closest('a[href]');
+        const url = String((link && link.getAttribute('href')) || card.getAttribute('data-case-detail-url') || '').trim();
+        if (!url || url === '#') return;
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
+        openPortalCaseInlineDetail(url, link || card);
+      }, true);
     }
 
     function seoLlmProviderPayload() {
@@ -6267,6 +6360,193 @@
       applyDialogKeywordToCaseSearch(kw);
     }
 
+    function syncGeoKeywordInputs(keyword) {
+      const kw = String(keyword || '').trim();
+      if (!kw) return;
+      const dialogInput = document.getElementById('dialog_keyword');
+      const figureInput = document.getElementById('figure_keyword');
+      if (dialogInput && dialogInput.value !== kw) dialogInput.value = kw;
+      if (figureInput && figureInput.value !== kw) figureInput.value = kw;
+    }
+
+    function startGeoKeywordInputRecovery(keyword) {
+      const kw = String(keyword || '').trim();
+      if (!kw) return;
+      if (window.__sclawGeoKeywordRecoveryTimer) {
+        window.clearInterval(window.__sclawGeoKeywordRecoveryTimer);
+        window.__sclawGeoKeywordRecoveryTimer = 0;
+      }
+      if (window.__sclawGeoKeywordRecoveryObserver) {
+        try { window.__sclawGeoKeywordRecoveryObserver.disconnect(); } catch (_) {}
+        window.__sclawGeoKeywordRecoveryObserver = null;
+      }
+      const startedAt = Date.now();
+      const shouldRecover = () => {
+        const active = String(window.__sclawGeoKeywordOverride || window.__sclawGeoKeywordLastSelected || '').trim();
+        return active === kw && Date.now() - startedAt < 12000;
+      };
+      const recover = () => {
+        if (!shouldRecover()) {
+          if (window.__sclawGeoKeywordRecoveryTimer) {
+            window.clearInterval(window.__sclawGeoKeywordRecoveryTimer);
+            window.__sclawGeoKeywordRecoveryTimer = 0;
+          }
+          if (window.__sclawGeoKeywordRecoveryObserver) {
+            try { window.__sclawGeoKeywordRecoveryObserver.disconnect(); } catch (_) {}
+            window.__sclawGeoKeywordRecoveryObserver = null;
+          }
+          return;
+        }
+        syncGeoKeywordInputs(kw);
+      };
+      window.__sclawGeoKeywordRecoveryTimer = window.setInterval(recover, 260);
+      if (window.MutationObserver && document.body) {
+        window.__sclawGeoKeywordRecoveryObserver = new MutationObserver(recover);
+        window.__sclawGeoKeywordRecoveryObserver.observe(document.body, {
+          childList: true,
+          subtree: true,
+        });
+      }
+      recover();
+    }
+
+    function ensureGeoKeywordFeedbackPanel() {
+      let panel = document.getElementById('geo-keyword-feedback');
+      if (panel) return panel;
+      const host = document.getElementById('figure-query-body') || document.getElementById('figure-query-panel') || document.getElementById('query-dialog');
+      if (!host) return null;
+      panel = document.createElement('div');
+      panel.id = 'geo-keyword-feedback';
+      panel.className = 'geo-keyword-feedback';
+      panel.hidden = true;
+      panel.setAttribute('aria-live', 'polite');
+      panel.innerHTML = [
+        '<span class="geo-keyword-feedback__pulse" aria-hidden="true"></span>',
+        '<span class="geo-keyword-feedback__body">',
+        '<strong class="geo-keyword-feedback__title"></strong>',
+        '<span class="geo-keyword-feedback__text"></span>',
+        '</span>',
+      ].join('');
+      const summary = document.getElementById('figure-summary');
+      if (summary && summary.parentElement) {
+        summary.parentElement.insertBefore(panel, summary);
+      } else {
+        host.appendChild(panel);
+      }
+      return panel;
+    }
+
+    function showGeoKeywordFeedback(keyword, state = 'loading') {
+      const panel = ensureGeoKeywordFeedbackPanel();
+      if (!panel) return;
+      const kw = String(keyword || '').trim();
+      syncGeoKeywordInputs(kw);
+      panel.hidden = false;
+      panel.classList.toggle('is-loading', state === 'loading');
+      panel.classList.toggle('is-ready', state !== 'loading');
+      const title = panel.querySelector('.geo-keyword-feedback__title');
+      const text = panel.querySelector('.geo-keyword-feedback__text');
+      if (title) title.textContent = kw ? `已套用關鍵詞：${kw}` : '已套用關鍵詞';
+      if (text) {
+        text.textContent = state === 'loading'
+          ? '正在刷新下方站內案件，請查看結果區。'
+          : '查詢已送出，結果區會依此關鍵詞更新。';
+      }
+    }
+
+    function markGeoKeywordActive(target) {
+      document.querySelectorAll('[data-geo-keyword].is-geo-keyword-active').forEach((node) => {
+        node.classList.remove('is-geo-keyword-active');
+        node.removeAttribute('aria-current');
+      });
+      if (!target) return;
+      target.classList.add('is-geo-keyword-active');
+      target.setAttribute('aria-current', 'true');
+    }
+
+    function runGeoKeywordSearch(keyword, target = null) {
+      const kw = String(keyword || '').trim();
+      if (!kw) return;
+      if (target) {
+        target.classList.add('is-geo-keyword-pressed');
+        window.setTimeout(() => target.classList.remove('is-geo-keyword-pressed'), 220);
+        markGeoKeywordActive(target);
+      }
+      if (typeof setHomeInternalView === 'function') {
+        setHomeInternalView('workbench', { targetId: 'query-dialog', persist: false, scroll: false, instant: true });
+      }
+      if (typeof setJpWorkbenchTab === 'function') {
+        setJpWorkbenchTab('query', { persist: false, scroll: false, instant: true });
+      }
+      showGeoKeywordFeedback(kw, 'loading');
+      const dialogInput = document.getElementById('dialog_keyword');
+      const figureInput = document.getElementById('figure_keyword');
+      const geoModeSel = document.getElementById('figure_geo_mode');
+      const regionSel = document.getElementById('figure_region');
+      if (geoModeSel) {
+        geoModeSel.value = 'region';
+        if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('region');
+        try { localStorage.setItem('figure_geo_mode', 'region'); } catch (_) {}
+      }
+      if (regionSel) regionSel.value = '';
+      if (dialogInput) dialogInput.value = kw;
+      if (figureInput) figureInput.value = kw;
+      window.__sclawGeoKeywordOverride = kw;
+      window.__sclawGeoKeywordLastSelected = kw;
+      startGeoKeywordInputRecovery(kw);
+      const scrollGeoKeywordTargetIntoView = () => {
+        const targetPanel =
+          document.getElementById('figure-summary') ||
+          document.getElementById('figure-query-panel') ||
+          document.getElementById('query-dialog');
+        if (targetPanel && typeof targetPanel.scrollIntoView === 'function') {
+          targetPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      };
+      const restoreGeoKeywordState = () => {
+        const dialogAfter = document.getElementById('dialog_keyword');
+        const figureAfter = document.getElementById('figure_keyword');
+        const summary = document.getElementById('figure-summary');
+        window.__sclawGeoKeywordOverride = kw;
+        window.__sclawGeoKeywordLastSelected = kw;
+        if (dialogAfter) dialogAfter.value = kw;
+        if (figureAfter) figureAfter.value = kw;
+        if (summary) {
+          const keywordHtml = `<p class="geo-keyword-summary-line" data-geo-keyword-summary><strong>關鍵詞</strong>：${esc(kw)}</p>`;
+          const existing = summary.querySelector('[data-geo-keyword-summary]');
+          if (existing) existing.outerHTML = keywordHtml;
+          else summary.insertAdjacentHTML('afterbegin', keywordHtml);
+        }
+      };
+      const restoreGeoKeywordStateStable = () => {
+        restoreGeoKeywordState();
+        showGeoKeywordFeedback(kw, 'ready');
+        scrollGeoKeywordTargetIntoView();
+        [180, 650, 1400, 2600].forEach((delay) => {
+          window.setTimeout(() => {
+            restoreGeoKeywordState();
+            if (delay <= 650) scrollGeoKeywordTargetIntoView();
+          }, delay);
+        });
+      };
+      restoreGeoKeywordState();
+      scrollGeoKeywordTargetIntoView();
+      let geoKeywordSettled = false;
+      [80, 240, 700, 1500, 3000].forEach((delay) => {
+        window.setTimeout(() => {
+          restoreGeoKeywordState();
+          if (!geoKeywordSettled) showGeoKeywordFeedback(kw, 'loading');
+        }, delay);
+      });
+      const run = searchFigureTab(false);
+      const finishGeoKeywordRun = () => {
+        geoKeywordSettled = true;
+        restoreGeoKeywordStateStable();
+      };
+      if (run && typeof run.finally === 'function') run.finally(finishGeoKeywordRun);
+      else window.setTimeout(finishGeoKeywordRun, 0);
+    }
+
     function installGeoKeywordEntrances() {
       if (window.__sclawGeoKeywordEntrancesBound) return;
       window.__sclawGeoKeywordEntrancesBound = true;
@@ -6276,62 +6556,32 @@
         const kw = String(target.getAttribute('data-geo-keyword') || target.textContent || '').trim();
         if (!kw) return;
         evt.preventDefault();
-        target.classList.add('is-geo-keyword-pressed');
-        window.setTimeout(() => target.classList.remove('is-geo-keyword-pressed'), 220);
-        const dialogInput = document.getElementById('dialog_keyword');
-        const figureInput = document.getElementById('figure_keyword');
-        const geoModeSel = document.getElementById('figure_geo_mode');
-        const regionSel = document.getElementById('figure_region');
-        if (geoModeSel) {
-          geoModeSel.value = 'region';
-          if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('region');
-          try { localStorage.setItem('figure_geo_mode', 'region'); } catch (_) {}
-        }
-        if (regionSel) regionSel.value = '';
-        if (dialogInput) dialogInput.value = kw;
-        if (figureInput) figureInput.value = kw;
-        window.__sclawGeoKeywordOverride = kw;
-        window.__sclawGeoKeywordLastSelected = kw;
-        const scrollGeoKeywordTargetIntoView = () => {
-          const targetPanel =
-            document.getElementById('figure-summary') ||
-            document.getElementById('figure-query-panel') ||
-            document.getElementById('query-dialog');
-          if (targetPanel && typeof targetPanel.scrollIntoView === 'function') {
-            targetPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        };
-        const restoreGeoKeywordState = () => {
-          const dialogAfter = document.getElementById('dialog_keyword');
-          const figureAfter = document.getElementById('figure_keyword');
-          const summary = document.getElementById('figure-summary');
-          window.__sclawGeoKeywordOverride = kw;
-          window.__sclawGeoKeywordLastSelected = kw;
-          if (dialogAfter) dialogAfter.value = kw;
-          if (figureAfter) figureAfter.value = kw;
-          if (summary) {
-            const keywordHtml = `<p data-geo-keyword-summary><strong>關鍵詞</strong>：${esc(kw)}</p>`;
-            const existing = summary.querySelector('[data-geo-keyword-summary]');
-            if (existing) existing.outerHTML = keywordHtml;
-            else summary.insertAdjacentHTML('afterbegin', keywordHtml);
-          }
-        };
-        const restoreGeoKeywordStateStable = () => {
-          restoreGeoKeywordState();
-          scrollGeoKeywordTargetIntoView();
-          [180, 650, 1400, 2600].forEach((delay) => {
-            window.setTimeout(() => {
-              restoreGeoKeywordState();
-              if (delay <= 650) scrollGeoKeywordTargetIntoView();
-            }, delay);
-          });
-        };
-        restoreGeoKeywordState();
-        scrollGeoKeywordTargetIntoView();
-        const run = searchFigureTab(false);
-        if (run && typeof run.finally === 'function') run.finally(restoreGeoKeywordStateStable);
-        else window.setTimeout(restoreGeoKeywordStateStable, 0);
+        runGeoKeywordSearch(kw, target);
       });
+    }
+
+    function consumeInboundGeoKeywordSearch() {
+      let kw = '';
+      try {
+        kw = String(new URLSearchParams(window.location.search || '').get('geo_keyword') || '').trim();
+      } catch (_) {
+        kw = '';
+      }
+      if (!kw || window.__sclawInboundGeoKeywordConsumed === kw) return;
+      window.__sclawInboundGeoKeywordConsumed = kw;
+      if (window.history && window.location) {
+        try {
+          const cleanUrl = `${window.location.pathname}${window.location.hash || '#query-dialog'}`;
+          window.history.replaceState(null, '', cleanUrl);
+        } catch (_) {}
+      }
+      const run = () => {
+        const target = Array.from(document.querySelectorAll('[data-geo-keyword]')).find((node) => (
+          String(node.getAttribute('data-geo-keyword') || '').trim() === kw
+        ));
+        runGeoKeywordSearch(kw, target || null);
+      };
+      window.setTimeout(run, 80);
     }
 
     function applyDialogKeywordToCaseSearch(explicitKeyword) {
@@ -7363,6 +7613,25 @@
       } catch (_) {
         el.scrollIntoView(true);
       }
+    }
+
+    function figureResultsNeedAutoQuery() {
+      const wrap = document.getElementById('figure-results');
+      if (!wrap) return true;
+      if (wrap.querySelector('.market-item-card.figure-case-card')) return false;
+      const text = String(wrap.textContent || '').trim();
+      if (!text) return true;
+      return /尚未查詢|等待查詢|目前沒有符合條件|請設定區域|請先設定查詢條件/.test(text);
+    }
+
+    function runFigureResultsAutoQueryIfNeeded() {
+      if (!figureResultsNeedAutoQuery()) return;
+      if (smartQueryInFlight || typeof runDialogQuery !== 'function') return;
+      const run = () => {
+        if (!figureResultsNeedAutoQuery() || smartQueryInFlight) return;
+        runDialogQuery();
+      };
+      window.setTimeout(run, 160);
     }
 
     function figureCarouselArrowSvg(dir) {
@@ -8533,7 +8802,7 @@
       const mobile = isSupportMobileUi();
       if (btn) {
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        btn.setAttribute('aria-label', open ? '關閉線上智能客服對話' : '開啟線上智能客服對話');
+        btn.setAttribute('aria-label', open ? '關閉線上客服對話' : '開啟線上客服對話');
       }
       if (widget) widget.classList.toggle('is-expanded', open && mobile);
       if (backdrop) {
@@ -8632,13 +8901,13 @@
       if (supportTelegramThreadActive) {
         el.style.display = '';
         el.textContent = status === 'webhook_active'
-          ? '顧問雙向已連線：Telegram 回覆會由 Webhook 接收，LINE 回覆也會顯示在這裡。'
-          : '顧問雙向已連線：LINE／Telegram 顧問回覆會顯示在這裡，您後續訊息也會同步給顧問。';
+          ? 'API已連 · 雙向通道'
+          : '顧問接通 · 同步中';
         return;
       }
       if (status === 'poll_error') {
         el.style.display = '';
-        el.textContent = '顧問回覆輪詢暫時失敗；請稍後再試，或請管理員查看除錯事件。';
+        el.textContent = '同步異常';
         return;
       }
       el.style.display = 'none';
@@ -8919,7 +9188,7 @@
     }
 
     function resetSupportChatDefaults() {
-      if (!confirm('確定恢復智能客服預設狀態？這會清空本機歷史與目前對話。')) return;
+      if (!confirm('確定恢復線上客服預設狀態？這會清空本機歷史與目前對話。')) return;
       stopSupportChatSpeech();
       supportChatTtsEnabled = false;
       supportChatSpeechScript = '';
@@ -9175,8 +9444,8 @@
       if (title) title.textContent = logged ? '已登入' : '號碼登入';
       if (subtitle) {
         subtitle.textContent = logged
-            ? '此號碼已通過格式檢查，智能客服已同步。'
-          : '輸入合規聯絡號碼後，即可使用智能客服與顧問接手。';
+            ? '此號碼已通過格式檢查，線上客服已同步。'
+          : '輸入合規聯絡號碼後，即可使用線上客服與顧問接手。';
       }
       if (logged) {
         const phone = getSupportPhoneLoginValue();
@@ -9185,7 +9454,7 @@
           country = String(localStorage.getItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY) || country).trim().toLowerCase();
         } catch (_) {}
         if (phoneEl) phoneEl.textContent = phone || '--';
-        if (metaEl) metaEl.textContent = `${getSupportPhoneCountryLabel(country)}｜智能客服已同步此號碼。`;
+        if (metaEl) metaEl.textContent = `${getSupportPhoneCountryLabel(country)}｜線上客服已同步此號碼。`;
       }
     }
 
@@ -10009,7 +10278,7 @@
         refreshSupportPhoneLoginHint();
         if (msg && !String(msg.textContent || '').trim()) {
           msg.textContent = supportPhoneLoginReturnToChat
-            ? '請先完成號碼登入，登入後會自動開啟智能客服。'
+            ? '請先完成號碼登入，登入後會自動開啟線上客服。'
             : '請選擇號碼所屬國家 / 地區，並輸入符合當地規範的電話號碼。';
         }
         setTimeout(() => {
@@ -10042,7 +10311,7 @@
         setSupportPhoneLoginModalOpen(true, { skipExclusive: true, restoreFocus: false, clearReturnToChat: true });
         const msg = document.getElementById('support-phone-login-msg');
         if (msg) {
-          msg.textContent = '已退出登入，請重新登入後使用智能客服。';
+          msg.textContent = '已退出登入，請重新登入後使用線上客服。';
           msg.classList.remove('support-phone-login-msg--ok');
           msg.classList.add('support-phone-login-msg--error');
         }
@@ -11183,8 +11452,8 @@
           summary.appendChild(el);
         }
         el.textContent = result.added
-          ? `已加入智能客服已選案件：${result.item.title || '案件'}（目前 ${supportSelectedCases.length} 筆）`
-          : `已在智能客服已選案件中，不重複加入（目前 ${supportSelectedCases.length} 筆）`;
+          ? `已加入線上客服已選案件：${result.item.title || '案件'}（目前 ${supportSelectedCases.length} 筆）`
+          : `已在線上客服已選案件中，不重複加入（目前 ${supportSelectedCases.length} 筆）`;
       }
     }
 
@@ -11360,18 +11629,27 @@
 
     let supportChatBootstrapPromise = null;
     let supportChatBootstrapSid = '';
-    const SUPPORT_CHAT_DEFAULT_WELCOME_TEXT = '您好，這裡是日本不動產智能客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。先告訴我想看的地區、預算或用途就可以。';
+    const SUPPORT_CHAT_DEFAULT_WELCOME_TEXT = '您好，這裡是日本不動產線上客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。先告訴我想看的地區、預算或用途就可以。';
+
+    function sanitizeSupportChatPublicCopy(value) {
+      return String(value || '')
+        .replace(/日本不動產智能客服/g, '日本不動產線上客服')
+        .replace(/線上智能客服/g, '線上客服')
+        .replace(/智能客服/g, '線上客服')
+        .replace(/智能助理/g, '線上客服')
+        .replace(/\bAI\s*客服\b/gi, '線上客服');
+    }
 
     function supportChatWelcomeHtml(serviceMeta, welcomeText) {
       const serviceBlock = '';
       const intro = esc(String(
-        welcomeText
+        sanitizeSupportChatPublicCopy(welcomeText)
         || SUPPORT_CHAT_DEFAULT_WELCOME_TEXT
       ).trim());
       return (
         '<div class="support-chat-welcome-card">' +
         serviceBlock +
-        '<strong>日本不動產智能客服</strong>' +
+        '<strong>日本不動產線上客服</strong>' +
         `<p>${intro}</p>` +
         '<div class="support-chat-suggestion-pills" aria-label="客服推薦選項">' +
         '<button type="button" data-support-quick-prompt="我想查日本不動產案件，先從東京或大阪開始">查找案件</button>' +
@@ -11457,10 +11735,10 @@
         if (!row || !row.supportWelcome) continue;
         const blob = `${row.content || ''} ${row.contentHtml || ''} ${JSON.stringify(row.sales_mcp || {})}`;
         if (!staleRe.test(blob) && row.content === SUPPORT_CHAT_DEFAULT_WELCOME_TEXT) continue;
-        row.content = SUPPORT_CHAT_DEFAULT_WELCOME_TEXT;
-        row.contentHtml = supportChatWelcomeHtml(null, SUPPORT_CHAT_DEFAULT_WELCOME_TEXT);
-        row.sales_mcp = null;
-        row.supportWelcomeHydrated = false;
+          row.content = SUPPORT_CHAT_DEFAULT_WELCOME_TEXT;
+          row.contentHtml = supportChatWelcomeHtml(null, SUPPORT_CHAT_DEFAULT_WELCOME_TEXT);
+          row.sales_mcp = null;
+          row.supportWelcomeHydrated = false;
       }
     }
 
@@ -11478,7 +11756,7 @@
           const res = await fetch('/api/ai/chat-support/bootstrap?' + new URLSearchParams({ session_id: sid, t: String(Date.now()) }), { cache: 'no-store' });
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data || data.ok === false) return;
-          row.content = String(data.reply || row.content || '').trim() || row.content;
+          row.content = sanitizeSupportChatPublicCopy(String(data.reply || row.content || '').trim() || row.content);
           row.sales_mcp = data.sales_mcp || null;
           row.contentHtml = supportChatWelcomeHtml(data.sales_mcp && data.sales_mcp.simulated_service, row.content);
           row.supportWelcomeHydrated = true;
@@ -11532,12 +11810,12 @@
 
     function shouldHideSupportChatRow(row) {
       if (!row || !row.role) return true;
-      const text = String(row.content || '').trim();
+      const text = sanitizeSupportChatPublicCopy(row.content || '').trim();
       const hasHtml = !!row.contentHtml;
       if (!text && !hasHtml) return true;
       if (/已送到智能客服作為單筆意向案件/.test(text)) return true;
-      if (/^已加入智能客服已選案件/.test(text)) return true;
-      if (/^已在智能客服已選案件中，不重複加入/.test(text)) return true;
+      if (/^已加入(?:智能|線上)客服已選案件/.test(text)) return true;
+      if (/^已在(?:智能|線上)客服已選案件中，不重複加入/.test(text)) return true;
       if (/^\s*Telegram\s*(雙向已連線|尚未同步)/.test(text)) return true;
       return false;
     }
@@ -11821,7 +12099,7 @@
       return (
         `<div class="support-human-intake" data-support-human-form="${seq}">` +
         '<div class="support-human-intake-heading"><strong>日本不動產購買諮詢申請表</strong><span class="muted">請先完整填寫必填問卷與至少一項聯絡方式；確認送出後才會通知顧問，人工才會依資料回覆。</span></div>' +
-        '<p class="muted support-human-intake-help">送出前由智能客服協助整理需求；送出後會顯示 LINE／WeChat 專人 QR，並同步後台與 Telegram。</p>' +
+        '<p class="muted support-human-intake-help">送出前會先整理需求；送出後會顯示 LINE／WeChat 專人 QR，並同步後台與 Telegram。</p>' +
         casesHtml +
         `<details class="support-human-section" open>` +
         `<summary>一、基本資料（必填）</summary>` +
@@ -12292,7 +12570,7 @@
         } else {
           const staffSource = String(row.staffSource || '').toLowerCase();
           const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
-          const roleLabel = '智能客服';
+          const roleLabel = '線上客服';
           const roleCls = 'support-chat-role';
           const managedBlock = row.contentHtml || isStaffReply ? '' : supportChatManagedCasesHtml(row.knowledge);
           const purchaseDiscovery = row.knowledge && row.knowledge.purchase_discovery_mode;
@@ -12302,7 +12580,9 @@
           const serviceBlock = row.contentHtml || isStaffReply ? '' : supportChatSimulatedServiceHtml(row.sales_mcp && row.sales_mcp.simulated_service);
           const reasonBlock = row.contentHtml || isStaffReply ? '' : supportChatMatchReasonHtml(row.matched_scene, row.matched_qa);
           const suggestionBlock = row.contentHtml || isStaffReply ? '' : supportChatSuggestedPromptsHtml(row.sales_mcp, row.knowledge);
-          const bodyHtml = row.contentHtml ? row.contentHtml : formatSupportChatRichText(row.content || '');
+          const bodyHtml = row.contentHtml
+            ? sanitizeSupportChatPublicCopy(row.contentHtml)
+            : formatSupportChatRichText(sanitizeSupportChatPublicCopy(row.content || ''));
           const bubbleExtra = '';
           const advisorBlock = row.contentHtml
             ? bodyHtml
@@ -20947,19 +21227,381 @@
 
     function portalCaseCardOpenDetail(event, card) {
       const target = event && event.target instanceof Element ? event.target : null;
-      if (target && target.closest('a, button, input, textarea, select, [role="button"], .portal-suumo-card-image-dots')) return;
-      const url = String(card?.dataset?.caseDetailUrl || '').trim();
+      if (target && target.closest('button, input, textarea, select, [role="button"], .portal-suumo-card-image-dots')) return;
+      if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) return;
+      const link = target && target.closest ? target.closest('a[href]') : null;
+      const url = String((link && link.getAttribute('href')) || card?.dataset?.caseDetailUrl || '').trim();
       if (!url || url === '#') return;
-      if (event) event.preventDefault();
-      openPortalCaseInlineDetail(url, card).then((opened) => {
-        if (!opened) window.location.href = url;
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      openPortalCaseInlineDetail(url, link || card);
+    }
+
+    function portalCaseInlineLinkClick(event, link) {
+      const href = String(link && link.getAttribute ? link.getAttribute('href') : '').trim();
+      if (!href || href === '#') return false;
+      if (event) {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1) return true;
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      openPortalCaseInlineDetail(href, link);
+      return false;
+    }
+
+    const HOME_FEATURED_PAGE_SIZE = 12;
+    let homeFeaturedCases = [];
+    let homeFeaturedCaseMap = new Map();
+    let homeFeaturedOffset = 0;
+    let homeFeaturedBatchOffset = 0;
+    let homeFeaturedType = '';
+    let homeFeaturedTypeCases = [];
+    let homeFeaturedTypeOffset = 0;
+    const homeFeaturedTypeCache = new Map();
+    let homeFeaturedLoading = false;
+    let homeFeaturedTypeLoading = false;
+
+    function homeFeaturedNormalizeCase(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const sid = Number(raw.source_item_id || 0);
+      const title = String(raw.title || raw.title_zh_hant || raw.title_original || '').trim();
+      if (!sid && !title) return null;
+      const gallery = Array.isArray(raw.gallery_urls) ? raw.gallery_urls : [];
+      return {
+        ...raw,
+        source_item_id: sid,
+        case_key: supportCaseKeyFromItem(raw),
+        title,
+        title_zh_hant: title,
+        title_original: String(raw.title_original || title),
+        source_name: String(raw.source_name || '原站'),
+        item_url: String(raw.item_url || ''),
+        article_url: String(raw.case_path || raw.article_path || ''),
+        region: String(raw.region || raw.jp_region_display_zh || ''),
+        jp_region_display_zh: String(raw.region || raw.jp_region_display_zh || ''),
+        transit: String(raw.transit || raw.transit_line_zh || ''),
+        transit_line_zh: String(raw.transit || raw.transit_line_zh || ''),
+        price_text_hant: String(raw.price_hint || raw.price_text_hant || ''),
+        thumb_url: String(raw.thumb_url || raw.hero_media_url || gallery[0] || ''),
+        gallery_urls: gallery.length ? gallery : [raw.thumb_url].filter(Boolean),
+        image_count: Number(raw.image_count || gallery.length || 0),
+      };
+    }
+
+    function homeFeaturedSetStatus(text) {
+      const el = document.getElementById('home-featured-status');
+      if (el) el.textContent = String(text || '');
+    }
+
+    function homeFeaturedSetTypeStatus(text) {
+      const el = document.getElementById('home-featured-type-status');
+      if (el) el.textContent = String(text || '');
+    }
+
+    function homeFeaturedSupportPayload(item) {
+      const norm = homeFeaturedNormalizeCase(item);
+      if (!norm) return null;
+      return normalizeSupportSelectedCase({
+        ...norm,
+        article_url: norm.article_url || (norm.source_item_id ? `/case/${norm.source_item_id}` : ''),
+        case_key: norm.case_key,
+        title: norm.title,
+        region: norm.region,
+        transit: norm.transit,
       });
+    }
+
+    async function toggleHomeFeaturedCompare(event, btn) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      const key = String(btn?.getAttribute('data-home-featured-key') || '').trim();
+      const item = key ? homeFeaturedCaseMap.get(key) : null;
+      const norm = homeFeaturedSupportPayload(item);
+      if (!norm) return;
+      const stableKey = supportSelectedCaseStableKey(norm);
+      const exists = supportSelectedCases.some((x) => supportSelectedCaseStableKey(x) === stableKey);
+      if (exists) {
+        await removeSupportSelectedCase(norm.case_key);
+      } else {
+        upsertSupportSelectedCase(norm);
+        supportSelectedCasesCollapsed = true;
+        saveSupportSelectedCasesCollapsedLocal();
+        saveSupportSelectedCasesLocal();
+        await persistSupportSelectedCasesRemote();
+      }
+      renderSupportSelectedCasesPanel();
+      renderSupportSelectedCasesDrawerList();
+      syncFigureCaseFavoriteButtons();
+    }
+
+    function toggleHomeFeaturedSaved(event, btn) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      const key = String(btn?.getAttribute('data-home-featured-key') || '').trim();
+      const item = key ? homeFeaturedCaseMap.get(key) : null;
+      const norm = homeFeaturedSupportPayload(item);
+      if (!norm) return;
+      const stableKey = supportSelectedCaseStableKey(norm);
+      const exists = supportSavedCases.some((x) => supportSelectedCaseStableKey(x) === stableKey);
+      if (exists) {
+        supportSavedCases = supportSavedCases.filter((x) => supportSelectedCaseStableKey(x) !== stableKey);
+      } else {
+        upsertSupportSavedCase(norm);
+      }
+      saveSupportSavedCasesLocal();
+      renderSupportSavedCasesState();
+      renderSupportSavedCasesDrawerList();
+      syncFigureCaseSavedButtons();
+    }
+
+    function openHomeFeaturedSupport(event, btn) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      openSupportChatForCaseFromCard(btn);
+    }
+
+    function homeFeaturedOpenCase(event, card) {
+      const target = event && event.target instanceof Element ? event.target : null;
+      if (target && target.closest('button, input, textarea, select, [role="button"], .home-featured-card-actions')) return;
+      if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) return;
+      const link = target && target.closest ? target.closest('a[href]') : null;
+      const url = String((link && link.getAttribute('href')) || card?.getAttribute('data-case-detail-url') || '').trim();
+      if (!url || url === '#') return;
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      openPortalCaseInlineDetail(url, link || card);
+    }
+
+    function homeFeaturedCacheKey(type) {
+      return String(type || '').trim() || '__featured_hot__';
+    }
+
+    function homeFeaturedApplyType(type, btn) {
+      homeFeaturedType = String(type || '').trim();
+      document.querySelectorAll('[data-home-featured-type]').forEach((el) => {
+        const active = String(el.getAttribute('data-home-featured-type') || '') === homeFeaturedType;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
+      loadHomeFeaturedTypeCases({ append: false, propertyType: homeFeaturedType });
+    }
+
+    function homeFeaturedActionButtons(item) {
+      const key = supportCaseKeyFromItem(item);
+      const keyAttr = esc(key);
+      const sid = Number(item.source_item_id || 0);
+      return `
+        <div class="home-featured-card-actions" aria-label="房源快捷操作">
+          ${sid ? `<button type="button" class="home-featured-action home-featured-action--support" data-case-sid="${sid}" onclick="openHomeFeaturedSupport(event, this)" aria-label="用客服詢問這筆案件">客服</button>` : ''}
+          <button type="button" class="home-featured-action figure-case-compare-btn" data-home-featured-key="${keyAttr}" data-support-fav-case-key="${keyAttr}" onclick="toggleHomeFeaturedCompare(event, this)" aria-pressed="false" aria-label="加入案件對比">對比</button>
+          <button type="button" class="home-featured-action figure-case-save-btn" data-home-featured-key="${keyAttr}" data-support-save-case-key="${keyAttr}" onclick="toggleHomeFeaturedSaved(event, this)" aria-pressed="false" aria-label="收藏這筆案件">收藏</button>
+        </div>`;
+    }
+
+    function homeFeaturedImage(item, cls, eager) {
+      const thumb = String(item.thumb_url || item.hero_media_url || '').trim();
+      if (!thumb) {
+        return `<div class="${cls} home-featured-img-placeholder"><strong>暫無圖片</strong><span>可進站內明細查看</span></div>`;
+      }
+      return `<img class="${cls}" src="${esc(thumb)}" alt="${esc(item.title || '日本房源圖片')}" loading="${eager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${eager ? 'high' : 'low'}" referrerpolicy="no-referrer">`;
+    }
+
+    function homeFeaturedCardHtml(item, index) {
+      const key = supportCaseKeyFromItem(item);
+      homeFeaturedCaseMap.set(key, item);
+      const url = String(item.case_path || (item.source_item_id ? `/case/${item.source_item_id}` : '#')).trim();
+      const tags = Array.isArray(item.theme_tags) ? item.theme_tags.slice(0, 2) : [];
+      return `<article class="home-featured-card" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
+        <div class="home-featured-card-media" role="presentation">
+          ${homeFeaturedImage(item, 'home-featured-card-img', index < 2)}
+          <span class="home-featured-source">${esc(item.source_name || '原站')}</span>
+          ${item.image_count ? `<span class="home-featured-image-count">${esc(String(item.image_count))} 張圖</span>` : ''}
+          ${homeFeaturedActionButtons(item)}
+        </div>
+        <div class="home-featured-card-body">
+          <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(item.title || '日本房源案件')}</a></h3>
+          <div class="home-featured-card-meta">
+            <span class="home-featured-price">${esc(item.price_hint || '價格待確認')}</span>
+            <span>${esc(item.source_name || '原站')}</span>
+          </div>
+          <div class="home-featured-tags">${tags.map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>
+        </div>
+      </article>`;
+    }
+
+    function renderHomeFeaturedCases() {
+      const heroEl = document.getElementById('home-featured-hero');
+      const gridEl = document.getElementById('home-featured-grid');
+      if (!heroEl || !gridEl) return;
+      const items = homeFeaturedCases.map(homeFeaturedNormalizeCase).filter(Boolean);
+      homeFeaturedCases = items;
+      const hero = items[0];
+      if (hero) {
+        const url = String(hero.case_path || (hero.source_item_id ? `/case/${hero.source_item_id}` : '#')).trim();
+        homeFeaturedCaseMap.set(supportCaseKeyFromItem(hero), hero);
+        heroEl.hidden = false;
+        heroEl.innerHTML = `
+          <article class="home-featured-hero-card" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
+            <a class="home-featured-hero-media" href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">
+              ${homeFeaturedImage(hero, 'home-featured-hero-img', true)}
+            </a>
+            <div class="home-featured-hero-copy">
+              <span class="home-featured-hero-label">本週推薦</span>
+              <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(hero.title || '日本房源案件')}</a></h3>
+              <p>${esc(hero.summary || '圖片與資料較完整，適合先做站內明細比較。')}</p>
+              <div class="home-featured-hero-facts">
+                <span>${esc(hero.source_name || '原站')}</span>
+                <span>${esc(hero.price_hint || '價格待確認')}</span>
+                <span>${esc(hero.region || '日本')}</span>
+              </div>
+              <div class="home-featured-hero-cta">
+                <a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">查看站內明細</a>
+                ${homeFeaturedActionButtons(hero)}
+              </div>
+            </div>
+          </article>`;
+      } else {
+        heroEl.hidden = true;
+        heroEl.innerHTML = '';
+      }
+      gridEl.innerHTML = items.slice(1).map((item, ix) => homeFeaturedCardHtml(item, ix + 1)).join('');
+      syncFigureCaseFavoriteButtons();
+      syncFigureCaseSavedButtons();
+    }
+
+    function renderHomeFeaturedTypeCases() {
+      const gridEl = document.getElementById('home-featured-type-grid');
+      if (!gridEl) return;
+      const items = homeFeaturedTypeCases.map(homeFeaturedNormalizeCase).filter(Boolean);
+      homeFeaturedTypeCases = items;
+      gridEl.innerHTML = items.map((item, ix) => homeFeaturedCardHtml(item, ix)).join('');
+      syncFigureCaseFavoriteButtons();
+      syncFigureCaseSavedButtons();
+    }
+
+    async function refreshHomeFeaturedSpotlight() {
+      homeFeaturedBatchOffset += HOME_FEATURED_PAGE_SIZE;
+      await loadHomeFeaturedCases({ append: false, offset: homeFeaturedBatchOffset });
+      if (homeFeaturedCases.length === 0 && homeFeaturedBatchOffset > 0) {
+        homeFeaturedBatchOffset = 0;
+        await loadHomeFeaturedCases({ append: false, offset: 0 });
+      }
+    }
+
+    async function loadHomeFeaturedCases(options = {}) {
+      const flow = document.getElementById('home-featured-flow');
+      if (!flow || homeFeaturedLoading) return;
+      const requestOffset = Number.isFinite(Number(options.offset)) ? Math.max(0, Number(options.offset)) : 0;
+      homeFeaturedCases = [];
+      homeFeaturedOffset = requestOffset;
+      renderHomeFeaturedCases();
+      homeFeaturedLoading = true;
+      flow.classList.add('is-loading');
+      homeFeaturedSetStatus('正在載入精選房源...');
+      const refreshBtn = document.getElementById('home-featured-refresh');
+      if (refreshBtn) refreshBtn.disabled = true;
+      try {
+        const params = new URLSearchParams({
+          limit: String(HOME_FEATURED_PAGE_SIZE),
+          offset: String(homeFeaturedOffset),
+          category: 'hot',
+        });
+        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data || data.ok === false) throw new Error('featured cases unavailable');
+        const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
+        homeFeaturedCases = next.slice(0, HOME_FEATURED_PAGE_SIZE);
+        homeFeaturedOffset = Number(data.next_offset || (homeFeaturedOffset + next.length) || homeFeaturedOffset);
+        renderHomeFeaturedCases();
+        const count = homeFeaturedCases.length;
+        homeFeaturedSetStatus(count ? `本批已推薦 ${count} 筆房源，可換一批或點卡片查看站內明細。` : '目前沒有可推薦的精選房源。');
+      } catch (_) {
+        homeFeaturedSetStatus('精選房源暫時無法載入，請稍後再試。');
+      } finally {
+        homeFeaturedLoading = false;
+        flow.classList.remove('is-loading');
+        if (refreshBtn) refreshBtn.disabled = false;
+      }
+    }
+
+    async function loadHomeFeaturedTypeCases(options = {}) {
+      const flow = document.getElementById('home-featured-flow');
+      if (!flow || homeFeaturedTypeLoading) return;
+      const append = !!options.append;
+      const propertyType = typeof options.propertyType === 'string' ? options.propertyType : homeFeaturedType;
+      const cacheKey = homeFeaturedCacheKey(propertyType);
+      if (!append) {
+        const cached = homeFeaturedTypeCache.get(cacheKey);
+        if (cached && Array.isArray(cached.items)) {
+          homeFeaturedType = propertyType;
+          homeFeaturedTypeCases = cached.items.slice();
+          homeFeaturedTypeOffset = Number(cached.offset || homeFeaturedTypeCases.length || 0);
+          renderHomeFeaturedTypeCases();
+          const moreBtn = document.getElementById('home-featured-type-more');
+          if (moreBtn) moreBtn.hidden = cached.hasMore === false;
+          homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '目前沒有符合條件的物件類型房源。');
+          return;
+        }
+        homeFeaturedTypeCases = [];
+        homeFeaturedTypeOffset = 0;
+        renderHomeFeaturedTypeCases();
+      }
+      homeFeaturedTypeLoading = true;
+      flow.classList.add('is-loading');
+      homeFeaturedSetTypeStatus(append ? '正在載入更多物件類型房源...' : '正在載入物件類型房源...');
+      const moreBtn = document.getElementById('home-featured-type-more');
+      if (moreBtn) moreBtn.disabled = true;
+      try {
+        const params = new URLSearchParams({
+          limit: String(HOME_FEATURED_PAGE_SIZE),
+          offset: String(homeFeaturedTypeOffset),
+          category: 'hot',
+        });
+        if (propertyType) params.set('property_type', propertyType);
+        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data || data.ok === false) throw new Error('featured type cases unavailable');
+        const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
+        const seen = new Set(homeFeaturedTypeCases.map((it) => supportCaseKeyFromItem(it)));
+        for (const item of next) {
+          const key = supportCaseKeyFromItem(item);
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          homeFeaturedTypeCases.push(item);
+        }
+        homeFeaturedTypeOffset = Number(data.next_offset || (homeFeaturedTypeOffset + next.length) || homeFeaturedTypeOffset);
+        renderHomeFeaturedTypeCases();
+        homeFeaturedTypeCache.set(cacheKey, {
+          items: homeFeaturedTypeCases.slice(),
+          offset: homeFeaturedTypeOffset,
+          hasMore: data.has_more !== false && next.length > 0,
+        });
+        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '目前沒有符合條件的物件類型房源。');
+        if (moreBtn) moreBtn.hidden = data.has_more === false || next.length === 0;
+      } catch (_) {
+        homeFeaturedSetTypeStatus('物件類型房源暫時無法載入，請稍後再試。');
+      } finally {
+        homeFeaturedTypeLoading = false;
+        flow.classList.remove('is-loading');
+        if (moreBtn) moreBtn.disabled = false;
+      }
     }
 
     function renderPortalCaseCards(items) {
       const htmlParts = [];
       for (const [index, it] of items.entries()) {
-        const compactTitle = String(it.title_zh_hant || it.title_original || '案件')
+        const compactTitle = String(it.title_display_hant || it.title_zh_hant || it.title_original || '案件')
           .replace(/^日本房產案源[:：]\s*/u, '')
           .replace(/^日本不動產案件[:：]\s*/u, '')
           .trim();
@@ -20967,7 +21609,8 @@
         const sub = esc(it.jp_region_display_zh || '');
         const sid = Number(it.source_item_id || 0);
         const internal = sid ? `/case/${sid}` : '#';
-        const av = (it.source_name || '?').slice(0, 1);
+        const sourceDisplay = String(it.source_name_display || it.source_name || '').trim();
+        const av = (sourceDisplay || '?').slice(0, 1);
         const galsProp = portalCaseGalleryUrlsPropertyOnly(it);
         const mainRaw = galsProp.length ? String(galsProp[0]).trim() : '';
         const mainSrc = mainRaw ? portalListingThumbDisplayUrl(mainRaw, 240, 160) : LISTING_IMAGE_FALLBACK_URL;
@@ -20984,8 +21627,8 @@
         const caseKey = supportCaseKeyFromItem(it);
         const caseKeyJs = JSON.stringify(caseKey);
         const dashFig = '\u2014';
-        const addr = esc(String(it.address_line_jp || '').trim());
-        const acc = esc(String(it.access_line_jp || '').trim());
+        const addr = esc(String(it.address_line_hant || it.address_line_jp || '').trim());
+        const acc = esc(String(it.access_line_hant || '').trim());
         const accessLine = acc || (it.transit_line_zh ? esc(String(it.transit_line_zh)) : '');
         const buyBadge =
           String(it.transaction_label_zh || '').includes('買') || String(it.transaction_label_zh || '').includes('購')
@@ -21018,13 +21661,13 @@
         const caseSidAttr = sid > 0 ? ` data-case-sid="${sid}"` : '';
         const mediaBlock = mainSrc
           ? `<div class="figure-case-thumb portal-suumo-card-media${hasReferenceImage ? ' portal-suumo-card-media--loading' : ''}${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>
-              <a href="${esc(internal)}" class="portal-suumo-detail-link" aria-label="開啟站內明細">
+              <a href="${esc(internal)}" class="portal-suumo-detail-link" aria-label="開啟站內明細" onclick="return portalCaseInlineLinkClick(event, this)">
                 <img class="portal-suumo-card-heroimg" src="${esc(mainSrc)}" data-full-src="${esc(mainFullSrc || mainSrc)}" data-gallery-full="${galleryFullAttr}"${caseSidAttr} alt="" loading="${imageLoading}" decoding="async" fetchpriority="${imageFetchPriority}" referrerpolicy="no-referrer" data-portal-hero-cands="${candAttr}" data-portal-hero-i="0" onload="portalCaseHeroImgOnLoad(this)" onerror="portalCaseHeroImgOnError(this)">
               </a>
               <div class="portal-suumo-media-loading"${hasReferenceImage ? '' : ' hidden'}>${portalCaseLoadingCopyHtml(index < 3 ? '正在優先載入本頁主圖，請稍候。' : '正在取得房屋縮圖，若原圖較大會稍晚顯示。')}</div>
               <div class="portal-suumo-no-img portal-suumo-no-img--hero-replace"${hasReferenceImage ? ' hidden' : ''}>${noImageCopyHtml}</div>
               <div class="portal-suumo-card-media-badges">
-                <span>${esc(it.source_name || '來源')}</span>
+                <span>${esc(sourceDisplay || '來源')}</span>
                 ${thumbKind ? `<span>${thumbKind}</span>` : (!mainRaw ? '<span>備援圖</span>' : '')}
               </div>
               <div class="portal-suumo-card-media-overlay">
@@ -21035,7 +21678,7 @@
             </div>`
           : '';
         const emptyMediaBlock = sid
-          ? `<a class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty portal-suumo-no-img-link" href="${esc(internal)}" aria-label="暫無縮圖，開啟站內明細"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">請至站內明細查看相簿</span></span></a>`
+          ? `<a class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty portal-suumo-no-img-link" href="${esc(internal)}" aria-label="暫無縮圖，開啟站內明細" onclick="return portalCaseInlineLinkClick(event, this)"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">請至站內明細查看相簿</span></span></a>`
           : `<div class="figure-case-thumb portal-suumo-card-media portal-suumo-card-media--empty" role="img" aria-label="暫無物件縮圖"><span class="portal-suumo-no-img"><span class="portal-suumo-no-img-title">暫無物件縮圖</span><span class="portal-suumo-no-img-hint">資料庫未擷取到可用相簿網址</span></span></div>`;
         htmlParts.push(`
           <article class="market-item-card figure-case-card portal-suumo-card" data-case-detail-url="${esc(internal)}" onclick="portalCaseCardOpenDetail(event, this)">
@@ -21048,18 +21691,24 @@
                   <div class="market-item-head portal-suumo-card-head">
                     <div class="market-source-avatar">${esc(av)}</div>
                     <div>
-                      <strong>${esc(it.source_name || '')}</strong>${buyBadge}
+                      <strong>${esc(sourceDisplay || '')}</strong>${buyBadge}
                       <p class="muted">${sub}${it.transaction_label_zh ? ` ｜ ${esc(it.transaction_label_zh)}` : ''}</p>
                     </div>
                   </div>
                 </div>
-                <h3 class="portal-suumo-card-title"><a href="${esc(internal)}">${title}</a></h3>
-                ${addr ? `<p class="portal-suumo-card-jpline portal-suumo-cell-jp">${addr}</p>` : ''}
-                ${accessLine ? `<p class="portal-suumo-card-jpline portal-suumo-cell-jp">${accessLine}</p>` : ''}
-                <div class="portal-suumo-card-cta-row">
-                  ${sid ? `<button type="button" class="portal-suumo-cta portal-suumo-cta--consult portal-suumo-cta--compact" data-case-sid="${sid}" onclick="openSupportChatForCaseFromCard(this)">智能客服</button>` : ''}
-                </div>
+                <h3 class="portal-suumo-card-title"><a href="${esc(internal)}" onclick="return portalCaseInlineLinkClick(event, this)">${title}</a></h3>
+                ${addr ? `<p class="portal-suumo-card-jpline">${addr}</p>` : ''}
+                ${accessLine ? `<p class="portal-suumo-card-jpline">${accessLine}</p>` : ''}
                 <div class="figure-case-actions">
+                  ${sid ? `<button type="button" class="secondary figure-case-fav-btn figure-case-support-btn" data-case-sid="${sid}" onclick="openSupportChatForCaseFromCard(this)" aria-label="打開線上客服">
+                    <span class="figure-case-fav-icon" aria-hidden="true">
+                      <svg class="figure-case-action-svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                        <path d="M4 7.75A3.75 3.75 0 0 1 7.75 4h8.5A3.75 3.75 0 0 1 20 7.75v4.5A3.75 3.75 0 0 1 16.25 16H11l-3.8 3.3c-.49.42-1.2.08-1.2-.57V16.1A3.74 3.74 0 0 1 4 12.25Z" />
+                        <path d="M8 9.5h8M8 12.5h5.5" />
+                      </svg>
+                    </span>
+                    <span class="figure-case-fav-label">客服</span>
+                  </button>` : ''}
                   <button type="button" class="secondary figure-case-fav-btn figure-case-compare-btn" data-support-fav-case-key="${esc(caseKey)}" onclick='toggleFigureCaseFavoriteByKey(${caseKeyJs}, this)' aria-pressed="false" aria-label="加入案件對比">
                     <span class="figure-case-fav-icon" aria-hidden="true">
                       <svg class="figure-case-action-svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -24387,6 +25036,10 @@
     window.toggleSupportChatMenu = toggleSupportChatMenu;
     window.openSupportChatMenuCases = openSupportChatMenuCases;
     window.openSupportChatForCaseFromCard = openSupportChatForCaseFromCard;
+    window.portalCaseCardOpenDetail = portalCaseCardOpenDetail;
+    window.portalCaseInlineLinkClick = portalCaseInlineLinkClick;
+    window.homeFeaturedOpenCase = homeFeaturedOpenCase;
+    window.bindPortalCaseCardDetailDelegation = bindPortalCaseCardDetailDelegation;
     window.openPortalCaseInlineDetail = openPortalCaseInlineDetail;
     window.closePortalCaseInlineDetail = closePortalCaseInlineDetail;
     window.openSupportChatFromInlineCaseLink = openSupportChatFromInlineCaseLink;
@@ -24458,6 +25111,7 @@
       .forEach((img) => img.classList.add('zoomable-image'));
     initImageLightbox();
     bindPortalCaseCardImageDots();
+    bindPortalCaseCardDetailDelegation();
     syncPortalCaseCardImageLoadStates(document);
     const isMobileStartupPerfMode = () => {
       try {
@@ -25061,11 +25715,11 @@
         const isBroadContext = jpLeafletState.selectedPref && jpLeafletState.selectedBroad.has(broad);
         const isBroadPreview = jpLeafletState.previewBroad.has(broad);
         return {
-          color: isPrefSelected ? '#263f54' : isPrefPreview ? '#1f5d7a' : isBroadSelected ? '#314d62' : isBroadPreview ? '#426f86' : isBroadContext ? '#6f8798' : '#8da2ad',
+          color: isPrefSelected ? '#243f54' : isPrefPreview ? '#1f5d7a' : isBroadSelected ? '#314d62' : isBroadPreview ? '#426f86' : isBroadContext ? '#6f8798' : '#6f8794',
           weight: isPrefSelected ? 3.25 : isPrefPreview ? 3.05 : isBroadSelected ? 2.35 : isBroadPreview ? 2.25 : isBroadContext ? 1.35 : 0.85,
-          opacity: isPrefSelected || isPrefPreview || isBroadSelected || isBroadPreview ? 1 : 0.76,
-          fillColor: isPrefSelected ? '#526b80' : isPrefPreview ? '#9fc0d0' : isBroadSelected ? '#6f8798' : isBroadPreview ? '#bfd2dc' : isBroadContext ? '#b9c8d0' : '#e5ecef',
-          fillOpacity: isPrefSelected ? 0.62 : isPrefPreview ? 0.68 : isBroadSelected ? 0.46 : isBroadPreview ? 0.5 : isBroadContext ? 0.3 : 0.18,
+          opacity: isPrefSelected || isPrefPreview || isBroadSelected || isBroadPreview ? 1 : 0.86,
+          fillColor: isPrefSelected ? '#526b80' : isPrefPreview ? '#8fb7c9' : isBroadSelected ? '#6f8798' : isBroadPreview ? '#aac5d1' : isBroadContext ? '#b3c6cf' : '#f0f5f7',
+          fillOpacity: isPrefSelected ? 0.64 : isPrefPreview ? 0.72 : isBroadSelected ? 0.5 : isBroadPreview ? 0.56 : isBroadContext ? 0.34 : 0.42,
           lineJoin: 'round',
           lineCap: 'round',
         };
@@ -25394,6 +26048,12 @@
             setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
           } catch (_) {}
           buildJpLeafletRegionMarkers(map);
+          map.on('mousemove', (ev) => {
+            if (ev && ev.latlng) setJpMapCoordinateLive(ev.latlng, '指標');
+          });
+          map.on('move zoom', () => {
+            setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
+          });
           map.on('mouseout', () => {
             setJpMapCoordinateLive(map.getCenter && map.getCenter(), '中心');
           });
@@ -25648,6 +26308,9 @@
       }
       if (typeof setAllFigureSources === 'function') setAllFigureSources(true);
       if (typeof setSmartQueryMainTab === 'function') setSmartQueryMainTab('cases');
+      if (typeof setJpWorkbenchTab === 'function') {
+        setJpWorkbenchTab('query', { persist: true, scroll: false, instant: true });
+      }
       if (typeof resetJpMapWorkbenchVisualSelection === 'function') resetJpMapWorkbenchVisualSelection();
       try {
         const dlg = document.getElementById('query-dialog');
@@ -26248,9 +26911,9 @@
 		        const href = String(trigger.getAttribute('href') || '').trim();
 		        if (workbenchHashes.has(href)) {
 		          evt.preventDefault();
-		          setHomeInternalView('workbench', { targetId: href.slice(1), scroll: false });
+		          const rawTargetId = href.slice(1);
+		          setHomeInternalView('workbench', { targetId: rawTargetId, scroll: false });
 		          window.requestAnimationFrame(() => {
-		            const rawTargetId = href.slice(1);
 		            const target = document.getElementById(rawTargetId === 'figure-results' ? rawTargetId : 'jp-workbench-suite')
 		              || document.getElementById(rawTargetId);
 		            if (target) {
@@ -26258,6 +26921,9 @@
 	              const headerH = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
 	              const y = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerH - 10);
 	              window.scrollTo({ top: y, behavior: 'smooth' });
+		            }
+		            if (rawTargetId === 'figure-results' && typeof runFigureResultsAutoQueryIfNeeded === 'function') {
+		              runFigureResultsAutoQueryIfNeeded();
 		            }
 		          });
 		        } else if (href === '#home-hero-heading') {
@@ -26309,7 +26975,10 @@
 	      installGeoKeywordEntrances();
 	      initHeaderKeywordTabs();
 	      installHomeInternalViewSwitch();
-	      installMobileHeaderMetrics();
+	      consumeInboundGeoKeywordSearch();
+      installMobileHeaderMetrics();
+      Promise.resolve(loadHomeFeaturedCases({ append: false }))
+        .finally(() => loadHomeFeaturedTypeCases({ append: false }));
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       scheduleAfterMobileFirstIntent(initHomeHeroCarousel, 12000);
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);

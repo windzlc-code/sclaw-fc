@@ -1,6 +1,6 @@
-{# 無首頁內嵌腳本之頁面：浮動鈕以回首頁開啟完整智能客服（頭像與後台「智能客服頭像上傳」一致）。 #}
+{# 無首頁內嵌腳本之頁面：浮動鈕以回首頁開啟完整線上客服（頭像與後台客服頭像上傳一致）。 #}
     <div id="support-chat-widget" class="support-chat-widget support-chat-widget--public-fab" aria-live="polite" style="display:block;">
-      <a id="support-chat-toggle" class="support-chat-toggle" href="/?open_support=1{% if support_chat_case_sid %}&amp;case_sid={{ support_chat_case_sid | urlencode }}{% endif %}" aria-label="前往首頁開啟線上智能客服" title="線上智能客服（於首頁開啟）">
+      <a id="support-chat-toggle" class="support-chat-toggle" href="/?open_support=1{% if support_chat_case_sid %}&amp;case_sid={{ support_chat_case_sid | urlencode }}{% endif %}" aria-label="前往首頁開啟線上客服" title="線上客服（於首頁開啟）">
         <img src="{{ support_avatar_url }}" class="support-chat-toggle-avatar" alt="{{ seo_phrase_brand }}｜{{ seo_phrase_entry }}" loading="lazy" decoding="async" width="58" height="58">
       </a>
     </div>

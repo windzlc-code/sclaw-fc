@@ -247,7 +247,7 @@
         document.documentElement.dataset.sharedHomeRoutingBound = '1';
         document.addEventListener('click', (event) => {
           const target = event.target instanceof Element
-            ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]')
+            ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-nav-keyword-panel a[data-geo-keyword], .bh-footer-directory a[data-geo-keyword], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]')
             : null;
           if (!target) return;
           if (target.matches('.bh-site-brand')) {
@@ -263,6 +263,12 @@
               event.preventDefault();
               window.location.href = '/';
             }
+            return;
+          }
+          const geoKeyword = String(target.getAttribute('data-geo-keyword') || '').trim();
+          if (geoKeyword && !document.getElementById('query-dialog')) {
+            event.preventDefault();
+            window.location.href = `/?geo_keyword=${encodeURIComponent(geoKeyword)}#query-dialog`;
             return;
           }
           const hashHref = target.getAttribute('href') || '';

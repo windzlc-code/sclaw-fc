@@ -89,6 +89,8 @@ from src.portal_case_search import (
     _clean_listing_address_line,
     _clean_listing_access_line,
     _thumb_kind_label,
+    _normalize_smart_property_types,
+    _smart_property_type_hits,
     is_likely_agent_portrait_image_url,
     ordered_listing_image_urls,
     search_portal_cases,
@@ -1547,6 +1549,252 @@ def _home_intro_case_public_row(row: dict[str, Any], *, include_script: bool = T
     if include_script:
         out["script_text"] = _home_intro_case_video_script(row)
     return out
+
+
+_HOME_FEATURED_HOT_REGIONS = (
+    "東京",
+    "大阪",
+    "京都",
+    "福岡",
+    "神奈川",
+    "北海道",
+    "名古屋",
+    "沖縄",
+    "沖繩",
+)
+
+
+def _home_featured_has_kana(text: Any) -> bool:
+    return bool(re.search(r"[\u3040-\u30ff]", str(text or "")))
+
+
+def _home_featured_source_label(value: Any) -> str:
+    raw = str(value or "").strip()
+    low = raw.lower()
+    if "athome" in low or "アットホーム" in raw or "at home" in low:
+        return "AtHome"
+    if "lifull" in low or "homes" in low or "ホームズ" in raw:
+        return "LIFULL HOME'S"
+    if "suumo" in low or "スーモ" in raw:
+        return "SUUMO"
+    if "yahoo" in low:
+        return "Yahoo! 不動產"
+    if "rakuten" in low or "楽天" in raw:
+        return "樂天"
+    if "yes" in low or "oh" in low:
+        return "OHEYASU"
+    return _social_text(raw, limit=24) or "原站"
+
+
+def _home_featured_region_label(value: Any) -> str:
+    text = _social_text(value or "", limit=30)
+    return (
+        text.replace("沖縄", "沖繩")
+        .replace("九州、沖繩", "九州、沖繩")
+        .replace("東京", "東京")
+        .strip()
+    )
+
+
+def _home_featured_price_label(value: Any) -> str:
+    text = _social_text(value or "", limit=32)
+    if not text:
+        return ""
+    return (
+        text.replace("万円", "萬日圓")
+        .replace("万円", "萬日圓")
+        .replace("円", "日圓")
+        .replace("日圓日圓", "日圓")
+        .replace("萬日圓日圓", "萬日圓")
+    )
+
+
+def _home_featured_type_label(blob: str) -> str:
+    if re.search(r"一戸建|戶建|独立|獨立|住宅", blob, re.I):
+        return "住宅"
+    if re.search(r"賃貸|出租|租", blob, re.I):
+        return "租賃房源"
+    if re.search(r"新築|新建|新房", blob, re.I):
+        return "新建公寓"
+    if re.search(r"中古|二手", blob, re.I):
+        return "二手公寓"
+    if re.search(r"公寓|マンション", blob, re.I):
+        return "公寓"
+    return "房源"
+
+
+def _home_featured_transit_label(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if not text:
+        return ""
+    walk = re.search(r"(?:徒歩|步行|歩行)\s*約?\s*([0-9]{1,2})\s*分", text)
+    if walk:
+        return f"步行約 {walk.group(1)} 分鐘到車站"
+    if _home_featured_has_kana(text):
+        return "交通資訊可在站內明細確認"
+    return _social_text(text.replace(">", "、"), limit=54)
+
+
+def _home_featured_display_title(row: dict[str, Any], base_title: str, region: str) -> str:
+    blob = " ".join(
+        str(row.get(k) or "")
+        for k in ("seo_title", "seo_description", "title_zh_hant", "title_original", "body_zh_hant", "body_original")
+    )
+    title = re.sub(r"^(?:日本房產案源|日本不動產案件|日本房源)[:：]\s*", "", str(base_title or "").strip())
+    title = re.sub(r"^(?:\[?在家\]?|AtHome|LIFULL HOME'?S|SUUMO)\s*[:：|]?\s*", "", title, flags=re.I)
+    title = _social_text(title, limit=44)
+    if title and not _home_featured_has_kana(title) and len(title) <= 42:
+        return title
+    place = _home_featured_region_label(region) or "日本"
+    return f"{place}精選{_home_featured_type_label(blob)}"
+
+
+def _home_featured_case_summary(row: dict[str, Any], meta: dict[str, Any], price_hint: str, image_count: int) -> str:
+    region = _social_text(
+        row.get("case_jp_region_override") or meta.get("jp_region_display_zh") or "",
+        limit=24,
+    )
+    region = _home_featured_region_label(region)
+    transit = _home_featured_transit_label(row.get("case_transit_override") or meta.get("transit_line_zh") or "")
+    price_hint = _home_featured_price_label(price_hint)
+    body = re.sub(
+        r"\s+",
+        " ",
+        str(row.get("seo_description") or row.get("body_zh_hant") or row.get("body_original") or "").strip(),
+    )
+    parts: list[str] = []
+    if region:
+        parts.append(f"{region}區域")
+    if price_hint:
+        parts.append(f"價格約 {price_hint}")
+    if transit:
+        parts.append(f"交通：{transit}")
+    if image_count > 1:
+        parts.append(f"含 {image_count} 張參考圖")
+    if not parts and body:
+        return _social_text(body, limit=74)
+    return _social_text("，".join(parts) or "可查看站內明細與原站資料。", limit=90)
+
+
+def _home_featured_case_tags(row: dict[str, Any], meta: dict[str, Any], image_count: int, price_hint: str) -> list[str]:
+    blob = " ".join(
+        str(row.get(k) or "")
+        for k in (
+            "seo_title",
+            "seo_description",
+            "title_zh_hant",
+            "title_original",
+            "body_zh_hant",
+            "body_original",
+            "case_jp_region_override",
+            "case_transit_override",
+        )
+    )
+    tags: list[str] = []
+    transit = str(row.get("case_transit_override") or meta.get("transit_line_zh") or "")
+    if image_count >= 6:
+        tags.append("高圖片完整度")
+    if re.search(r"新築|新建|新房|公寓|マンション", blob, re.I):
+        tags.append("新建公寓")
+    if re.search(r"投資|出租|收租|賃貸|租", blob, re.I):
+        tags.append("投資出租")
+    if re.search(r"自住|住宅|住居|生活", blob, re.I):
+        tags.append("自住推薦")
+    if re.search(r"徒歩|步行|駅|車站|站", transit or blob, re.I):
+        tags.append("近站通勤")
+    if price_hint:
+        tags.append("價格可比")
+    if not tags:
+        tags.append("精選房源")
+    out: list[str] = []
+    for tag in tags:
+        if tag not in out:
+            out.append(tag)
+    return out[:4]
+
+
+def _home_featured_smart_type_item(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "building_type_zh": row.get("building_type_zh") or row.get("case_transaction_override") or "",
+        "layout_text_hant": row.get("layout_text_hant") or row.get("seo_description") or "",
+        "layout_line_jp": row.get("layout_line_jp") or "",
+        "title_zh_hant": row.get("title_zh_hant") or "",
+        "title_zh_hans": row.get("title_zh_hans") or "",
+        "title_original": row.get("title_original") or "",
+        "snippet_jp": row.get("body_original") or "",
+        "body_zh_hant_preview": row.get("body_zh_hant") or "",
+        "body_zh_hans_preview": row.get("body_zh_hans") or "",
+        "topic_category": row.get("topic_category") or "",
+        "item_url": row.get("item_url") or "",
+    }
+
+
+def _home_featured_matches_property_type(row: dict[str, Any], property_type: str) -> bool:
+    selected = _normalize_smart_property_types([property_type])
+    if not selected:
+        return True
+    hits = _smart_property_type_hits(_home_featured_smart_type_item(row))
+    if "其他" in selected and not hits:
+        return True
+    return any(t != "其他" and t in hits for t in selected)
+
+
+def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
+    meta = infer_case_metadata(row)
+    base = _home_intro_case_public_row(row, include_script=False)
+    _hero, imgs, _vids = _home_intro_case_media(row)
+    gallery: list[str] = []
+    for raw in imgs:
+        url = str(raw or "").strip()
+        if not url:
+            continue
+        if url.lower().startswith(("http://", "https://")):
+            url = case_static_image_url(url)
+        if url not in gallery:
+            gallery.append(url)
+    thumb = str(base.get("thumb_url") or "").strip()
+    if not thumb and gallery:
+        thumb = gallery[0]
+    image_count = max(int(base.get("image_count") or 0), len(gallery))
+    price_hint = _home_featured_price_label(base.get("price_hint") or "")
+    summary = _home_featured_case_summary(row, meta, price_hint, image_count)
+    tags = _home_featured_case_tags(row, meta, image_count, price_hint)
+    property_hits = sorted(_smart_property_type_hits(_home_featured_smart_type_item(row)))
+    region = _home_featured_region_label(base.get("region") or "")
+    title = _home_featured_display_title(row, str(base.get("title") or ""), region)
+    transit = _home_featured_transit_label(base.get("transit") or "")
+    source_name = _home_featured_source_label(
+        " ".join(
+            str(x or "")
+            for x in (base.get("source_name"), row.get("source_name"), row.get("item_url"), row.get("title_original"))
+        )
+    )
+    sid = int(base.get("source_item_id") or row.get("source_item_id") or 0)
+    return {
+        **base,
+        "source_item_id": sid,
+        "title": title,
+        "title_zh_hant": title,
+        "title_original": str(row.get("title_original") or title),
+        "source_name": source_name,
+        "region": region,
+        "jp_region_display_zh": region,
+        "transit": transit,
+        "transit_line_zh": transit,
+        "price_hint": price_hint,
+        "price_text_hant": price_hint,
+        "thumb_url": thumb,
+        "hero_media_url": thumb,
+        "gallery_urls": gallery[:8],
+        "image_count": image_count,
+        "case_path": _standard_case_path(sid),
+        "article_path": str(base.get("article_path") or ""),
+        "article_url": str(base.get("article_path") or ""),
+        "item_url": str(row.get("item_url") or ""),
+        "summary": summary,
+        "theme_tags": tags,
+        "property_type_hits": property_hits,
+    }
 
 
 def _home_intro_script_response(payload: Any | None = None) -> dict[str, Any]:
@@ -4034,8 +4282,8 @@ def _site_standalone_context(request: Request) -> dict[str, Any]:
         "site_footer_hash_prefix": "/",
         "site_nav_home_href": "/#home-hero-heading",
         "site_nav_workbench_onclick": "window.location.href='/#jp-map-hub'",
-        "site_nav_query_onclick": "window.location.href='/#query-dialog'",
-        "site_nav_process_onclick": "window.location.href='/#query-dialog'",
+        "site_nav_query_onclick": "",
+        "site_nav_process_onclick": "",
         "site_nav_login_onclick": "window.location.href='/?open_support=1'",
         "site_footer_support_onclick": "window.location.href='/?open_support=1'",
     }
@@ -4062,6 +4310,48 @@ def _safe_case_return_to(raw_value: Any) -> tuple[str, str]:
         "/purchase-tools": "返回購房工具",
     }
     return raw, labels.get(path, default_label)
+
+
+_CASE_LISTING_JP_TEXT_RE = re.compile(
+    r"(?:[\u3040-\u30ff]|マンション|新築|分譲|所在地|徒歩|駅|県|鉄筋|築年月|資料請求|見学予約|問合せ|会社情報)"
+)
+
+
+def _case_listing_text_needs_zh_rebuild(text: str) -> bool:
+    t = str(text or "").strip()
+    if not t:
+        return False
+    return bool(_CASE_LISTING_JP_TEXT_RE.search(t))
+
+
+def _build_case_listing_zh_display(case_listing_panel: dict[str, Any]) -> str:
+    fields = dict((case_listing_panel or {}).get("fields") or {})
+    meta = dict((case_listing_panel or {}).get("meta") or {})
+    rows: list[str] = []
+    title = str(fields.get("title_display_hant") or "").strip()
+    if title:
+        rows.append(f"案件：{title}")
+    pairs = [
+        ("價格", fields.get("price_text_hant")),
+        ("格局", fields.get("layout_text_hant")),
+        ("面積", fields.get("area_text_hant") or fields.get("exclusive_area_jp")),
+        ("地址", fields.get("address_line_hant") or meta.get("address_line_zh_read")),
+        ("交通", fields.get("access_line_hant") or meta.get("access_line_zh_read") or meta.get("transit_line_zh_read")),
+        ("類型", fields.get("building_type_zh")),
+        ("樓層", fields.get("floor_text_hant")),
+    ]
+    for label, value in pairs:
+        v = str(value or "").strip()
+        if v and v not in {"—", "-", "－"}:
+            rows.append(f"{label}：{v}")
+    tags = fields.get("feature_tags_hant") or []
+    if isinstance(tags, list) and tags:
+        tag_text = "、".join(str(x).strip() for x in tags if str(x).strip())
+        if tag_text:
+            rows.append(f"特色：{tag_text[:120]}")
+    if rows:
+        rows.append("以上為站內中文整理，實際價格、可售狀態與交易條件請以顧問確認為準。")
+    return "\n".join(rows)[:900]
 
 
 @app.get("/")
@@ -11534,7 +11824,7 @@ def _build_support_simulated_service_meta(
 def _build_support_welcome_text(advisor: dict[str, str] | None = None) -> str:
     _ = advisor
     return (
-        "您好，這裡是日本不動產智能客服。"
+        "您好，這裡是日本不動產線上客服。"
         "我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。"
         "先告訴我想看的地區、預算或用途就可以。"
     )
@@ -20089,6 +20379,135 @@ def api_home_intro_video_spokespersons():
     return JSONResponse({"ok": True, "presets": _home_intro_public_spokesperson_presets()})
 
 
+@app.get("/api/home-featured-cases")
+def api_home_featured_cases(
+    limit: int = Query(default=12, ge=1, le=24),
+    offset: int = Query(default=0, ge=0, le=5000),
+    category: str = Query(default="hot"),
+    property_type: str = Query(default=""),
+    region: str = Query(default=""),
+):
+    lim = max(1, min(24, int(limit or 12)))
+    off = max(0, int(offset or 0))
+    query_region = str(region or "").strip()
+    query_property_type = str(property_type or "").strip()
+    query_category = str(category or "hot").strip().lower()
+    if query_category not in {"hot", "price", "transit", "image_quality", "investment", "self_use"}:
+        query_category = "hot"
+    params: list[Any] = []
+    region_sql = ""
+    if query_region:
+        like = f"%{query_region}%"
+        region_sql = """
+          AND (
+            c.case_jp_region_override LIKE ?
+            OR c.seo_title LIKE ?
+            OR c.title_zh_hant LIKE ?
+            OR s.title_original LIKE ?
+          )
+        """
+        params.extend([like, like, like, like])
+    sql_limit = min(180, max(lim * 8, lim + 48))
+    hot_region_match = " OR ".join(
+        [
+            f"(c.case_jp_region_override || ' ' || c.seo_title || ' ' || c.title_zh_hant || ' ' || s.title_original) LIKE '%{term}%'"
+            for term in _HOME_FEATURED_HOT_REGIONS
+        ]
+    )
+    searchable_blob = "(c.seo_title || ' ' || c.seo_description || ' ' || c.title_zh_hant || ' ' || c.title_zh_hans || ' ' || s.title_original || ' ' || s.body_original || ' ' || c.case_transit_override)"
+    category_score_expr = {
+        "price": f"CASE WHEN {searchable_blob} LIKE '%万円%' OR {searchable_blob} LIKE '%萬%' OR {searchable_blob} LIKE '%價格%' OR {searchable_blob} LIKE '%価格%' THEN 18 ELSE 0 END",
+        "transit": f"CASE WHEN COALESCE(c.case_transit_override, '') <> '' OR COALESCE(c.walk_min, 0) > 0 OR {searchable_blob} LIKE '%徒歩%' OR {searchable_blob} LIKE '%步行%' OR {searchable_blob} LIKE '%駅%' THEN 18 ELSE 0 END",
+        "image_quality": "CASE WHEN COALESCE(s.image_urls, '') <> '' AND COALESCE(c.listing_media_json, '') NOT IN ('', '[]') THEN 20 ELSE 0 END",
+        "investment": f"CASE WHEN {searchable_blob} LIKE '%投資%' OR {searchable_blob} LIKE '%出租%' OR {searchable_blob} LIKE '%收租%' OR {searchable_blob} LIKE '%賃貸%' THEN 18 ELSE 0 END",
+        "self_use": f"CASE WHEN {searchable_blob} LIKE '%自住%' OR {searchable_blob} LIKE '%住宅%' OR {searchable_blob} LIKE '%生活%' OR {searchable_blob} LIKE '%住居%' THEN 18 ELSE 0 END",
+        "hot": "0",
+    }[query_category]
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                c.id AS content_id,
+                c.source_item_id,
+                c.seo_slug,
+                c.seo_title,
+                c.seo_description,
+                c.title_zh_hant,
+                c.title_zh_hans,
+                substr(COALESCE(c.body_zh_hant, ''), 1, 1200) AS body_zh_hant,
+                substr(COALESCE(c.body_zh_hans, ''), 1, 1200) AS body_zh_hans,
+                c.region_code,
+                c.keyword_type,
+                c.topic_category,
+                c.updated_at,
+                COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+                COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+                COALESCE(c.case_transit_override, '') AS case_transit_override,
+                COALESCE(c.jp_station_id, 0) AS jp_station_id,
+                COALESCE(c.walk_min, 0) AS walk_min,
+                COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+                s.source_name,
+                s.item_url,
+                s.image_urls,
+                substr(COALESCE(s.body_original, ''), 1, 1600) AS body_original,
+                s.title_original,
+                COALESCE(s.thumbnail_url, '') AS thumbnail_url,
+                COALESCE(s.hero_image_url, '') AS hero_image_url,
+                COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind,
+                (
+                  CASE WHEN COALESCE(s.hero_image_url, '') <> '' THEN 18 ELSE 0 END
+                  + CASE WHEN COALESCE(s.thumbnail_url, '') <> '' THEN 12 ELSE 0 END
+                  + CASE WHEN COALESCE(s.image_urls, '') <> '' THEN 16 ELSE 0 END
+                  + CASE WHEN COALESCE(c.listing_media_json, '') NOT IN ('', '[]') THEN 14 ELSE 0 END
+                  + CASE WHEN ({hot_region_match}) THEN 12 ELSE 0 END
+                  + CASE WHEN COALESCE(c.case_transit_override, '') <> '' OR COALESCE(c.walk_min, 0) > 0 THEN 8 ELSE 0 END
+                  + CASE WHEN LENGTH(COALESCE(c.body_zh_hant, '')) + LENGTH(COALESCE(s.body_original, '')) > 260 THEN 8 ELSE 0 END
+                  + ({category_score_expr})
+                ) AS featured_score
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+              AND TRIM(COALESCE(c.seo_slug, '')) <> ''
+              AND (
+                TRIM(COALESCE(s.hero_image_url, '')) <> ''
+                OR TRIM(COALESCE(s.thumbnail_url, '')) <> ''
+                OR TRIM(COALESCE(s.image_urls, '')) <> ''
+                OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
+              )
+              {region_sql}
+            ORDER BY featured_score DESC, c.updated_at DESC, c.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            [*params, sql_limit, off],
+        ).fetchall()
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        row_dict = dict(row)
+        if query_property_type and not _home_featured_matches_property_type(row_dict, query_property_type):
+            continue
+        item = _home_featured_case_public_row(row_dict)
+        if not str(item.get("thumb_url") or "").strip():
+            continue
+        if int(item.get("image_count") or 0) <= 0:
+            continue
+        items.append(item)
+        if len(items) >= lim:
+            break
+    return JSONResponse(
+        {
+            "ok": True,
+            "items": items,
+            "limit": lim,
+            "offset": off,
+            "next_offset": off + len(rows),
+            "has_more": len(rows) >= sql_limit,
+            "category": query_category,
+            "property_type": query_property_type,
+            "region": query_region,
+        }
+    )
+
+
 @app.get("/api/home-intro-video/cases")
 def api_home_intro_video_cases(q: str = Query(default=""), limit: int = Query(default=12, ge=1, le=40)):
     query = str(q or "").strip()
@@ -21069,7 +21488,7 @@ def _is_support_project_conversation_bridge(text: str) -> bool:
 def _build_support_greeting_reply(persona_region: str = "tw") -> str:
     _ = persona_region
     return (
-        "您好，這裡是日本不動產智能客服。"
+        "您好，這裡是日本不動產線上客服。"
         "您可以直接說想看的地區、預算、用途，或貼一個案件給我，我先幫您整理重點。\n\n"
         "如果只是先了解方向，我會先一步步幫您收斂；需要真人顧問時，再協助整理成可交接的需求。"
     )
@@ -25005,6 +25424,12 @@ def source_case_page(request: Request, source_item_id: int):
     if cached_case_html is not None:
         return Response(content=cached_case_html, media_type="text/html")
     case_listing_panel = _build_portal_listing_panel(item)
+    case_fields_for_title = case_listing_panel.get("fields") if isinstance(case_listing_panel, dict) else {}
+    if isinstance(case_fields_for_title, dict) and str(case_fields_for_title.get("source_name_display") or "").strip():
+        item["source_name"] = str(case_fields_for_title.get("source_name_display") or "").strip()
+    if isinstance(case_fields_for_title, dict) and str(case_fields_for_title.get("title_display_hant") or "").strip():
+        item["title_display_hant"] = str(case_fields_for_title.get("title_display_hant") or "").strip()
+        item["title_zh_hant"] = item["title_display_hant"]
     _le_snap = case_listing_panel.pop("_live_enrich_snapshot", None)
     if _le_snap:
         item["title_original"] = str(_le_snap.get("title_original") or item.get("title_original") or "")
@@ -25137,6 +25562,9 @@ def source_case_page(request: Request, source_item_id: int):
     case_listing_panel["gallery_property_urls"] = list(disp_prop)
     case_listing_panel["gallery_agent_urls"] = list(disp_agent)
     case_listing_panel["gallery_urls"] = list(disp_prop) + list(disp_agent)
+    case_fields = case_listing_panel.get("fields") if isinstance(case_listing_panel, dict) else {}
+    if isinstance(case_fields, dict) and str(case_fields.get("title_display_hant") or "").strip():
+        item["title_display_hant"] = str(case_fields.get("title_display_hant") or "").strip()
     agent_keys = {_case_img_norm_key(u) for u in disp_agent}
     _gal_src: list[str] = list(disp_prop) if disp_prop else []
     if not _gal_src:
@@ -25180,6 +25608,12 @@ def source_case_page(request: Request, source_item_id: int):
     )
     item["body_zh_hant_display"] = _clean_case_body_for_display(str(item.get("body_zh_hant") or ""))
     item["body_zh_hans_display"] = _clean_case_body_for_display(str(item.get("body_zh_hans") or ""))
+    rebuilt_body = _build_case_listing_zh_display(case_listing_panel)
+    if rebuilt_body:
+        item["body_zh_hant_display"] = rebuilt_body
+        item["body_zh_hans_display"] = rebuilt_body
+    if rebuilt_body and _case_listing_text_needs_zh_rebuild(_clean_case_body_for_display(str(item.get("body_zh_hant") or ""))):
+        item["body_original_display"] = " "
     case_article_path = _standard_article_path(item.get("seo_slug"), source_item_id)
     case_related_news: list[dict[str, Any]] = []
     if case_article_path:
@@ -25670,6 +26104,12 @@ def _case_related_item_for_source(conn: sqlite3.Connection, source_item_id: int)
 
 
 def _related_article_row_lite(row: Any) -> dict[str, Any]:
+    from src.portal_case_search import (
+        _portal_case_has_kana,
+        _portal_case_source_name_display,
+        _portal_case_text_hant,
+    )
+
     d = _coerce_str_fields(
         dict(row),
         (
@@ -25691,6 +26131,12 @@ def _related_article_row_lite(row: Any) -> dict[str, Any]:
     d["case_path"] = _standard_case_path(sid)
     d["article_path"] = _standard_article_path(slug, sid)
     d["standard_article_path_ok"] = bool(d["article_path"]) and _article_slug_is_standard(slug)
+    title = _portal_case_text_hant(d.get("seo_title") or "", max_len=96)
+    title = re.sub(r"^\s*(?:日本房[產产]案源|日本不動產案件)[:：]\s*", "", title).strip()
+    if not title or _portal_case_has_kana(title):
+        src = _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or "")
+        title = f"{src or '站內'} 案件 #{sid}" if sid > 0 else (src or "站內案件")
+    d["seo_title"] = title
     return d
 
 
@@ -26832,7 +27278,16 @@ def _portal_search_schedule_detail_enrich(items: list[dict[str, Any]]) -> dict[s
 def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:
     """SUUMO 式明細用：擷取價格／格局／日文地址交通等，並排序圖集網址。"""
     from src.case_metadata import gloss_jp_property_line_for_zh, infer_case_metadata
-    from src.portal_case_search import _extract_listing_fields, split_listing_image_urls_property_vs_agent
+    from src.portal_case_search import (
+        _extract_listing_fields,
+        _portal_case_display_access,
+        _portal_case_display_address,
+        _portal_case_display_title,
+        _portal_case_has_kana,
+        _portal_case_source_name_display,
+        _portal_case_text_hant,
+        split_listing_image_urls_property_vs_agent,
+    )
 
     d = dict(row)
     cache_body_hant = str(d.get("body_zh_hant") or "")
@@ -26910,9 +27365,55 @@ def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:
     gallery_all = gallery_prop + gallery_agent
 
     meta_out = dict(meta)
-    meta_out["address_line_zh_read"] = gloss_jp_property_line_for_zh(str(fields.get("address_line_jp") or ""))
-    meta_out["access_line_zh_read"] = gloss_jp_property_line_for_zh(str(fields.get("access_line_jp") or ""))
-    meta_out["transit_line_zh_read"] = gloss_jp_property_line_for_zh(str(meta.get("transit_line_zh") or ""))
+    fields["title_display_hant"] = _portal_case_display_title(
+        d,
+        fields,
+        title_hant_clean=str(d.get("title_zh_hant") or ""),
+        title_original_clean=str(d.get("title_original") or ""),
+        meta=meta,
+    )
+    fields["source_name_display"] = _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or "")
+    fields["address_line_hant"] = _portal_case_display_address(fields.get("address_line_jp") or "", d, meta)
+    fields["access_line_hant"] = _portal_case_display_access(fields.get("access_line_jp") or "", d, meta)
+    fields["building_name_hant"] = _portal_case_text_hant(fields.get("building_name_jp") or "", max_len=160)
+    if _portal_case_has_kana(fields.get("building_name_hant")) and str(fields.get("title_display_hant") or "").strip():
+        fields["building_name_hant"] = str(fields.get("title_display_hant") or "").strip()
+    fields["address_line_original_jp"] = str(fields.get("address_line_jp") or "")
+    fields["access_line_original_jp"] = str(fields.get("access_line_jp") or "")
+    fields["building_name_original_jp"] = str(fields.get("building_name_jp") or "")
+    if fields.get("address_line_hant"):
+        fields["address_line_jp"] = fields["address_line_hant"]
+    if fields.get("access_line_hant"):
+        fields["access_line_jp"] = fields["access_line_hant"]
+    if fields.get("building_name_hant"):
+        fields["building_name_jp"] = fields["building_name_hant"]
+    for _display_key in (
+        "layout_line_jp",
+        "built_ym_jp",
+        "floor_structure_jp",
+        "sales_units_jp",
+        "total_units_jp",
+        "structure_jp",
+        "parking_jp",
+        "status_jp",
+        "handover_jp",
+        "info_open_jp",
+        "next_update_jp",
+        "related_links_jp",
+        "company_guide_jp",
+        "staff_message_jp",
+        "inquiry_contact_jp",
+        "homes_site_trail_jp",
+    ):
+        if fields.get(_display_key):
+            fields[_display_key] = _portal_case_text_hant(fields.get(_display_key), max_len=260)
+    meta_out["address_line_zh_read"] = fields.get("address_line_hant") or gloss_jp_property_line_for_zh(str(fields.get("address_line_jp") or ""))
+    meta_out["access_line_zh_read"] = fields.get("access_line_hant") or gloss_jp_property_line_for_zh(str(fields.get("access_line_jp") or ""))
+    meta_out["transit_line_zh_read"] = _portal_case_text_hant(meta.get("transit_line_zh") or "", max_len=180) or gloss_jp_property_line_for_zh(str(meta.get("transit_line_zh") or ""))
+    if _portal_case_has_kana(meta_out.get("transit_line_zh_read")):
+        meta_out["transit_line_zh_read"] = fields.get("access_line_hant") or meta_out.get("access_line_zh_read") or ""
+    if _portal_case_has_kana(meta_out.get("transit_line_zh")) and str(meta_out.get("transit_line_zh_read") or "").strip():
+        meta_out["transit_line_zh"] = str(meta_out.get("transit_line_zh_read") or "").strip()
     if borrowed_media:
         meta_out["borrowed_media_source_item_id"] = borrowed_media.get("source_item_id")
         meta_out["borrowed_media_source_name"] = borrowed_media.get("source_name")
