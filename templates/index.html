@@ -5277,7 +5277,7 @@
         const card = dot.closest('[data-case-detail-url]');
         const detailUrl = String(card && card.getAttribute ? card.getAttribute('data-case-detail-url') : '').trim();
         if (detailUrl && detailUrl !== '#') {
-          openPortalCaseInlineDetail(detailUrl, card || dot);
+          navigatePortalCaseStandalone(detailUrl, '/#figure-results');
           return;
         }
         const img = media.querySelector('.portal-suumo-card-heroimg');
@@ -5334,7 +5334,10 @@
         evt.preventDefault();
         evt.stopPropagation();
         if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
-        openPortalCaseInlineDetail(url, link || card);
+        const returnTo = card.classList.contains('home-featured-card') || card.classList.contains('home-featured-hero-card')
+          ? '/#home-featured-cases'
+          : '/#figure-results';
+        navigatePortalCaseStandalone(url, returnTo);
       }, true);
     }
 
@@ -21047,6 +21050,28 @@
       return String(value || '').replace(/["\\#.:,[\]()]/g, '\\$&');
     }
 
+    function portalCaseStandaloneHref(rawUrl, returnTo = '/#figure-results') {
+      const raw = String(rawUrl || '').trim();
+      if (!raw || raw === '#') return '';
+      try {
+        const u = new URL(raw, window.location.origin);
+        if (u.origin !== window.location.origin || !/^\/case\/\d+\/?$/u.test(u.pathname)) return '';
+        if (!u.searchParams.has('return_to')) {
+          u.searchParams.set('return_to', String(returnTo || '/#figure-results'));
+        }
+        return `${u.pathname}${u.search || ''}`;
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function navigatePortalCaseStandalone(rawUrl, returnTo = '/#figure-results') {
+      const href = portalCaseStandaloneHref(rawUrl, returnTo);
+      if (!href) return false;
+      window.location.href = href;
+      return true;
+    }
+
     function preparePortalCaseInlineDocument(main, sourceUrl) {
       if (!(main instanceof Element)) return null;
       const clone = main.cloneNode(true);
@@ -21236,7 +21261,7 @@
         event.preventDefault();
         event.stopPropagation();
       }
-      openPortalCaseInlineDetail(url, link || card);
+      navigatePortalCaseStandalone(url, '/#figure-results');
     }
 
     function portalCaseInlineLinkClick(event, link) {
@@ -21247,7 +21272,7 @@
         event.preventDefault();
         event.stopPropagation();
       }
-      openPortalCaseInlineDetail(href, link);
+      navigatePortalCaseStandalone(href, '/#figure-results');
       return false;
     }
 
@@ -21379,7 +21404,7 @@
         event.preventDefault();
         event.stopPropagation();
       }
-      openPortalCaseInlineDetail(url, link || card);
+      navigatePortalCaseStandalone(url, '/#home-featured-cases');
     }
 
     function homeFeaturedCacheKey(type) {
