@@ -21882,7 +21882,28 @@
       const townVillage = new RegExp(`(${pref}(?:[一-龥々]{1,16}郡)?[一-龥々]{1,16}(?:町|村))`).exec(s);
       if (townVillage && townVillage[1]) return townVillage[1];
       const prefOnly = new RegExp(`(${pref})`).exec(s);
-      return prefOnly && prefOnly[1] ? prefOnly[1] : s;
+      if (prefOnly && prefOnly[1]) return prefOnly[1];
+
+      const tokens = s
+        .replace(/[＞>／/]+/g, '｜')
+        .split(/[|｜,，、\s]+/)
+        .map((token) => token.trim())
+        .filter(Boolean)
+        .filter((token) => !/^(?:県|县|縣|府|都|道|地番|番地)$/.test(token));
+      if (!tokens.length) return s;
+      const loosePrefIndex = tokens.findIndex((token) => /(?:北海道|東京|大阪|京都|神奈川|埼玉|千葉|兵庫|奈良|滋賀|愛知|爱知|福岡|福冈|沖縄|冲绳|宮城|宫城|宮崎|宫崎|茨城|栃木|群馬|群马|新潟|長野|长野|山梨|静岡|静冈|岐阜|三重|石川|富山|福井|岡山|冈山|広島|广岛|山口|鳥取|鸟取|島根|岛根|徳島|德岛|香川|愛媛|爱媛|高知|佐賀|佐贺|長崎|长崎|熊本|大分|鹿児島|鹿儿岛|青森|岩手|秋田|山形|福島|福岛|北海道|[一-龥々]{1,8}(?:県|县|縣|府|都|道))/.test(token));
+      const start = loosePrefIndex >= 0 ? loosePrefIndex : 0;
+      const kept = [tokens[start]];
+      for (let i = start + 1; i < tokens.length && kept.length < 3; i += 1) {
+        const token = tokens[i]
+          .replace(/[0-9０-９].*$/, '')
+          .replace(/(?:丁目|番地|番|号|號).*$/, '')
+          .trim();
+        if (!token || /(?:駅|站|线|線|徒歩|步行|分钟|分鐘|分)$/.test(token)) break;
+        if (/(?:市|区|區|町|村|郡)$/.test(token)) kept.push(token);
+        if (kept.length >= 2 && /(?:町|村)$/.test(token)) break;
+      }
+      return kept.join('｜') || tokens[start] || s;
     }
 
     function homeFeaturedCleanLocationText(value) {
