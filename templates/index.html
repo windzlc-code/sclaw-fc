@@ -21279,7 +21279,7 @@
     const HOME_FEATURED_RECOMMEND_SIZE = 6;
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v8.';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v9.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
@@ -21324,12 +21324,22 @@
         : [];
     }
 
+    function homeFeaturedTrustedImageUrl(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      if (/\/api\/case-image-cache\b|https?:\/\/|file:|localhost|127\.0\.0\.1|no[_-]?image|placeholder|dummy|準備中|准备中|bnr|banner|map_pin|mogecheck/i.test(raw)) return '';
+      return /^\/static\/cache\/case-images\/[a-f0-9]{2}\/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$/i.test(raw) ? raw : '';
+    }
+
     function homeFeaturedNormalizeCase(raw) {
       if (!raw || typeof raw !== 'object') return null;
       const sid = Number(raw.source_item_id || 0);
       const title = String(raw.title_zh_hans || raw.title || raw.title_zh_hant || raw.title_original || '').trim();
       if (!sid && !title) return null;
-      const gallery = Array.isArray(raw.gallery_urls) ? raw.gallery_urls : [];
+      if (/^(?:tw|jp|cn|hk|mo)(?:精选|公寓|大楼|华厦|别墅|土地|店面|办公|套房)/i.test(title)) return null;
+      const gallery = (Array.isArray(raw.gallery_urls) ? raw.gallery_urls : []).map(homeFeaturedTrustedImageUrl).filter(Boolean);
+      const thumb = homeFeaturedTrustedImageUrl(raw.thumb_url || raw.hero_media_url || gallery[0] || '');
+      if (!thumb) return null;
       const areaHint = homeFeaturedAreaLabel(raw);
       return {
         ...raw,
@@ -21352,8 +21362,9 @@
         area_text_hant: String(raw.area_text_hant || ''),
         layout_text_hant: String(raw.layout_text_hant || ''),
         layout_line_jp: String(raw.layout_line_jp || ''),
-        thumb_url: String(raw.thumb_url || raw.hero_media_url || gallery[0] || ''),
-        gallery_urls: gallery.length ? gallery : [raw.thumb_url].filter(Boolean),
+        thumb_url: thumb,
+        hero_media_url: thumb,
+        gallery_urls: gallery.length ? gallery : [thumb],
         image_count: Number(raw.image_count || gallery.length || 0),
         area_hint: areaHint,
       };
