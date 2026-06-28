@@ -2274,6 +2274,12 @@ def _home_featured_cases_payload(
     items: list[dict[str, Any]] = []
     for row in rows:
         row_dict = dict(row)
+        raw_title_blob = " ".join(
+            str(row_dict.get(k) or "")
+            for k in ("seo_title", "title_zh_hant", "title_zh_hans", "title_original")
+        )
+        if re.search(r"javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持", raw_title_blob, re.I):
+            continue
         if query_property_type and not _home_featured_matches_property_type(row_dict, query_property_type):
             continue
         item = _home_featured_case_public_row_fast(row_dict)
@@ -2370,6 +2376,8 @@ _HOME_ROOM_EXPLORE_TYPE_META: tuple[dict[str, str], ...] = (
 
 def _home_room_explore_tiles(
     preloaded_payloads: dict[str, dict[str, Any]] | None = None,
+    *,
+    fetch_missing: bool = True,
 ) -> list[dict[str, Any]]:
     tiles: list[dict[str, Any]] = []
     used_ids: set[int] = set()
@@ -2378,7 +2386,7 @@ def _home_room_explore_tiles(
         property_type = meta["property_type"]
         payload = payloads.get(property_type) or {}
         items = list(payload.get("items") or [])
-        if not items:
+        if not items and fetch_missing:
             try:
                 payload = _home_featured_cases_payload(limit=12, offset=0, category="hot", property_type=property_type)
                 items = list(payload.get("items") or [])
@@ -4859,25 +4867,6 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
     except Exception:
         home_featured_preload = {"ok": False, "items": []}
     home_featured_type_preloads: dict[str, dict[str, Any]] = {}
-    for property_type in ("", "公寓", "大樓", "華廈", "套房", "別墅/透天", "辦公", "店面", "土地", "其他"):
-        try:
-            home_featured_type_preloads[property_type] = _home_featured_cases_payload(
-                limit=12,
-                offset=0,
-                category="hot",
-                property_type=property_type,
-            )
-        except Exception:
-            home_featured_type_preloads[property_type] = {
-                "ok": False,
-                "items": [],
-                "limit": 12,
-                "offset": 0,
-                "next_offset": 0,
-                "has_more": False,
-                "category": "hot",
-                "property_type": property_type,
-            }
     return {
         "request": request,
         "site_name": SITE_NAME,
@@ -4896,7 +4885,7 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         "home_video_carousel": home_video_carousel,
         "home_featured_preload": home_featured_preload,
         "home_featured_type_preloads": home_featured_type_preloads,
-        "home_room_explore_tiles": _home_room_explore_tiles(home_featured_type_preloads),
+        "home_room_explore_tiles": _home_room_explore_tiles(home_featured_type_preloads, fetch_missing=False),
         "home_hero_options": [
             {
                 "key": k,
