@@ -1698,7 +1698,14 @@ def _home_featured_display_title(row: dict[str, Any], base_title: str, region: s
     title = re.sub(r"^(?:日本房产案源|日本房產案源|日本不动产案件|日本不動產案件|日本房源)[:：]\s*", "", preferred)
     title = re.sub(r"^(?:\[?在家\]?|AtHome|LIFULL HOME'?S|SUUMO)\s*[:：|]?\s*", "", title, flags=re.I)
     title = _home_featured_to_hans(_social_text(title, limit=44))
-    if title and not _home_featured_has_kana(title) and len(title) <= 42 and not re.match(r"^(?:tw|jp|cn|hk|mo)(?:精选|公寓|大楼|华厦|别墅|土地|店面|办公|套房)", title, re.I):
+    bad_title = re.search(r"(?:javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持)", title, re.I)
+    if (
+        title
+        and not bad_title
+        and not _home_featured_has_kana(title)
+        and len(title) <= 42
+        and not re.match(r"^(?:tw|jp|cn|hk|mo)(?:精选|公寓|大楼|华厦|别墅|土地|店面|办公|套房)", title, re.I)
+    ):
         return title
     place = _home_featured_region_label(region) or "日本"
     return f"{place}精选{_home_featured_type_label(blob)}"
@@ -2271,7 +2278,11 @@ def _home_featured_cases_payload(
             continue
         item = _home_featured_case_public_row_fast(row_dict)
         item_title = str(item.get("title") or item.get("title_original") or "").strip()
-        if not item_title or re.search(r"(?:認證|认证|整理|更新).{0,8}(?:進行中|进行中|待確認|待确认)", item_title):
+        if not item_title or re.search(
+            r"(?:認證|认证|整理|更新).{0,8}(?:進行中|进行中|待確認|待确认)|javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持",
+            item_title,
+            re.I,
+        ):
             continue
         item_price = str(item.get("price_hint") or item.get("price_text_hant") or "").strip()
         if not item_price or re.search(r"(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認", item_price, re.I):

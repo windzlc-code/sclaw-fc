@@ -16428,30 +16428,6 @@ thead .admin-portal-matrix-sticky-col {
   margin-left: auto;
 }
 
-.admin-drawer .admin-language-switch {
-  margin: 0;
-}
-
-.admin-drawer .site-language-globe-btn {
-  width: 42px;
-  min-width: 42px;
-  height: 42px;
-  min-height: 42px;
-  padding: 0;
-  border-radius: 999px;
-}
-
-.admin-drawer .site-language-menu {
-  z-index: 10060;
-}
-
-.admin-drawer .site-language-menu button {
-  min-height: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  box-shadow: none;
-}
-
 .admin-head-logout {
   min-height: 42px !important;
   padding: 0.45rem 0.85rem !important;
@@ -25220,7 +25196,6 @@ body.site-admin-standalone .admin-drawer .config-drawer-head > strong {
 
 body.site-admin-standalone .admin-head-actions .admin-head-logout,
 body.site-admin-standalone .admin-head-actions .admin-head-logout.secondary,
-body.site-admin-standalone .admin-head-actions .site-language-globe-btn,
 body.site-admin-standalone .admin-head-actions .ui-close-btn {
   min-height: 34px;
   border-color: rgba(255, 255, 255, 0.28);
@@ -25229,24 +25204,13 @@ body.site-admin-standalone .admin-head-actions .ui-close-btn {
   box-shadow: none;
 }
 
-body.site-admin-standalone .admin-head-actions .site-language-globe-btn svg {
-  stroke: currentColor;
-}
-
 body.site-admin-standalone .admin-head-actions .admin-head-logout:hover,
 body.site-admin-standalone .admin-head-actions .admin-head-logout:focus-visible,
-body.site-admin-standalone .admin-head-actions .site-language-globe-btn:hover,
-body.site-admin-standalone .admin-head-actions .site-language-globe-btn:focus-visible,
 body.site-admin-standalone .admin-head-actions .ui-close-btn:hover,
 body.site-admin-standalone .admin-head-actions .ui-close-btn:focus-visible {
   border-color: rgba(255, 255, 255, 0.48);
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
-}
-
-body.site-admin-standalone .admin-drawer .site-language-menu {
-  border-color: #d9e2ef;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
 }
 
 body.site-admin-standalone .admin-drawer .admin-drawer-note {
@@ -25640,7 +25604,6 @@ body.site-admin-standalone .admin-head-actions {
 
 body.site-admin-standalone .admin-head-actions .admin-head-logout,
 body.site-admin-standalone .admin-head-actions .admin-head-logout.secondary,
-body.site-admin-standalone .admin-head-actions .site-language-globe-btn,
 body.site-admin-standalone .admin-head-actions .ui-close-btn {
   min-height: 32px;
   border-radius: 2px;
@@ -38007,7 +37970,7 @@ body.site-buy-guide main.case-page-suumo {
   padding-top: 0 !important;
 }
 
-body.site-buy-guide .site-language-switch,
+body.site-buy-guide .buy-guide-page > .site-language-switch,
 body.site-buy-guide .buy-guide-brandbar {
   display: none;
 }

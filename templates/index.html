@@ -874,27 +874,6 @@
           <div id="admin-global-search-menu" class="admin-global-search-menu" role="listbox" aria-label="後台搜尋建議"></div>
         </div>
         <div class="admin-head-actions">
-          <section class="site-language-switch site-language-switch--globe admin-language-switch" aria-label="中文版本切換" data-site-lang-menu-root>
-            <button
-              type="button"
-              class="site-language-globe-btn"
-              data-site-lang-menu-toggle
-              aria-label="切換中文版本"
-              aria-haspopup="menu"
-              aria-expanded="false"
-              title="切換中文版本"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <circle cx="12" cy="12" r="8.6"></circle>
-                <path d="M3.8 12h16.4M12 3.4c2.2 2.2 3.3 5.1 3.3 8.6S14.2 18.4 12 20.6M12 3.4C9.8 5.6 8.7 8.5 8.7 12s1.1 6.4 3.3 8.6"></path>
-              </svg>
-              <span data-site-lang-current>繁</span>
-            </button>
-            <div class="site-language-menu" data-site-lang-menu role="menu" hidden>
-              <button type="button" role="menuitemradio" data-site-lang-choice="hant" aria-checked="true">繁體中文</button>
-              <button type="button" role="menuitemradio" data-site-lang-choice="hans" aria-checked="false">簡體中文</button>
-            </div>
-          </section>
           <button id="admin-header-logout" class="secondary admin-head-logout" type="button" onclick="clearAdminAuth()" hidden>登出</button>
           <button class="ui-close-btn" type="button" onclick="toggleAdminDrawer(false)" aria-label="關閉後台管理" title="關閉">×</button>
         </div>
@@ -21448,6 +21427,7 @@
       const sid = Number(raw.source_item_id || 0);
       const title = String(raw.title_zh_hans || raw.title || raw.title_zh_hant || raw.title_original || '').trim();
       if (!sid && !title) return null;
+      if (/(?:javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持)/i.test(title)) return null;
       if (/^(?:tw|jp|cn|hk|mo)(?:精选|公寓|大楼|华厦|别墅|土地|店面|办公|套房)/i.test(title)) return null;
       const priceText = String(raw.price_hint || raw.price_text_hant || '').trim();
       if (!priceText || /(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認/i.test(priceText)) return null;
@@ -21859,6 +21839,9 @@
 
     function homeFeaturedDisplayCardTitle(item) {
       const raw = String(item?.title || item?.title_zh_hans || item?.title_zh_hant || '日本房源案件').trim();
+      if (/(?:javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持)/i.test(raw)) {
+        return `${homeFeaturedCardLocation(item)}精选房源`;
+      }
       const parts = raw.split(/\s*[|｜]\s*/).map((part) => part.trim()).filter(Boolean);
       const isSpecPart = (part) => /(?:[0-9,]+(?:\.[0-9]+)?\s*(?:万|萬)?(?:日圆|日圓|円|元)|[0-9,]+(?:\.[0-9]+)?\s*坪|[0-9]+(?:LDK|DK|K)|[0-9]+\s*房|客餐|格局|價格|价格|面積|面积)/i.test(part);
       const cleanedParts = parts.length > 1 ? parts.filter((part) => !isSpecPart(part)) : parts;
@@ -21867,6 +21850,25 @@
         .replace(/\s*[|｜]\s*[0-9,]+(?:\.[0-9]+)?\s*坪.*$/i, '')
         .trim();
       return title || raw;
+    }
+
+    function homeFeaturedHeroPromoTitle(item) {
+      const location = homeFeaturedCardLocation(item);
+      const type = String(item?.building_type_zh || '').trim().replace(/公寓大樓/g, '公寓');
+      const suffix = type && !/日本房源|位置/.test(type) ? type : '优选房源';
+      return `${location && location !== '日本房源位置' ? location : '日本'}${suffix}推荐`;
+    }
+
+    function homeFeaturedHeroPromoText(item) {
+      const price = String(item?.price_hint || item?.price_text_hant || '').trim();
+      const area = String(item?.area_hint || item?.area_text_hant || '').trim();
+      const imageCount = Number(item?.image_count || 0);
+      const parts = [];
+      if (price) parts.push(`价格 ${price}`);
+      if (area) parts.push(area);
+      if (imageCount > 1) parts.push(`${imageCount} 张参考图`);
+      const facts = parts.length ? `已整理 ${parts.slice(0, 3).join('、')}。` : '';
+      return `${facts}适合先看图片、预算和基本条件，再收藏或加入对比清单。`;
     }
 
     function homeFeaturedCoarseLocation(text) {
@@ -21990,7 +21992,8 @@
       if (hero) {
         const url = String(hero.case_path || (hero.source_item_id ? `/case/${hero.source_item_id}` : '#')).trim();
         const heroArea = String(hero.area_hint || '').trim();
-        const heroTitle = homeFeaturedDisplayCardTitle(hero);
+        const heroTitle = homeFeaturedHeroPromoTitle(hero);
+        const heroText = homeFeaturedHeroPromoText(hero);
         homeFeaturedCaseMap.set(supportCaseKeyFromItem(hero), hero);
         heroEl.hidden = false;
         heroEl.innerHTML = `
@@ -22002,15 +22005,12 @@
             <div class="home-featured-hero-copy">
               <span class="home-featured-hero-label">本周推荐</span>
               <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(heroTitle)}</a></h3>
-              <p>${esc(hero.summary || '图片与资料较完整，适合先做站内明细比较。')}</p>
+              <p>${esc(heroText)}</p>
               <div class="home-featured-hero-facts">
                 <span>${esc(hero.source_name || '原站')}</span>
                 <span>${esc(hero.price_hint || '价格待确认')}</span>
                 ${heroArea ? `<span>${esc(heroArea)}</span>` : ''}
-                <span>${esc(hero.region || '日本')}</span>
-              </div>
-              <div class="home-featured-hero-cta">
-                <a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">查看站内明细</a>
+                <span>${esc(homeFeaturedCardLocation(hero))}</span>
               </div>
               ${homeFeaturedActionButtons(hero)}
             </div>
