@@ -1998,6 +1998,8 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
         ],
         limit=8,
     )
+    if raw_gallery:
+        _case_image_prefetch(raw_gallery[:6], limit=6, force=True)
     gallery = [case_static_image_url(u) for u in raw_gallery]
     hero = gallery[0] if gallery else ""
     sid = int(row.get("source_item_id") or 0)
@@ -2192,6 +2194,9 @@ def _home_featured_cases_payload(
         if query_property_type and not _home_featured_matches_property_type(row_dict, query_property_type):
             continue
         item = _home_featured_case_public_row_fast(row_dict)
+        item_title = str(item.get("title") or item.get("title_original") or "").strip()
+        if not item_title or re.search(r"(?:認證|认证|整理|更新).{0,8}(?:進行中|进行中|待確認|待确认)", item_title):
+            continue
         if not str(item.get("thumb_url") or "").strip():
             continue
         if int(item.get("image_count") or 0) <= 0:
