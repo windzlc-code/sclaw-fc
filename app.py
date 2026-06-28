@@ -1989,10 +1989,20 @@ def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
-    hero, imgs, _vids = _home_intro_case_media(row)
+    imgs, _vids = extract_media_urls_from_row(row)
+    raw_gallery = _sort_relevant_real_estate_images(
+        [
+            str(row.get("hero_image_url") or "").strip(),
+            str(row.get("thumbnail_url") or "").strip(),
+            *imgs,
+        ],
+        limit=8,
+    )
+    gallery = [case_static_image_url(u) for u in raw_gallery]
+    hero = gallery[0] if gallery else ""
     sid = int(row.get("source_item_id") or 0)
     slug = str(row.get("seo_slug") or "").strip()
-    image_count = len(imgs)
+    image_count = len(gallery)
     price_hint = _home_featured_price_label(_home_intro_case_price_hint(row))
     property_hits = sorted(_home_featured_property_type_hits(row))
     region = _home_featured_region_label(row.get("case_jp_region_override") or row.get("region_code") or "")
@@ -2034,7 +2044,7 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
         "layout_text_hant": str(row.get("layout_text_hant") or "").strip()[:80],
         "thumb_url": hero,
         "hero_media_url": hero,
-        "gallery_urls": [case_static_image_url(u) for u in imgs[:8]],
+        "gallery_urls": gallery,
         "image_count": image_count,
         "case_path": _standard_case_path(sid),
         "article_path": _standard_article_path(slug, sid),
@@ -21360,7 +21370,8 @@ def api_home_featured_cases(
             category=category,
             property_type=property_type,
             region=region,
-        )
+        ),
+        headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},
     )
 
 
