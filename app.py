@@ -1608,6 +1608,8 @@ def _home_featured_source_label(value: Any) -> str:
 
 def _home_featured_region_label(value: Any) -> str:
     text = _home_featured_to_hans(_social_text(value or "", limit=30))
+    if not text or text.strip().lower() in {"tw", "jp", "hant", "hans", "zh", "cn", "hk", "mo"}:
+        return ""
     return (
         text.replace("沖縄", "冲绳")
         .replace("沖繩", "冲绳")
@@ -1617,6 +1619,26 @@ def _home_featured_region_label(value: Any) -> str:
         .replace("東京", "東京")
         .strip()
     )
+
+
+def _home_featured_region_from_row(row: dict[str, Any]) -> str:
+    direct = _home_featured_region_label(row.get("case_jp_region_override") or "")
+    if direct:
+        return direct
+    blob = " ".join(
+        str(row.get(k) or "")
+        for k in ("seo_title", "title_zh_hant", "title_zh_hans", "title_original", "seo_description")
+    )
+    pref = re.search(
+        r"(北海道|東京都|大阪府|京都府|(?:青森|岩手|宮城|秋田|山形|福島|茨城|栃木|群馬|埼玉|千葉|神奈川|新潟|富山|石川|福井|山梨|長野|岐阜|静岡|愛知|三重|滋賀|兵庫|奈良|和歌山|鳥取|島根|岡山|広島|山口|徳島|香川|愛媛|高知|福岡|佐賀|長崎|熊本|大分|宮崎|鹿児島|沖縄)県)",
+        blob,
+    )
+    if pref:
+        return _home_featured_region_label(pref.group(1))
+    city = re.search(r"([一-龥々]{2,8}市)", blob)
+    if city:
+        return _home_featured_region_label(city.group(1))
+    return ""
 
 
 def _home_featured_price_label(value: Any) -> str:
@@ -1669,7 +1691,7 @@ def _home_featured_display_title(row: dict[str, Any], base_title: str, region: s
     title = re.sub(r"^(?:日本房产案源|日本房產案源|日本不动产案件|日本不動產案件|日本房源)[:：]\s*", "", preferred)
     title = re.sub(r"^(?:\[?在家\]?|AtHome|LIFULL HOME'?S|SUUMO)\s*[:：|]?\s*", "", title, flags=re.I)
     title = _home_featured_to_hans(_social_text(title, limit=44))
-    if title and not _home_featured_has_kana(title) and len(title) <= 42:
+    if title and not _home_featured_has_kana(title) and len(title) <= 42 and not re.match(r"^(?:tw|jp|cn|hk|mo)(?:精选|公寓|大楼|华厦|别墅|土地|店面|办公|套房)", title, re.I):
         return title
     place = _home_featured_region_label(region) or "日本"
     return f"{place}精选{_home_featured_type_label(blob)}"
@@ -2007,7 +2029,7 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
     image_count = len(gallery)
     price_hint = _home_featured_price_label(_home_intro_case_price_hint(row))
     property_hits = sorted(_home_featured_property_type_hits(row))
-    region = _home_featured_region_label(row.get("case_jp_region_override") or row.get("region_code") or "")
+    region = _home_featured_region_from_row(row)
     title = _home_featured_specific_title(
         row,
         {},
@@ -5281,13 +5303,13 @@ def _is_non_listing_asset_url(lu: str) -> bool:
     s = str(lu or "").strip().lower()
     if not s:
         return False
-    if _is_yahoo_listing_image_url(s):
-        return False
     try:
         decoded = unquote(s)
     except Exception:
         decoded = s
     hay = f"{s} {decoded}"
+    if _is_yahoo_listing_image_url(s) and not any(t in hay for t in ("no_image", "noimage", "nf_path")):
+        return False
     noisy_tokens = (
         "/tmpl/images/common/",
         "/special/feature/",

@@ -21679,6 +21679,22 @@
       return title || raw;
     }
 
+    function homeFeaturedCoarseLocation(text) {
+      const s = String(text || '').replace(/\s+/g, ' ').trim();
+      if (!s) return '';
+      const pref = '(?:北海道|東京都|大阪府|京都府|[一-龥々]{1,8}県)';
+      const cityWard = new RegExp(`(${pref}[一-龥々]{1,16}市[一-龥々]{1,16}区)`).exec(s);
+      if (cityWard && cityWard[1]) return cityWard[1];
+      const city = new RegExp(`(${pref}[一-龥々]{1,16}市)`).exec(s);
+      if (city && city[1]) return city[1];
+      const ward = new RegExp(`(${pref}[一-龥々]{1,16}区)`).exec(s);
+      if (ward && ward[1]) return ward[1];
+      const townVillage = new RegExp(`(${pref}(?:[一-龥々]{1,16}郡)?[一-龥々]{1,16}(?:町|村))`).exec(s);
+      if (townVillage && townVillage[1]) return townVillage[1];
+      const prefOnly = new RegExp(`(${pref})`).exec(s);
+      return prefOnly && prefOnly[1] ? prefOnly[1] : s;
+    }
+
     function homeFeaturedDisplayCardLocation(item) {
       const raw = String(
         item?.address_line_jp ||
@@ -21699,6 +21715,7 @@
       cleaned = cleaned
         .replace(/\s*(?:地図|地圖|地图|建築年|建築年月|築年月|築年数|築年|建物構造|構造|结构|階数|階建|所在階|總戶數|総戸数|オートロック|掲載画像|閲覧済|交通|價格|价格|間取り|格局|專有面積|専有面積|土地面積|建物面積).*$/i, '')
         .trim();
+      cleaned = homeFeaturedCoarseLocation(cleaned);
       return cleaned || '日本房源位置';
     }
 
