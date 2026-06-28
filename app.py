@@ -1988,6 +1988,64 @@ def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
+    hero, imgs, _vids = _home_intro_case_media(row)
+    sid = int(row.get("source_item_id") or 0)
+    slug = str(row.get("seo_slug") or "").strip()
+    image_count = len(imgs)
+    price_hint = _home_featured_price_label(_home_intro_case_price_hint(row))
+    property_hits = sorted(_home_featured_property_type_hits(row))
+    region = _home_featured_region_label(row.get("case_jp_region_override") or row.get("region_code") or "")
+    title = _home_featured_specific_title(
+        row,
+        {},
+        current_title=_home_featured_display_title(row, str(row.get("seo_title") or ""), region),
+        region=region,
+        price_hint=price_hint,
+        property_hits=property_hits,
+    )
+    transit = _home_featured_transit_label(row.get("case_transit_override") or "")
+    source_name = _home_featured_source_label(
+        " ".join(str(x or "") for x in (row.get("source_name"), row.get("item_url"), row.get("title_original")))
+    )
+    summary = _home_featured_case_summary(row, {}, price_hint, image_count)
+    tags = _home_featured_case_tags(row, {}, image_count, price_hint)
+    return {
+        "content_id": int(row.get("content_id") or 0),
+        "source_item_id": sid,
+        "title": title,
+        "title_zh_hant": title,
+        "title_zh_hans": title,
+        "title_original": str(row.get("title_original") or title),
+        "source_name": source_name,
+        "region": region,
+        "jp_region_display_zh": region,
+        "transit": transit,
+        "transit_line_zh": transit,
+        "address_hint_zh": "",
+        "address_line_jp": "",
+        "price_hint": price_hint,
+        "price_text_hant": price_hint,
+        "area_text_hant": "",
+        "exclusive_area_jp": "",
+        "other_area_jp": "",
+        "building_area_jp": "",
+        "land_area_jp": "",
+        "layout_text_hant": str(row.get("layout_text_hant") or "").strip()[:80],
+        "thumb_url": hero,
+        "hero_media_url": hero,
+        "gallery_urls": [case_static_image_url(u) for u in imgs[:8]],
+        "image_count": image_count,
+        "case_path": _standard_case_path(sid),
+        "article_path": _standard_article_path(slug, sid),
+        "article_url": _standard_article_path(slug, sid),
+        "item_url": str(row.get("item_url") or ""),
+        "summary": summary,
+        "theme_tags": tags,
+        "property_type_hits": property_hits,
+    }
+
+
 _HOME_FEATURED_CASES_CACHE_TTL_SECONDS = 300.0
 _HOME_FEATURED_CASES_CACHE_MAX = 80
 _HOME_FEATURED_CASES_CACHE_LOCK = threading.RLock()
@@ -2069,22 +2127,7 @@ def _home_featured_cases_payload(
           )
         """
         params.extend([like, like, like, like])
-    sql_limit = min(180, max(lim * 8, lim + 48))
-    hot_region_match = " OR ".join(
-        [
-            f"(c.case_jp_region_override || ' ' || c.seo_title || ' ' || c.title_zh_hant || ' ' || s.title_original) LIKE '%{term}%'"
-            for term in _HOME_FEATURED_HOT_REGIONS
-        ]
-    )
-    searchable_blob = "(c.seo_title || ' ' || c.seo_description || ' ' || c.title_zh_hant || ' ' || c.title_zh_hans || ' ' || s.title_original || ' ' || s.body_original || ' ' || c.case_transit_override)"
-    category_score_expr = {
-        "price": f"CASE WHEN {searchable_blob} LIKE '%万円%' OR {searchable_blob} LIKE '%萬%' OR {searchable_blob} LIKE '%價格%' OR {searchable_blob} LIKE '%価格%' THEN 18 ELSE 0 END",
-        "transit": f"CASE WHEN COALESCE(c.case_transit_override, '') <> '' OR COALESCE(c.walk_min, 0) > 0 OR {searchable_blob} LIKE '%徒歩%' OR {searchable_blob} LIKE '%步行%' OR {searchable_blob} LIKE '%駅%' THEN 18 ELSE 0 END",
-        "image_quality": "CASE WHEN COALESCE(s.image_urls, '') <> '' AND COALESCE(c.listing_media_json, '') NOT IN ('', '[]') THEN 20 ELSE 0 END",
-        "investment": f"CASE WHEN {searchable_blob} LIKE '%投資%' OR {searchable_blob} LIKE '%出租%' OR {searchable_blob} LIKE '%收租%' OR {searchable_blob} LIKE '%賃貸%' THEN 18 ELSE 0 END",
-        "self_use": f"CASE WHEN {searchable_blob} LIKE '%自住%' OR {searchable_blob} LIKE '%住宅%' OR {searchable_blob} LIKE '%生活%' OR {searchable_blob} LIKE '%住居%' THEN 18 ELSE 0 END",
-        "hot": "0",
-    }[query_category]
+    sql_limit = min(36, max(lim * 3, lim + 12))
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -2096,8 +2139,8 @@ def _home_featured_cases_payload(
                 c.seo_description,
                 c.title_zh_hant,
                 c.title_zh_hans,
-                substr(COALESCE(c.body_zh_hant, ''), 1, 1200) AS body_zh_hant,
-                substr(COALESCE(c.body_zh_hans, ''), 1, 1200) AS body_zh_hans,
+                substr(COALESCE(c.body_zh_hant, ''), 1, 520) AS body_zh_hant,
+                substr(COALESCE(c.body_zh_hans, ''), 1, 520) AS body_zh_hans,
                 c.region_code,
                 c.keyword_type,
                 c.topic_category,
@@ -2111,21 +2154,12 @@ def _home_featured_cases_payload(
                 s.source_name,
                 s.item_url,
                 s.image_urls,
-                substr(COALESCE(s.body_original, ''), 1, 1600) AS body_original,
+                substr(COALESCE(s.body_original, ''), 1, 520) AS body_original,
                 s.title_original,
                 COALESCE(s.thumbnail_url, '') AS thumbnail_url,
                 COALESCE(s.hero_image_url, '') AS hero_image_url,
                 COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind,
-                (
-                  CASE WHEN COALESCE(s.hero_image_url, '') <> '' THEN 18 ELSE 0 END
-                  + CASE WHEN COALESCE(s.thumbnail_url, '') <> '' THEN 12 ELSE 0 END
-                  + CASE WHEN COALESCE(s.image_urls, '') <> '' THEN 16 ELSE 0 END
-                  + CASE WHEN COALESCE(c.listing_media_json, '') NOT IN ('', '[]') THEN 14 ELSE 0 END
-                  + CASE WHEN ({hot_region_match}) THEN 12 ELSE 0 END
-                  + CASE WHEN COALESCE(c.case_transit_override, '') <> '' OR COALESCE(c.walk_min, 0) > 0 THEN 8 ELSE 0 END
-                  + CASE WHEN LENGTH(COALESCE(c.body_zh_hant, '')) + LENGTH(COALESCE(s.body_original, '')) > 260 THEN 8 ELSE 0 END
-                  + ({category_score_expr})
-                ) AS featured_score
+                0 AS featured_score
             FROM content_items c
             JOIN source_items s ON s.id = c.source_item_id
             WHERE COALESCE(s.content_kind, '') = 'jp_listing'
@@ -2137,7 +2171,7 @@ def _home_featured_cases_payload(
                 OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
               )
               {region_sql}
-            ORDER BY featured_score DESC, c.updated_at DESC, c.id DESC
+            ORDER BY c.updated_at DESC, c.id DESC
             LIMIT ? OFFSET ?
             """,
             [*params, sql_limit, off],
@@ -2147,7 +2181,7 @@ def _home_featured_cases_payload(
         row_dict = dict(row)
         if query_property_type and not _home_featured_matches_property_type(row_dict, query_property_type):
             continue
-        item = _home_featured_case_public_row(row_dict)
+        item = _home_featured_case_public_row_fast(row_dict)
         if not str(item.get("thumb_url") or "").strip():
             continue
         if int(item.get("image_count") or 0) <= 0:
@@ -4607,11 +4641,6 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         published_items=crawl_settings.get("home_carousel_items"),
     )
     home_featured_preload = {"ok": False, "items": []}
-    if not admin_standalone:
-        try:
-            home_featured_preload = _home_featured_cases_payload(limit=6, offset=0, category="hot")
-        except Exception:
-            home_featured_preload = {"ok": False, "items": []}
     return {
         "request": request,
         "site_name": SITE_NAME,
