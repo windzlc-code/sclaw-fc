@@ -112,6 +112,20 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_content_source_item
                 ON content_items(source_item_id);
 
+            CREATE TABLE IF NOT EXISTS case_investment_metrics (
+                source_item_id INTEGER PRIMARY KEY,
+                metrics_json TEXT NOT NULL,
+                data_quality TEXT NOT NULL DEFAULT '',
+                source_label TEXT NOT NULL DEFAULT '',
+                source_url TEXT NOT NULL DEFAULT '',
+                computed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                source_last_checked_at TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(source_item_id) REFERENCES source_items(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_case_investment_quality
+                ON case_investment_metrics(data_quality, computed_at DESC);
+
             CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
                 title_zh_hant,
                 title_zh_hans,
@@ -520,6 +534,25 @@ def init_db() -> None:
         _ensure_column(conn, "content_items", "walk_min", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(conn, "content_items", "featured_weight", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(conn, "content_items", "listing_media_json", "TEXT NOT NULL DEFAULT '[]'")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS case_investment_metrics (
+                source_item_id INTEGER PRIMARY KEY,
+                metrics_json TEXT NOT NULL,
+                data_quality TEXT NOT NULL DEFAULT '',
+                source_label TEXT NOT NULL DEFAULT '',
+                source_url TEXT NOT NULL DEFAULT '',
+                computed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                source_last_checked_at TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(source_item_id) REFERENCES source_items(id)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_case_investment_quality "
+            "ON case_investment_metrics(data_quality, computed_at DESC)"
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_seo_slug ON content_items(seo_slug)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_source_item ON content_items(source_item_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_intent_target ON content_items(intent_target)")

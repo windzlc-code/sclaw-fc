@@ -4,15 +4,16 @@
 {% set g_prop = listing_panel.gallery_property_urls or [] %}
 {% set g_full = listing_panel.gallery_urls or [] %}
 {% set g_sections = listing_panel.gallery_sections or [] %}
+{% set g_album_all = (g_sections[0].urls if g_sections and g_sections[0].key == 'all' else []) %}
 {% set inv = listing_panel.investment_metrics or {} %}
 {% set fallback_img = '/static/img/listing-image-fallback.svg' %}
 {# 案件詳情：物件圖為空時勿 fallback 到含仲介人像的整包網址，以免主圖顯示業者照片 #}
 {% if restrict_hero_to_property_urls|default(true) %}
-{% set main_u = (g_prop[0] if g_prop else '') or (hero_fallback|default('')) %}
-{% set hero_strip = g_prop %}
+{% set main_u = (g_prop[0] if g_prop else '') or (g_album_all[0] if g_album_all else '') or (hero_fallback|default('')) %}
+{% set hero_strip = g_prop if g_prop else g_album_all %}
 {% else %}
-{% set main_u = (g_prop[0] if g_prop else '') or (hero_fallback|default('')) or (g_full[0] if g_full else '') %}
-{% set hero_strip = g_prop if g_prop else g_full %}
+{% set main_u = (g_prop[0] if g_prop else '') or (g_album_all[0] if g_album_all else '') or (hero_fallback|default('')) or (g_full[0] if g_full else '') %}
+{% set hero_strip = g_prop if g_prop else (g_album_all if g_album_all else g_full) %}
 {% endif %}
 {% set ns_hero = namespace(cands=[]) %}
 {% for u in hero_strip %}
@@ -35,11 +36,9 @@
 {% set _ = ns_hero.cands.append(fallback_img) %}
 {% endif %}
 {% set emdash = '—' %}
-{% set href_trans = translation_tab_href|default('#article-translation') %}
-{% set href_more = more_tab_href|default('#article-more') %}
-{% set tab_trans_label = translation_tab_label|default('站內翻譯') %}
-{% set tab_more_label = more_tab_label|default('相關連結') %}
 {% set narrative_raw = body_narrative|default('')|string %}
+{% set narrative_cleanup_suffix = '以上為站內' ~ '中文' ~ '整理，實際價格、可售狀態與交易條件請以顧問確認為準。' %}
+{% set narrative_clean = narrative_raw|replace(narrative_cleanup_suffix, '')|trim %}
 {% set nar_zh = body_narrative_zh|default('')|string %}
 {% set nar_jp = body_narrative_jp|default('')|string %}
 {% set sid = source_item_id|default(0)|int %}
@@ -79,45 +78,31 @@
     </p>
   </div>
 
-  <div class="portal-suumo-cta-suumo portal-suumo-cta-suumo--integrated" role="group" aria-label="智能顧問與中文對照">
-    {% if sid %}
-    <a class="case-advisor-avatar-cta portal-suumo-cta--advisor-main" href="/?open_support=1&amp;case_sid={{ sid }}" title="開啟首頁對話並帶入本案編號，由智能顧問協助後續">
-      <img src="{{ support_avatar_url }}" alt="" loading="eager" decoding="async" width="58" height="58">
-      <span class="sr-only">智能顧問</span>
-    </a>
-    {% endif %}
-    <a class="portal-suumo-cta portal-suumo-cta--ghost" href="{{ href_trans }}">{{ tab_trans_label }}</a>
+  <div class="portal-suumo-cta-suumo portal-suumo-cta-suumo--integrated" role="group" aria-label="原站操作">
     <a class="portal-suumo-cta portal-suumo-cta--orange" href="{{ item_url }}" target="_blank" rel="nofollow noopener noreferrer" title="資料請求、見學預約等請於原站操作">開啟原站洽詢</a>
   </div>
 
   <div class="portal-suumo-media portal-suumo-media--top{% if g_sections %} portal-suumo-media--album{% endif %}">
     {% if g_sections %}
     <div class="portal-suumo-gallery-invest-layout">
-    <div id="case-gallery" class="portal-suumo-gallery-sections" aria-label="案件圖片分類">
+    <div id="case-gallery" class="portal-suumo-gallery-sections" aria-label="相簿分類">
       {% set total_gallery_count = namespace(n=0) %}
       {% for sec in g_sections %}
       {% set total_gallery_count.n = total_gallery_count.n + (sec.urls|length) %}
       {% endfor %}
       {% if main_u %}
-      <div class="portal-suumo-gallery-stage" aria-label="案件相簿主圖">
+      <div class="portal-suumo-gallery-stage" aria-label="相簿主圖">
         <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--prev" data-gallery-nav="prev" aria-label="上一張">‹</button>
         <figure class="portal-suumo-herofig portal-suumo-gallery-main{% if main_u == fallback_img %} portal-suumo-herofig--fallback{% endif %}{% if main_is_floorplan %} portal-suumo-herofig--floorplan{% endif %}">
-          <img class="portal-suumo-heroimg zoomable-image" src="{{ main_u|case_static_image_url }}" data-full-src="{{ main_u }}" alt="案件主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="720" height="540">
+          <img class="portal-suumo-heroimg zoomable-image" src="{{ main_u|case_static_image_url }}" data-full-src="{{ main_u }}" alt="主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="720" height="540">
         </figure>
         <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--next" data-gallery-nav="next" aria-label="下一張">›</button>
       </div>
       {% endif %}
-      <div class="portal-suumo-gallery-head">
-        <div>
-          <h4>案件圖片</h4>
-          <p>同一相簿內整理本案原站圖片，依來源分區切換查看</p>
-        </div>
-        <span>{{ total_gallery_count.n }} 張</span>
-      </div>
-      <div class="portal-suumo-gallery-tabs" role="tablist" aria-label="案件圖片類型">
+      <div class="portal-suumo-gallery-tabs" role="tablist" aria-label="相簿類型">
         {% for sec in g_sections %}
         {% if sec.urls %}
-        <button type="button" class="portal-suumo-gallery-tab{% if loop.first %} is-active{% endif %}" data-gallery-tab="{{ sec.key }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}" role="tab">
+        <button type="button" class="portal-suumo-gallery-tab{% if sec.is_all %} portal-suumo-gallery-tab--all{% endif %}{% if loop.first %} is-active{% endif %}" data-gallery-tab="{{ sec.key }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}" role="tab">
           {{ sec.label }} <span>{{ sec.count }}</span>
         </button>
         {% endif %}
@@ -126,7 +111,6 @@
       {% for sec in g_sections %}
       {% if sec.urls %}
       <section class="portal-suumo-gallery-section portal-suumo-gallery-section--{{ sec.key }}{% if loop.first %} is-active{% endif %}" data-gallery-pane="{{ sec.key }}" {% if not loop.first %}hidden{% endif %}>
-        <p class="portal-suumo-gallery-section-hint">{{ sec.hint }}</p>
         <div class="portal-suumo-gallery-section-grid">
           {% for u in sec.urls %}
           <a class="portal-suumo-gallery-section-thumb" href="{{ u }}" target="_blank" rel="nofollow noopener noreferrer" title="{{ sec.label }} {{ loop.index }}">
@@ -138,21 +122,53 @@
       {% endif %}
       {% endfor %}
     </div>
-    <aside class="portal-suumo-invest-card" aria-label="租售比資料">
-      <h4>租售比</h4>
-      <p>投資收益參考</p>
-      <table>
-        <tbody>
-          {% for row in inv.rows or [] %}
-          <tr>
-            <th>{{ row.label }}</th>
-            <td>{{ row.value }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <aside class="portal-suumo-invest-card{% if inv.kind == 'rental' %} portal-suumo-invest-card--rental{% endif %}" aria-label="{% if inv.kind == 'rental' %}租賃資料{% else %}收益資料{% endif %}">
+      <div class="portal-suumo-invest-head">
+        <span class="portal-suumo-invest-badge{% if inv.kind == 'rental' %} portal-suumo-invest-badge--rental{% endif %}">{% if inv.kind == 'rental' %}租賃{% else %}出售{% endif %}</span>
+        <span class="portal-suumo-invest-head-copy">收益對比</span>
+      </div>
+      <h4>收益参考</h4>
+      <p>買賣與出租收益資訊</p>
+      <div class="portal-suumo-invest-compare">
+        <section class="portal-suumo-invest-side portal-suumo-invest-side--sale" aria-label="出售側收益">
+          <div class="portal-suumo-invest-side-title">買賣側</div>
+          {% if inv.sale_rows %}
+          <table>
+            <tbody>
+              {% for row in inv.sale_rows %}
+              <tr>
+                <th>{{ row.label }}</th>
+                <td>{{ row.value }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="portal-suumo-invest-empty">目前只取得租賃資料，尚缺可用售價。</div>
+          {% endif %}
+        </section>
+        <section class="portal-suumo-invest-side portal-suumo-invest-side--rent" aria-label="出租側收益">
+          <div class="portal-suumo-invest-side-title">出租側</div>
+          {% if inv.rental_rows %}
+          <table>
+            <tbody>
+              {% for row in inv.rental_rows %}
+              <tr>
+                <th>{{ row.label }}</th>
+                <td>{{ row.value }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="portal-suumo-invest-empty">目前未取得可用租金資訊。</div>
+          {% endif %}
+        </section>
+      </div>
       {% if inv.note %}
-      <div class="portal-suumo-invest-note">{{ inv.note }}</div>
+      <div class="portal-suumo-invest-note">
+        {{ inv.note }}
+      </div>
       {% endif %}
     </aside>
     </div>
@@ -165,7 +181,7 @@
     <figure class="portal-suumo-herofig portal-suumo-herofig--empty" role="img" aria-label="暫無物件主圖">
       <div class="portal-suumo-no-img portal-suumo-no-img--detail">
         <span class="portal-suumo-no-img-title">暫無物件主圖</span>
-        <span class="portal-suumo-no-img-hint">資料庫未擷取到可用物件相片時會顯示此區；請開啟原站查看相簿，或見下方「案件圖片」。</span>
+        <span class="portal-suumo-no-img-hint">資料庫未擷取到可用物件相片時會顯示此區；請開啟原站查看相簿。</span>
       </div>
     </figure>
     {% endif %}
@@ -202,8 +218,8 @@
   <div class="portal-suumo-tabpanels portal-suumo-tabpanels--stacked">
       <section class="portal-suumo-tabpanel is-active" role="tabpanel" data-suumo-panel="tokucho">
         <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>物件特色</h4>
-        {% if narrative_raw and narrative_raw.strip() %}
-        <div class="portal-suumo-narrative {% if nar_zh|trim and narrative_raw|trim == nar_zh|trim %}portal-suumo-narrative--zh{% else %}portal-suumo-narrative--jp{% endif %}">{{ narrative_raw|e }}</div>
+        {% if narrative_clean and narrative_clean.strip() %}
+        <div class="portal-suumo-narrative {% if nar_zh|trim and narrative_clean|trim == nar_zh|trim %}portal-suumo-narrative--zh{% else %}portal-suumo-narrative--jp{% endif %}">{{ narrative_clean|e }}</div>
         {% if nar_zh|trim and nar_jp|trim and (nar_zh|trim != nar_jp|trim) %}
         <details class="portal-suumo-jp-source" style="margin-top:0.65rem;">
           <summary class="muted" style="cursor:pointer;font-size:0.9rem;">原文（日語，展開查看）</summary>
@@ -213,15 +229,15 @@
         {% elif f.staff_message_jp %}
         <div class="portal-suumo-narrative">{{ f.staff_message_jp|e }}</div>
         {% else %}
-        <p class="muted">站內尚無完整中文整理時，請使用頁尾「原始資料」或<strong>開啟原站</strong>。</p>
+        <p class="muted">站內尚無完整摘要時，請使用頁尾「原始資料」或<strong>開啟原站</strong>。</p>
         {% endif %}
-        {% if f.staff_message_jp and narrative_raw and (f.staff_message_jp not in narrative_raw) %}
+        {% if f.staff_message_jp and narrative_clean and (f.staff_message_jp not in narrative_clean) %}
         <div class="portal-suumo-subblock">
           <p class="portal-suumo-subhead">顧問補充</p>
           <p class="portal-suumo-narrative portal-suumo-narrative--sub">{{ f.staff_message_jp|e }}</p>
         </div>
         {% endif %}
-        <p class="muted portal-suumo-inline-links"><a href="{{ href_trans }}">{{ tab_trans_label }}</a> ｜ <a href="{{ href_more }}">{{ tab_more_label }}</a> ｜ <a href="{{ item_url }}" target="_blank" rel="nofollow noopener">原站全文</a></p>
+        <p class="muted portal-suumo-inline-links"><a href="{{ item_url }}" target="_blank" rel="nofollow noopener">原站全文</a></p>
       </section>
 
       <section class="portal-suumo-tabpanel" role="tabpanel" data-suumo-panel="map" hidden>

@@ -20,6 +20,7 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 from src.config import DB_PATH
+from src.homes_media_filter import is_homes_non_property_asset_url, is_homes_non_property_context as shared_homes_non_property_context
 from src.homes_media_token import homes_listing_image_tokens
 from src.portal_property_crawl import PORTAL_BROWSER_HEADERS
 from src.portal_property_playwright import default_playwright_state_path
@@ -75,8 +76,14 @@ def is_homes_property_image_url(url: str) -> bool:
     except Exception:
         path = lu.split("?", 1)[0]
         path_haystack = path
+    try:
+        decoded = unquote(lu)
+    except Exception:
+        decoded = lu
+    if is_homes_non_property_asset_url(u):
+        return False
     if any(
-        bad in lu
+        bad in decoded
         for bad in (
             "icon.lifull",
             "/svg-icon/",
@@ -84,6 +91,25 @@ def is_homes_property_image_url(url: str) -> bool:
             "blank",
             "pixel",
             "avatar",
+            "/gyousha/",
+            "/staff/",
+            "/shop/",
+            "/tenant/",
+            "/spot/",
+            "/ispot/",
+            "/banner/",
+            "/bnr/",
+            "/button",
+            "btn_",
+            "ヤマレバー",
+            "閲覧履歴",
+            "ログイン",
+            "部屋情報",
+            "お部屋情報",
+            "now_printing",
+            "nowprinting",
+            "favorite/dialog",
+            "/hrw/assets/",
         )
     ):
         return False
@@ -93,6 +119,26 @@ def is_homes_property_image_url(url: str) -> bool:
         return True
     return ("homes.jp" in lu or "homes.co.jp" in lu) and any(
         tok in lu for tok in ("/smallimg/", "image.php", "/sale/", "/rent/", "/image/", "/photo/")
+    )
+
+
+def is_homes_non_property_context(text: str) -> bool:
+    if shared_homes_non_property_context(text):
+        return True
+    compact = re.sub(r"\s+", "", str(text or ""))
+    if compact in {"部屋情報", "お部屋情報", "ログイン", "イベント", "閲覧履歴", "お気に入り", "最近見た物件"}:
+        return True
+    return any(
+        token in compact
+        for token in (
+            "ヤマレバー",
+            "スタッフ写真",
+            "店内の様子",
+            "店舗の外観",
+            "不動産会社情報",
+            "株式会社",
+            "有限会社",
+        )
     )
 
 
@@ -237,6 +283,22 @@ def browser_snapshot(page: object, item_url: str, *, image_size: int) -> dict[st
                          'data-img','data-image','data-main-src','srcset','data-srcset'];
           const out = [];
           const abs = (v) => { try { return new URL(v, location.href).href; } catch(e) { return ''; } };
+          const clean = (v) => String(v || '').replace(/\\s+/g, ' ').trim();
+          const contextText = (el) => {
+            const parts = [];
+            ['alt','title','aria-label','data-caption','data-title','data-label','data-category','data-type'].forEach((attr) => {
+              const value = clean(el.getAttribute(attr));
+              if (value) parts.push(value);
+            });
+            const holder = el.closest('figure, li, .photo, .photoList, .detailPhoto, .mod-photo, .swiper-slide, [class*="photo"], [class*="Photo"], [class*="gallery"], [class*="Gallery"]');
+            if (holder) {
+              holder.querySelectorAll('figcaption, caption, .caption, .photoCaption, .comment, .label, .ttl, .title, [class*="caption"], [class*="Caption"], [class*="comment"], [class*="Comment"], [class*="category"], [class*="Category"]').forEach((node) => {
+                const value = clean(node.textContent);
+                if (value && value.length <= 160) parts.push(value);
+              });
+            }
+            return [...new Set(parts)].join(' ');
+          };
           const push = (value, alt, cls) => {
             if (!value) return;
             String(value).split(',').forEach((part) => {
@@ -247,7 +309,7 @@ def browser_snapshot(page: object, item_url: str, *, image_size: int) -> dict[st
             });
           };
           document.querySelectorAll('img, source, picture, [style]').forEach((el) => {
-            const alt = el.getAttribute('alt') || el.getAttribute('aria-label') || '';
+            const alt = contextText(el);
             const cls = String(el.className || '');
             attrs.forEach((attr) => push(el.getAttribute(attr), alt, cls));
             const style = el.getAttribute('style') || '';
@@ -265,11 +327,14 @@ def browser_snapshot(page: object, item_url: str, *, image_size: int) -> dict[st
         u = normalize_homes_image_url(str(raw.get("url") or ""), image_size=image_size)
         if not u or not is_homes_property_image_url(u):
             continue
+        context = clean_text(str(raw.get("alt") or ""), limit=160)
+        if is_homes_non_property_context(context):
+            continue
         key = image_identity(u)
         if key in seen:
             continue
         seen.add(key)
-        images.append({"url": u, "alt": clean_text(str(raw.get("alt") or ""), limit=120)})
+        images.append({"url": u, "alt": context[:120]})
         if len(images) >= 48:
             break
     tokens = homes_listing_image_tokens(item_url)

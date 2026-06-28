@@ -9,9 +9,10 @@ Background:
     `source_items.image_urls`. This script does the same for `listing_media_json`.
 
 Strategy:
-  - Derive listing-specific image tokens from `source_items.item_url` (b-<digits>).
+  - Derive listing-specific image tokens from `source_items.item_url` (b-<digits>) when available.
   - Parse `content_items.listing_media_json` (list of strings/dicts).
-  - Keep only entries whose URL matches any token (or reorder in reorder mode).
+  - Keep only entries whose URL matches any token (or, for token-less chintai
+    pages, entries that pass HOME'S URL/context noise filters).
 
 This script does not fetch network resources; it only rewrites existing DB rows.
 """
@@ -30,6 +31,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.config import DB_PATH
+from src.homes_media_filter import is_homes_non_property_media, media_entry_url_context
 from src.homes_media_token import homes_listing_image_tokens
 
 _URL_KEYS = ("url", "src", "image", "img", "thumbnail", "thumb", "href")
@@ -64,15 +66,13 @@ def _match_any_token(url: str, tokens: tuple[str, ...]) -> bool:
 
 
 def _entry_url(entry) -> str:
-    if isinstance(entry, str):
-        s = entry.strip()
-        return s if s.startswith("http") else ""
-    if isinstance(entry, dict):
-        for k in _URL_KEYS:
-            v = entry.get(k)
-            if v and str(v).strip().startswith("http"):
-                return str(v).strip()
-    return ""
+    url, _context = media_entry_url_context(entry)
+    return url
+
+
+def _entry_is_clean(entry) -> bool:
+    url, context = media_entry_url_context(entry)
+    return bool(url) and not is_homes_non_property_media(url, context)
 
 
 def _dedupe_keep_order(entries: list) -> list:
@@ -158,7 +158,6 @@ def main() -> None:
                 FROM source_items s
                 JOIN content_items c ON c.source_item_id = s.id
                 WHERE lower(COALESCE(s.item_url,'')) LIKE '%homes.co.jp%'
-                  AND instr(lower(COALESCE(s.item_url,'')),'/b-') > 0
                   AND TRIM(COALESCE(c.listing_media_json,'[]')) NOT IN ('', '[]')
                 ORDER BY s.id DESC
                 LIMIT ?
@@ -181,7 +180,22 @@ def main() -> None:
             raw = str(r["listing_media_json"] or "").strip() or "[]"
             tokens = homes_listing_image_tokens(item_url)
             if not tokens:
-                skipped += 1
+                clean_data = _dedupe_keep_order([e for e in data if _entry_is_clean(e)])[:max_entries]
+                new_raw = json.dumps(clean_data, ensure_ascii=False)
+                if new_raw.strip() == raw.strip():
+                    skipped += 1
+                    continue
+                updated += 1
+                if args.dry_run:
+                    continue
+                pending.append((new_raw, sid))
+                if len(pending) >= commit_every:
+                    conn.executemany(
+                        "UPDATE content_items SET listing_media_json = ?, updated_at = CURRENT_TIMESTAMP WHERE source_item_id = ?",
+                        pending,
+                    )
+                    conn.commit()
+                    pending.clear()
                 continue
             try:
                 data = json.loads(raw)
@@ -192,11 +206,12 @@ def main() -> None:
                 skipped += 1
                 continue
 
-            matched = [e for e in data if _match_any_token(_entry_url(e), tokens)]
+            clean_data = [e for e in data if _entry_is_clean(e)]
+            matched = [e for e in clean_data if _match_any_token(_entry_url(e), tokens)]
             if not matched:
                 # Fallback: rebuild from source_items.image_urls when we can.
                 img_lines = [x.strip() for x in str(r["image_urls"] or "").splitlines() if x.strip()]
-                img_matched = [u for u in img_lines if _match_any_token(u, tokens)]
+                img_matched = [u for u in img_lines if _entry_is_clean(u) and _match_any_token(u, tokens)]
                 if not img_matched:
                     no_token_match += 1
                     if not args.clear_when_no_match:
@@ -248,7 +263,7 @@ def main() -> None:
             else:
                 # reorder: matched first, then keep remaining (dedup will remove overlaps)
                 matched_set = {_entry_url(e) for e in matched if _entry_url(e)}
-                tail = [e for e in data if _entry_url(e) and _entry_url(e) not in matched_set]
+                tail = [e for e in clean_data if _entry_url(e) and _entry_url(e) not in matched_set]
                 new_entries = [*matched, *tail]
 
             new_entries = _dedupe_keep_order(new_entries)[:max_entries]

@@ -3,9 +3,11 @@ Offline cleanup for HOMES listings where `source_items.image_urls` contains unre
 recommended-listing thumbnails.
 
 Strategy:
-  - Derive listing-specific image tokens from `item_url` (b-<digits>).
-  - If any image URLs match those tokens, rewrite `image_urls` to keep matches first
-    (or only matches, depending on mode).
+  - Derive listing-specific image tokens from `item_url` (b-<digits>) when available.
+  - Always drop HOME'S page chrome, placeholders and POI UI image URLs.
+  - If tokens are available, rewrite `image_urls` to keep matched images first
+    (or only matches, depending on mode). Token-less chintai pages keep the
+    cleaned URL order.
 
 This script does not fetch network resources; it only rewrites existing DB rows.
 """
@@ -23,6 +25,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.config import DB_PATH
+from src.homes_media_filter import is_homes_non_property_asset_url
 from src.homes_media_token import homes_listing_image_tokens
 
 
@@ -52,6 +55,11 @@ def _match_any_token(url: str, tokens: tuple[str, ...]) -> bool:
     if not tokens:
         return False
     return any(tok in dec for tok in tokens)
+
+
+def _clean_url(url: str) -> bool:
+    s = str(url or "").strip()
+    return bool(s) and not is_homes_non_property_asset_url(s)
 
 
 def main() -> None:
@@ -105,7 +113,6 @@ def main() -> None:
                 SELECT id, item_url, COALESCE(image_urls,'') AS image_urls
                 FROM source_items
                 WHERE lower(COALESCE(item_url,'')) LIKE '%homes.co.jp%'
-                  AND instr(lower(COALESCE(item_url,'')),'/b-') > 0
                   AND trim(COALESCE(image_urls,'')) != ''
                 ORDER BY id DESC
                 LIMIT ?
@@ -125,12 +132,38 @@ def main() -> None:
             item_url = str(r["item_url"] or "").strip()
             blob = str(r["image_urls"] or "")
             tokens = homes_listing_image_tokens(item_url)
-            if not tokens:
-                skipped += 1
-                continue
-            lines = [x.strip() for x in blob.splitlines() if x.strip()]
+            lines = [x.strip() for x in blob.splitlines() if _clean_url(x)]
             if not lines:
-                skipped += 1
+                new_blob = ""
+                if new_blob.strip() == blob.strip():
+                    skipped += 1
+                    continue
+                if args.dry_run:
+                    updated += 1
+                    cleared += 1
+                    continue
+                pending.append((new_blob, sid))
+                updated += 1
+                cleared += 1
+                if len(pending) >= commit_every:
+                    conn.executemany("UPDATE source_items SET image_urls = ? WHERE id = ?", pending)
+                    conn.commit()
+                    pending.clear()
+                continue
+            if not tokens:
+                new_blob = "\n".join(list(dict.fromkeys(lines))[:80])
+                if new_blob.strip() == blob.strip():
+                    skipped += 1
+                    continue
+                if args.dry_run:
+                    updated += 1
+                    continue
+                pending.append((new_blob, sid))
+                updated += 1
+                if len(pending) >= commit_every:
+                    conn.executemany("UPDATE source_items SET image_urls = ? WHERE id = ?", pending)
+                    conn.commit()
+                    pending.clear()
                 continue
             matched = [ln for ln in lines if _match_any_token(ln, tokens)]
             if not matched:

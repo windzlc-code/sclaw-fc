@@ -4,12 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>案件資料需重新整理 | {{ site_name }}</title>
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-legacy-pages-unified-a">
 </head>
-<body class="site-case site-lang-hant">
+<body class="site-home site-case-standalone site-lang-hant">
+  {% include 'partials/site_header.html' %}
   <main class="container case-page-suumo">
-    <section class="panel case-unavailable-panel">
-      <p class="muted" style="margin:0 0 0.5rem;"><a href="{{ case_return_to | default('/#query-dialog', true) }}">{{ case_return_label | default('返回首頁智慧查詢', true) }}</a></p>
+    <header class="suumo-case-brandbar legacy-standalone-brandbar">
+      <span class="suumo-case-brandbar-logo">案件異常</span>
+      <span class="suumo-case-brandbar-src">資料巡檢 ｜ 重新查詢 ｜ public</span>
+    </header>
+    <section class="panel case-suumo-hero-card case-unavailable-panel">
+      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="{{ case_return_to | default('/#query-dialog', true) }}">{{ case_return_label | default('返回首頁智慧查詢', true) }}</a></p>
       <h1 class="case-unavailable-title">案件資料需重新整理</h1>
       <p class="case-unavailable-copy">
         {{ unavailable_reason or "系統已辨識這個編號可能是搜尋列表、FAQ、活動頁或來源站導覽頁，因此不直接當成案件展示，避免首頁與案件頁出現缺圖、欄位不全或錯誤資訊。" }}
@@ -44,5 +49,6 @@
       </p>
     </section>
   </main>
+  {% include 'partials/site_footer.html' %}
 </body>
 </html>

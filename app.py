@@ -78,6 +78,12 @@ from src.support_crm_prompt_defaults import (
     SUPPORT_SIMULATED_SERVICE_TEMPLATES_DEFAULT,
 )
 from src.dialog_ai import run_dialog_ai_summary, run_smart_nav_graph_ai
+from src.homes_media_filter import (
+    clean_homes_listing_media_entries,
+    is_homes_non_property_asset_url,
+    is_homes_non_property_media,
+    media_entry_url_context,
+)
 from src.search_reading_order import run_search_reading_order_ai
 from src.case_metadata import JP_AREA_FILTER_LABELS, infer_case_metadata, transaction_sql_clause
 from src.jp_map_hub_data import HOMES_STYLE_PREF_CLUSTERS, JP_MAP_ORBIT_EAST, JP_MAP_ORBIT_WEST
@@ -148,6 +154,7 @@ from src.site_public_config import (
 )
 from src.startup_case_refresh import (
     case_auto_refresh_status,
+    run_case_investment_backfill_once,
     run_case_auto_refresh_once,
     start_case_auto_refresh_worker,
 )
@@ -1801,8 +1808,6 @@ def _home_featured_case_tags(row: dict[str, Any], meta: dict[str, Any], image_co
     )
     tags: list[str] = []
     transit = str(row.get("case_transit_override") or meta.get("transit_line_zh") or "")
-    if image_count >= 6:
-        tags.append("高图片完整度")
     if re.search(r"新築|新建|新房|公寓|マンション", blob, re.I):
         tags.append("新建公寓")
     if re.search(r"投資|出租|收租|賃貸|租", blob, re.I):
@@ -1811,8 +1816,6 @@ def _home_featured_case_tags(row: dict[str, Any], meta: dict[str, Any], image_co
         tags.append("自住推荐")
     if re.search(r"徒歩|步行|駅|車站|站", transit or blob, re.I):
         tags.append("近站通勤")
-    if price_hint:
-        tags.append("价格可比")
     if not tags:
         tags.append("精选房源")
     out: list[str] = []
@@ -1925,6 +1928,23 @@ def _home_featured_matches_property_type(row: dict[str, Any], property_type: str
     return any(t != "其他" and t in hits for t in selected)
 
 
+def _home_featured_property_type_search_terms(property_type: str) -> tuple[str, ...]:
+    normalized = _normalize_smart_property_types([property_type])
+    if not normalized:
+        return ()
+    if "套房" in normalized:
+        return ("套房", "ワンルーム", "1R", "1K", "studio")
+    if "辦公" in normalized:
+        return ("辦公", "办公", "事務所", "オフィス", "office")
+    if "店面" in normalized:
+        return ("店面", "店舗", "テナント", "shop", "store")
+    if "土地" in normalized:
+        return ("土地", "売地", "tochi", "land")
+    if "別墅/透天" in normalized:
+        return ("別墅", "透天", "一戶建", "一戸建", "戸建", "detached", "villa", "中古一戸建て", "新築一戸建て")
+    return ()
+
+
 def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
     meta = infer_case_metadata(row)
     try:
@@ -2011,6 +2031,14 @@ def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
+    try:
+        meta = infer_case_metadata(row)
+    except Exception:
+        meta = {}
+    try:
+        fields = _extract_listing_fields(row, meta=meta)
+    except Exception:
+        fields = {}
     imgs, _vids = extract_media_urls_from_row(row)
     raw_gallery = _sort_relevant_real_estate_images(
         [
@@ -2042,8 +2070,8 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
     source_name = _home_featured_source_label(
         " ".join(str(x or "") for x in (row.get("source_name"), row.get("item_url"), row.get("title_original")))
     )
-    summary = _home_featured_case_summary(row, {}, price_hint, image_count)
-    tags = _home_featured_case_tags(row, {}, image_count, price_hint)
+    summary = _home_featured_case_summary(row, fields, price_hint, image_count)
+    tags = _home_featured_case_tags(row, fields, image_count, price_hint)
     return {
         "content_id": int(row.get("content_id") or 0),
         "source_item_id": sid,
@@ -2056,16 +2084,22 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
         "jp_region_display_zh": region,
         "transit": transit,
         "transit_line_zh": transit,
-        "address_hint_zh": "",
-        "address_line_jp": "",
+        "address_hint_zh": str(
+            fields.get("address_hint_zh")
+            or fields.get("address_line_hant")
+            or fields.get("address_line_jp")
+            or ""
+        ).strip()[:160],
+        "address_line_jp": str(fields.get("address_line_jp") or "").strip()[:160],
         "price_hint": price_hint,
         "price_text_hant": price_hint,
-        "area_text_hant": "",
-        "exclusive_area_jp": "",
-        "other_area_jp": "",
-        "building_area_jp": "",
-        "land_area_jp": "",
-        "layout_text_hant": str(row.get("layout_text_hant") or "").strip()[:80],
+        "area_text_hant": str(fields.get("area_text_hant") or "").strip()[:80],
+        "exclusive_area_jp": str(fields.get("exclusive_area_jp") or "").strip()[:120],
+        "other_area_jp": str(fields.get("other_area_jp") or "").strip()[:120],
+        "building_area_jp": str(fields.get("building_area_jp") or "").strip()[:80],
+        "land_area_jp": str(fields.get("land_area_jp") or "").strip()[:80],
+        "layout_text_hant": str(fields.get("layout_text_hant") or row.get("layout_text_hant") or "").strip()[:80],
+        "building_type_zh": str(fields.get("building_type_zh") or "").strip()[:80],
         "thumb_url": hero,
         "hero_media_url": hero,
         "gallery_urls": gallery,
@@ -2161,7 +2195,26 @@ def _home_featured_cases_payload(
           )
         """
         params.extend([like, like, like, like])
-    sql_limit = min(36, max(lim * 3, lim + 12))
+    type_terms = _home_featured_property_type_search_terms(query_property_type)
+    type_sql = ""
+    if type_terms:
+        searchable_cols = (
+            "c.case_transaction_override",
+            "c.seo_title",
+            "c.title_zh_hant",
+            "c.title_zh_hans",
+            "c.seo_description",
+            "s.title_original",
+            "s.item_url",
+        )
+        type_clauses: list[str] = []
+        for term in type_terms:
+            term_like = f"%{term}%"
+            for col in searchable_cols:
+                type_clauses.append(f"COALESCE({col}, '') LIKE ?")
+                params.append(term_like)
+        type_sql = f" AND ({' OR '.join(type_clauses)}) "
+    sql_limit = min(240 if type_terms else 36, max(lim * (12 if type_terms else 3), lim + 12))
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -2205,6 +2258,7 @@ def _home_featured_cases_payload(
                 OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
               )
               {region_sql}
+              {type_sql}
             ORDER BY c.updated_at DESC, c.id DESC
             LIMIT ? OFFSET ?
             """,
@@ -2218,6 +2272,9 @@ def _home_featured_cases_payload(
         item = _home_featured_case_public_row_fast(row_dict)
         item_title = str(item.get("title") or item.get("title_original") or "").strip()
         if not item_title or re.search(r"(?:認證|认证|整理|更新).{0,8}(?:進行中|进行中|待確認|待确认)", item_title):
+            continue
+        item_price = str(item.get("price_hint") or item.get("price_text_hant") or "").strip()
+        if not item_price or re.search(r"(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認", item_price, re.I):
             continue
         if not str(item.get("thumb_url") or "").strip():
             continue
@@ -2240,6 +2297,115 @@ def _home_featured_cases_payload(
     }
     _home_featured_cases_cache_set(cache_key, payload)
     return payload
+
+
+_HOME_ROOM_EXPLORE_TYPE_META: tuple[dict[str, str], ...] = (
+    {
+        "property_type": "公寓",
+        "label": "公寓",
+        "title": "先看稳定通勤公寓",
+        "description": "适合自住、通勤和出租比较。",
+    },
+    {
+        "property_type": "大樓",
+        "label": "大楼",
+        "title": "高楼住宅集中比较",
+        "description": "优先看管理、楼层和生活机能。",
+    },
+    {
+        "property_type": "華廈",
+        "label": "华厦",
+        "title": "轻量管理型住宅",
+        "description": "适合想兼顾预算与居住品质的买家。",
+    },
+    {
+        "property_type": "套房",
+        "label": "套房",
+        "title": "小户型先筛一轮",
+        "description": "适合单人自住、出租和低总价试算。",
+    },
+    {
+        "property_type": "別墅/透天",
+        "label": "别墅/透天",
+        "title": "独栋与透天住宅",
+        "description": "重点比较土地、停车和家庭空间。",
+    },
+    {
+        "property_type": "辦公",
+        "label": "办公",
+        "title": "办公资产入口",
+        "description": "适合关注区位、人流和长期持有。",
+    },
+    {
+        "property_type": "店面",
+        "label": "店面",
+        "title": "街面与商用机会",
+        "description": "先看路段、曝光和周边客流。",
+    },
+    {
+        "property_type": "土地",
+        "label": "土地",
+        "title": "土地与开发潜力",
+        "description": "适合先比较面积、用途和所在区域。",
+    },
+    {
+        "property_type": "其他",
+        "label": "其他",
+        "title": "更多特殊物件",
+        "description": "适合补充查看车位、仓储等非典型标的。",
+    },
+)
+
+
+def _home_room_explore_tiles(
+    preloaded_payloads: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    tiles: list[dict[str, Any]] = []
+    used_ids: set[int] = set()
+    payloads = preloaded_payloads or {}
+    for meta in _HOME_ROOM_EXPLORE_TYPE_META:
+        property_type = meta["property_type"]
+        payload = payloads.get(property_type) or {}
+        items = list(payload.get("items") or [])
+        if not items:
+            try:
+                payload = _home_featured_cases_payload(limit=12, offset=0, category="hot", property_type=property_type)
+                items = list(payload.get("items") or [])
+            except Exception:
+                items = []
+        selected: dict[str, Any] | None = None
+        for item in items:
+            sid = int(item.get("source_item_id") or 0)
+            thumb = str(item.get("thumb_url") or item.get("hero_media_url") or "").strip()
+            title = str(item.get("title") or item.get("title_zh_hans") or item.get("title_zh_hant") or "").strip()
+            if not thumb or not title:
+                continue
+            if sid and sid in used_ids:
+                continue
+            selected = item
+            if sid:
+                used_ids.add(sid)
+            break
+        if not selected and items:
+            selected = items[0]
+        selected = selected or {}
+        tiles.append(
+            {
+                **meta,
+                "thumb_url": str(selected.get("thumb_url") or selected.get("hero_media_url") or "").strip(),
+                "case_path": str(selected.get("case_path") or selected.get("article_path") or "").strip(),
+                "case_title": _social_text(
+                    selected.get("title_zh_hans")
+                    or selected.get("title")
+                    or selected.get("title_zh_hant")
+                    or meta["title"],
+                    limit=44,
+                ),
+                "source_name": _social_text(selected.get("source_name") or "", limit=18),
+                "image_count": int(selected.get("image_count") or 0),
+            }
+        )
+    return tiles
 
 
 def _home_intro_script_response(payload: Any | None = None) -> dict[str, Any]:
@@ -4677,7 +4843,30 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         preferred_kind_label="首頁影片",
         published_items=crawl_settings.get("home_carousel_items"),
     )
-    home_featured_preload = {"ok": False, "items": []}
+    try:
+        home_featured_preload = _home_featured_cases_payload(limit=6, offset=0, category="hot")
+    except Exception:
+        home_featured_preload = {"ok": False, "items": []}
+    home_featured_type_preloads: dict[str, dict[str, Any]] = {}
+    for property_type in ("", "公寓", "大樓", "華廈", "套房", "別墅/透天", "辦公", "店面", "土地", "其他"):
+        try:
+            home_featured_type_preloads[property_type] = _home_featured_cases_payload(
+                limit=12,
+                offset=0,
+                category="hot",
+                property_type=property_type,
+            )
+        except Exception:
+            home_featured_type_preloads[property_type] = {
+                "ok": False,
+                "items": [],
+                "limit": 12,
+                "offset": 0,
+                "next_offset": 0,
+                "has_more": False,
+                "category": "hot",
+                "property_type": property_type,
+            }
     return {
         "request": request,
         "site_name": SITE_NAME,
@@ -4695,6 +4884,8 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         "home_hero": home_hero,
         "home_video_carousel": home_video_carousel,
         "home_featured_preload": home_featured_preload,
+        "home_featured_type_preloads": home_featured_type_preloads,
+        "home_room_explore_tiles": _home_room_explore_tiles(home_featured_type_preloads),
         "home_hero_options": [
             {
                 "key": k,
@@ -4796,8 +4987,6 @@ def _build_case_listing_zh_display(case_listing_panel: dict[str, Any]) -> str:
         tag_text = "、".join(str(x).strip() for x in tags if str(x).strip())
         if tag_text:
             rows.append(f"特色：{tag_text[:120]}")
-    if rows:
-        rows.append("以上為站內中文整理，實際價格、可售狀態與交易條件請以顧問確認為準。")
     return "\n".join(rows)[:900]
 
 
@@ -4853,6 +5042,7 @@ def lvr_mirror_page(request: Request):
         request=request,
         name="lvr_proxy.html",
         context={
+            **_site_standalone_context(request),
             "request": request,
             "site_name": SITE_NAME,
             "brand_name": BRAND_NAME,
@@ -5307,7 +5497,17 @@ def _is_non_listing_asset_url(lu: str) -> bool:
         decoded = unquote(s)
     except Exception:
         decoded = s
+    for _ in range(2):
+        try:
+            nxt = unquote(decoded)
+        except Exception:
+            break
+        if nxt == decoded:
+            break
+        decoded = nxt
     hay = f"{s} {decoded}"
+    if is_homes_non_property_asset_url(hay):
+        return True
     if _is_yahoo_listing_image_url(s) and not any(t in hay for t in ("no_image", "noimage", "nf_path")):
         return False
     noisy_tokens = (
@@ -5356,10 +5556,15 @@ def _is_non_listing_asset_url(lu: str) -> bool:
         "/logo/",
         "/sprite/",
         "/banner/",
+        "/bnr/",
+        "/campaign/",
+        "/event/",
+        "/lp/",
         "/button",
         "_button",
         "btn_",
         "/btn",
+        "button_",
         "close_button",
         "bt_to_pagetop",
         "pagetop.png",
@@ -5367,6 +5572,18 @@ def _is_non_listing_asset_url(lu: str) -> bool:
         "menuclose",
         "bukken_baloon",
         "mapfiles/transparent",
+        "/gyousha/",
+        "/gyousha/image/",
+        "/staff/",
+        "/shop/",
+        "/tenant/",
+        "/spot/",
+        "/ispot/",
+        "shopimage",
+        "shop_image",
+        "staffphoto",
+        "company_image",
+        "company-photo",
         "marker",
         "balloon",
         "train",
@@ -5385,6 +5602,20 @@ def _is_non_listing_asset_url(lu: str) -> bool:
         "hatenablog.png",
         "mixi.png",
         "clear.gif",
+        "yamarever",
+        "ヤマレバー",
+        "閲覧履歴",
+        "ログイン",
+        "部屋情報",
+        "お部屋情報",
+        "now_printing",
+        "nowprinting",
+        "now printing",
+        "/hrw/assets/",
+        "favorite/dialog",
+        "dialog-header",
+        "homeskun",
+        "certification-badge",
     )
     if any(t in hay for t in noisy_tokens):
         return True
@@ -5787,29 +6018,11 @@ def extract_media_urls_from_row(row: dict) -> tuple[list[str], list[str]]:
     try:
         lm = json.loads(str(row.get("listing_media_json") or "[]"))
         if isinstance(lm, list):
-            _lm_keys = (
-                "url",
-                "src",
-                "image",
-                "image_url",
-                "imageUrl",
-                "largeUrl",
-                "large_url",
-                "photo",
-                "thumb",
-                "original",
-            )
             for m in lm:
-                cand = ""
-                if isinstance(m, str) and m.strip().startswith("http"):
-                    cand = m.strip()
-                elif isinstance(m, dict):
-                    for k in _lm_keys:
-                        v = m.get(k)
-                        if v and str(v).strip().startswith("http"):
-                            cand = str(v).strip()
-                            break
+                cand, context = media_entry_url_context(m)
                 if not cand:
+                    continue
+                if is_homes_non_property_media(cand, context):
                     continue
                 u = _normalize_listing_image_url_for_display(cand)
                 if u.startswith("http") and _row_image_url_is_usable(u) and u not in img_urls:
@@ -6043,7 +6256,29 @@ def _ensure_case_listing_media_json_for_display(
     except Exception:
         current = []
     if current:
-        return d
+        item_url = str(d.get("item_url") or "")
+        if "homes.co.jp" not in item_url.lower() and "homes.jp" not in item_url.lower():
+            return d
+        raw_media = str(d.get("listing_media_json") or "[]")
+        cleaned_entries = clean_homes_listing_media_entries(raw_media, max_entries=80)
+        if cleaned_entries:
+            cleaned_json = json.dumps(cleaned_entries, ensure_ascii=False)
+            if cleaned_json.strip() != raw_media.strip():
+                d["listing_media_json"] = cleaned_json
+                if persist_if_empty:
+                    sid = int(d.get("source_item_id") or d.get("id") or 0)
+                    if sid > 0:
+                        try:
+                            with get_conn() as conn:
+                                conn.execute(
+                                    "UPDATE content_items SET listing_media_json = ?, updated_at = CURRENT_TIMESTAMP WHERE source_item_id = ?",
+                                    (cleaned_json, sid),
+                                )
+                                conn.commit()
+                        except Exception:
+                            pass
+            return d
+        current = []
     if not (str(d.get("image_urls") or "").strip() or str(d.get("body_original") or "").strip()):
         return d
     try:
@@ -6395,6 +6630,58 @@ def _case_verified_property_gallery_urls(row: dict[str, Any], *, limit: int = 2)
         out.append(su)
         if len(out) >= max(1, int(limit or 1)):
             break
+    if out:
+        return out
+
+    # HOME'S rendered repair images can be same-source and trustworthy even when their
+    # inner CDN token does not match the public b-id. Do not let the older token filter
+    # turn a repaired original-site gallery into an "unavailable" page.
+    item_url = str((row or {}).get("item_url") or "")
+    raw = str((row or {}).get("listing_media_json") or "[]").strip()
+    if raw and ("homes.co.jp" in item_url.lower() or "homes.jp" in item_url.lower()):
+        try:
+            media = json.loads(raw)
+        except Exception:
+            media = []
+        if isinstance(media, list):
+            seen: set[str] = set()
+            for entry in media:
+                if not isinstance(entry, dict):
+                    continue
+                marker = " ".join(str(entry.get(k) or "") for k in ("source", "note")).lower()
+                if "homes_playwright_detail" not in marker and "homes_media_repair" not in marker:
+                    continue
+                raw_url = str(
+                    entry.get("url")
+                    or entry.get("src")
+                    or entry.get("image_url")
+                    or entry.get("imageUrl")
+                    or ""
+                ).strip()
+                u = _normalize_listing_image_url_for_display(
+                    raw_url,
+                    suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                    suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+                )
+                if not u or not _row_image_url_is_usable(u):
+                    continue
+                context = " ".join(
+                    str(entry.get(k) or "")
+                    for k in ("alt", "title", "caption", "label", "name", "kind", "category", "source", "note")
+                )
+                if _case_gallery_context_is_non_property_media(u, context):
+                    continue
+                if is_likely_agent_portrait_image_url(u) or not _is_case_property_gallery_image_url(u):
+                    continue
+                if not _case_gallery_url_matches_source_site(u, item_url):
+                    continue
+                key = _case_gallery_url_identity_key(u) or u
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(u)
+                if len(out) >= max(1, int(limit or 1)):
+                    break
     return out
 
 
@@ -8293,6 +8580,69 @@ def _case_gallery_context_by_url(row: dict[str, Any]) -> dict[str, str]:
     return contexts
 
 
+def _case_gallery_context_is_non_property_media(url: str, context: str = "") -> bool:
+    """Reject page chrome, shop/staff photos, recommendations and UI thumbnails from case galleries."""
+    if is_homes_non_property_media(url, context):
+        return True
+    try:
+        bag = unquote(f"{url} {context}")
+        for _ in range(2):
+            nxt = unquote(bag)
+            if nxt == bag:
+                break
+            bag = nxt
+    except Exception:
+        bag = f"{url} {context}"
+    compact = re.sub(r"\s+", "", bag).lower()
+    if not compact:
+        return False
+    ui_exact = {
+        "部屋情報",
+        "お部屋情報",
+        "周辺",
+        "周邊",
+        "ログイン",
+        "NowPrinting",
+        "イベント",
+        "閲覧履歴",
+        "お気に入り",
+        "最近見た物件",
+        "この物件にお問合せ",
+    }
+    text_only = re.sub(r"https?://\S+", "", str(context or "")).strip()
+    text_compact = re.sub(r"\s+", "", text_only)
+    if text_compact in ui_exact:
+        return True
+    bad_tokens = (
+        "/gyousha/",
+        "/gyousha/image/",
+        "/staff/",
+        "/shop/",
+        "/tenant/",
+        "/spot/",
+        "/ispot/",
+        "shop_image",
+        "shopimage",
+        "company_image",
+        "company-photo",
+        "スタッフ写真",
+        "店内の様子",
+        "店舗の外観",
+        "株式会社",
+        "有限会社",
+        "不動産会社情報",
+        "ヤマレバー",
+        "閲覧履歴",
+        "ログイン",
+        "イベント",
+        "部屋情報",
+        "お部屋情報",
+    )
+    if any(tok.lower() in compact for tok in bad_tokens):
+        return True
+    return False
+
+
 def _case_gallery_category_for_url(url: str, context: str = "") -> str:
     try:
         bag = unquote(f"{url} {context}").lower()
@@ -8317,6 +8667,76 @@ def _case_gallery_category_for_url(url: str, context: str = "") -> str:
     if any(t in bag for t in ("guidance", "outskirts", "shuuhen", "environment", "周辺", "周邊", "案内図", "現地案内", "公園", "道路", "street", "road", "parking", "駐車", "駐輪", "landmark")):
         return "environment"
     return "other"
+
+
+def _case_gallery_category_for_caption(text: str) -> str:
+    try:
+        bag = unquote(str(text or "")).lower()
+    except Exception:
+        bag = str(text or "").lower()
+    if not bag:
+        return "other"
+    if any(t in bag for t in ("間取", "間取り", "平面", "図面", "圖面", "户型", "戶型", "madori", "floorplan", "floor_plan")):
+        return "floorplan"
+    if any(t in bag for t in ("トイレ", "toire", "toilet", "便所", "wc", "廁", "厕")):
+        return "toilet"
+    if any(t in bag for t in ("キッチン", "台所", "kitchen", "廚房", "厨房", "廚", "厨")):
+        return "kitchen"
+    if any(t in bag for t in ("浴室", "風呂", "バス", "洗面", "脱衣", "洗濯", "bath", "powder", "sanitary", "wash")):
+        return "bath"
+    if any(t in bag for t in ("バルコニー", "ベランダ", "テラス", "眺望", "view", "陽台", "阳台", "景觀", "景观")):
+        return "balcony_view"
+    if any(t in bag for t in ("ldk", "リビング", "ダイニング", "洋室", "和室", "寝室", "居室", "室内", "室內", "内装", "內裝", "収納", "closet", "room", "bedroom", "living")):
+        return "interior"
+    if any(t in bag for t in ("外観", "外觀", "建物", "外壁", "エントランス", "現地", "玄関", "入口", "facade", "exterior", "outside", "building")):
+        return "exterior"
+    if any(t in bag for t in ("周辺", "周邊", "道路", "公園", "駐車", "駐輪", "バイク置場", "宅配ボックス", "インターホン", "案内図", "環境", "environment", "parking", "road", "street")):
+        return "environment"
+    return "other"
+
+
+def _case_gallery_caption_category_hints(row: dict[str, Any], *, limit: int) -> list[str]:
+    """Infer source-site photo groups from HOMES/portal detail text when media JSON has no captions."""
+    text = "\n".join(
+        str((row or {}).get(k) or "")
+        for k in ("body_original", "body_zh_hant", "body_zh_hans", "title_original", "title_zh_hant")
+    )
+    if not text.strip():
+        return []
+    marker_positions = [
+        p for p in (
+            text.find("[HOMES 明細補圖]"),
+            text.find("掲載画像"),
+            text.find("案件圖片"),
+        )
+        if p >= 0
+    ]
+    if marker_positions:
+        text = text[min(marker_positions) :]
+    patterns: list[tuple[str, str]] = [
+        ("floorplan", r"間取(?:り)?|平面図|図面|圖面|户型|戶型|madori|floor[ _-]?plan"),
+        ("toilet", r"トイレ|toire|toilet|便所|WC|廁所|厕所"),
+        ("kitchen", r"キッチン|台所|kitchen|廚房|厨房"),
+        ("bath", r"浴室|風呂|バス|洗面|脱衣|洗濯機|bath|powder|sanitary"),
+        ("balcony_view", r"バルコニー|ベランダ|テラス|眺望|陽台|阳台|景觀|景观"),
+        ("interior", r"LDK|リビング|ダイニング|洋室|和室|寝室|居室|室内|室內|内装|內裝|収納|フローリング"),
+        ("exterior", r"外観|外觀|建物|外壁|エントランス|現地|玄関|入口|facade|exterior"),
+        ("environment", r"周辺|周邊|道路|公園|駐車|駐輪|バイク置場|宅配ボックス|インターホン|案内図|環境"),
+    ]
+    hits: list[tuple[int, str]] = []
+    for cat, pat in patterns:
+        for m in re.finditer(pat, text, flags=re.I):
+            hits.append((int(m.start()), cat))
+    hits.sort(key=lambda x: x[0])
+    out: list[str] = []
+    for _, cat in hits:
+        if len(out) >= limit:
+            break
+        if not out or out[-1] != cat:
+            out.append(cat)
+        elif cat in {"interior", "environment"}:
+            out.append(cat)
+    return out[:limit]
 
 
 def _case_gallery_url_matches_source_site(image_url: str, item_url: str) -> bool:
@@ -8421,6 +8841,142 @@ def _case_location_tokens_for_rent_estimate(text: Any) -> list[str]:
 
 
 _CASE_MARKET_RENT_ESTIMATE_CACHE: dict[str, dict[str, Any]] = {}
+_CASE_SOURCE_PRICE_FETCH_CACHE: dict[str, tuple[float, float | None]] = {}
+
+
+def _case_price_man_from_text(text: Any) -> float | None:
+    s = _to_half_width_num(str(text or "")).replace(",", "")
+    for pat, div in (
+        (r"(?:価格|總價|总价|售價|售价|販売価格)?[^0-9]{0,18}([0-9]+(?:\.[0-9]+)?)\s*(?:萬|万)", 1.0),
+        (r"(?:価格|總價|总价|售價|售价|販売価格)?[^0-9]{0,18}([0-9]{5,})\s*(?:日圓|円|日元)", 10000.0),
+    ):
+        m = re.search(pat, s, flags=re.I)
+        if not m:
+            continue
+        try:
+            val = float(m.group(1)) / div
+        except Exception:
+            continue
+        if 10 <= val <= 1000000:
+            return val
+    return None
+
+
+def _case_source_live_price_man(row: dict[str, Any]) -> float | None:
+    url = str((row or {}).get("item_url") or "").strip()
+    if not url or not re.match(r"^https?://", url, flags=re.I):
+        return None
+    cached = _CASE_SOURCE_PRICE_FETCH_CACHE.get(url)
+    now = time.time()
+    if cached and now - float(cached[0] or 0) < 6 * 3600:
+        return cached[1]
+    price: float | None = None
+    try:
+        with httpx.Client(timeout=httpx.Timeout(5.5, connect=2.0), follow_redirects=True, headers=BROWSER_HEADERS) as client:
+            res = client.get(url)
+        if res.status_code < 400 and res.text:
+            text = soup_from_html(res.text).get_text(" ", strip=True)
+            price = _case_price_man_from_text(text[:50000])
+    except Exception:
+        price = None
+    _CASE_SOURCE_PRICE_FETCH_CACHE[url] = (now, price)
+    return price
+
+
+_CASE_PUBLIC_RENT_MARKET_ROWS: list[dict[str, Any]] = [
+    {
+        "match": ("福岡市西区", "福岡県福岡市西区"),
+        "layout_monthly_man": {"1LDK": 7.4, "2LDK": 11.33, "3LDK": 13.4},
+        "source_label": "LIFULL HOME'S 家賃相場（福岡市西区）",
+        "source_url": "https://www.homes.co.jp/chintai/fukuoka/fukuoka_nishi-city/price/",
+        "updated_hint": "公開家租相場頁，站內按格局與面積做保守估算",
+    },
+]
+
+
+def _case_layout_market_key(layout: str) -> str:
+    raw = _to_half_width_num(str(layout or ""))
+    m_rooms = re.search(r"([1-6])\s*房", raw)
+    if m_rooms:
+        rooms = int(m_rooms.group(1))
+        if rooms <= 1:
+            return "1LDK"
+        if rooms == 2:
+            return "2LDK"
+        if rooms == 3:
+            return "3LDK"
+        return "4LDK"
+    s = _case_extract_layout_key(raw)
+    if not s:
+        return ""
+    if s.startswith("1"):
+        return "1LDK"
+    if s.startswith("2"):
+        return "2LDK"
+    if s.startswith("3"):
+        return "3LDK"
+    if s.startswith("4") or s.startswith("5") or s.startswith("6"):
+        return "4LDK"
+    return s
+
+
+def _case_public_market_rent_estimate(row: dict[str, Any], fields: dict[str, Any], price_man: float | None) -> dict[str, Any]:
+    target_blob = "\n".join(
+        str(x or "")
+        for x in (
+            (fields or {}).get("address_line_original_jp"),
+            (fields or {}).get("address_line_jp"),
+            (fields or {}).get("address_line_hant"),
+            (fields or {}).get("access_line_original_jp"),
+            (fields or {}).get("layout_text_hant"),
+            (fields or {}).get("area_text_hant"),
+            (row or {}).get("title_original"),
+            (row or {}).get("body_original"),
+            (row or {}).get("body_zh_hant"),
+        )
+    )
+    if not target_blob.strip():
+        return {}
+    target_area = _case_extract_area_sqm((fields or {}).get("area_text_hant")) or _case_extract_area_sqm(target_blob)
+    layout_key = _case_layout_market_key(str((fields or {}).get("layout_text_hant") or target_blob))
+    if not layout_key:
+        return {}
+    row_match = None
+    for market in _CASE_PUBLIC_RENT_MARKET_ROWS:
+        if any(str(token or "") and str(token) in target_blob for token in market.get("match") or ()):
+            row_match = market
+            break
+    if not row_match:
+        return {}
+    monthly_map = dict(row_match.get("layout_monthly_man") or {})
+    monthly_man = monthly_map.get(layout_key)
+    if monthly_man is None and layout_key == "4LDK":
+        monthly_man = monthly_map.get("3LDK")
+        if monthly_man is not None:
+            monthly_man = float(monthly_man) * 1.12
+    if monthly_man is None:
+        return {}
+    monthly_man = float(monthly_man)
+    nominal_area = {"1LDK": 42.0, "2LDK": 60.0, "3LDK": 72.0, "4LDK": 88.0}.get(layout_key)
+    if target_area and nominal_area:
+        area_factor = max(0.86, min(1.16, 0.72 + 0.28 * (float(target_area) / nominal_area)))
+        monthly_man *= area_factor
+    if not (1 <= monthly_man <= 300):
+        return {}
+    annual_man = monthly_man * 12
+    out: dict[str, Any] = {
+        "monthly_man": monthly_man,
+        "annual_man": annual_man,
+        "source_label": str(row_match.get("source_label") or "公開家租相場"),
+        "source_url": str(row_match.get("source_url") or ""),
+        "updated_hint": str(row_match.get("updated_hint") or ""),
+        "layout_key": layout_key,
+    }
+    if price_man:
+        yield_pct = annual_man / price_man * 100
+        if 0.5 <= yield_pct <= 18:
+            out["yield_pct"] = yield_pct
+    return out
 
 
 def _case_market_rent_estimate(row: dict[str, Any], fields: dict[str, Any], price_man: float | None) -> dict[str, Any]:
@@ -8593,7 +9149,167 @@ def _case_market_rent_estimate(row: dict[str, Any], fields: dict[str, Any], pric
     return result
 
 
-def _case_investment_metrics(row: dict[str, Any], fields: dict[str, Any]) -> dict[str, Any]:
+def _case_investment_metrics_from_cache(source_item_id: Any) -> dict[str, Any] | None:
+    try:
+        sid = int(source_item_id or 0)
+    except Exception:
+        sid = 0
+    if sid <= 0:
+        return None
+    try:
+        with get_conn() as conn:
+            rec = conn.execute(
+                "SELECT metrics_json FROM case_investment_metrics WHERE source_item_id = ?",
+                (sid,),
+            ).fetchone()
+    except Exception:
+        return None
+    if not rec:
+        return None
+    try:
+        payload = json.loads(str(rec["metrics_json"] or "{}"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("rows"), list):
+        return None
+    return payload
+
+
+def _case_investment_metrics_quality(metrics: dict[str, Any]) -> str:
+    if not isinstance(metrics, dict):
+        return "missing"
+    if not bool(metrics.get("has_income_data")):
+        return "missing"
+    if not bool(metrics.get("estimated")):
+        return "actual_source"
+    note = str(metrics.get("note") or "")
+    if str(metrics.get("source_url") or "").strip():
+        return "public_market_estimate"
+    if "租賃樣本" in note:
+        return "db_rent_sample_estimate"
+    return "estimate"
+
+
+def _case_investment_metrics_for_display(metrics: dict[str, Any]) -> dict[str, Any]:
+    out = dict(metrics or {})
+    clean_rows: list[dict[str, str]] = []
+    label_map = {
+        "滿租租售比": "收益率",
+        "現行租售比": "收益率",
+        "年收入（滿租時）": "年收入",
+        "年收入（現行）": "年收入",
+    }
+    for raw in out.get("rows") or []:
+        if not isinstance(raw, dict):
+            continue
+        label = str(raw.get("label") or "")
+        value = str(raw.get("value") or "")
+        if value.strip() == "—" and label in {"現行租售比", "年收入（現行）"}:
+            continue
+        label = label_map.get(label, label)
+        value = re.sub(r"（(?:多站均值估|租賃樣本估|市況估|估|原站補抓)）", "", value)
+        clean_rows.append({"label": label, "value": value})
+    row_values = {str(r.get("label") or ""): str(r.get("value") or "") for r in clean_rows}
+
+    def _num_from_value(value: Any) -> float | None:
+        m = re.search(r"([0-9]+(?:\.[0-9]+)?)", str(value or ""))
+        if not m:
+            return None
+        try:
+            return float(m.group(1))
+        except Exception:
+            return None
+
+    def _num_from_row(label: str) -> float | None:
+        return _num_from_value(row_values.get(label))
+
+    sale_rows: list[dict[str, str]] = []
+    rental_rows: list[dict[str, str]] = []
+    if out.get("kind") != "rental":
+        existing_labels = {r.get("label") for r in clean_rows}
+        annual_man = _num_from_row("年收入")
+        yield_pct = _num_from_row("收益率")
+        if annual_man and "月租参考" not in existing_labels:
+            monthly_row = {
+                "label": "月租参考",
+                "value": f"約 {_fmt_number_zh(annual_man / 12.0, max_decimals=1)} 萬日圓",
+            }
+            clean_rows.append(monthly_row)
+            row_values[monthly_row["label"]] = monthly_row["value"]
+            existing_labels.add("月租参考")
+        if yield_pct and yield_pct > 0 and "回收参考" not in existing_labels:
+            payback_row = {
+                "label": "回收参考",
+                "value": f"約 {_fmt_number_zh(100.0 / yield_pct, max_decimals=1)} 年",
+            }
+            clean_rows.append(payback_row)
+            row_values[payback_row["label"]] = payback_row["value"]
+        for label in ("總價（含稅）", "收益率", "年收入", "回收参考"):
+            value = row_values.get(label)
+            if value and value != "—":
+                sale_rows.append({"label": label, "value": value})
+        monthly_value = row_values.get("月租参考")
+        annual_value = row_values.get("年收入")
+        yield_value = row_values.get("收益率")
+        if monthly_value and monthly_value != "—":
+            rental_rows.append({"label": "月租参考", "value": monthly_value})
+        if annual_value and annual_value != "—":
+            rental_rows.append({"label": "年租参考", "value": annual_value})
+    else:
+        rental_rows = [dict(r) for r in clean_rows if str(r.get("value") or "") != "—"]
+    out["rows"] = clean_rows
+    if out.get("kind") != "rental":
+        out["kind"] = "sale"
+    out["sale_rows"] = sale_rows
+    out["rental_rows"] = rental_rows
+    out["has_sale_data"] = bool(sale_rows)
+    out["has_rental_data"] = bool(rental_rows)
+    if out.get("kind") == "rental":
+        out["note"] = "租賃房源"
+    elif bool(out.get("has_income_data")):
+        out["note"] = "收益資料僅供參考，實際條件請以顧問確認為準。"
+    else:
+        out["note"] = "暫無可用收益資料。"
+    out["source_url"] = ""
+    return out
+
+
+def _case_investment_metrics(
+    row: dict[str, Any],
+    fields: dict[str, Any],
+    *,
+    use_cache: bool = True,
+    allow_live_price: bool = False,
+    allow_estimates: bool = True,
+) -> dict[str, Any]:
+    item_url = str((row or {}).get("item_url") or "")
+    transaction_hint = str(
+        (fields or {}).get("transaction_text_hant")
+        or (fields or {}).get("transaction_text_original")
+        or (row or {}).get("case_transaction_override")
+        or ""
+    )
+    if "/chintai/" in item_url or re.search(r"(賃貸|出租|租賃|月租)", transaction_hint):
+        rows = [
+            {"label": "月租", "value": str((fields or {}).get("price_text_hant") or "—")},
+            {"label": "格局", "value": str((fields or {}).get("layout_text_hant") or "—")},
+            {"label": "面積", "value": str((fields or {}).get("area_text_hant") or "—")},
+        ]
+        return _case_investment_metrics_for_display({
+            "kind": "rental",
+            "rows": rows,
+            "has_income_data": False,
+            "estimated": False,
+            "note": "本案為租賃房源，已標注為租賃。",
+            "source_url": "",
+            "data_quality": "missing",
+        })
+
+    if use_cache:
+        cached = _case_investment_metrics_from_cache((row or {}).get("id") or (row or {}).get("source_item_id"))
+        if cached:
+            return _case_investment_metrics_for_display(cached)
+
     def _clean(text: Any) -> str:
         return re.sub(r"\s+", " ", str(text or "")).strip()
 
@@ -8606,24 +9322,13 @@ def _case_investment_metrics(row: dict[str, Any], fields: dict[str, Any]) -> dic
     blob_hw = _to_half_width_num(blob).replace(",", "")
     price_text = _clean((fields or {}).get("price_text_hant"))
 
-    def _man_from_text(text: str) -> float | None:
-        s = _to_half_width_num(str(text or "")).replace(",", "")
-        for pat, div in (
-            (r"([0-9]+(?:\.[0-9]+)?)\s*(?:萬|万)", 1.0),
-            (r"([0-9]{5,})\s*(?:日圓|円|日元)", 10000.0),
-        ):
-            m = re.search(pat, s)
-            if m:
-                try:
-                    val = float(m.group(1)) / div
-                    return val if val > 0 else None
-                except Exception:
-                    return None
-        return None
-
-    price_man = _man_from_text(price_text)
+    price_man = _case_price_man_from_text(price_text)
     if price_man is None:
-        price_man = _man_from_text(blob_hw)
+        price_man = _case_price_man_from_text(blob_hw)
+    if price_man is None and allow_live_price:
+        price_man = _case_source_live_price_man(row)
+        if price_man and not price_text:
+            price_text = f"約 {_fmt_number_zh(price_man, max_decimals=0)} 萬日圓（原站補抓）"
 
     def _yield_value(*tokens: str) -> str:
         if not blob_hw:
@@ -8677,33 +9382,55 @@ def _case_investment_metrics(row: dict[str, Any], fields: dict[str, Any]) -> dic
 
     note = ""
     estimated = False
-    if price_man and (not gross_yield or not annual_full):
+    source_url = ""
+    if allow_estimates and price_man and (not gross_yield or not annual_full):
         est = _case_market_rent_estimate(row, fields, price_man)
         if est:
             estimated = True
             if not annual_full:
                 annual_full_man = float(est["annual_man"])
-                annual_full = f"約 {_fmt_number_zh(annual_full_man, max_decimals=1)} 萬日圓（估）"
+                annual_full = f"約 {_fmt_number_zh(annual_full_man, max_decimals=1)} 萬日圓"
             if not gross_yield:
-                gross_yield = f"約 {float(est['yield_pct']):.2f} %（估）"
-            note = f"原站未提供完整租金或利回資料；已用站內租賃樣本估算（{int(est.get('sample_count') or 0)}筆）。"
+                gross_yield = f"約 {float(est['yield_pct']):.2f} %"
+            note = "收益資料僅供參考，實際條件請以顧問確認為準。"
+
+    if allow_estimates and (not annual_full or not gross_yield):
+        market_est = _case_public_market_rent_estimate(row, fields, price_man)
+        if market_est:
+            estimated = True
+            annual_market_man = float(market_est["annual_man"])
+            annual_market = f"約 {_fmt_number_zh(annual_market_man, max_decimals=1)} 萬日圓"
+            yield_market = ""
+            if market_est.get("yield_pct") is not None:
+                yield_market = f"約 {float(market_est['yield_pct']):.2f} %"
+            if not annual_full:
+                annual_full_man = annual_market_man
+                annual_full = annual_market
+            if not gross_yield and yield_market:
+                gross_yield = yield_market
+            source_label = str(market_est.get("source_label") or "公開家租相場")
+            source_url = str(market_est.get("source_url") or "")
+            note = "收益資料僅供參考，實際條件請以顧問確認為準。"
+            if not yield_market and not price_man:
+                note = "暫無可用收益資料。"
 
     rows = [
         {"label": "總價（含稅）", "value": price_text or "—"},
-        {"label": "滿租租售比", "value": gross_yield or "—"},
-        {"label": "年收入（滿租時）", "value": annual_full or "—"},
-        {"label": "現行租售比", "value": current_yield or "—"},
-        {"label": "年收入（現行）", "value": annual_current or "—"},
+        {"label": "收益率", "value": gross_yield or current_yield or "—"},
+        {"label": "年收入", "value": annual_full or annual_current or "—"},
     ]
     has_income_data = any(r["value"] != "—" for r in rows[1:])
     if not note and not has_income_data:
-        note = "原站未提供租金或利回資料，且站內暫無足夠可比租賃樣本。"
-    return {"rows": rows, "has_income_data": has_income_data, "estimated": estimated, "note": note}
+        note = "暫無可用收益資料。"
+    out = {"rows": rows, "has_income_data": has_income_data, "estimated": estimated, "note": note, "source_url": source_url}
+    out["data_quality"] = _case_investment_metrics_quality(out)
+    return _case_investment_metrics_for_display(out)
 
 
 def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str], aux_urls: list[str], agent_urls: list[str]) -> list[dict[str, Any]]:
     context_by_key = _case_gallery_context_by_url(row)
     item_url = str((row or {}).get("item_url") or "")
+    homes_structured_media = bool(context_by_key) and ("homes.co.jp" in item_url.lower() or "homes.jp" in item_url.lower())
     raw_sources: list[str] = []
     for group in (
         property_urls,
@@ -8717,12 +9444,16 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
     categories: dict[str, list[str]] = {
         "floorplan": [],
         "interior": [],
+        "kitchen": [],
+        "bath": [],
+        "toilet": [],
         "kitchen_bath": [],
         "exterior": [],
         "balcony_view": [],
         "environment": [],
         "other": [],
     }
+    accepted_index = 0
     seen: set[str] = set()
     agent_keys = {
         _case_gallery_url_identity_key(
@@ -8741,12 +9472,18 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         key = _case_gallery_url_identity_key(u) or u
         if key in seen:
             continue
+        if homes_structured_media and key not in context_by_key:
+            continue
+        context = context_by_key.get(key, "")
+        if _case_gallery_context_is_non_property_media(u, context):
+            continue
         seen.add(key)
         if key in agent_keys or is_likely_agent_portrait_image_url(u):
             continue
-        if not _is_case_property_gallery_image_url(u) and _case_gallery_category_for_url(u, context_by_key.get(key, "")) != "floorplan":
+        if not _is_case_property_gallery_image_url(u) and _case_gallery_category_for_url(u, context) != "floorplan":
             continue
-        cat = _case_gallery_category_for_url(u, context_by_key.get(key, ""))
+        cat = _case_gallery_category_for_url(u, context)
+        accepted_index += 1
         categories.setdefault(cat, []).append(u)
 
     order = [
@@ -8759,14 +9496,29 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         ("exterior", "室外圖", "建物外觀、入口與外部立面"),
         ("balcony_view", "景觀圖", "陽台、露台與窗外視野"),
         ("environment", "環境圖", "道路、停車、周邊設施與環境照片"),
-        ("other", "全部圖片", "來源相簿中未標註類型的本案圖片"),
+        ("other", "未分類", "來源相簿中未標註類型的本案圖片"),
     ]
-    sections: list[dict[str, Any]] = []
+    typed_sections: list[dict[str, Any]] = []
+    all_urls: list[str] = []
     for key, label, hint in order:
         urls = categories.get(key) or []
         if not urls:
             continue
-        sections.append({"key": key, "label": label, "hint": hint, "urls": urls, "count": len(urls)})
+        all_urls.extend(urls)
+        typed_sections.append({"key": key, "label": label, "hint": hint, "urls": urls, "count": len(urls), "is_all": False})
+    sections: list[dict[str, Any]] = []
+    if all_urls:
+        sections.append(
+            {
+                "key": "all",
+                "label": "全部圖片",
+                "hint": "已依圖片類型排序；輪播會先播完同一類型，再接續下一類型。",
+                "urls": all_urls,
+                "count": len(all_urls),
+                "is_all": True,
+            }
+        )
+    sections.extend(typed_sections)
     return sections
 
 
@@ -19103,6 +19855,7 @@ def social_case_workbench_page(request: Request):
         request=request,
         name="social_case_workbench.html",
         context={
+            **_site_standalone_context(request),
             "request": request,
             "site_name": SITE_NAME,
             "brand_name": BRAND_NAME,
@@ -19178,6 +19931,16 @@ def api_social_case_workbench(
 @app.get("/api/social-case-workbench/data-refresh")
 def api_social_case_workbench_data_refresh():
     return JSONResponse({"ok": True, "data_refresh": case_auto_refresh_status(), "quality_batch": case_quality_batch_status()})
+
+
+@app.post("/api/social-case-workbench/investment-metrics-refresh")
+def api_social_case_workbench_investment_metrics_refresh(payload: dict[str, Any] = Body(default={})):
+    body = dict(payload or {})
+    limit = max(1, min(5000, int(body.get("limit") or 200)))
+    only_missing = bool(body.get("only_missing", True))
+    report = run_case_investment_backfill_once(limit=limit, only_missing=only_missing)
+    _invalidate_case_data_caches()
+    return JSONResponse({"ok": bool(report.get("ok")), "investment_metrics": report})
 
 
 @app.post("/api/social-case-workbench/data-refresh")
@@ -25156,6 +25919,7 @@ def seo_draft_page(request: Request, slug: str):
         request=request,
         name="seo_draft.html",
         context={
+            **_site_standalone_context(request),
             "request": request,
             "site_name": SITE_NAME,
             "site_url": get_effective_site_url(),
@@ -26180,13 +26944,10 @@ def company_page(request: Request):
         request=request,
         name="company.html",
         context={
-            "request": request,
-            "site_name": SITE_NAME,
-            "brand_name": BRAND_NAME,
+            **_site_standalone_context(request),
             "company_profile": COMPANY_PROFILE,
             "company_tabs": COMPANY_TABS,
             "knowledge_sources": KNOWLEDGE_SOURCES,
-            "support_avatar_url": get_support_avatar_url(),
         },
     )
 
@@ -26197,6 +26958,7 @@ def tw_seo_guide(request: Request):
         request=request,
         name="seo_guide.html",
         context={
+            **_site_standalone_context(request),
             "request": request,
             "site_name": SITE_NAME,
             "brand_name": BRAND_NAME,
@@ -26213,6 +26975,7 @@ def manual_summary_page(request: Request):
         request=request,
         name="manual_summary.html",
         context={
+            **_site_standalone_context(request),
             "request": request,
             "site_name": SITE_NAME,
             "brand_name": BRAND_NAME,
@@ -26244,6 +27007,7 @@ def market_detail_page(
         request=request,
         name="market_detail.html",
         context={
+            **_site_standalone_context(request),
             "request": request,
             "site_name": SITE_NAME,
             "brand_name": BRAND_NAME,
@@ -26339,6 +27103,8 @@ def source_case_page(request: Request, source_item_id: int):
             item["image_urls"] = str(_le_snap.get("image_urls") or "")
         else:
             item["image_urls"] = str(item.get("image_urls") or "")
+        if str(_le_snap.get("listing_media_json") or "").strip():
+            item["listing_media_json"] = str(_le_snap.get("listing_media_json") or "[]")
         item = _ensure_case_listing_media_json_for_display(item)
     _persist_live_enrich_snapshot_if_enabled(int(source_item_id), _le_snap)
     missing_gallery_reason = _case_missing_verified_gallery_unavailable_reason(item, case_listing_panel)
@@ -26376,6 +27142,21 @@ def source_case_page(request: Request, source_item_id: int):
         if str(u).strip() and _is_case_property_gallery_image_url(str(u).strip())
     ]
     agent_panel = [str(u).strip() for u in (case_listing_panel.get("gallery_agent_urls") or []) if str(u).strip()]
+    gallery_context_by_key = _case_gallery_context_by_url(item)
+
+    def _case_gallery_url_has_clean_context(u: str) -> bool:
+        nu = _normalize_listing_image_url_for_display(
+            str(u or "").strip(),
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+        if not nu:
+            return False
+        key = _case_gallery_url_identity_key(nu) or nu
+        return not _case_gallery_context_is_non_property_media(nu, gallery_context_by_key.get(key, ""))
+
+    prop_panel = [u for u in prop_panel if _case_gallery_url_has_clean_context(u)]
+    agent_panel = [u for u in agent_panel if _case_gallery_url_has_clean_context(u)]
 
     disp_prop: list[str]
     disp_agent: list[str]
@@ -26401,7 +27182,7 @@ def source_case_page(request: Request, source_item_id: int):
         display_imgs = [
             u
             for u in (list(primary_imgs or []) + list(raw_imgs or []))
-            if _is_case_property_gallery_image_url(u)
+            if _is_case_property_gallery_image_url(u) and _case_gallery_url_has_clean_context(u)
         ][:detail_gallery_limit]
         disp_prop_raw: list[str] = []
         disp_agent_raw: list[str] = []
@@ -26411,7 +27192,9 @@ def source_case_page(request: Request, source_item_id: int):
             else:
                 disp_prop_raw.append(u)
         if not disp_prop_raw:
-            disp_prop_raw = [u for u in raw_imgs if _is_case_property_gallery_image_url(u)][:detail_gallery_limit]
+            disp_prop_raw = [
+                u for u in raw_imgs if _is_case_property_gallery_image_url(u) and _case_gallery_url_has_clean_context(u)
+            ][:detail_gallery_limit]
         if not disp_prop_raw:
             disp_prop_raw = list(display_imgs)[:detail_gallery_limit]
         disp_prop = _dedupe_case_gallery_urls(
@@ -26446,7 +27229,7 @@ def source_case_page(request: Request, source_item_id: int):
         fb = [
             _normalize_listing_image_url_for_display(u, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
             for u in raw_imgs
-            if _is_case_property_gallery_image_url(u)
+            if _is_case_property_gallery_image_url(u) and _case_gallery_url_has_clean_context(u)
         ][:detail_gallery_limit]
         disp_prop = _dedupe_case_gallery_urls(fb, suumo_w=_SOURCE_IMAGE_HIGH_RES_W, suumo_h=_SOURCE_IMAGE_HIGH_RES_H)
         disp_prop = sort_property_image_urls_for_hero(disp_prop)
@@ -26456,7 +27239,7 @@ def source_case_page(request: Request, source_item_id: int):
 
     seen_main = {_case_img_norm_key(u) for u in disp_prop} | {_case_img_norm_key(u) for u in disp_agent}
     aux_pool = [u for u in raw_imgs if _case_img_norm_key(u) not in seen_main]
-    aux_imgs = [u for u in aux_pool if _is_case_property_gallery_image_url(u)][:20]
+    aux_imgs = [u for u in aux_pool if _is_case_property_gallery_image_url(u) and _case_gallery_url_has_clean_context(u)][:20]
     _case_image_prefetch(list(disp_prop[:8]) + list(disp_agent[:4]) + list(aux_imgs[:4]), limit=12)
     item["case_media_images"] = disp_prop
     item["case_agent_images"] = disp_agent
@@ -27717,7 +28500,13 @@ def _enrich_listing_row_from_live_page(row: dict[str, Any]) -> dict[str, Any] | 
             ) and len(bo0.strip()) > 800:
             return None
 
-    def _merged_result(title: str, body_original: str, imgs: list[str]) -> dict[str, Any] | None:
+    def _merged_result(
+        title: str,
+        body_original: str,
+        imgs: list[str],
+        *,
+        media_entries: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any] | None:
         if not str(body_original or "").strip() and not imgs:
             return None
         d = dict(row)
@@ -27738,6 +28527,45 @@ def _enrich_listing_row_from_live_page(row: dict[str, Any]) -> dict[str, Any] | 
             d["image_urls"] = "\n".join(merged[:60])
         elif homes_tokens:
             d["image_urls"] = ""
+        if media_entries:
+            entries: list[dict[str, Any]] = []
+            seen_media: set[str] = set()
+            for entry in media_entries:
+                if not isinstance(entry, dict):
+                    continue
+                raw_url = str(entry.get("url") or "").strip()
+                if not raw_url:
+                    continue
+                entry_context = " ".join(
+                    str(entry.get(tk) or "").strip()
+                    for tk in ("alt", "title", "caption", "label", "kind", "category", "note", "source")
+                    if str(entry.get(tk) or "").strip()
+                )
+                if is_homes_non_property_media(raw_url, entry_context):
+                    continue
+                u = _normalize_listing_image_url_for_display(
+                    raw_url,
+                    suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                    suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+                )
+                key = _case_gallery_url_identity_key(u) or u
+                if not key or key in seen_media:
+                    continue
+                seen_media.add(key)
+                out_entry: dict[str, Any] = {
+                    "type": "image",
+                    "url": u,
+                    "source": str(entry.get("source") or "homes_playwright_detail"),
+                }
+                for tk in ("alt", "title", "caption", "label", "kind", "category", "note"):
+                    tv = str(entry.get(tk) or "").strip()
+                    if tv:
+                        out_entry[tk] = tv[:220]
+                entries.append(out_entry)
+                if len(entries) >= 60:
+                    break
+            if entries:
+                d["listing_media_json"] = json.dumps(entries, ensure_ascii=False)
         return d
 
     def _homes_playwright_result() -> dict[str, Any] | None:
@@ -27751,10 +28579,12 @@ def _enrich_listing_row_from_live_page(row: dict[str, Any]) -> dict[str, Any] | 
             return None
         if not pw or not pw.get("ok"):
             return None
+        images = [x for x in (pw.get("images") or []) if isinstance(x, dict)]
         return _merged_result(
             str(pw.get("title") or ""),
             str(pw.get("body_original") or ""),
             list(pw.get("image_urls") or []),
+            media_entries=images,
         )
 
     try:
@@ -27828,6 +28658,15 @@ def _persist_live_enrich_snapshot_if_enabled(
                     sid,
                 ),
             )
+            if str(snap.get("listing_media_json") or "").strip():
+                conn.execute(
+                    """
+                    UPDATE content_items
+                    SET listing_media_json = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE source_item_id = ?
+                    """,
+                    (str(snap.get("listing_media_json") or "[]"), sid),
+                )
             conn.commit()
     except Exception:
         pass
@@ -28429,6 +29268,7 @@ def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:
             "title_original": str(d.get("title_original") or ""),
             "body_original": str(d.get("body_original") or ""),
             "image_urls": str(d.get("image_urls") or ""),
+            "listing_media_json": str(d.get("listing_media_json") or ""),
         }
     return out
 
@@ -28543,6 +29383,7 @@ def article_page(request: Request, slug: str):
         request=request,
         name="article.html",
         context={
+            **_site_standalone_context(request),
             "request": request,
             "item": item,
             "site_name": SITE_NAME,

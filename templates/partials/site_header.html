@@ -15,12 +15,11 @@
       </a>
       <div class="bh-site-nav-links bh-nav-keywords" aria-label="導航關鍵詞">
       <div class="bh-nav-keyword-tabs" role="tablist" aria-label="關鍵詞分組">
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>地區找房</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-buyer" data-bh-nav-keyword-tab="buyer"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>買家需求</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-property" data-bh-nav-keyword-tab="property"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>房源條件</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-process" data-bh-nav-keyword-tab="process"{% if nav_process_onclick %} onclick="{{ nav_process_onclick }}"{% endif %}>流程知識</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-source" data-bh-nav-keyword-tab="source"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>平台來源</button>
-        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-help" data-bh-nav-keyword-tab="help"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>服務幫助</button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}><span class="bh-nav-keyword-tab-label">地區找房</span><svg class="bh-nav-keyword-tab-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4.25 6.25 8 10l3.75-3.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-buyer" data-bh-nav-keyword-tab="buyer"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}><span class="bh-nav-keyword-tab-label">買家需求</span><svg class="bh-nav-keyword-tab-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4.25 6.25 8 10l3.75-3.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-property" data-bh-nav-keyword-tab="property"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}><span class="bh-nav-keyword-tab-label">房源條件</span><svg class="bh-nav-keyword-tab-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4.25 6.25 8 10l3.75-3.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-source" data-bh-nav-keyword-tab="source"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}><span class="bh-nav-keyword-tab-label">平台來源</span><svg class="bh-nav-keyword-tab-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4.25 6.25 8 10l3.75-3.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-help" data-bh-nav-keyword-tab="help"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}><span class="bh-nav-keyword-tab-label">服務幫助</span><svg class="bh-nav-keyword-tab-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4.25 6.25 8 10l3.75-3.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <div class="bh-nav-keyword-panels">
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-region" role="tabpanel" aria-label="地區找房關鍵詞" data-bh-nav-keyword-panel="region" data-bh-panel-title="地區找房" hidden>
@@ -61,18 +60,6 @@
           <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="價格篩選找房">價格篩選找房</a>
           </div>
         </nav>
-        <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-process" role="tabpanel" aria-label="流程知識關鍵詞" data-bh-nav-keyword-panel="process" data-bh-panel-title="流程知識" hidden>
-          <div class="bh-nav-keyword-list">
-          <a href="/guide/tw-buy-japan-property" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">日本買房流程</a>
-          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本買房費用</a>
-          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本買房稅務</a>
-          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本房貸外國人</a>
-          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本投資報酬</a>
-          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本租賃管理</a>
-          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本不動產法規</a>
-          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本房產顧問</a>
-          </div>
-        </nav>
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-source" role="tabpanel" aria-label="平台來源關鍵詞" data-bh-nav-keyword-panel="source" data-bh-panel-title="平台來源" hidden>
           <div class="bh-nav-keyword-list">
           <a href="https://suumo.jp/" target="_blank" rel="noopener noreferrer">SUUMO 房源查詢</a>
@@ -86,6 +73,7 @@
         </nav>
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-help" role="tabpanel" aria-label="服務幫助關鍵詞" data-bh-nav-keyword-panel="help" data-bh-panel-title="服務幫助" hidden>
           <div class="bh-nav-keyword-list">
+          <a href="/guide/tw-buy-japan-property">日本買房流程</a>
           <a href="{{ nav_hash_prefix }}#jp-map-hub">日本找房工作台</a>
           <a href="{{ nav_hash_prefix }}#query-dialog">智慧查詢</a>
           <a href="/company" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">公司背景</a>
@@ -147,12 +135,53 @@
           const tabs = Array.from(root.querySelectorAll('[data-bh-nav-keyword-tab]'));
           const panels = Array.from(root.querySelectorAll('[data-bh-nav-keyword-panel]'));
           const internalSwitches = Array.from(root.querySelectorAll('[data-home-view-switch]'));
+          const panelCloseTimers = new WeakMap();
           let closeTimer = 0;
           const clearCloseTimer = () => {
             if (closeTimer) {
               window.clearTimeout(closeTimer);
               closeTimer = 0;
             }
+          };
+          const clearPanelCloseTimer = (panel) => {
+            const timer = panelCloseTimers.get(panel);
+            if (timer) {
+              window.clearTimeout(timer);
+              panelCloseTimers.delete(panel);
+            }
+          };
+          const syncPanelPosition = (tab) => {
+            if (!tab || typeof tab.getBoundingClientRect !== 'function') return;
+            const rootRect = root.getBoundingClientRect();
+            const tabRect = tab.getBoundingClientRect();
+            const panelWidth = window.matchMedia && window.matchMedia('(max-width: 760px)').matches
+              ? Math.min(window.innerWidth - 24, 320)
+              : 268;
+            const maxLeft = Math.max(0, window.innerWidth - rootRect.left - panelWidth - 12);
+            const left = Math.min(Math.max(0, tabRect.left - rootRect.left), maxLeft);
+            root.style.setProperty('--bh-nav-panel-left', `${left}px`);
+          };
+          const showPanel = (panel) => {
+            clearPanelCloseTimer(panel);
+            panel.hidden = false;
+            panel.classList.remove('is-closing');
+            panel.classList.add('is-active');
+          };
+          const hidePanel = (panel, animated = true) => {
+            clearPanelCloseTimer(panel);
+            panel.classList.remove('is-active');
+            if (!animated || panel.hidden) {
+              panel.classList.remove('is-closing');
+              panel.hidden = true;
+              return;
+            }
+            panel.classList.add('is-closing');
+            const timer = window.setTimeout(() => {
+              panel.classList.remove('is-closing');
+              panel.hidden = true;
+              panelCloseTimers.delete(panel);
+            }, 190);
+            panelCloseTimers.set(panel, timer);
           };
           const setActive = (key, allowCollapse) => {
             const current = tabs.find((tab) => tab.classList.contains('is-active'));
@@ -161,17 +190,18 @@
             root.classList.toggle('is-open', !shouldCollapse);
             tabs.forEach((tab) => {
               const on = !shouldCollapse && String(tab.getAttribute('data-bh-nav-keyword-tab') || '') === key;
+              if (on) syncPanelPosition(tab);
               tab.classList.toggle('is-active', on);
               tab.setAttribute('aria-selected', on ? 'true' : 'false');
               tab.setAttribute('aria-expanded', on ? 'true' : 'false');
             });
             panels.forEach((panel) => {
               const on = !shouldCollapse && String(panel.getAttribute('data-bh-nav-keyword-panel') || '') === key;
-              panel.classList.toggle('is-active', on);
-              panel.hidden = !on;
+              if (on) showPanel(panel);
+              else hidePanel(panel, shouldCollapse);
             });
           };
-          const closeMenu = () => {
+          const closeMenu = (animated = true) => {
             root.classList.remove('is-open');
             tabs.forEach((tab) => {
               tab.classList.remove('is-active');
@@ -179,8 +209,7 @@
               tab.setAttribute('aria-expanded', 'false');
             });
             panels.forEach((panel) => {
-              panel.classList.remove('is-active');
-              panel.hidden = true;
+              hidePanel(panel, animated);
             });
           };
           tabs.forEach((tab) => {
@@ -233,12 +262,6 @@
           root.addEventListener('click', (evt) => {
             const link = evt.target instanceof Element ? evt.target.closest('.bh-nav-keyword-panel a') : null;
             if (!link || !root.contains(link)) return;
-            if (link.matches('[data-nav-placeholder="true"]')) {
-              evt.preventDefault();
-              link.classList.add('is-nav-placeholder-tapped');
-              window.setTimeout(() => link.classList.remove('is-nav-placeholder-tapped'), 420);
-              return;
-            }
             window.setTimeout(closeMenu, 160);
           });
           document.addEventListener('keydown', (evt) => {
@@ -248,16 +271,9 @@
       }
 
       function initSharedHeaderHomeRouting() {
-        if (document.documentElement.dataset.sharedHomeRoutingBound === '1') return;
-        document.documentElement.dataset.sharedHomeRoutingBound = '1';
-        document.addEventListener('click', (event) => {
-          const placeholder = event.target instanceof Element
-            ? event.target.closest('[data-nav-placeholder="true"]')
-            : null;
-          if (placeholder) {
-            event.preventDefault();
-            return;
-          }
+          if (document.documentElement.dataset.sharedHomeRoutingBound === '1') return;
+          document.documentElement.dataset.sharedHomeRoutingBound = '1';
+          document.addEventListener('click', (event) => {
           const target = event.target instanceof Element
             ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-nav-keyword-panel a[data-geo-keyword], .bh-footer-directory a[data-geo-keyword], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]')
             : null;

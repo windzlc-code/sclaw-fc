@@ -6,7 +6,7 @@
   <title>來源案例詳情｜{{ site_name }}</title>
   <meta name="description" content="日本不動產來源案例詳情與站內對照。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-gallery-source-tabs-a">
 </head>
 <body class="site-home site-case site-case-suumo site-case-standalone site-lang-hant">
   {% include 'partials/site_header.html' %}
@@ -17,7 +17,7 @@
     </header>
 
     <section class="panel case-suumo-hero-card">
-      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="{{ case_return_to | default('/#query-dialog', true) }}">← {{ case_return_label | default('返回查詢首頁', true) }}</a></p>
+      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="{{ case_return_to | default('/#query-dialog', true) }}">{{ case_return_label | default('返回查詢首頁', true) }}</a></p>
       <h1 class="suumo-case-catch">{% if item.title_display_hant|trim %}{{ item.title_display_hant|trim }}{% elif item.title_zh_hant|trim %}{{ item.title_zh_hant|trim }}{% else %}{{ item.title_original }}{% endif %}</h1>
       <p class="suumo-case-itemurl"><a href="{{ item.item_url }}" target="_blank" rel="nofollow noopener">{{ item.item_url }}</a></p>
       {% set listing_panel = case_listing_panel %}
@@ -31,7 +31,7 @@
       {% set translation_tab_href = '#case-zh' %}
       {% set more_tab_href = '#case-gallery' %}
       {% set translation_tab_label = '中文整理' %}
-      {% set more_tab_label = '案件圖片' %}
+      {% set more_tab_label = '相簿' %}
       {% include 'partials/portal_suumo_listing.html' %}
       {% set f = listing_panel.fields %}
       {% set m = listing_panel.meta %}
@@ -91,11 +91,11 @@
 
     {% if item.case_gallery_cells and not item.case_gallery_sections %}
     <section id="case-gallery" class="panel case-suumo-gallery">
-      <h2 class="case-suumo-gallery-title">案件圖片</h2>
+      <h2 class="case-suumo-gallery-title">相簿</h2>
       <div class="case-image-grid case-image-grid--suumo">
         {% for cell in item.case_gallery_cells %}
           <figure class="case-image-cell{% if cell.is_agent %} case-image-cell--agent{% endif %}">
-            <img class="zoomable-image" src="{{ cell.url|case_static_image_url }}" data-full-src="{{ cell.url }}" alt="案件圖片 {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
+            <img class="zoomable-image" src="{{ cell.url|case_static_image_url }}" data-full-src="{{ cell.url }}" alt="相簿 {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
             <figcaption class="case-image-cell-caption">
               <a href="{{ cell.url }}" target="_blank" rel="nofollow noopener">另開原圖</a>
             </figcaption>
@@ -109,7 +109,7 @@
     {% if _agent_imgs and not item.case_gallery_sections %}
     <section class="panel slim portal-suumo-agent-block" aria-label="智慧房仲參考圖" style="margin-top:0.65rem;">
       <h3 class="portal-suumo-agent-title" style="margin:0 0 0.35rem;font-size:1.05rem;">智慧房仲｜當地仲介參考</h3>
-      <p class="muted" style="margin:0 0 0.5rem;font-size:0.88rem;line-height:1.45;">以下為原站店舖／擔當風格參考圖，置於物件實景之後；完整外觀、內裝、格局請以案件圖片與原站為準。</p>
+      <p class="muted" style="margin:0 0 0.5rem;font-size:0.88rem;line-height:1.45;">以下為店舖／擔當風格參考圖，置於物件實景之後。</p>
       <div class="portal-suumo-agent-row">
         {% for u in _agent_imgs %}
         <figure class="portal-suumo-agent-figure">
@@ -153,77 +153,6 @@
       </table>
     </details>
 
-    {% set xhs_f = case_listing_panel.fields if case_listing_panel else {} %}
-    {% set xhs_m = case_listing_panel.meta if case_listing_panel else {} %}
-    {% set ns_xhs = namespace(images=[]) %}
-    {% for cell in (item.case_gallery_cells or []) %}
-      {% if cell.url and (not cell.is_agent) and ns_xhs.images|length < 4 %}
-        {% set _ = ns_xhs.images.append(cell.url) %}
-      {% endif %}
-    {% endfor %}
-    {% if ns_xhs.images|length == 0 %}
-      {% for u in (item.case_media_images or []) %}
-        {% if u and ns_xhs.images|length < 4 %}
-          {% set _ = ns_xhs.images.append(u) %}
-        {% endif %}
-      {% endfor %}
-    {% endif %}
-    <section id="case-zh" class="card case-content-switcher case-content-switcher--xhs">
-      <div class="case-content-head">
-        <div>
-          <span class="case-content-kicker">小紅書圖文型態</span>
-          <h2>小紅書圖文閱讀稿</h2>
-          <p class="muted">參考小紅書圖文閱讀版面，桌面與手機都可檢查封面、條件、文案與原文；點圖可放大查看原圖。</p>
-        </div>
-        <div class="case-content-tabs" role="tablist" aria-label="案件內容語言切換">
-          <button type="button" class="case-content-tab is-active" data-case-content-tab="hant" role="tab" aria-selected="true" onclick="setCaseContentTab('hant')">繁體整理</button>
-          <button type="button" class="case-content-tab" data-case-content-tab="hans" role="tab" aria-selected="false" onclick="setCaseContentTab('hans')">簡體整理</button>
-          <button type="button" class="case-content-tab" data-case-content-tab="original" role="tab" aria-selected="false" onclick="setCaseContentTab('original')">原文資料</button>
-        </div>
-      </div>
-      <div class="case-xhs-shell">
-        <aside class="case-xhs-phone" aria-label="小紅書圖文封面預覽">
-          <div class="case-xhs-phone-topbar" aria-hidden="true">
-            <span></span><span></span><span></span>
-          </div>
-          <div class="case-xhs-cover-grid{% if ns_xhs.images|length == 1 %} case-xhs-cover-grid--single{% endif %}">
-            {% if ns_xhs.images %}
-              {% for u in ns_xhs.images %}
-              <img class="case-xhs-cover-img zoomable-image" src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" data-fallback-src="{{ u|case_static_image_url }}" alt="小紅書封面圖 {{ loop.index }}" loading="lazy" decoding="async" referrerpolicy="no-referrer">
-              {% endfor %}
-            {% else %}
-              <div class="case-xhs-cover-empty">暫無可用物件圖片</div>
-            {% endif %}
-          </div>
-          {% if ns_xhs.images %}
-          <p class="case-xhs-zoom-hint">點任一圖片放大，預覽會優先使用來源原圖。</p>
-          {% endif %}
-          <div class="case-xhs-chip-row" aria-label="小紅書標籤">
-            {% if item.topic_category %}<span class="case-xhs-chip">{{ item.topic_category }}</span>{% endif %}
-            {% if item.intent_target %}<span class="case-xhs-chip">{{ item.intent_target }}</span>{% endif %}
-            <span class="case-xhs-chip">日本房產</span>
-          </div>
-          <h3>{% if item.title_zh_hant|trim %}{{ item.title_zh_hant|trim }}{% else %}{{ item.title_original or '精選日本不動產案件' }}{% endif %}</h3>
-          <dl class="case-xhs-fact-list">
-            <div><dt>價格</dt><dd>{{ xhs_f.price_text_hant or '—' }}</dd></div>
-            <div><dt>格局</dt><dd>{{ xhs_f.layout_text_hant or '—' }}</dd></div>
-            <div><dt>面積</dt><dd>{{ xhs_f.area_text_hant or '—' }}</dd></div>
-            <div><dt>交通</dt><dd>{{ xhs_f.access_line_jp or xhs_m.transit_line_zh or '—' }}</dd></div>
-          </dl>
-        </aside>
-        <div class="case-xhs-reader">
-          <div class="case-content-pane" data-case-content-pane="hant" role="tabpanel">
-            <article class="case-xhs-post-body rich-media-from-text">{{ item.body_zh_hant_display or item.body_zh_hant or "（尚未產生）" }}</article>
-          </div>
-          <div class="case-content-pane" data-case-content-pane="hans" role="tabpanel" hidden>
-            <article class="case-xhs-post-body rich-media-from-text">{{ item.body_zh_hans_display or item.body_zh_hans or "（尚未产生）" }}</article>
-          </div>
-          <div class="case-content-pane case-content-pane--original" data-case-content-pane="original" role="tabpanel" hidden>
-            <article class="case-xhs-post-body case-xhs-post-body--original rich-media-from-text portal-suumo-cell-jp">{{ item.body_original_display or "（無）" }}</article>
-          </div>
-        </div>
-      </div>
-    </section>
     {% if case_related_news %}
     <section class="panel case-related-lite" aria-label="相關文章">
       <h2>相關文章</h2>
@@ -239,11 +168,12 @@
             {% endif %}
             <span class="muted">{{ n.region_code or '' }}</span>
           </div>
-          <h3 class="article-related-title"><a href="{{ n.article_path }}">{{ n.seo_title }}</a></h3>
+          {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
+          <h3 class="article-related-title"><a href="{{ related_primary_path }}">{{ n.seo_title }}</a></h3>
           <p class="muted article-related-meta">{{ n.topic_category }}｜{{ n.intent_target }}｜{{ n.updated_at or '-' }}</p>
           <p class="article-related-actions">
-            <a href="{{ n.article_path }}">讀站內文章</a>
             {% if n.case_path %}<a href="{{ n.case_path }}">看案件頁</a>{% endif %}
+            {% if n.article_path %}<a href="{{ n.article_path }}">讀站內文章</a>{% endif %}
           </p>
         </article>
         {% endfor %}
@@ -746,7 +676,7 @@
 
       const pool = [];
       document.querySelectorAll(
-        '.portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .case-image-cell img, .article-inline-suumo-thumb, .case-xhs-cover-grid img'
+        '.portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .case-image-cell img, .article-inline-suumo-thumb'
       ).forEach((img) => {
         pushCandidate(pool, img.getAttribute('src'));
         pushCandidate(pool, img.getAttribute('data-full-src'));
@@ -756,7 +686,7 @@
       if (!pool.length) return;
 
       const bad = new Set();
-      document.querySelectorAll('.case-image-cell img, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .case-xhs-cover-grid img').forEach((img) => {
+      document.querySelectorAll('.case-image-cell img, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img').forEach((img) => {
         const ownSrc = String(img.getAttribute('src') || '').trim();
         let idx = Math.max(0, pool.indexOf(ownSrc));
         img.onerror = () => {
@@ -772,7 +702,7 @@
           img.onerror = null;
           img.hidden = false;
           img.src = localFallback;
-          img.closest('.case-image-cell, .portal-suumo-subthumb, .portal-suumo-gallery-section-thumb, .case-xhs-cover-grid')?.classList.add('is-img-fallback');
+          img.closest('.case-image-cell, .portal-suumo-subthumb, .portal-suumo-gallery-section-thumb')?.classList.add('is-img-fallback');
         };
         if (img.complete && Number(img.naturalWidth || 0) === 0) {
           img.onerror();
@@ -818,7 +748,11 @@
       const tabs = Array.from(root.querySelectorAll('[data-gallery-tab]'));
       const panes = Array.from(root.querySelectorAll('[data-gallery-pane]'));
       if (!tabs.length || !panes.length) return;
+      let activePaneKey = String((tabs.find((tab) => tab.classList.contains('is-active')) || tabs[0]).getAttribute('data-gallery-tab') || '');
+      let activeIndex = 0;
       const activate = (key) => {
+        if (!key) return;
+        activePaneKey = key;
         tabs.forEach((tab) => {
           const active = String(tab.getAttribute('data-gallery-tab') || '') === key;
           tab.classList.toggle('is-active', active);
@@ -830,56 +764,148 @@
           pane.classList.toggle('is-active', active);
         });
       };
-      tabs.forEach((tab) => {
-        tab.addEventListener('click', () => activate(String(tab.getAttribute('data-gallery-tab') || '')));
-      });
       const initial = tabs.find((tab) => tab.classList.contains('is-active')) || tabs[0];
       activate(String(initial.getAttribute('data-gallery-tab') || ''));
 
       const mainImg = root.querySelector('.portal-suumo-gallery-main .portal-suumo-heroimg');
       if (mainImg) {
-        let activePaneKey = String(initial.getAttribute('data-gallery-tab') || '');
-        let activeIndex = 0;
+        let galleryAutoTimer = null;
+        let galleryAutoPaused = false;
+        let gallerySwitchTimer = null;
+        const mainFigure = mainImg.closest('.portal-suumo-gallery-main');
+        const orderedKeys = tabs
+          .map((tab) => String(tab.getAttribute('data-gallery-tab') || '').trim())
+          .filter(Boolean);
+        const typedKeys = orderedKeys.filter((key) => key !== 'all');
         const paneThumbs = (key) => Array.from(root.querySelectorAll(`[data-gallery-pane="${key}"] .portal-suumo-gallery-section-thumb`));
-        const syncMain = (thumb) => {
+        const clearSlideClasses = () => {
+          mainFigure?.classList.remove('is-leaving-next', 'is-leaving-prev', 'is-entering-next', 'is-entering-prev');
+        };
+        const syncMain = (thumb, direction = 1) => {
           const img = thumb.querySelector('img');
           const full = img?.getAttribute('data-full-src') || img?.getAttribute('src') || '';
           const src = img?.getAttribute('src') || '';
           if (!full) return;
           const pane = thumb.closest('[data-gallery-pane]');
-          activePaneKey = String(pane?.getAttribute('data-gallery-pane') || activePaneKey);
+          const paneKey = String(pane?.getAttribute('data-gallery-pane') || activePaneKey);
+          if (paneKey !== activePaneKey) activate(paneKey);
           const thumbs = paneThumbs(activePaneKey);
-          activeIndex = Math.max(0, thumbs.indexOf(thumb));
+          const previousIndex = activeIndex;
+          const nextIndex = Math.max(0, thumbs.indexOf(thumb));
+          const dir = direction || (nextIndex >= previousIndex ? 1 : -1);
+          activeIndex = nextIndex;
           thumbs.forEach((node) => node.classList.toggle('is-active', node === thumb));
           if (mainImg.getAttribute('data-full-src') === full) return;
-          mainImg.src = src || full;
-          mainImg.setAttribute('data-full-src', full);
+          if (gallerySwitchTimer) window.clearTimeout(gallerySwitchTimer);
+          clearSlideClasses();
+          mainFigure?.classList.add(dir >= 0 ? 'is-leaving-next' : 'is-leaving-prev');
+          gallerySwitchTimer = window.setTimeout(() => {
+            const nextSrc = src || full;
+            clearSlideClasses();
+            mainFigure?.classList.add(dir >= 0 ? 'is-entering-next' : 'is-entering-prev');
+            mainImg.onload = null;
+            mainImg.onerror = null;
+            mainImg.src = nextSrc;
+            mainImg.setAttribute('data-full-src', full);
+            window.requestAnimationFrame(() => {
+              window.requestAnimationFrame(() => {
+                mainFigure?.classList.remove(dir >= 0 ? 'is-entering-next' : 'is-entering-prev');
+              });
+            });
+            window.setTimeout(clearSlideClasses, 360);
+          }, 180);
         };
-        const syncPaneFirst = (key) => {
+        const syncPaneFirst = (key, direction = 1) => {
+          activate(key);
           const firstThumb = paneThumbs(key)[0];
-          if (firstThumb) syncMain(firstThumb);
+          if (firstThumb) syncMain(firstThumb, direction);
+        };
+        const adjacentTypeKey = (dir) => {
+          const cycle = typedKeys.length ? typedKeys : orderedKeys;
+          if (!cycle.length) return activePaneKey;
+          let idx = cycle.indexOf(activePaneKey);
+          if (idx < 0) idx = dir > 0 ? -1 : 0;
+          return cycle[(idx + dir + cycle.length) % cycle.length] || activePaneKey;
+        };
+        const stepGallery = (dir = 1) => {
+          const thumbs = paneThumbs(activePaneKey);
+          if (!thumbs.length) return;
+          const nextIndex = activeIndex + dir;
+          if (nextIndex >= 0 && nextIndex < thumbs.length) {
+            activeIndex = nextIndex;
+          } else if (activePaneKey === 'all') {
+            activeIndex = (nextIndex + thumbs.length) % thumbs.length;
+          } else {
+            const nextKey = adjacentTypeKey(dir);
+            const nextThumbs = paneThumbs(nextKey);
+            if (!nextThumbs.length) return;
+            activate(nextKey);
+            activeIndex = dir > 0 ? 0 : nextThumbs.length - 1;
+            syncMain(nextThumbs[activeIndex], dir);
+            return;
+          }
+          syncMain(thumbs[activeIndex], dir);
+        };
+        const stopGalleryAuto = () => {
+          if (galleryAutoTimer) window.clearInterval(galleryAutoTimer);
+          galleryAutoTimer = null;
+        };
+        const startGalleryAuto = () => {
+          stopGalleryAuto();
+          const thumbs = paneThumbs(activePaneKey);
+          if (galleryAutoPaused || thumbs.length <= 1) return;
+          galleryAutoTimer = window.setInterval(() => stepGallery(1), 4200);
+        };
+        const restartGalleryAuto = () => {
+          stopGalleryAuto();
+          if (!galleryAutoPaused) startGalleryAuto();
         };
         root.querySelectorAll('.portal-suumo-gallery-section-thumb').forEach((thumb) => {
-          thumb.addEventListener('mouseenter', () => syncMain(thumb));
-          thumb.addEventListener('click', () => syncMain(thumb), { capture: true });
+          thumb.addEventListener('mouseenter', () => {
+            const thumbs = paneThumbs(activePaneKey);
+            const nextIndex = Math.max(0, thumbs.indexOf(thumb));
+            syncMain(thumb, nextIndex >= activeIndex ? 1 : -1);
+            restartGalleryAuto();
+          });
+          thumb.addEventListener('click', () => {
+            const thumbs = paneThumbs(activePaneKey);
+            const nextIndex = Math.max(0, thumbs.indexOf(thumb));
+            syncMain(thumb, nextIndex >= activeIndex ? 1 : -1);
+            restartGalleryAuto();
+          }, { capture: true });
         });
         root.querySelectorAll('[data-gallery-tab]').forEach((tab) => {
           tab.addEventListener('click', () => {
+            const previousTabIndex = orderedKeys.indexOf(activePaneKey);
             activePaneKey = String(tab.getAttribute('data-gallery-tab') || activePaneKey);
             activeIndex = 0;
-            syncPaneFirst(activePaneKey);
+            const nextTabIndex = orderedKeys.indexOf(activePaneKey);
+            syncPaneFirst(activePaneKey, nextTabIndex >= previousTabIndex ? 1 : -1);
+            restartGalleryAuto();
           });
         });
         root.querySelectorAll('[data-gallery-nav]').forEach((btn) => {
           btn.addEventListener('click', () => {
-            const thumbs = paneThumbs(activePaneKey);
-            if (!thumbs.length) return;
             const dir = btn.getAttribute('data-gallery-nav') === 'prev' ? -1 : 1;
-            activeIndex = (activeIndex + dir + thumbs.length) % thumbs.length;
-            syncMain(thumbs[activeIndex]);
+            stepGallery(dir);
+            restartGalleryAuto();
           });
         });
+        root.addEventListener('mouseenter', () => {
+          galleryAutoPaused = true;
+          stopGalleryAuto();
+        });
+        root.addEventListener('mouseleave', () => {
+          galleryAutoPaused = false;
+          startGalleryAuto();
+        });
+        document.addEventListener('visibilitychange', () => {
+          galleryAutoPaused = document.hidden;
+          if (galleryAutoPaused) stopGalleryAuto();
+          else startGalleryAuto();
+        });
         syncPaneFirst(activePaneKey);
+        startGalleryAuto();
       }
     }
 
@@ -894,7 +920,7 @@
         }
       });
       document.querySelectorAll(
-        '.case-image-cell img, .article-inline-suumo-thumb, .portal-suumo-heroimg, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .portal-suumo-agent-thumb img, .portal-yahoo-advisor-thumb:not(.portal-yahoo-advisor-thumb--default) img, .case-xhs-cover-grid img'
+        '.case-image-cell img, .article-inline-suumo-thumb, .portal-suumo-heroimg, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .portal-suumo-agent-thumb img, .portal-yahoo-advisor-thumb:not(.portal-yahoo-advisor-thumb--default) img'
       ).forEach((img) => img.classList.add('zoomable-image'));
       initPortalCaseHeroFallback();
       initCaseImageFallbackPool();

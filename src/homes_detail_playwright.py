@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import parse_qsl, unquote, urlparse, urlunparse, urlencode
 
 from src.homes_media_token import homes_listing_image_tokens
+from src.homes_media_filter import is_homes_non_property_asset_url, is_homes_non_property_context
 from src.portal_property_playwright import default_playwright_state_path
 
 
@@ -68,8 +69,14 @@ def _is_homes_property_image_url(url: str) -> bool:
     except Exception:
         path = lu.split("?", 1)[0]
         path_haystack = path
+    try:
+        decoded = unquote(lu)
+    except Exception:
+        decoded = lu
+    if is_homes_non_property_asset_url(u):
+        return False
     if any(
-        bad in lu
+        bad in decoded
         for bad in (
             "icon.lifull",
             "/svg-icon/",
@@ -77,6 +84,25 @@ def _is_homes_property_image_url(url: str) -> bool:
             "blank",
             "pixel",
             "avatar",
+            "/gyousha/",
+            "/staff/",
+            "/shop/",
+            "/tenant/",
+            "/spot/",
+            "/ispot/",
+            "/banner/",
+            "/bnr/",
+            "/button",
+            "btn_",
+            "ヤマレバー",
+            "閲覧履歴",
+            "ログイン",
+            "部屋情報",
+            "お部屋情報",
+            "now_printing",
+            "nowprinting",
+            "favorite/dialog",
+            "/hrw/assets/",
         )
     ):
         return False
@@ -86,6 +112,26 @@ def _is_homes_property_image_url(url: str) -> bool:
         return True
     return ("homes.jp" in lu or "homes.co.jp" in lu) and any(
         tok in lu for tok in ("/smallimg/", "image.php", "/sale/", "/rent/", "/image/", "/photo/")
+    )
+
+
+def _is_homes_non_property_context(text: str) -> bool:
+    if is_homes_non_property_context(text):
+        return True
+    compact = re.sub(r"\s+", "", str(text or ""))
+    if compact in {"部屋情報", "お部屋情報", "ログイン", "イベント", "閲覧履歴", "お気に入り", "最近見た物件"}:
+        return True
+    return any(
+        token in compact
+        for token in (
+            "ヤマレバー",
+            "スタッフ写真",
+            "店内の様子",
+            "店舗の外観",
+            "不動産会社情報",
+            "株式会社",
+            "有限会社",
+        )
     )
 
 
@@ -199,31 +245,57 @@ def fetch_homes_detail_playwright(
                                      'data-img','data-image','data-main-src','srcset','data-srcset'];
                       const out = [];
                       const abs = (v) => { try { return new URL(v, location.href).href; } catch(e) { return ''; } };
-                      const push = (value) => {
+                      const clean = (v) => String(v || '').replace(/\\s+/g, ' ').trim();
+                      const contextText = (el) => {
+                        const parts = [];
+                        ['alt','title','aria-label','data-caption','data-title','data-label','data-category','data-type'].forEach((attr) => {
+                          const value = clean(el.getAttribute(attr));
+                          if (value) parts.push(value);
+                        });
+                        const holder = el.closest('figure, li, .photo, .photoList, .detailPhoto, .mod-photo, .swiper-slide, [class*="photo"], [class*="Photo"], [class*="gallery"], [class*="Gallery"]');
+                        if (holder) {
+                          holder.querySelectorAll('figcaption, caption, .caption, .photoCaption, .comment, .label, .ttl, .title, [class*="caption"], [class*="Caption"], [class*="comment"], [class*="Comment"], [class*="category"], [class*="Category"]').forEach((node) => {
+                            const value = clean(node.textContent);
+                            if (value && value.length <= 160) parts.push(value);
+                          });
+                        }
+                        return [...new Set(parts)].join(' ');
+                      };
+                      const push = (value, el) => {
                         if (!value) return;
                         String(value).split(',').forEach((part) => {
                           const token = part.trim().split(/\\s+/)[0];
                           if (!token || /^data:/i.test(token)) return;
                           const u = abs(token);
-                          if (/^https?:/i.test(u)) out.push(u);
+                          if (/^https?:/i.test(u)) {
+                            out.push({ url: u, alt: contextText(el), caption: contextText(el) });
+                          }
                         });
                       };
                       document.querySelectorAll('img, source, picture, [style]').forEach((el) => {
-                        attrs.forEach((attr) => push(el.getAttribute(attr)));
+                        attrs.forEach((attr) => push(el.getAttribute(attr), el));
                         const style = el.getAttribute('style') || '';
-                        [...style.matchAll(/url\\((['\\"]?)(.*?)\\1\\)/g)].forEach((m) => push(m[2]));
+                        [...style.matchAll(/url\\((['\\"]?)(.*?)\\1\\)/g)].forEach((m) => push(m[2], el));
                       });
                       return out;
                     }
                     """
                 )
 
-                images: list[str] = []
+                images: list[dict[str, str]] = []
                 seen: set[str] = set()
                 for raw in raw_images if isinstance(raw_images, list) else []:
-                    if not isinstance(raw, str):
+                    if isinstance(raw, str):
+                        raw_url = raw
+                        raw_alt = ""
+                        raw_caption = ""
+                    elif isinstance(raw, dict):
+                        raw_url = str(raw.get("url") or "")
+                        raw_alt = str(raw.get("alt") or "")
+                        raw_caption = str(raw.get("caption") or "")
+                    else:
                         continue
-                    nu = _normalize_homes_image_url(raw, image_size=image_size)
+                    nu = _normalize_homes_image_url(raw_url, image_size=image_size)
                     if not nu or not _is_homes_property_image_url(nu):
                         continue
                     if tokens:
@@ -237,7 +309,14 @@ def fetch_homes_detail_playwright(
                     if key in seen:
                         continue
                     seen.add(key)
-                    images.append(nu)
+                    item = {"url": nu}
+                    context = re.sub(r"\s+", " ", f"{raw_alt} {raw_caption}").strip()
+                    if _is_homes_non_property_context(context):
+                        continue
+                    if context:
+                        item["alt"] = context[:180]
+                        item["caption"] = context[:180]
+                    images.append(item)
                     if len(images) >= 48:
                         break
 
@@ -259,7 +338,8 @@ def fetch_homes_detail_playwright(
                     "item_url": url,
                     "title": title,
                     "body_original": re.sub(r"\s+", " ", str(body_text or "")).strip()[:9000],
-                    "image_urls": images,
+                    "image_urls": [str(img.get("url") or "") for img in images if str(img.get("url") or "")],
+                    "images": images,
                     "image_count": len(images),
                     "used_tokens": list(tokens),
                 }

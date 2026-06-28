@@ -1,8 +1,11 @@
 import json
 import os
 import re
+import subprocess
+import sys
 from urllib.parse import unquote
 from datetime import datetime, timezone
+from pathlib import Path
 
 from src.classifier import classify_content, infer_region_code
 from src.db import get_conn
@@ -843,8 +846,93 @@ def generate_content_for_source(conn, source_item_id: int) -> None:
         _bind_jp_transit_to_content_item(conn, source_item_id=source_item_id, src_row=dict(src))
 
 
+def _env_truthy(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return bool(default)
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int, *, low: int, high: int) -> int:
+    try:
+        value = int(str(os.getenv(name, "")).strip() or default)
+    except Exception:
+        value = int(default)
+    return max(low, min(high, value))
+
+
+def _run_investment_metrics_postprocess(*, jp_listing_count: int) -> None:
+    if int(jp_listing_count or 0) <= 0:
+        return
+    if _env_truthy("SCLAW_DISABLE_PIPELINE_INVESTMENT_BACKFILL", False):
+        return
+    limit_default = max(200, int(jp_listing_count or 0) * 2)
+    limit = _env_int("SCLAW_PIPELINE_INVESTMENT_LIMIT", limit_default, low=0, high=5000)
+    if limit <= 0:
+        return
+    try:
+        with get_conn() as conn:
+            missing = conn.execute(
+                """
+                SELECT COUNT(1)
+                FROM source_items s
+                JOIN content_items c ON c.source_item_id = s.id
+                LEFT JOIN case_investment_metrics m ON m.source_item_id = s.id
+                WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+                  AND m.source_item_id IS NULL
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchone()
+            if int((missing[0] if missing else 0) or 0) <= 0:
+                return
+    except Exception:
+        pass
+    root = Path(__file__).resolve().parents[1]
+    script = root / "scripts" / "backfill_case_investment_metrics.py"
+    if not script.is_file():
+        print(f"[investment] skip postprocess: missing {script}", flush=True)
+        return
+    cmd = [
+        sys.executable or "python3",
+        str(script),
+        "--only-missing",
+        "--limit",
+        str(limit),
+        "--commit-every",
+        str(min(max(limit, 20), 500)),
+    ]
+    if str(os.environ.get("SCLAW_PIPELINE_INVESTMENT_LIVE_SOURCE", "1")).strip().lower() not in {"0", "false", "no", "off"}:
+        cmd.append("--live-source")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(root),
+            text=True,
+            capture_output=True,
+            timeout=max(120, min(1800, limit * 3)),
+            check=False,
+        )
+    except Exception as exc:
+        print(f"[investment] postprocess failed: {type(exc).__name__}: {exc}", flush=True)
+        return
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    done_line = ""
+    for line in reversed(stdout.splitlines()):
+        if "[investment] done" in line:
+            done_line = line.strip()
+            break
+    if proc.returncode == 0:
+        print(done_line or "[investment] postprocess done", flush=True)
+    else:
+        tail = "\n".join((stderr or stdout).splitlines()[-4:])
+        print(f"[investment] postprocess failed rc={proc.returncode}: {tail}", flush=True)
+
+
 def process_crawled_items(items: list) -> int:
     processed = 0
+    jp_listing_count = 0
     with get_conn() as conn:
         for item in items:
             source_id = upsert_source_item(conn, item)
@@ -853,6 +941,7 @@ def process_crawled_items(items: list) -> int:
             except Exception:
                 ck = ""
             if ck == "jp_listing":
+                jp_listing_count += 1
                 try:
                     from src.jp_listing_region_index import ensure_jp_listing_region_index_for_item
 
@@ -870,4 +959,5 @@ def process_crawled_items(items: list) -> int:
             generate_content_for_source(conn, source_id)
             processed += 1
         conn.commit()
+    _run_investment_metrics_postprocess(jp_listing_count=jp_listing_count)
     return processed

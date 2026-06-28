@@ -6,24 +6,27 @@
   <title>市場來源詳細頁｜{{ site_name }}</title>
   <meta name="description" content="日本房地產市場來源摘要與站內整理。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-legacy-pages-unified-a">
 </head>
-<body class="site-lang-hant">
-  <main class="container">
+<body class="site-home site-case-standalone site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container case-page-suumo">
     {% include 'partials/site_language_switch.html' %}
-    <section class="hero">
+    <header class="suumo-case-brandbar legacy-standalone-brandbar">
+      <span class="suumo-case-brandbar-logo">市場來源</span>
+      <span class="suumo-case-brandbar-src">摘要整理 ｜ 圖文來源 ｜ public</span>
+    </header>
+    <section class="panel case-suumo-hero-card legacy-standalone-hero">
+      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">返回查詢首頁</a></p>
       {% if brand_name %}
       <div class="brand-badge">{{ brand_name }}</div>
       {% endif %}
-      <h1>市場來源詳細頁</h1>
-      <p>日文內容已整理為中文版本，並提供重點整理與資料筆數。</p>
-    </section>
-    <section class="panel">
-      <a href="/">← 返回首頁</a>
+      <h1 class="legacy-standalone-title">市場來源詳細頁</h1>
+      <p class="legacy-standalone-summary">日文內容已整理為中文版本，並提供重點整理與資料筆數。</p>
     </section>
 
     {% if item.ok %}
-    <section class="card">
+    <section class="panel legacy-standalone-panel">
       <h2>{{ item.title_zh_hant }}</h2>
       <p class="muted">原始網址：<a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.url }}</a></p>
       {% if item.is_limited %}
@@ -63,7 +66,7 @@
     </section>
     {% endif %}
 
-    <section class="card">
+    <section class="panel legacy-standalone-panel">
       <div data-site-lang-pane="hant" data-lang-pane="hant">
         <h3>全文摘錄</h3>
         <p>{{ item.body_zh_hant }}</p>
@@ -76,6 +79,7 @@
     {% endif %}
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
+  {% include 'partials/site_footer.html' %}
   {% include 'partials/support_chat_public_fab.html' %}
 </body>
 </html>

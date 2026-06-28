@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 
 from src.bsoup import soup_from_html
 from src.config import DATA_DIR
+from src.homes_media_filter import is_homes_non_property_asset_url
 from src.homes_media_token import homes_listing_image_tokens
 from src.portal_http import PORTAL_BROWSER_HEADERS
 
@@ -3481,6 +3482,8 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
                 return parsed._replace(query=urlencode(list(q.items()), doseq=True)).geturl()
         except Exception:
             pass
+        if is_homes_non_property_asset_url(s):
+            return ""
         return s if s.startswith(("http://", "https://")) else ""
 
     imgs: list[str] = []

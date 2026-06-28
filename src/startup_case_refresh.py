@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -136,25 +138,86 @@ def _crawl_latest_cases(per_source_limit: int) -> dict[str, Any]:
     source_reports: list[dict[str, Any]] = []
     crawled_total = 0
     processed_total = 0
-    for source in sources:
-        name = str(source.get("name") or source.get("url") or "source")
-        url = str(source.get("url") or "").strip()
-        if not url:
-            continue
-        try:
-            items = crawl_one_source(url, per_source_limit=per_source_limit, search_query="")
-            crawled = len(items or [])
-            processed = int(process_crawled_items(items or [])) if items else 0
-            source_reports.append({"source": name, "url": url, "crawled": crawled, "processed": processed})
-            crawled_total += crawled
-            processed_total += processed
-        except Exception as exc:
-            source_reports.append({"source": name, "url": url, "crawled": 0, "processed": 0, "error": _mask(exc)})
+    old_investment_hook = os.environ.get("SCLAW_DISABLE_PIPELINE_INVESTMENT_BACKFILL")
+    os.environ["SCLAW_DISABLE_PIPELINE_INVESTMENT_BACKFILL"] = "1"
+    try:
+        for source in sources:
+            name = str(source.get("name") or source.get("url") or "source")
+            url = str(source.get("url") or "").strip()
+            if not url:
+                continue
+            try:
+                items = crawl_one_source(url, per_source_limit=per_source_limit, search_query="")
+                crawled = len(items or [])
+                processed = int(process_crawled_items(items or [])) if items else 0
+                source_reports.append({"source": name, "url": url, "crawled": crawled, "processed": processed})
+                crawled_total += crawled
+                processed_total += processed
+            except Exception as exc:
+                source_reports.append({"source": name, "url": url, "crawled": 0, "processed": 0, "error": _mask(exc)})
+    finally:
+        if old_investment_hook is None:
+            os.environ.pop("SCLAW_DISABLE_PIPELINE_INVESTMENT_BACKFILL", None)
+        else:
+            os.environ["SCLAW_DISABLE_PIPELINE_INVESTMENT_BACKFILL"] = old_investment_hook
     return {
         "sources": source_reports,
         "crawled": crawled_total,
         "processed": processed_total,
         "source_count": len(source_reports),
+    }
+
+
+def run_case_investment_backfill_once(*, limit: int = 200, only_missing: bool = True, timeout_sec: int = 900) -> dict[str, Any]:
+    """Incrementally compute investment/rent-yield metrics for newly added listing cases."""
+    lim = max(0, min(int(limit or 0), 5000))
+    if lim <= 0:
+        return {"ok": True, "skipped": True, "reason": "limit <= 0"}
+    root = Path(__file__).resolve().parents[1]
+    script = root / "scripts" / "backfill_case_investment_metrics.py"
+    if not script.is_file():
+        return {"ok": False, "error": f"missing script: {script}"}
+    cmd = [sys.executable or "python3", str(script), "--limit", str(lim), "--commit-every", str(min(max(lim, 20), 500))]
+    if only_missing:
+        cmd.append("--only-missing")
+    if str(os.environ.get("SCLAW_PIPELINE_INVESTMENT_LIVE_SOURCE", "1")).strip().lower() not in {"0", "false", "no", "off"}:
+        cmd.append("--live-source")
+    started_at = _now_iso()
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(root),
+            text=True,
+            capture_output=True,
+            timeout=max(60, int(timeout_sec or 900)),
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "started_at": started_at,
+            "finished_at": _now_iso(),
+            "timeout": True,
+            "error": _mask(exc),
+            "limit": lim,
+        }
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    done_line = ""
+    for line in reversed(stdout.splitlines()):
+        if "[investment] done" in line:
+            done_line = line.strip()
+            break
+    return {
+        "ok": proc.returncode == 0,
+        "started_at": started_at,
+        "finished_at": _now_iso(),
+        "limit": lim,
+        "only_missing": bool(only_missing),
+        "returncode": int(proc.returncode),
+        "summary": _mask(done_line or stdout.splitlines()[-1] if stdout.splitlines() else ""),
+        "stdout_tail": _mask("\n".join(stdout.splitlines()[-8:])),
+        "stderr_tail": _mask("\n".join(stderr.splitlines()[-8:])),
     }
 
 
@@ -173,6 +236,7 @@ def run_case_auto_refresh_once(
     )
     backfill_limit = _env_int("SCLAW_CASE_REFRESH_BACKFILL_LIMIT", 30, low=0, high=500)
     force_image_limit = _env_int("SCLAW_CASE_REFRESH_FORCE_IMAGE_LIMIT", 8, low=0, high=120)
+    investment_limit = _env_int("SCLAW_CASE_REFRESH_INVESTMENT_LIMIT", 200, low=0, high=5000)
     stale_after = max(3600, _case_refresh_interval_seconds() * 2)
     fd = _acquire_file_lock(stale_after)
     if fd is None:
@@ -230,6 +294,14 @@ def run_case_auto_refresh_once(
             )
         report["image_backfill"] = backfill_report
         report["image_refresh"] = force_report
+        investment_report: dict[str, Any] = {}
+        if investment_limit > 0:
+            investment_report = run_case_investment_backfill_once(
+                limit=investment_limit,
+                only_missing=True,
+                timeout_sec=max(300, min(1800, investment_limit * 3)),
+            )
+        report["investment_metrics"] = investment_report
         report["ok"] = True
         report["finished_at"] = _now_iso()
         if invalidate_caches:
@@ -240,7 +312,8 @@ def run_case_auto_refresh_once(
         message = (
             f"最新案件整理完成：抓取 {int(crawl_report.get('crawled') or 0)} 筆，"
             f"入庫/更新 {int(crawl_report.get('processed') or 0)} 筆，"
-            f"補圖 {int(backfill_report.get('ok') or 0) + int(force_report.get('ok') or 0)} 筆。"
+            f"補圖 {int(backfill_report.get('ok') or 0) + int(force_report.get('ok') or 0)} 筆，"
+            f"租售比增量回填{'完成' if investment_report.get('ok') else '未完成'}。"
         )
         _set_state(
             running=False,

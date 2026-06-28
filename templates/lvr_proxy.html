@@ -7,18 +7,24 @@
   <meta name="description" content="在本站輸入條件，由本站後端代送官方實價查詢並回傳結果。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
   <meta name="sclaw-api-base" content="{{ sclaw_api_base }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-legacy-pages-unified-a">
 </head>
-<body class="site-home site-lang-hant">
-  <main class="container lvr-proxy-page">
+<body class="site-home site-case-standalone site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container case-page-suumo lvr-proxy-page">
     {% include 'partials/site_language_switch.html' %}
-    <section class="hero lvr-hero">
-      <div class="hero-copy">
+    <header class="suumo-case-brandbar legacy-standalone-brandbar">
+      <span class="suumo-case-brandbar-logo">實價登錄</span>
+      <span class="suumo-case-brandbar-src">官方代查 ｜ 條件回傳 ｜ public</span>
+    </header>
+    <section class="panel case-suumo-hero-card legacy-standalone-hero lvr-hero">
+      <div class="hero-copy legacy-standalone-copy">
         {% if brand_name %}
         <div class="brand-badge">{{ brand_name }}</div>
         {% endif %}
-        <h1>內政部實價登錄代查頁</h1>
-        <p class="hero-subtitle">在這裡輸入條件，由本站後端代送官方查詢並把結果整理回來。</p>
+        <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">返回查詢首頁</a></p>
+        <h1 class="legacy-standalone-title">內政部實價登錄代查頁</h1>
+        <p class="hero-subtitle legacy-standalone-summary">在這裡輸入條件，由本站後端代送官方查詢並把結果整理回來。</p>
         <p>目前先支援核心查詢欄位：交易類型、縣市、行政區、期間與建物名稱。進階條件之後可以再往下擴充。</p>
       </div>
     </section>
@@ -111,6 +117,7 @@
     </section>
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
+  {% include 'partials/site_footer.html' %}
 
   <script src="https://lvr.land.moi.gov.tw/js/vendor.bundle.js"></script>
   <script src="https://lvr.land.moi.gov.tw/js/common.bundle.js"></script>

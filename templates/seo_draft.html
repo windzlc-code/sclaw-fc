@@ -6,27 +6,29 @@
   <title>{{ item.seo_title }}</title>
   <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords(item.keyword or '') }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-legacy-pages-unified-a">
   <link rel="canonical" href="{{ site_url }}/seo-draft/{{ item.seo_slug }}">
   <script type="application/ld+json">{{ item.faq_schema_json|safe }}</script>
 </head>
-<body class="site-lang-hant">
-  <main class="container">
+<body class="site-home site-case-standalone site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container case-page-suumo">
     {% include 'partials/site_language_switch.html' %}
-    <section class="hero">
+    <header class="suumo-case-brandbar legacy-standalone-brandbar">
+      <span class="suumo-case-brandbar-logo">SEO 草稿</span>
+      <span class="suumo-case-brandbar-src">關鍵字草稿 ｜ 雙語內容 ｜ public</span>
+    </header>
+    <section class="panel case-suumo-hero-card legacy-standalone-hero">
+      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">返回查詢首頁</a></p>
       {% if brand_name %}
       <div class="brand-badge">{{ brand_name }}</div>
       {% endif %}
-      <h1>{{ item.seo_title }}</h1>
-      <p>關鍵字：{{ item.keyword }} | 分數：{{ item.keyword_score }} | 狀態：{{ item.status }}</p>
+      <h1 class="legacy-standalone-title">{{ item.seo_title }}</h1>
+      <p class="legacy-standalone-summary">關鍵字：{{ item.keyword }} | 分數：{{ item.keyword_score }} | 狀態：{{ item.status }}</p>
       <p>來源通道：{{ item.source_channels or "main_search" }}</p>
     </section>
 
-    <section class="panel">
-      <a href="/">← 返回首頁</a>
-    </section>
-
-    <article class="card">
+    <section class="panel legacy-standalone-panel">
       <div data-site-lang-pane="hant" data-lang-pane="hant">
         <h2>中文草稿</h2>
         <pre style="white-space: pre-wrap;">{{ item.body_zh_hant }}</pre>
@@ -35,7 +37,7 @@
         <h2>中文草稿</h2>
         <pre style="white-space: pre-wrap;">{{ item.body_zh_hans }}</pre>
       </div>
-    </article>
+    </section>
 
     <section class="panel">
       <table class="data-table">
@@ -50,5 +52,6 @@
     </section>
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
+  {% include 'partials/site_footer.html' %}
 </body>
 </html>

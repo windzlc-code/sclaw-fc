@@ -21,6 +21,7 @@ from src.coverage_matrix_sql import CASE_INV_JP_LISTING_SQL
 from src.coverage_matrix_sql import coverage_host_where_sql
 from src.coverage_matrix_sql import coverage_region_where_sql
 from src.db import get_conn
+from src.homes_media_filter import is_homes_non_property_media, media_entry_url_context
 from src.jp_listing_region_index import REGION_INDEX_SEARCH_KEYS, normalize_region_index_search_key
 
 # 與「日本區域」下拉、巡檢矩陣地區列一致，供關鍵字首詞推斷
@@ -1784,6 +1785,14 @@ def _is_non_listing_asset_url(text: str) -> bool:
         decoded = unquote(s)
     except Exception:
         decoded = s
+    for _ in range(2):
+        try:
+            nxt = unquote(decoded)
+        except Exception:
+            break
+        if nxt == decoded:
+            break
+        decoded = nxt
     hay = f"{s} {decoded}"
     noisy_tokens = (
         "/tmpl/images/common/",
@@ -1794,6 +1803,9 @@ def _is_non_listing_asset_url(text: str) -> bool:
         "/common/",
         "/map/",
         "/bnr/",
+        "/campaign/",
+        "/event/",
+        "/lp/",
         "ogp_estate",
         "comptopimpact",
         "q_sp",
@@ -1831,10 +1843,24 @@ def _is_non_listing_asset_url(text: str) -> bool:
         "/logo/",
         "/sprite/",
         "/banner/",
+        "/bnr/",
         "/button",
         "_button",
         "btn_",
         "/btn",
+        "button_",
+        "/gyousha/",
+        "/gyousha/image/",
+        "/staff/",
+        "/shop/",
+        "/tenant/",
+        "/spot/",
+        "/ispot/",
+        "shopimage",
+        "shop_image",
+        "staffphoto",
+        "company_image",
+        "company-photo",
         "close_button",
         "bt_to_pagetop",
         "pagetop",
@@ -1859,6 +1885,10 @@ def _is_non_listing_asset_url(text: str) -> bool:
         "hatenablog.png",
         "mixi.png",
         "clear.gif",
+        "yamarever",
+        "ヤマレバー",
+        "閲覧履歴",
+        "ログイン",
     )
     if any(t in hay for t in noisy_tokens):
         return True
@@ -2145,24 +2175,42 @@ def _listing_image_candidates_scored(
                     homes_canonical_primary_candidates.add(store)
 
     # 1) listing_media_json：銷售物件相簿（優先）
+    # 先解析 JSON entry，連同 alt/caption/category 判斷；避免把 HOME'S 的
+    # 「ログイン」「部屋情報」「周辺」等站內 UI 縮圖當作本案相簿。
     lm_text = str(listing_media_json or "")
     if lm_text:
-        i = 0
-        n = len(lm_text)
-        while i < n and not _at_cap():
-            j = lm_text.find("http", i)
-            if j < 0:
-                break
-            k = lm_text.find('"', j)
-            if k < 0:
-                k = j
-                while k < n and (not lm_text[k].isspace()) and lm_text[k] not in ",]})":
-                    k += 1
-            if k <= j:
-                i = j + 4
-                continue
-            _push(lm_text[j:k], from_lm=True)
-            i = k + 1
+        parsed_lm: Any = None
+        try:
+            parsed_lm = json.loads(lm_text)
+        except Exception:
+            parsed_lm = None
+        if isinstance(parsed_lm, list):
+            for entry in parsed_lm:
+                if _at_cap():
+                    break
+                u, ctx = media_entry_url_context(entry)
+                if not u:
+                    continue
+                if is_homes_non_property_media(u, ctx):
+                    continue
+                _push(u, from_lm=True)
+        else:
+            i = 0
+            n = len(lm_text)
+            while i < n and not _at_cap():
+                j = lm_text.find("http", i)
+                if j < 0:
+                    break
+                k = lm_text.find('"', j)
+                if k < 0:
+                    k = j
+                    while k < n and (not lm_text[k].isspace()) and lm_text[k] not in ",]})":
+                        k += 1
+                if k <= j:
+                    i = j + 4
+                    continue
+                _push(lm_text[j:k], from_lm=True)
+                i = k + 1
 
     # 2) image_urls 欄
     for line in str(image_urls or "").splitlines():

@@ -4,47 +4,359 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{{ article.title }}｜{{ site_name }}</title>
-  <meta name="description" content="台灣人買日本房完整流程，整合官方、房仲與投資資料來源。{{ seo_description_suffix }}">
+  <meta name="description" content="台灣人買日本房完整流程，整合查詢、比較、出價、簽約、交屋與租管售後指引。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-buy-guide-concept-b">
 </head>
-<body class="site-lang-hant">
-  <main class="container">
+<body class="site-home site-case-standalone site-buy-guide site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container case-page-suumo buy-guide-page">
     {% include 'partials/site_language_switch.html' %}
-    <section class="hero">
-      {% if brand_name %}
-      <div class="brand-badge">{{ brand_name }}</div>
-      {% endif %}
-      <h1>{{ article.title }}</h1>
-      <p>SEO 教學文章範本，可直接改寫後發佈到 WordPress</p>
+    <header class="suumo-case-brandbar legacy-standalone-brandbar buy-guide-brandbar">
+      <span class="suumo-case-brandbar-logo">購屋流程</span>
+      <span class="suumo-case-brandbar-src">查詢 ｜ 比較 ｜ 簽約 ｜ 交屋 ｜ 售後</span>
+    </header>
+
+    <section class="buy-guide-hero" aria-labelledby="buy-guide-title">
+      <div class="buy-guide-hero__copy">
+        <h1 id="buy-guide-title">台灣人購買<br>日本房產流程</h1>
+        <p class="buy-guide-hero__lead">從找房到交屋，一站式完整流程指南。透明、安全、專業，讓你安心擁有日本不動產。</p>
+        <div class="buy-guide-actions" aria-label="頁內導覽">
+          <a class="buy-guide-primary" href="#buy-guide-flow">開始看流程</a>
+          <a class="buy-guide-secondary" href="#buy-guide-faq-title">諮詢線上客服</a>
+        </div>
+      </div>
+      <div class="buy-guide-hero__media" aria-label="日本房產購屋流程示意">
+        <img src="/static/cache/case-images/95/957035504b34adf2c34e73adb9a74ddf1ecf6b23.jpg" alt="日本住宅外觀與購屋流程示意">
+        <div class="buy-guide-hero__note">
+          <strong>8 步完成判斷</strong>
+          <span>需求、案件、價格、文件與售後一次串起來。</span>
+        </div>
+      </div>
     </section>
 
-    <section class="panel">
-      <a href="/">← 返回查詢首頁</a>
+    <section class="buy-guide-path" aria-labelledby="buy-guide-path-title">
+      <h2 id="buy-guide-path-title">日本購屋 8 大步驟</h2>
+      <div class="buy-guide-path-track" aria-label="日本購屋流程總覽">
+        <button class="buy-guide-path-step is-active" type="button" data-guide-step="1" aria-pressed="true">
+          <span class="buy-guide-path-icon" aria-hidden="true">需</span><em>1</em><strong>明確需求</strong>
+        </button>
+        <button class="buy-guide-path-step" type="button" data-guide-step="2" aria-pressed="false">
+          <span class="buy-guide-path-icon" aria-hidden="true">查</span><em>2</em><strong>智慧查詢</strong>
+        </button>
+        <button class="buy-guide-path-step" type="button" data-guide-step="3" aria-pressed="false">
+          <span class="buy-guide-path-icon" aria-hidden="true">比</span><em>3</em><strong>案件比較</strong>
+        </button>
+        <button class="buy-guide-path-step" type="button" data-guide-step="4" aria-pressed="false">
+          <span class="buy-guide-path-icon" aria-hidden="true">書</span><em>4</em><strong>資料確認</strong>
+        </button>
+        <button class="buy-guide-path-step" type="button" data-guide-step="5" aria-pressed="false">
+          <span class="buy-guide-path-icon" aria-hidden="true">¥</span><em>5</em><strong>出價申購</strong>
+        </button>
+        <button class="buy-guide-path-step" type="button" data-guide-step="6" aria-pressed="false">
+          <span class="buy-guide-path-icon" aria-hidden="true">簽</span><em>6</em><strong>簽約匯款</strong>
+        </button>
+        <button class="buy-guide-path-step" type="button" data-guide-step="7" aria-pressed="false">
+          <span class="buy-guide-path-icon" aria-hidden="true">家</span><em>7</em><strong>交屋登記</strong>
+        </button>
+        <button class="buy-guide-path-step" type="button" data-guide-step="8" aria-pressed="false">
+          <span class="buy-guide-path-icon" aria-hidden="true">管</span><em>8</em><strong>租管售後</strong>
+        </button>
+      </div>
     </section>
 
-    <article class="card">
-      <h2>文章大綱</h2>
-      <ol>
-        {% for section in article.sections %}
-        <li>{{ section }}</li>
-        {% endfor %}
-      </ol>
-    </article>
+    <section id="buy-guide-flow" class="buy-guide-flow" aria-labelledby="buy-guide-flow-title">
+      <div class="buy-guide-section-head">
+        <h2 id="buy-guide-flow-title">一步步看懂日本買房流程</h2>
+        <p>點選任一步驟，右側會切換成對應的圖片、重點提醒和文件清單。</p>
+      </div>
 
-    <section class="panel">
-      <h2>引用資料來源建議</h2>
-      {% for category, items in knowledge_sources.items() %}
-      <h3>{{ category }}</h3>
-      <ul>
-        {% for item in items %}
-        <li><a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.name }}</a>｜{{ item.use }}</li>
-        {% endfor %}
-      </ul>
-      {% endfor %}
+      <div class="buy-guide-workspace">
+        <nav class="buy-guide-steps" aria-label="購屋流程步驟">
+          <button class="buy-guide-step is-active" type="button" data-guide-step="1" aria-pressed="true">
+            <span>01</span><strong>明確需求</strong><em>區域、預算、用途</em>
+          </button>
+          <button class="buy-guide-step" type="button" data-guide-step="2" aria-pressed="false">
+            <span>02</span><strong>智慧查詢</strong><em>找房源與條件</em>
+          </button>
+          <button class="buy-guide-step" type="button" data-guide-step="3" aria-pressed="false">
+            <span>03</span><strong>案件比較</strong><em>收益與風險</em>
+          </button>
+          <button class="buy-guide-step" type="button" data-guide-step="4" aria-pressed="false">
+            <span>04</span><strong>資料確認</strong><em>圖面、權狀、管理</em>
+          </button>
+          <button class="buy-guide-step" type="button" data-guide-step="5" aria-pressed="false">
+            <span>05</span><strong>出價申購</strong><em>條件談判</em>
+          </button>
+          <button class="buy-guide-step" type="button" data-guide-step="6" aria-pressed="false">
+            <span>06</span><strong>簽約匯款</strong><em>契約與資金</em>
+          </button>
+          <button class="buy-guide-step" type="button" data-guide-step="7" aria-pressed="false">
+            <span>07</span><strong>交屋登記</strong><em>移轉與驗收</em>
+          </button>
+          <button class="buy-guide-step" type="button" data-guide-step="8" aria-pressed="false">
+            <span>08</span><strong>租管售後</strong><em>出租、管理、稅務</em>
+          </button>
+        </nav>
+
+        <div class="buy-guide-detail" aria-live="polite">
+          <article class="buy-guide-step-panel is-active" data-guide-panel="1">
+            <figure><img src="/static/template-bhomeland/real-estate-agent-with-keys.jpg" alt="整理日本購屋需求與預算"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 01</span>
+              <h3>先把「為什麼買」說清楚</h3>
+              <p>投資、自住、子女留學或資產配置，目標不同，適合的城市、屋齡、管理方式和預算都會不同。</p>
+              <ul>
+                <li>確認總預算、可接受匯率區間與持有年限。</li>
+                <li>先選用途，再選城市與物件類型。</li>
+                <li>把必備條件和可讓步條件分開。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>先準備</strong><span>預算表</span><span>偏好區域</span><span>購屋目的</span></div>
+            </div>
+          </article>
+
+          <article class="buy-guide-step-panel" data-guide-panel="2" hidden>
+            <figure><img src="/static/img/jp-area-station-line-search.png" alt="使用地區與車站查詢日本房源"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 02</span>
+              <h3>用條件把可看案件縮小</h3>
+              <p>從地區、車站、價格、坪數、房型與屋齡開始篩選，避免一開始就被大量案件淹沒。</p>
+              <ul>
+                <li>用智慧查詢找出符合預算和用途的案件。</li>
+                <li>留意是否有租中、空屋、管理費與修繕積立金。</li>
+                <li>把喜歡的案件加入收藏，方便後續比較。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>站內工具</strong><span>地區找房</span><span>智慧查詢</span><span>收藏案件</span></div>
+            </div>
+          </article>
+
+          <article class="buy-guide-step-panel" data-guide-panel="3" hidden>
+            <figure><img src="/static/cache/case-images/68/68e0475bf322455c13fe8b4c40c22694bbbe8f7e.jpg" alt="比較日本房產案件外觀與條件"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 03</span>
+              <h3>把價格、面積和收益放在同一張表看</h3>
+              <p>不要只看售價。需要一起檢查坪單價、管理成本、出租狀態、周邊交通和未來轉售性。</p>
+              <ul>
+                <li>比較價格、面積、房型、屋齡與交通時間。</li>
+                <li>租中案件要看租金、租約與退租風險。</li>
+                <li>用案件對比工具快速排除不適合物件。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>重點欄位</strong><span>價格</span><span>面積</span><span>租金</span><span>交通</span></div>
+            </div>
+          </article>
+
+          <article class="buy-guide-step-panel" data-guide-panel="4" hidden>
+            <figure><img src="/static/template-bhomeland/slider_img3.jpg" alt="確認日本房產室內與文件資訊"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 04</span>
+              <h3>確認文件，不只確認照片</h3>
+              <p>照片只能判斷第一印象，正式判斷要看登記、管理、修繕、圖面和重要事項說明。</p>
+              <ul>
+                <li>確認權利關係、用途限制與管理狀態。</li>
+                <li>檢查修繕積立金、管理費和過去修繕紀錄。</li>
+                <li>必要時請中文整理或人工協助解讀。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>文件</strong><span>謄本</span><span>圖面</span><span>管理資料</span><span>重要事項</span></div>
+            </div>
+          </article>
+
+          <article class="buy-guide-step-panel" data-guide-panel="5" hidden>
+            <figure><img src="/static/template-bhomeland/slider_img2.jpg" alt="提交日本房產申購與價格條件"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 05</span>
+              <h3>出價不是只寫一個數字</h3>
+              <p>申購通常會包含價格、付款節點、簽約時間、交屋時間與附帶條件，條件清楚才容易談成。</p>
+              <ul>
+                <li>確認可接受底價與最高價。</li>
+                <li>設定匯款、簽約和交屋時間表。</li>
+                <li>需要貸款或代管時，提前確認可行性。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>申購條件</strong><span>價格</span><span>時程</span><span>付款</span><span>附帶條件</span></div>
+            </div>
+          </article>
+
+          <article class="buy-guide-step-panel" data-guide-panel="6" hidden>
+            <figure><img src="/static/template-bhomeland/aboutus_img.jpg" alt="日本房產簽約與匯款資料確認"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 06</span>
+              <h3>簽約前把金流和身份文件排好</h3>
+              <p>海外買方通常需要處理身份文件、印鑑或署名、匯款資訊與日文契約內容確認。</p>
+              <ul>
+                <li>確認買賣契約與重要事項說明內容。</li>
+                <li>核對匯款帳戶、付款節點和費用明細。</li>
+                <li>保留匯款紀錄與簽署版本。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>簽約資料</strong><span>護照</span><span>地址證明</span><span>契約書</span><span>匯款紀錄</span></div>
+            </div>
+          </article>
+
+          <article class="buy-guide-step-panel" data-guide-panel="7" hidden>
+            <figure><img src="/static/template-bhomeland/slider_img3.jpg" alt="日本房產交屋和登記完成"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 07</span>
+              <h3>交屋日確認移轉、鑰匙與管理銜接</h3>
+              <p>交屋不是結束，而是所有權移轉、費用結清、鑰匙交接與管理銜接的集中點。</p>
+              <ul>
+                <li>確認司法書士登記與所有權移轉。</li>
+                <li>核對固定資產稅、管理費等日割清算。</li>
+                <li>取得鑰匙、管理資料和後續聯絡窗口。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>交屋確認</strong><span>登記</span><span>鑰匙</span><span>清算表</span><span>管理窗口</span></div>
+            </div>
+          </article>
+
+          <article class="buy-guide-step-panel" data-guide-panel="8" hidden>
+            <figure><img src="/static/cache/case-images/61/61f4a6cf1fea74ec94c4b3165fc160b2cd9d5e40.jpg" alt="日本房產租賃管理與售後服務"></figure>
+            <div class="buy-guide-panel-copy">
+              <span class="buy-guide-panel-index">Step 08</span>
+              <h3>持有期間要把租管、稅務和轉售一起規劃</h3>
+              <p>買完後的管理品質會直接影響收益。出租、修繕、報稅和未來出售都應該提前安排。</p>
+              <ul>
+                <li>確認租賃管理公司、收租與修繕通知方式。</li>
+                <li>追蹤固定資產稅、所得稅與年度資料。</li>
+                <li>定期檢視市場價格與轉售策略。</li>
+              </ul>
+              <div class="buy-guide-docs"><strong>售後</strong><span>租管</span><span>報稅</span><span>修繕</span><span>轉售</span></div>
+            </div>
+          </article>
+        </div>
+      </div>
     </section>
+
+    <section class="buy-guide-overview" aria-labelledby="buy-guide-overview-title">
+      <div class="buy-guide-section-head">
+        <h2 id="buy-guide-overview-title">流程總覽</h2>
+        <p>點擊步驟可查看詳細說明。</p>
+      </div>
+      <div class="buy-guide-overview-grid">
+        <button type="button" data-guide-jump="1"><span>需</span><strong>1 明確需求</strong><em>釐清購屋目的與條件設定</em></button>
+        <button type="button" data-guide-jump="2"><span>查</span><strong>2 智慧查詢</strong><em>使用平台工具快速搜尋物件</em></button>
+        <button type="button" data-guide-jump="3"><span>比</span><strong>3 案件比較</strong><em>多物件比較分析找出最佳選擇</em></button>
+        <button type="button" data-guide-jump="4"><span>書</span><strong>4 資料確認</strong><em>確認物件資訊與相關資料</em></button>
+        <button type="button" data-guide-jump="5"><span>¥</span><strong>5 出價申購</strong><em>提出購買意向與申購條件</em></button>
+        <button type="button" data-guide-jump="6"><span>簽</span><strong>6 簽約匯款</strong><em>簽署合約並進行匯款作業</em></button>
+        <button type="button" data-guide-jump="7"><span>家</span><strong>7 交屋登記</strong><em>完成交屋與登記手續</em></button>
+        <button type="button" data-guide-jump="8"><span>管</span><strong>8 租管售後</strong><em>出租管理與售後服務支援</em></button>
+      </div>
+    </section>
+
+    <section id="buy-guide-ready-title" class="buy-guide-checklist" aria-labelledby="buy-guide-checklist-title">
+      <div class="buy-guide-checklist-media" aria-hidden="true">
+        <img src="/static/template-bhomeland/real-estate-agent-with-keys.jpg" alt="">
+      </div>
+      <div class="buy-guide-checklist-copy">
+        <h2 id="buy-guide-checklist-title">購屋前必備檢查清單</h2>
+        <p>出發前確認以下事項，讓購屋更順利安心。</p>
+        <div class="buy-guide-checklist-grid">
+          <span>護照有效期 6 個月以上</span>
+          <span>資金規劃就緒</span>
+          <span>購屋目的明確</span>
+          <span>匯款與物件條件清楚</span>
+          <span>投資需求評估</span>
+          <span>委託專業團隊協助</span>
+        </div>
+        <a class="buy-guide-checklist-link" href="#buy-guide-outline-title">查看完整補充資料</a>
+      </div>
+    </section>
+
+    <section class="buy-guide-faq" aria-labelledby="buy-guide-faq-title">
+      <div>
+        <h2 id="buy-guide-faq-title">常見問題 FAQ</h2>
+        <p>關於日本購屋流程，您可能想知道的問題。</p>
+      </div>
+      <div class="buy-guide-faq-list">
+        <details open>
+          <summary>外國人可以買日本房產嗎？</summary>
+          <p>一般情況下可以。實務上要注意身份文件、資金匯入、契約簽署和登記流程。</p>
+        </details>
+        <details>
+          <summary>看中案件後多久需要決定？</summary>
+          <p>熱門物件可能很快被申購。建議在比較階段就把預算、條件和文件先準備好。</p>
+        </details>
+        <details>
+          <summary>買完後可以交給管理公司嗎？</summary>
+          <p>可以。租賃管理、收租、修繕通知和年度資料整理都應該在交屋前確認窗口。</p>
+        </details>
+      </div>
+      <aside class="buy-guide-faq-contact" aria-label="線上客服">
+        <span class="buy-guide-faq-contact-icon" aria-hidden="true">管</span>
+        <h3>還有其他問題？</h3>
+        <p>專人在網站內協助解答日本購屋相關問題。</p>
+        <a href="#buy-guide-flow">諮詢線上客服</a>
+        <small>服務時間：09:00 - 18:00（台灣時間）</small>
+      </aside>
+    </section>
+
+    <section class="buy-guide-reference" aria-labelledby="buy-guide-outline-title">
+      <div class="buy-guide-section-head">
+        <h2 id="buy-guide-outline-title">流程補充與資料來源</h2>
+        <p>保留原本文章頁的流程大綱與引用來源，方便使用者繼續往下核對細節。</p>
+      </div>
+      <div class="buy-guide-reference-grid">
+        <article class="buy-guide-outline-card">
+          <h3>文章大綱</h3>
+          <ol>
+            {% for section in article.sections %}
+            <li>{{ section }}</li>
+            {% endfor %}
+          </ol>
+        </article>
+        <article class="buy-guide-source-card">
+          <h3>引用資料來源建議</h3>
+          {% for category, items in knowledge_sources.items() %}
+          <div class="buy-guide-source-group">
+            <strong>{{ category }}</strong>
+            <ul>
+              {% for item in items %}
+              <li><a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.name }}</a><span>{{ item.use }}</span></li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endfor %}
+        </article>
+      </div>
+    </section>
+
+    <section class="buy-guide-final-cta" aria-label="流程頁內導覽">
+      <div>
+        <h2>還不知道從哪一步開始？</h2>
+        <p>先回到流程第一步整理需求，再查看準備清單與常見問題；整個頁面都在站內完成。</p>
+      </div>
+      <div class="buy-guide-actions">
+        <button class="buy-guide-primary" type="button" data-guide-jump="1">回到第一步</button>
+        <a class="buy-guide-secondary" href="#buy-guide-faq-title">查看常見問題</a>
+      </div>
+    </section>
+
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
-  {% include 'partials/support_chat_public_fab.html' %}
+  {% include 'partials/site_footer.html' %}
+  <script>
+    (function () {
+      const steps = Array.from(document.querySelectorAll('[data-guide-step]'));
+      const panels = Array.from(document.querySelectorAll('[data-guide-panel]'));
+      function activateGuideStep(id) {
+        steps.forEach((step) => {
+          const active = step.dataset.guideStep === id;
+          step.classList.toggle('is-active', active);
+          step.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        panels.forEach((panel) => {
+          const active = panel.dataset.guidePanel === id;
+          panel.classList.toggle('is-active', active);
+          panel.hidden = !active;
+        });
+      }
+      steps.forEach((step) => {
+        step.addEventListener('click', () => activateGuideStep(step.dataset.guideStep));
+      });
+      document.querySelectorAll('[data-guide-jump]').forEach((button) => {
+        button.addEventListener('click', () => {
+          activateGuideStep(button.dataset.guideJump);
+          document.getElementById('buy-guide-flow')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

@@ -1,4 +1,12 @@
 import argparse
+import os
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.crawler import crawl_manual_links, crawl_seed_items
 from src.db import init_db
@@ -14,6 +22,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override config/crawl_settings.json per_source_limit for this run.",
     )
+    parser.add_argument(
+        "--investment-limit",
+        type=int,
+        default=500,
+        help="Incremental investment metrics rows to backfill after ingestion; 0 disables.",
+    )
     return parser.parse_args()
 
 
@@ -28,6 +42,7 @@ def main() -> None:
     )
     if per_source_limit < 1:
         raise ValueError("--per-source-limit must be >= 1")
+    os.environ["SCLAW_PIPELINE_INVESTMENT_LIMIT"] = str(max(0, int(args.investment_limit or 0)))
 
     crawled = crawl_seed_items(per_source_limit=per_source_limit) + crawl_manual_links()
     print(f"Pipeline crawled items: {len(crawled)} | per_source_limit={per_source_limit}", flush=True)

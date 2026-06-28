@@ -257,6 +257,50 @@
         <p id="home-featured-status" class="home-featured-status">正在载入精选房源...</p>
       </div>
 
+      <div class="home-featured-board home-room-explore" aria-labelledby="home-room-explore-title">
+        <div class="home-featured-board-head home-room-explore-head">
+          <div>
+            <p class="home-featured-kicker">START BY PROPERTY TYPE</p>
+            <h3 id="home-room-explore-title">从物件类型开始探索</h3>
+          </div>
+          <p>先选适合自己的房源形态，再进入工作台筛选区域、价格和格局。</p>
+        </div>
+        <div class="home-room-explore-shell">
+          <button type="button" class="home-room-explore-nav home-room-explore-nav--prev" aria-label="查看前一组物件类型" onclick="scrollRoomExploreRail(-1)">‹</button>
+          <div class="home-room-explore-grid" id="home-room-explore-rail" aria-label="按物件类型进入找房工作台">
+            {% for tile in home_room_explore_tiles %}
+            <button
+              type="button"
+              class="home-room-explore-tile"
+              data-room-property-type="{{ tile.property_type }}"
+              onclick="openRoomExploreWorkbench(event, this)"
+            >
+              <span class="home-room-explore-media" aria-hidden="true">
+                {% if tile.thumb_url %}
+                <img
+                  src="{{ tile.thumb_url }}"
+                  alt=""
+                  loading="{% if loop.index <= 3 %}eager{% else %}lazy{% endif %}"
+                  decoding="async"
+                  fetchpriority="{% if loop.index <= 2 %}high{% else %}low{% endif %}"
+                >
+                {% else %}
+                <span class="home-room-explore-placeholder">待补入代表图</span>
+                {% endif %}
+              </span>
+              <span class="home-room-explore-copy">
+                <span class="home-room-explore-label">{{ tile.label }}</span>
+                <strong>{{ tile.title }}</strong>
+                <small>{{ tile.description }}</small>
+              </span>
+              <span class="home-room-explore-cta">进入筛选</span>
+            </button>
+            {% endfor %}
+          </div>
+          <button type="button" class="home-room-explore-nav home-room-explore-nav--next" aria-label="查看更多物件类型" onclick="scrollRoomExploreRail(1)">›</button>
+        </div>
+      </div>
+
       <div class="home-featured-board home-featured-board--types" aria-labelledby="home-featured-type-title">
         <div class="home-featured-board-head">
           <div>
@@ -2532,6 +2576,73 @@
         summary.innerHTML = `<p><strong>類型條件</strong>：${esc(formatFigureTypeLabel(getSelectedFigurePropertyTypes()))}</p>`;
       }
     }
+
+    function normalizeRoomExplorePropertyType(value) {
+      const raw = String(value || '').trim();
+      return ({
+        '大楼': '大樓',
+        '华厦': '華廈',
+        '别墅/透天': '別墅/透天',
+        '办公': '辦公',
+      })[raw] || raw;
+    }
+
+    function setFigurePropertyTypeOnly(propertyType) {
+      const target = normalizeRoomExplorePropertyType(propertyType);
+      const boxes = Array.from(document.querySelectorAll('input[name="figure_property_types"]'));
+      boxes.forEach((node) => {
+        node.checked = String(node.value || '').trim() === target;
+        node.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      const summary = document.getElementById('figure-summary');
+      if (summary) {
+        summary.innerHTML = `<p><strong>已填入物件类型</strong>：${esc(formatFigureTypeLabel(getSelectedFigurePropertyTypes()))}。请按「查询日本不动产案件」开始搜索。</p>`;
+      }
+      return target;
+    }
+
+    function openRoomExploreWorkbench(event, el) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      const propertyType = setFigurePropertyTypeOnly(el?.getAttribute('data-room-property-type') || '');
+      if (typeof setHomeInternalView === 'function') {
+        setHomeInternalView('workbench', { targetId: 'query-dialog', persist: true, scroll: false, instant: true });
+      } else {
+        document.body?.classList.add('home-view-workbench');
+      }
+      if (typeof setJpWorkbenchTab === 'function') {
+        setJpWorkbenchTab('query', { persist: true, scroll: false, instant: true });
+      }
+      if (typeof setSmartQueryMainTab === 'function') {
+        try {
+          setSmartQueryMainTab('cases');
+        } catch (_) {}
+      }
+      const target = document.getElementById('query-dialog') || document.getElementById('jp-workbench-suite');
+      if (target && typeof target.scrollIntoView === 'function') {
+        window.requestAnimationFrame(() => {
+          try {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } catch (_) {
+            target.scrollIntoView(true);
+          }
+        });
+      }
+      return propertyType;
+    }
+    window.openRoomExploreWorkbench = openRoomExploreWorkbench;
+
+    function scrollRoomExploreRail(direction) {
+      const rail = document.getElementById('home-room-explore-rail');
+      if (!rail) return;
+      const firstCard = rail.querySelector('.home-room-explore-tile');
+      const cardWidth = firstCard ? firstCard.getBoundingClientRect().width : 280;
+      const amount = Math.max(cardWidth * 2, rail.clientWidth * 0.72);
+      rail.scrollBy({ left: Number(direction || 1) * amount, behavior: 'smooth' });
+    }
+    window.scrollRoomExploreRail = scrollRoomExploreRail;
 
     function parseFigurePriceValue(el) {
       const n = Number(String(el?.value || '').replace(/[^\d.]/g, ''));
@@ -21279,7 +21390,8 @@
     const HOME_FEATURED_RECOMMEND_SIZE = 6;
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v9.';
+    const HOME_FEATURED_TYPE_PRELOADS = {{ home_featured_type_preloads|default({})|tojson }};
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v12.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
@@ -21337,6 +21449,8 @@
       const title = String(raw.title_zh_hans || raw.title || raw.title_zh_hant || raw.title_original || '').trim();
       if (!sid && !title) return null;
       if (/^(?:tw|jp|cn|hk|mo)(?:精选|公寓|大楼|华厦|别墅|土地|店面|办公|套房)/i.test(title)) return null;
+      const priceText = String(raw.price_hint || raw.price_text_hant || '').trim();
+      if (!priceText || /(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認/i.test(priceText)) return null;
       const gallery = (Array.isArray(raw.gallery_urls) ? raw.gallery_urls : []).map(homeFeaturedTrustedImageUrl).filter(Boolean);
       const thumb = homeFeaturedTrustedImageUrl(raw.thumb_url || raw.hero_media_url || gallery[0] || '');
       if (!thumb) return null;
@@ -21358,10 +21472,16 @@
         transit_line_zh: String(raw.transit || raw.transit_line_zh || ''),
         address_hint_zh: String(raw.address_hint_zh || raw.address || raw.address_line_hant || raw.address_line_jp || ''),
         address_line_jp: String(raw.address_line_jp || ''),
-        price_text_hant: String(raw.price_hint || raw.price_text_hant || ''),
+        price_hint: priceText,
+        price_text_hant: priceText,
         area_text_hant: String(raw.area_text_hant || ''),
+        exclusive_area_jp: String(raw.exclusive_area_jp || ''),
+        building_area_jp: String(raw.building_area_jp || ''),
+        land_area_jp: String(raw.land_area_jp || ''),
+        other_area_jp: String(raw.other_area_jp || ''),
         layout_text_hant: String(raw.layout_text_hant || ''),
         layout_line_jp: String(raw.layout_line_jp || ''),
+        building_type_zh: String(raw.building_type_zh || ''),
         thumb_url: thumb,
         hero_media_url: thumb,
         gallery_urls: gallery.length ? gallery : [thumb],
@@ -21504,21 +21624,30 @@
       const cached = homeFeaturedTypeCache.get(cacheKey);
       if (cached && Array.isArray(cached.items)) return cached;
       const storedPayload = homeFeaturedStorageGet(type, 0);
+      if (!storedPayload || !Array.isArray(storedPayload.items)) return null;
       const storedItems = homeFeaturedPayloadItems(storedPayload);
-      if (!storedItems.length) return null;
       const normalized = {
         items: storedItems,
         offset: Number(storedPayload.next_offset || storedItems.length || 0),
-        hasMore: storedPayload.has_more !== false,
+        hasMore: storedPayload.has_more !== false && storedItems.length > 0,
       };
       homeFeaturedTypeCache.set(cacheKey, normalized);
       return normalized;
     }
 
+    function homeFeaturedDisplayImageUrl(src, eager) {
+      const raw = String(src || '').trim();
+      if (!raw) return '';
+      if (typeof portalListingThumbDisplayUrl === 'function') {
+        return portalListingThumbDisplayUrl(raw, eager ? 960 : 520, eager ? 600 : 360);
+      }
+      return raw;
+    }
+
     function homeFeaturedWarmImages(items) {
       try {
         (items || []).slice(0, 4).forEach((item) => {
-          const src = String(item?.thumb_url || item?.hero_media_url || '').trim();
+          const src = homeFeaturedDisplayImageUrl(item?.thumb_url || item?.hero_media_url || '', false);
           if (!src) return;
           const img = new Image();
           img.decoding = 'async';
@@ -21544,12 +21673,11 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data || data.ok === false) return;
         const next = homeFeaturedPayloadItems(data);
-        if (!next.length) return;
         homeFeaturedStorageSet(type, 0, data);
         homeFeaturedTypeCache.set(cacheKey, {
           items: next.slice(),
           offset: Number(data.next_offset || next.length || 0),
-          hasMore: data.has_more !== false,
+          hasMore: data.has_more !== false && next.length > 0,
         });
         homeFeaturedWarmImages(next);
         if (homeFeaturedType === type && !homeFeaturedTypeLoading) {
@@ -21662,20 +21790,71 @@
       if (!thumb) {
         return `<div class="${cls} home-featured-img-placeholder"><strong>暂无图片</strong><span>可进站内明细查看</span></div>`;
       }
-      return `<img class="${cls}" src="${esc(thumb)}" alt="${esc(item.title || '日本房源图片')}" loading="${eager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${eager ? 'high' : 'low'}" referrerpolicy="no-referrer">`;
+      const src = homeFeaturedDisplayImageUrl(thumb, eager);
+      return `<img class="${cls}" src="${esc(src)}" alt="${esc(item.title || '日本房源图片')}" width="${eager ? 960 : 520}" height="${eager ? 600 : 360}" loading="${eager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${eager ? 'high' : 'low'}" referrerpolicy="no-referrer">`;
     }
 
     function homeFeaturedMediaSpecHtml(item) {
       const price = String(item?.price_hint || item?.price_text_hant || '价格待确认').trim();
-      const area = String(item?.area_hint || item?.area_text_hant || '')
-        .replace(/^(?:專有|专有|専有面積|面積)\s*[:：]?/i, '')
-        .trim();
-      const layout = String(item?.layout_text_hant || item?.layout_line_jp || '').trim();
-      const specs = [area, layout].filter(Boolean);
+      const specs = homeFeaturedSpecLabels(item);
       return `<div class="home-featured-media-spec" aria-label="房源价格面积格局">
         <strong>${esc(price || '价格待确认')}</strong>
         ${specs.length ? `<span>${specs.map((part) => esc(part)).join('<i aria-hidden="true">|</i>')}</span>` : ''}
       </div>`;
+    }
+
+    function homeFeaturedCleanSpec(value) {
+      return String(value || '')
+        .replace(/\s+/g, ' ')
+        .replace(/^(?:專有|专有|専有面積|面積|面积|土地面積|土地面积|建物面積|建物面积|その他面積|其他面积)\s*[:：]?/i, '')
+        .trim();
+    }
+
+    function homeFeaturedPushUniqueSpec(list, value) {
+      const text = homeFeaturedCleanSpec(value);
+      if (!text || text === '—' || text === '-') return;
+      const key = text.replace(/\s+/g, '').toLowerCase();
+      if (list.some((item) => String(item).replace(/\s+/g, '').toLowerCase() === key)) return;
+      list.push(text);
+    }
+
+    function homeFeaturedSpecLabels(item) {
+      const specs = [];
+      homeFeaturedPushUniqueSpec(specs, item?.area_hint || item?.area_text_hant || item?.exclusive_area_jp);
+      const land = homeFeaturedCleanSpec(item?.land_area_jp);
+      if (land) homeFeaturedPushUniqueSpec(specs, `占地 ${land}`);
+      const building = homeFeaturedCleanSpec(item?.building_area_jp);
+      if (building) homeFeaturedPushUniqueSpec(specs, `建物 ${building}`);
+      homeFeaturedPushUniqueSpec(specs, item?.layout_text_hant || item?.layout_line_jp);
+      return specs.slice(0, 4);
+    }
+
+    function homeFeaturedCardTags(item) {
+      const tags = [];
+      const noisy = /(?:高清|高图片|高圖片|完整度|价格可比|價格可比|精选房源|精選房源)/i;
+      const typeLabels = [];
+      const advantageLabels = [];
+      (Array.isArray(item?.property_type_hits) ? item.property_type_hits : []).forEach((type) => {
+        const label = homeFeaturedTypeDisplayLabel(type);
+        if (label && label !== '综合推荐') homeFeaturedPushUniqueSpec(typeLabels, label);
+      });
+      homeFeaturedPushUniqueSpec(typeLabels, item?.building_type_zh);
+      (Array.isArray(item?.theme_tags) ? item.theme_tags : []).forEach((tag) => {
+        const text = String(tag || '').trim();
+        if (!text || noisy.test(text)) return;
+        if (/(?:公寓|大楼|大樓|华厦|華廈|套房|别墅|別墅|透天|土地|店面|办公|辦公)/.test(text)) {
+          homeFeaturedPushUniqueSpec(typeLabels, text);
+        } else if (/(?:新建|自住|出租|投资|投資|近站|通勤)/.test(text)) {
+          homeFeaturedPushUniqueSpec(advantageLabels, text);
+        }
+      });
+      typeLabels.slice(0, 1).forEach((tag) => homeFeaturedPushUniqueSpec(tags, tag));
+      const transit = String(item?.transit || item?.transit_line_zh || '').trim();
+      if (/(?:徒歩|步行|駅|車站|车站|站)/i.test(transit)) {
+        homeFeaturedPushUniqueSpec(advantageLabels, '近站通勤');
+      }
+      advantageLabels.slice(0, 2).forEach((tag) => homeFeaturedPushUniqueSpec(tags, tag));
+      return tags.slice(0, 3);
     }
 
     function homeFeaturedDisplayCardTitle(item) {
@@ -21706,16 +21885,10 @@
       return prefOnly && prefOnly[1] ? prefOnly[1] : s;
     }
 
-    function homeFeaturedDisplayCardLocation(item) {
+    function homeFeaturedCleanLocationText(value) {
       const raw = String(
-        item?.address_line_jp ||
-        item?.address_line_hant ||
-        item?.address_hint_zh ||
-        item?.region ||
-        item?.jp_region_display_zh ||
-        item?.transit ||
-        item?.title ||
-        '日本房源位置'
+        value ||
+        ''
       ).trim();
       let cleaned = raw
         .replace(/^(?:地址|地址位置|所在地|住所)\s*[:：]?\s*/i, '')
@@ -21726,17 +21899,47 @@
       cleaned = cleaned
         .replace(/\s*(?:地図|地圖|地图|建築年|建築年月|築年月|築年数|築年|建物構造|構造|结构|階数|階建|所在階|總戶數|総戸数|オートロック|掲載画像|閲覧済|交通|價格|价格|間取り|格局|專有面積|専有面積|土地面積|建物面積).*$/i, '')
         .trim();
-      cleaned = homeFeaturedCoarseLocation(cleaned);
-      return cleaned || '日本房源位置';
+      return cleaned;
+    }
+
+    function homeFeaturedFullLocation(item) {
+      const candidates = [
+        item?.address_line_jp,
+        item?.address_line_hant,
+        item?.address_hint_zh,
+        item?.region,
+        item?.jp_region_display_zh,
+        item?.transit,
+      ];
+      for (const candidate of candidates) {
+        const cleaned = homeFeaturedCleanLocationText(candidate);
+        if (cleaned) return cleaned.length > 54 ? `${cleaned.slice(0, 54)}...` : cleaned;
+      }
+      return '日本房源位置';
+    }
+
+    function homeFeaturedShortLocation(item) {
+      const full = homeFeaturedFullLocation(item);
+      const coarse = homeFeaturedCoarseLocation(full);
+      return coarse || full || '日本房源位置';
+    }
+
+    function homeFeaturedCardLocation(item) {
+      return homeFeaturedShortLocation(item);
+    }
+
+    function homeFeaturedDisplayCardLocation(item) {
+      return homeFeaturedCardLocation(item);
     }
 
     function homeFeaturedCardHtml(item, index, options = {}) {
       const key = supportCaseKeyFromItem(item);
       homeFeaturedCaseMap.set(key, item);
       const url = String(item.case_path || (item.source_item_id ? `/case/${item.source_item_id}` : '#')).trim();
-      const tags = Array.isArray(item.theme_tags) ? item.theme_tags.slice(0, 2) : [];
+      const tags = homeFeaturedCardTags(item);
       const displayTitle = homeFeaturedDisplayCardTitle(item);
-      const displayLocation = homeFeaturedDisplayCardLocation(item);
+      const displayLocation = homeFeaturedCardLocation(item);
+      const cardHeading = displayLocation && displayLocation !== '日本房源位置' ? displayLocation : displayTitle;
       const extraClass = options && options.hero ? ' home-featured-card--hero' : '';
       return `<article class="home-featured-card${extraClass}" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
         <div class="home-featured-card-media" role="presentation">
@@ -21746,11 +21949,10 @@
           ${homeFeaturedActionButtons(item)}
         </div>
         <div class="home-featured-card-body">
-          <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(displayTitle)}</a></h3>
+          <h3><a href="${esc(url)}" title="${esc(cardHeading)}" onclick="return portalCaseInlineLinkClick(event, this)"><span class="home-featured-card-location-short">${esc(cardHeading)}</span></a></h3>
           <div class="home-featured-card-meta">
             <span>${esc(displayLocation)}</span>
             <span>${esc(item.source_name || '原站')}</span>
-            ${item.price_hint ? `<span>${esc(item.price_hint)}</span>` : ''}
           </div>
           <div class="home-featured-tags">${tags.map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>
         </div>
@@ -21828,6 +22030,36 @@
         homeFeaturedStorageSet(homeFeaturedSpotlightCacheKey(), 0, HOME_FEATURED_PRELOAD);
       }
       return true;
+    }
+
+    function hydrateHomeFeaturedTypePreloads() {
+      const payloadMap = HOME_FEATURED_TYPE_PRELOADS && typeof HOME_FEATURED_TYPE_PRELOADS === 'object'
+        ? HOME_FEATURED_TYPE_PRELOADS
+        : {};
+      let renderedActive = false;
+      HOME_FEATURED_TYPES.forEach((type) => {
+        const payload = Object.prototype.hasOwnProperty.call(payloadMap, type) ? payloadMap[type] : null;
+        if (!payload || !Array.isArray(payload.items)) return;
+        const items = homeFeaturedPayloadItems(payload);
+        const normalized = {
+          items: items.slice(),
+          offset: Number(payload.next_offset || items.length || 0),
+          hasMore: payload.has_more !== false && items.length > 0,
+        };
+        homeFeaturedTypeCache.set(homeFeaturedCacheKey(type), normalized);
+        homeFeaturedStorageSet(type, 0, payload);
+        homeFeaturedWarmImages(items);
+        if (String(type || '') === String(homeFeaturedType || '') && !renderedActive) {
+          homeFeaturedTypeCases = items.slice();
+          homeFeaturedTypeOffset = normalized.offset;
+          renderHomeFeaturedTypeCases();
+          const moreBtn = document.getElementById('home-featured-type-more');
+          if (moreBtn) moreBtn.hidden = normalized.hasMore === false;
+          homeFeaturedSetTypeStatus(items.length ? `已载入 ${items.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(type)}」的房源。`);
+          renderedActive = true;
+        }
+      });
+      return renderedActive;
     }
 
     async function refreshHomeFeaturedSpotlight() {
@@ -27371,10 +27603,16 @@
       consumeInboundGeoKeywordSearch();
       installMobileHeaderMetrics();
       const homeFeaturedHydrated = hydrateHomeFeaturedInitial();
+      const homeFeaturedTypesHydrated = hydrateHomeFeaturedTypePreloads();
       prefetchHomeFeaturedTypes();
-      Promise.resolve(loadHomeFeaturedCases({ append: false, background: homeFeaturedHydrated }))
-        .finally(() => loadHomeFeaturedTypeCases({ append: false, background: homeFeaturedHydrated }))
-        .finally(() => prefetchHomeFeaturedTypes());
+      const homeFeaturedStartupLoads = [];
+      if (!homeFeaturedHydrated) {
+        homeFeaturedStartupLoads.push(loadHomeFeaturedCases({ append: false }));
+      }
+      if (!homeFeaturedTypesHydrated) {
+        homeFeaturedStartupLoads.push(loadHomeFeaturedTypeCases({ append: false }));
+      }
+      Promise.allSettled(homeFeaturedStartupLoads).finally(() => prefetchHomeFeaturedTypes());
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       scheduleAfterMobileFirstIntent(initHomeHeroCarousel, 12000);
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);

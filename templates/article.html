@@ -6,20 +6,25 @@
   <title>{{ item.seo_title }}</title>
   <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-article-case-template-a">
   <link rel="canonical" href="{{ site_url }}{{ item.article_path }}">
   <link rel="alternate" hreflang="zh-Hant" href="{{ site_url }}{{ item.article_path }}">
   <link rel="alternate" hreflang="zh-Hans" href="{{ site_url }}{{ item.article_path }}?lang=zh-hans">
   <script type="application/ld+json">{{ item.schema_json | safe }}</script>
 </head>
-<body class="article-lang-hant site-article site-lang-hant">
-  <main class="container article-page-v2">
+<body class="site-home site-case-standalone article-lang-hant site-article site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container case-page-suumo article-page-v2">
     {% include 'partials/site_language_switch.html' %}
+    <header class="suumo-case-brandbar article-case-brandbar">
+      <span class="suumo-case-brandbar-logo">站內文章</span>
+      <span class="suumo-case-brandbar-src">{{ item.source_name }} ｜ {{ item.topic_category }} ｜ {{ item.access_status }}</span>
+    </header>
     <header class="article-case-hero panel">
       {% if brand_name %}
       <div class="brand-badge">{{ brand_name }}</div>
       {% endif %}
-      <p class="muted" style="margin:0 0 0.35rem;"><a href="/">← 返回查詢首頁</a></p>
+      <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">返回查詢首頁</a></p>
       <h1 class="article-case-title">{{ item.seo_title }}</h1>
       <p class="article-case-meta muted">
         來源 <strong>{{ item.source_name }}</strong>
@@ -156,11 +161,12 @@
             {% endif %}
             <span class="muted">{{ n.region_code or '' }}</span>
           </div>
-          <h3 class="article-related-title"><a href="{{ n.article_path }}">{{ n.seo_title }}</a></h3>
+          {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
+          <h3 class="article-related-title"><a href="{{ related_primary_path }}">{{ n.seo_title }}</a></h3>
           <p class="muted article-related-meta">{{ n.topic_category }}／{{ n.intent_target }}｜更新 {{ n.updated_at or '-' }}</p>
           <p class="article-related-actions">
-            <a href="{{ n.article_path }}">站內說明</a>
-            {% if n.case_path %}｜<a href="{{ n.case_path }}">案件頁</a>{% endif %}
+            {% if n.case_path %}<a href="{{ n.case_path }}">案件頁</a>{% endif %}
+            {% if n.article_path %}｜<a href="{{ n.article_path }}">站內說明</a>{% endif %}
             ｜<a href="{{ n.item_url }}" target="_blank" rel="nofollow noopener noreferrer">來源：{{ n.source_name }}</a>
             {% if n.access_status == "restricted" %}<span class="muted">（需授權）</span>{% endif %}
           </p>

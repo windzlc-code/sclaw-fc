@@ -6,80 +6,175 @@
   <title>{{ company_profile.name }}｜{{ site_name }}</title>
   <meta name="description" content="公司背景、服務流程、資訊來源與查詢導引。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-company-luxe-b">
 </head>
-<body class="site-lang-hant">
-  <main class="container">
-    {% include 'partials/site_language_switch.html' %}
-    <section class="hero">
-      {% if brand_name %}
-      <div class="brand-badge">{{ brand_name }}</div>
-      {% endif %}
-      <h1>{{ company_profile.name }}</h1>
-      <p>{{ company_profile.service_name }}｜頁籤式公司介紹</p>
+<body class="site-home site-case-standalone site-buy-guide site-company-profile site-company-luxe site-lang-hant">
+  {% include 'partials/site_header.html' %}
+  <main class="container case-page-suumo company-luxe-page">
+    <section class="company-luxe-hero" aria-labelledby="company-luxe-title">
+      <img src="/static/template-bhomeland/aboutus_img.jpg" alt="日本不動產顧問服務場景">
+      <div class="company-luxe-hero__content">
+        <h1 id="company-luxe-title">{{ company_profile.name }}</h1>
+        <p>{{ company_profile.summary }}</p>
+        <div class="company-luxe-actions" aria-label="公司頁內導覽">
+          <a href="#company-luxe-position">了解服務定位</a>
+          <a href="#company-luxe-contact">聯絡我們</a>
+        </div>
+      </div>
     </section>
 
-    <section class="panel company-tab-wrap">
-      <a href="/">← 返回查詢首頁</a>
-      <p class="muted">以下內容已整合自官方公司頁，並轉為本站可讀性較高的頁籤模式。</p>
-      <div class="company-tab-nav">
-        {% for tab in company_tabs %}
-        <button class="company-tab-btn{% if loop.first %} active{% endif %}" data-tab="{{ tab.id }}">{{ tab.label }}</button>
-        {% endfor %}
+    <section id="company-luxe-position" class="company-luxe-position" aria-labelledby="company-luxe-position-title">
+      <div class="company-luxe-section-head">
+        <h2 id="company-luxe-position-title">穩健、透明、可追溯</h2>
+        <p>{{ company_profile.service_name }}不是把資訊堆疊給使用者，而是協助海外買家把需求、來源、流程與專業窗口整理清楚。</p>
       </div>
+      <div class="company-luxe-pillars">
+        <article>
+          <span>01</span>
+          <h3>海外買家視角</h3>
+          <p>以台灣與海外華人買家的決策節奏，整理日本不動產資訊與流程重點。</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h3>公開來源核對</h3>
+          <p>以官方資料、市場平台和站內案件資訊交叉比對，降低資訊落差。</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h3>專業流程對接</h3>
+          <p>協助理解需求、行情、文件與仲介溝通節點，讓購屋過程更有秩序。</p>
+        </article>
+      </div>
+    </section>
 
-      {% for tab in company_tabs %}
-      <article class="company-tab-panel{% if loop.first %} active{% endif %}" id="tab-{{ tab.id }}">
-        <h2>{{ tab.title }}</h2>
-        <p>{{ tab.summary }}</p>
+    <section class="company-luxe-story" aria-labelledby="company-luxe-story-title">
+      <div class="company-luxe-story__image">
+        <img src="/static/template-bhomeland/real-estate-agent-with-keys.jpg" alt="日本不動產顧問交付鑰匙">
+      </div>
+      <div class="company-luxe-story__copy">
+        <h2 id="company-luxe-story-title">以顧問式整理，承接跨境購屋決策</h2>
+        <p>{{ company_profile.name }}聚焦日本不動產購買支援，將市場資訊、服務節點和在地專業資源整合成更容易理解的站內內容。</p>
         <ul>
-          {% for bullet in tab.bullets %}
-          <li>{{ bullet }}</li>
+          {% for tab in company_tabs[:4] %}
+          <li><strong>{{ tab.label }}</strong><span>{{ tab.summary }}</span></li>
           {% endfor %}
         </ul>
-        {% if tab.steps %}
-        <h3>流程重點</h3>
-        <ol>
-          {% for step in tab.steps %}
-          <li>{{ step }}</li>
-          {% endfor %}
-        </ol>
-        {% endif %}
-      </article>
-      {% endfor %}
+      </div>
     </section>
 
-    <section class="panel">
-      <h2>查詢資料來源整合</h2>
-      <p class="muted">已把公司頁「日本不動產」服務說明整合進本站資料架構，以下為可交叉驗證來源：</p>
-      {% for category, items in knowledge_sources.items() %}
-      <h3>{{ category }}</h3>
-      <ul>
-        {% for item in items %}
-        <li><a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.name }}</a>｜{{ item.use }}</li>
+    <section class="company-luxe-catalog" aria-labelledby="company-luxe-catalog-title">
+      <div class="company-luxe-section-head">
+        <h2 id="company-luxe-catalog-title">公司資訊整理</h2>
+        <p>保留原公司頁的完整內容，改以更清楚的分區呈現：公司背景、日本不動產、品牌夥伴、夥伴計畫與聯絡資訊。</p>
+      </div>
+      <div class="company-luxe-catalog-grid">
+        {% for tab in company_tabs %}
+        <article class="company-luxe-info-card{% if tab.steps %} company-luxe-info-card--wide{% endif %}">
+          <span>{{ '%02d' % loop.index }}</span>
+          <h3>{{ tab.title }}</h3>
+          <p>{{ tab.summary }}</p>
+          <ul>
+            {% for bullet in tab.bullets %}
+            <li>{{ bullet }}</li>
+            {% endfor %}
+          </ul>
+          {% if tab.steps %}
+          <div class="company-luxe-flow-note">
+            <strong>流程重點</strong>
+            <ol>
+              {% for step in tab.steps %}
+              <li>{{ step }}</li>
+              {% endfor %}
+            </ol>
+          </div>
+          {% endif %}
+        </article>
         {% endfor %}
-      </ul>
-      {% endfor %}
+      </div>
     </section>
+
+    <section class="company-luxe-service" aria-labelledby="company-luxe-service-title">
+      <div class="company-luxe-section-head">
+        <h2 id="company-luxe-service-title">服務方式</h2>
+        <p>保留必要流程，但不把頁面做成複雜教學；使用者只需要先看懂服務如何承接需求。</p>
+      </div>
+      <div class="company-luxe-service-line">
+        {% for step in company_profile.service_steps %}
+        <article>
+          <span>{{ '%02d' % loop.index }}</span>
+          <p>{{ step }}</p>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section id="company-luxe-contact" class="company-luxe-contact" aria-labelledby="company-luxe-contact-title">
+      <div class="company-luxe-section-head">
+        <h2 id="company-luxe-contact-title">聯絡方式</h2>
+        <p>跨境不動產諮詢需要清楚的窗口。以下保留公司公開地址、信箱與官方參考頁，方便使用者直接核對與聯絡。</p>
+      </div>
+      <div class="company-luxe-contact-grid">
+        <article class="company-luxe-contact-card">
+          <h3>{{ company_profile.name }}</h3>
+          <div class="company-luxe-contact-lines">
+            <section><strong>所在地</strong><span>{{ company_profile.address }}</span></section>
+            <section><strong>Email</strong><a href="mailto:{{ company_profile.contact }}">{{ company_profile.contact }}</a></section>
+            {% if company_profile.reference_url %}
+            <section><strong>官方參考</strong><a href="{{ company_profile.reference_url }}" target="_blank" rel="nofollow noopener">查看公司服務頁</a></section>
+            {% endif %}
+          </div>
+          <p>{{ company_profile.address }}</p>
+          <a href="mailto:{{ company_profile.contact }}">{{ company_profile.contact }}</a>
+          {% if company_profile.reference_url %}
+          <a href="{{ company_profile.reference_url }}" target="_blank" rel="nofollow noopener">官方參考頁</a>
+          {% endif %}
+        </article>
+        <article class="company-luxe-contact-card company-luxe-contact-card--summary">
+          <h3>可洽詢內容</h3>
+          <ul>
+            <li>海外買家日本不動產需求整理</li>
+            <li>日本地區行情與案件資訊判讀</li>
+            <li>合法合規仲介與專業流程對接</li>
+            <li>合作提案、品牌方與資訊渠道合作</li>
+          </ul>
+        </article>
+        <article class="company-luxe-source-card">
+          <h3>站內交叉來源</h3>
+          <div>
+            {% for category, items in knowledge_sources.items() %}
+            <section>
+              <strong>{{ category }}</strong>
+              {% for item in items[:2] %}
+              <a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.name }}</a>
+              {% endfor %}
+            </section>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="company-luxe-sources" aria-labelledby="company-luxe-source-title">
+      <div class="company-luxe-section-head">
+        <h2 id="company-luxe-source-title">資料來源與核對依據</h2>
+        <p>公司背景與日本不動產服務說明，會和本站公開資料來源一起交叉驗證。</p>
+      </div>
+      <div class="company-luxe-source-list">
+        {% for category, items in knowledge_sources.items() %}
+        <article class="company-luxe-source-card company-luxe-source-card--light">
+          <h3>{{ category }}</h3>
+          <ul>
+            {% for item in items %}
+            <li><a href="{{ item.url }}" target="_blank" rel="nofollow noopener">{{ item.name }}</a><span>{{ item.use }}</span></li>
+            {% endfor %}
+          </ul>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
-
-  <script>
-    (function () {
-      const btns = document.querySelectorAll('.company-tab-btn');
-      const panels = document.querySelectorAll('.company-tab-panel');
-      for (const btn of btns) {
-        btn.addEventListener('click', () => {
-          const key = btn.getAttribute('data-tab');
-          for (const b of btns) b.classList.remove('active');
-          for (const p of panels) p.classList.remove('active');
-          btn.classList.add('active');
-          const panel = document.getElementById(`tab-${key}`);
-          if (panel) panel.classList.add('active');
-        });
-      }
-    })();
-  </script>
-  {% include 'partials/support_chat_public_fab.html' %}
+  {% include 'partials/site_footer.html' %}
 </body>
 </html>
