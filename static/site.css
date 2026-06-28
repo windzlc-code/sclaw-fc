@@ -36184,3 +36184,373 @@ body.site-case-standalone .suumo-case-footnote {
     right: 8px;
   }
 }
+
+/* 2026-06-28: final mobile touch QA pass.
+   Keep desktop floating actions unchanged; narrow viewports use predictable
+   thumb-sized controls and bottom-sheet panels. */
+@media (max-width: 820px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body.site-home {
+    --mobile-touch-size: 56px;
+    --mobile-panel-gap: max(10px, env(safe-area-inset-left), env(safe-area-inset-right));
+    --mobile-bottom-gap: max(12px, env(safe-area-inset-bottom));
+  }
+
+  body.site-home .support-chat-toggle.support-chat-toggle--bottom {
+    right: var(--mobile-panel-gap) !important;
+    bottom: var(--mobile-bottom-gap) !important;
+    width: var(--mobile-touch-size) !important;
+    min-width: var(--mobile-touch-size) !important;
+    max-width: var(--mobile-touch-size) !important;
+    height: var(--mobile-touch-size) !important;
+    min-height: var(--mobile-touch-size) !important;
+    max-height: var(--mobile-touch-size) !important;
+    border-width: 2px !important;
+    z-index: 10030 !important;
+  }
+
+  body.site-home .support-chat-widget:not(.is-expanded) {
+    left: auto !important;
+    top: auto !important;
+    right: var(--mobile-panel-gap) !important;
+    bottom: calc(var(--mobile-bottom-gap) + var(--mobile-touch-size) + 12px) !important;
+    width: var(--mobile-touch-size) !important;
+    height: auto !important;
+    max-height: calc(100dvh - var(--mobile-bottom-gap) - var(--mobile-touch-size) - 96px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    pointer-events: none !important;
+    transform: none !important;
+    z-index: 10029 !important;
+  }
+
+  body.site-home .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
+    display: none !important;
+  }
+
+  body.site-home .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
+  body.site-home .support-chat-widget:not(.is-expanded) .support-selected-cases-fab,
+  body.site-home .support-chat-widget:not(.is-expanded) .support-saved-cases-fab {
+    position: relative !important;
+    display: inline-flex !important;
+    width: var(--mobile-touch-size) !important;
+    min-width: var(--mobile-touch-size) !important;
+    max-width: var(--mobile-touch-size) !important;
+    height: var(--mobile-touch-size) !important;
+    min-height: var(--mobile-touch-size) !important;
+    max-height: var(--mobile-touch-size) !important;
+    flex: 0 0 var(--mobile-touch-size) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 2px solid #fff !important;
+    border-radius: 999px !important;
+    background: #fff !important;
+    box-shadow: 0 12px 30px rgba(17, 50, 115, 0.22) !important;
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    transform: none !important;
+  }
+
+  body.site-home .support-chat-toggle-bubble-icon,
+  body.site-home .support-chat-toggle-bubble-icon svg,
+  body.site-home .support-chat-widget:not(.is-expanded) .purchase-tool-toggle-icon,
+  body.site-home .support-chat-widget:not(.is-expanded) .purchase-tool-toggle svg {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  body.site-home .support-chat-widget:not(.is-expanded) .support-selected-cases-fab-icon {
+    width: 42px !important;
+    height: 42px !important;
+    font-size: 44px !important;
+    line-height: 0.86 !important;
+    padding-bottom: 3px !important;
+  }
+
+  body.site-home .support-chat-widget:not(.is-expanded) .support-saved-cases-fab-icon {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 43px !important;
+    line-height: 0.86 !important;
+    padding-top: 1px !important;
+  }
+
+  body.site-home .support-chat-widget.is-expanded {
+    position: fixed !important;
+    inset: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+    z-index: 10040 !important;
+  }
+
+  body.site-home .support-chat-panel,
+  body.site-home .support-chat-widget.is-expanded .support-chat-panel,
+  .support-chat-widget.is-expanded .support-chat-panel {
+    left: var(--mobile-panel-gap) !important;
+    right: var(--mobile-panel-gap) !important;
+    top: auto !important;
+    bottom: var(--mobile-bottom-gap) !important;
+    transform: translate3d(0, 18px, 0) scale(0.98) !important;
+    width: auto !important;
+    max-width: none !important;
+    height: min(74dvh, 590px) !important;
+    min-height: min(360px, calc(100dvh - 28px)) !important;
+    max-height: calc(100dvh - max(18px, env(safe-area-inset-top)) - var(--mobile-bottom-gap)) !important;
+    border-radius: 20px !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    transform-origin: right bottom !important;
+  }
+
+  body.site-home .support-chat-panel.is-chat-visible,
+  body.site-home .support-chat-widget.is-expanded .support-chat-panel.is-chat-visible {
+    pointer-events: auto !important;
+    transform: translate3d(0, 0, 0) scale(1) !important;
+  }
+
+  body.site-home #support-chat-panel .support-chat-head {
+    min-height: 50px !important;
+    padding: 4px 10px 4px 12px !important;
+  }
+
+  body.site-home .support-chat-head .support-chat-menu-toggle,
+  body.site-home #support-chat-panel .support-chat-head .ui-close-btn,
+  body.site-home .support-chat-head .ui-close-btn {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  body.site-home #support-chat-panel .support-chat-menu {
+    right: 8px !important;
+    top: 52px !important;
+    width: min(238px, calc(100% - 16px)) !important;
+  }
+
+  body.site-home #support-chat-panel .support-chat-menu button {
+    min-height: 44px !important;
+    font-size: 14px !important;
+  }
+
+  body.site-home .support-chat-input-row input {
+    min-height: 46px !important;
+    font-size: 16px !important;
+  }
+
+  body.site-home .support-chat-input-row button,
+  body.site-home .support-chat-panel #support-chat-send-btn {
+    width: 48px !important;
+    min-width: 48px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+  }
+
+  body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded),
+  body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) {
+    pointer-events: none !important;
+  }
+
+  body.site-home.support-selected-cases-open .support-selected-cases-drawer,
+  body.site-home.support-saved-cases-open .support-saved-cases-drawer {
+    left: var(--mobile-panel-gap) !important;
+    right: var(--mobile-panel-gap) !important;
+    top: auto !important;
+    bottom: var(--mobile-bottom-gap) !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: min(82dvh, calc(100dvh - max(24px, env(safe-area-inset-top)) - var(--mobile-bottom-gap))) !important;
+    transform: none !important;
+    border-radius: 18px !important;
+    pointer-events: auto !important;
+    z-index: 10065 !important;
+  }
+
+  body.site-home .support-selected-cases-drawer-head {
+    min-height: 52px !important;
+    padding: 8px 12px !important;
+  }
+
+  body.site-home .support-selected-cases-drawer-head-actions,
+  body.site-home .support-chat-head-actions {
+    gap: 8px !important;
+  }
+
+  body.site-home .support-selected-cases-drawer-head-actions .secondary,
+  body.site-home .support-selected-cases-drawer-head-actions .ui-close-btn {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  body.site-home .support-selected-cases-cart-item {
+    grid-template-columns: 104px minmax(0, 1fr) !important;
+    gap: 12px !important;
+    padding: 14px 0 !important;
+  }
+
+  body.site-home .support-selected-cases-card-thumb {
+    width: 104px !important;
+  }
+
+  body.site-home .support-selected-cases-cart-main {
+    padding-right: 0 !important;
+  }
+
+  body.site-home .support-selected-cases-cart-remove {
+    position: static !important;
+    width: fit-content !important;
+    min-height: 36px !important;
+    margin-top: 8px !important;
+    padding: 0 12px !important;
+  }
+
+  body.site-home .support-selected-cases-drawer-actions .primary,
+  body.site-home .support-selected-cases-drawer-actions .secondary {
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
+
+  body.site-home .support-phone-login-modal,
+  body.site-home .purchase-tool-dialog {
+    width: calc(100dvw - 20px) !important;
+    max-width: calc(100dvw - 20px) !important;
+    max-height: calc(100dvh - max(18px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))) !important;
+    border-radius: 20px !important;
+  }
+
+  .portal-suumo-gallery-nav {
+    width: 46px !important;
+    height: 46px !important;
+    font-size: 2rem !important;
+  }
+
+  .portal-suumo-gallery-nav--prev {
+    left: 8px !important;
+  }
+
+  .portal-suumo-gallery-nav--next {
+    right: 8px !important;
+  }
+
+  .portal-suumo-gallery-tab,
+  .portal-suumo-dtab,
+  .portal-suumo-cta,
+  .saved-cases-actions .primary,
+  .saved-cases-actions .secondary,
+  .saved-cases-card-actions .primary,
+  .saved-cases-card-actions .secondary,
+  .selected-compare-actions .primary,
+  .selected-compare-actions .secondary {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    touch-action: manipulation !important;
+  }
+
+  .portal-suumo-gallery-section-thumb {
+    flex-basis: 92px !important;
+  }
+
+  .portal-suumo-invest-card th,
+  .portal-suumo-invest-card td {
+    padding: 0.74rem 0.68rem !important;
+    font-size: 0.9rem !important;
+  }
+
+  .portal-suumo-specwrap,
+  .portal-suumo-tabpanels,
+  .selected-compare-section,
+  .saved-cases-section {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 820px) {
+  body.site-home #support-chat-widget.support-chat-widget {
+    left: auto !important;
+    top: auto !important;
+    right: 10px !important;
+    bottom: 80px !important;
+    width: 56px !important;
+    height: auto !important;
+    max-height: calc(100dvh - 148px) !important;
+    transform: none !important;
+  }
+
+  body.site-home #support-chat-widget.support-chat-widget.is-expanded {
+    inset: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  body.site-home #support-chat-toggle.support-chat-toggle--bottom {
+    left: auto !important;
+    top: auto !important;
+    right: 10px !important;
+    bottom: 12px !important;
+    width: 56px !important;
+    min-width: 56px !important;
+    max-width: 56px !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    max-height: 56px !important;
+    transform: none !important;
+  }
+
+  body.site-home.support-selected-cases-open #purchase-tool-toggle,
+  body.site-home.support-selected-cases-open #support-selected-cases-fab,
+  body.site-home.support-selected-cases-open #support-saved-cases-fab,
+  body.site-home.support-selected-cases-open #support-chat-toggle,
+  body.site-home.support-saved-cases-open #purchase-tool-toggle,
+  body.site-home.support-saved-cases-open #support-selected-cases-fab,
+  body.site-home.support-saved-cases-open #support-saved-cases-fab,
+  body.site-home.support-saved-cases-open #support-chat-toggle {
+    pointer-events: none !important;
+  }
+
+  body.site-home.support-selected-cases-open #support-selected-cases-drawer,
+  body.site-home.support-saved-cases-open #support-saved-cases-drawer {
+    z-index: 10090 !important;
+  }
+
+  body.purchase-tools-body .purchase-tool-table,
+  body.site-home .purchase-tool-dialog .purchase-tool-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: fixed !important;
+    font-size: 12px !important;
+  }
+
+  body.purchase-tools-body .purchase-tool-table th,
+  body.purchase-tools-body .purchase-tool-table td,
+  body.site-home .purchase-tool-dialog .purchase-tool-table th,
+  body.site-home .purchase-tool-dialog .purchase-tool-table td {
+    padding: 9px 7px !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+}
