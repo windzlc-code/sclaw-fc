@@ -17,6 +17,7 @@ services:
       - SCLAW_PERSIST_LIVE_ENRICH=${SCLAW_PERSIST_LIVE_ENRICH:-0}
       - WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}
     volumes:
+      - ./static:/app/static
       - ./data:/app/data
       - ./exports:/app/exports
       - ./logs:/app/logs
