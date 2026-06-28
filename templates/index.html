@@ -245,42 +245,42 @@
     <section class="home-featured-flow" id="home-featured-flow" aria-labelledby="home-featured-title">
       <div class="home-featured-flow-head">
         <div>
-          <p class="home-featured-kicker">REAL CASE INSPIRATION</p>
-          <h2 id="home-featured-title">精選日本房源靈感</h2>
-          <p>從資料庫挑選高圖文完整、價格與交通更有參考價值的日本房源。</p>
+          <p class="home-featured-kicker">REAL CASE RECOMMENDATION</p>
+          <h2 id="home-featured-title">精选日本房源推荐</h2>
+          <p>优先挑选图片完整、价格更有参考价值、交通信息清楚的日本房源，适合先看图再进站内明细比较。</p>
         </div>
-        <button type="button" id="home-featured-refresh" class="home-featured-refresh-btn" onclick="refreshHomeFeaturedSpotlight()">換一批推薦</button>
+        <button type="button" id="home-featured-refresh" class="home-featured-refresh-btn" onclick="refreshHomeFeaturedSpotlight()">换一批推荐</button>
       </div>
       <div class="home-featured-board home-featured-board--spotlight">
         <div id="home-featured-hero" class="home-featured-hero" hidden></div>
         <div id="home-featured-grid" class="home-featured-grid" aria-live="polite"></div>
-        <p id="home-featured-status" class="home-featured-status">正在載入精選房源...</p>
+        <p id="home-featured-status" class="home-featured-status">正在载入精选房源...</p>
       </div>
 
       <div class="home-featured-board home-featured-board--types" aria-labelledby="home-featured-type-title">
         <div class="home-featured-board-head">
           <div>
             <p class="home-featured-kicker">PROPERTY TYPE PICKS</p>
-            <h3 id="home-featured-type-title">按物件類型看精選</h3>
+            <h3 id="home-featured-type-title">按物件类型看精选</h3>
           </div>
-          <p>依照智慧查詢的物件類型分類，只載入目前分欄需要的房源。</p>
+          <p>依照智慧查询的物件类型分类，只载入当前分栏需要的房源。</p>
         </div>
-        <div class="home-featured-type-tabs" role="tablist" aria-label="精選房源物件類型">
-          <button type="button" class="is-active" data-home-featured-type="" onclick="homeFeaturedApplyType('', this)">綜合推薦</button>
+        <div class="home-featured-type-tabs" role="tablist" aria-label="精选房源物件类型">
+          <button type="button" class="is-active" data-home-featured-type="" onclick="homeFeaturedApplyType('', this)">综合推荐</button>
           <button type="button" data-home-featured-type="公寓" onclick="homeFeaturedApplyType('公寓', this)">公寓</button>
-          <button type="button" data-home-featured-type="大樓" onclick="homeFeaturedApplyType('大樓', this)">大樓</button>
-          <button type="button" data-home-featured-type="華廈" onclick="homeFeaturedApplyType('華廈', this)">華廈</button>
+          <button type="button" data-home-featured-type="大樓" onclick="homeFeaturedApplyType('大樓', this)">大楼</button>
+          <button type="button" data-home-featured-type="華廈" onclick="homeFeaturedApplyType('華廈', this)">华厦</button>
           <button type="button" data-home-featured-type="套房" onclick="homeFeaturedApplyType('套房', this)">套房</button>
-          <button type="button" data-home-featured-type="別墅/透天" onclick="homeFeaturedApplyType('別墅/透天', this)">別墅/透天</button>
-          <button type="button" data-home-featured-type="辦公" onclick="homeFeaturedApplyType('辦公', this)">辦公</button>
+          <button type="button" data-home-featured-type="別墅/透天" onclick="homeFeaturedApplyType('別墅/透天', this)">别墅/透天</button>
+          <button type="button" data-home-featured-type="辦公" onclick="homeFeaturedApplyType('辦公', this)">办公</button>
           <button type="button" data-home-featured-type="店面" onclick="homeFeaturedApplyType('店面', this)">店面</button>
           <button type="button" data-home-featured-type="土地" onclick="homeFeaturedApplyType('土地', this)">土地</button>
           <button type="button" data-home-featured-type="其他" onclick="homeFeaturedApplyType('其他', this)">其他</button>
         </div>
         <div id="home-featured-type-grid" class="home-featured-grid home-featured-type-grid" aria-live="polite"></div>
         <div class="home-featured-flow-foot">
-          <p id="home-featured-type-status" class="home-featured-status">正在載入物件類型房源...</p>
-          <button type="button" id="home-featured-type-more" class="home-featured-more-btn" onclick="loadHomeFeaturedTypeCases({ append: true })">載入更多房源</button>
+          <p id="home-featured-type-status" class="home-featured-status">正在载入物件类型房源...</p>
+          <button type="button" id="home-featured-type-more" class="home-featured-more-btn" onclick="loadHomeFeaturedTypeCases({ append: true })">加载更多房源</button>
         </div>
       </div>
     </section>
@@ -10408,7 +10408,7 @@
 
     function normalizeSupportSelectedCase(raw) {
       if (!raw || typeof raw !== 'object') return null;
-      const title = String(raw.title || raw.title_zh_hant || raw.title_original || '').trim();
+      const title = String(raw.title_zh_hans || raw.title || raw.title_zh_hant || raw.title_original || '').trim();
       const item_url = String(raw.item_url || '').trim();
       const source_name = String(raw.source_name || '').trim();
       const case_key = String(raw.case_key || supportCaseKeyFromItem(raw)).trim();
@@ -21276,10 +21276,12 @@
       return false;
     }
 
+    const HOME_FEATURED_RECOMMEND_SIZE = 6;
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v3.';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v8.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
+    const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
     let homeFeaturedCaseMap = new Map();
     let homeFeaturedOffset = 0;
@@ -21290,6 +21292,8 @@
     const homeFeaturedTypeCache = new Map();
     let homeFeaturedLoading = false;
     let homeFeaturedTypeLoading = false;
+    let homeFeaturedTypeRequestSeq = 0;
+    const homeFeaturedTypePrefetching = new Set();
 
     function homeFeaturedStorageKey(type, offset = 0) {
       return `${HOME_FEATURED_STORAGE_PREFIX}${homeFeaturedCacheKey(type)}.${Number(offset || 0)}`;
@@ -21323,15 +21327,17 @@
     function homeFeaturedNormalizeCase(raw) {
       if (!raw || typeof raw !== 'object') return null;
       const sid = Number(raw.source_item_id || 0);
-      const title = String(raw.title || raw.title_zh_hant || raw.title_original || '').trim();
+      const title = String(raw.title_zh_hans || raw.title || raw.title_zh_hant || raw.title_original || '').trim();
       if (!sid && !title) return null;
       const gallery = Array.isArray(raw.gallery_urls) ? raw.gallery_urls : [];
+      const areaHint = homeFeaturedAreaLabel(raw);
       return {
         ...raw,
         source_item_id: sid,
         case_key: supportCaseKeyFromItem(raw),
         title,
-        title_zh_hant: title,
+        title_zh_hant: String(raw.title_zh_hant || title),
+        title_zh_hans: String(raw.title_zh_hans || title),
         title_original: String(raw.title_original || title),
         source_name: String(raw.source_name || '原站'),
         item_url: String(raw.item_url || ''),
@@ -21340,11 +21346,36 @@
         jp_region_display_zh: String(raw.region || raw.jp_region_display_zh || ''),
         transit: String(raw.transit || raw.transit_line_zh || ''),
         transit_line_zh: String(raw.transit || raw.transit_line_zh || ''),
+        address_hint_zh: String(raw.address_hint_zh || raw.address || raw.address_line_hant || raw.address_line_jp || ''),
+        address_line_jp: String(raw.address_line_jp || ''),
         price_text_hant: String(raw.price_hint || raw.price_text_hant || ''),
+        area_text_hant: String(raw.area_text_hant || ''),
+        layout_text_hant: String(raw.layout_text_hant || ''),
+        layout_line_jp: String(raw.layout_line_jp || ''),
         thumb_url: String(raw.thumb_url || raw.hero_media_url || gallery[0] || ''),
         gallery_urls: gallery.length ? gallery : [raw.thumb_url].filter(Boolean),
         image_count: Number(raw.image_count || gallery.length || 0),
+        area_hint: areaHint,
       };
+    }
+
+    function homeFeaturedAreaLabel(raw) {
+      const candidates = [
+        raw?.area_hint,
+        raw?.area_text_hant,
+        raw?.exclusive_area_jp,
+        raw?.building_area_jp ? `建物 ${raw.building_area_jp}` : '',
+        raw?.land_area_jp ? `土地 ${raw.land_area_jp}` : '',
+        raw?.other_area_jp,
+      ];
+      for (const val of candidates) {
+        const text = String(val || '').replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        if (/^(?:-|—|不明|未定|無|なし)$/i.test(text)) continue;
+        const compact = text.replace(/^専有面積\s*[:：]?/i, '專有 ').replace(/^面積\s*[:：]?/i, '');
+        return compact.length > 38 ? `${compact.slice(0, 38)}...` : compact;
+      }
+      return '';
     }
 
     function homeFeaturedSetStatus(text) {
@@ -21355,6 +21386,16 @@
     function homeFeaturedSetTypeStatus(text) {
       const el = document.getElementById('home-featured-type-status');
       if (el) el.textContent = String(text || '');
+    }
+
+    function homeFeaturedTypeDisplayLabel(type) {
+      return ({
+        '': '综合推荐',
+        '大樓': '大楼',
+        '華廈': '华厦',
+        '別墅/透天': '别墅/透天',
+        '辦公': '办公',
+      })[String(type || '').trim()] || String(type || '').trim() || '综合推荐';
     }
 
     function homeFeaturedSupportPayload(item) {
@@ -21443,6 +21484,96 @@
       return String(type || '').trim() || '__featured_hot__';
     }
 
+    function homeFeaturedSpotlightCacheKey() {
+      return '__spotlight_recommend__';
+    }
+
+    function homeFeaturedFirstPageCache(type) {
+      const cacheKey = homeFeaturedCacheKey(type);
+      const cached = homeFeaturedTypeCache.get(cacheKey);
+      if (cached && Array.isArray(cached.items)) return cached;
+      const storedPayload = homeFeaturedStorageGet(type, 0);
+      const storedItems = homeFeaturedPayloadItems(storedPayload);
+      if (!storedItems.length) return null;
+      const normalized = {
+        items: storedItems,
+        offset: Number(storedPayload.next_offset || storedItems.length || 0),
+        hasMore: storedPayload.has_more !== false,
+      };
+      homeFeaturedTypeCache.set(cacheKey, normalized);
+      return normalized;
+    }
+
+    function homeFeaturedWarmImages(items) {
+      try {
+        (items || []).slice(0, 4).forEach((item) => {
+          const src = String(item?.thumb_url || item?.hero_media_url || '').trim();
+          if (!src) return;
+          const img = new Image();
+          img.decoding = 'async';
+          img.src = src;
+        });
+      } catch (_) {}
+    }
+
+    async function prefetchHomeFeaturedType(propertyType) {
+      const type = String(propertyType || '').trim();
+      const cacheKey = homeFeaturedCacheKey(type);
+      if (homeFeaturedTypeCache.has(cacheKey) || homeFeaturedTypePrefetching.has(cacheKey)) return;
+      if (homeFeaturedFirstPageCache(type)) return;
+      homeFeaturedTypePrefetching.add(cacheKey);
+      try {
+        const params = new URLSearchParams({
+          limit: String(HOME_FEATURED_PAGE_SIZE),
+          offset: '0',
+          category: 'hot',
+        });
+        if (type) params.set('property_type', type);
+        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data || data.ok === false) return;
+        const next = homeFeaturedPayloadItems(data);
+        if (!next.length) return;
+        homeFeaturedStorageSet(type, 0, data);
+        homeFeaturedTypeCache.set(cacheKey, {
+          items: next.slice(),
+          offset: Number(data.next_offset || next.length || 0),
+          hasMore: data.has_more !== false,
+        });
+        homeFeaturedWarmImages(next);
+        if (homeFeaturedType === type && !homeFeaturedTypeLoading) {
+          homeFeaturedTypeCases = next.slice();
+          homeFeaturedTypeOffset = Number(data.next_offset || next.length || 0);
+          renderHomeFeaturedTypeCases();
+          const moreBtn = document.getElementById('home-featured-type-more');
+          if (moreBtn) moreBtn.hidden = data.has_more === false;
+          homeFeaturedSetTypeStatus(`已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。`);
+        }
+      } catch (_) {
+      } finally {
+        homeFeaturedTypePrefetching.delete(cacheKey);
+      }
+    }
+
+    function prefetchHomeFeaturedTypes() {
+      if (!document.getElementById('home-featured-flow')) return;
+      const queue = HOME_FEATURED_TYPES.filter((type) => !homeFeaturedFirstPageCache(type));
+      let index = 0;
+      const runNext = () => {
+        if (index >= queue.length) return;
+        const first = queue[index++];
+        const second = queue[index++];
+        Promise.all([prefetchHomeFeaturedType(first), second !== undefined ? prefetchHomeFeaturedType(second) : Promise.resolve()])
+          .finally(() => window.setTimeout(runNext, 180));
+      };
+      const start = () => window.setTimeout(runNext, 300);
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(start, { timeout: 1800 });
+      } else {
+        start();
+      }
+    }
+
     function homeFeaturedApplyType(type, btn) {
       homeFeaturedType = String(type || '').trim();
       document.querySelectorAll('[data-home-featured-type]').forEach((el) => {
@@ -21451,7 +21582,34 @@
         el.setAttribute('aria-selected', active ? 'true' : 'false');
       });
       if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
-      loadHomeFeaturedTypeCases({ append: false, propertyType: homeFeaturedType });
+      const cached = homeFeaturedFirstPageCache(homeFeaturedType);
+      if (cached) {
+        homeFeaturedTypeCases = cached.items.slice();
+        homeFeaturedTypeOffset = Number(cached.offset || homeFeaturedTypeCases.length || 0);
+        renderHomeFeaturedTypeCases();
+        const moreBtn = document.getElementById('home-featured-type-more');
+        if (moreBtn) moreBtn.hidden = cached.hasMore === false;
+        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」的房源。`);
+        return;
+      }
+      renderHomeFeaturedTypeLoading(homeFeaturedType);
+      loadHomeFeaturedTypeCases({ append: false, propertyType: homeFeaturedType, keepExisting: false });
+    }
+
+    function renderHomeFeaturedTypeLoading(propertyType) {
+      const gridEl = document.getElementById('home-featured-type-grid');
+      if (!gridEl) return;
+      const label = homeFeaturedTypeDisplayLabel(propertyType);
+      gridEl.innerHTML = Array.from({ length: 6 }).map(() => `
+        <article class="home-featured-card home-featured-card--loading" aria-hidden="true">
+          <div class="home-featured-card-media home-featured-card-loading-media"></div>
+          <div class="home-featured-card-body">
+            <h3>${esc(label)}房源载入中</h3>
+            <div class="home-featured-card-meta"><span>正在准备不同批次</span></div>
+            <div class="home-featured-tags"><span>请稍候</span></div>
+          </div>
+        </article>
+      `).join('');
     }
 
     function homeFeaturedActionButtons(item) {
@@ -21460,36 +21618,107 @@
       const sid = Number(item.source_item_id || 0);
       return `
         <div class="home-featured-card-actions" aria-label="房源快捷操作">
-          ${sid ? `<button type="button" class="home-featured-action home-featured-action--support" data-case-sid="${sid}" onclick="openHomeFeaturedSupport(event, this)" aria-label="用客服詢問這筆案件">客服</button>` : ''}
-          <button type="button" class="home-featured-action figure-case-compare-btn" data-home-featured-key="${keyAttr}" data-support-fav-case-key="${keyAttr}" onclick="toggleHomeFeaturedCompare(event, this)" aria-pressed="false" aria-label="加入案件對比">對比</button>
-          <button type="button" class="home-featured-action figure-case-save-btn" data-home-featured-key="${keyAttr}" data-support-save-case-key="${keyAttr}" onclick="toggleHomeFeaturedSaved(event, this)" aria-pressed="false" aria-label="收藏這筆案件">收藏</button>
+          ${sid ? `<button type="button" class="home-featured-action home-featured-action--support figure-case-support-btn" data-case-sid="${sid}" onclick="openHomeFeaturedSupport(event, this)" aria-label="用客服询问这笔案件" title="客服">
+            <span class="home-featured-action-icon" aria-hidden="true">
+              <svg class="home-featured-action-svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path d="M4 7.75A3.75 3.75 0 0 1 7.75 4h8.5A3.75 3.75 0 0 1 20 7.75v4.5A3.75 3.75 0 0 1 16.25 16H11l-3.8 3.3c-.49.42-1.2.08-1.2-.57V16.1A3.74 3.74 0 0 1 4 12.25Z" />
+                <path d="M8 9.5h8M8 12.5h5.5" />
+              </svg>
+            </span>
+            <span class="home-featured-action-label">客服</span>
+          </button>` : ''}
+          <button type="button" class="home-featured-action figure-case-compare-btn" data-home-featured-key="${keyAttr}" data-support-fav-case-key="${keyAttr}" onclick="toggleHomeFeaturedCompare(event, this)" aria-pressed="false" aria-label="加入案件对比" title="对比">
+            <span class="home-featured-action-icon" aria-hidden="true">
+              <svg class="home-featured-action-svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path d="M12 5.5v13M5.5 12h13" />
+              </svg>
+            </span>
+            <span class="home-featured-action-label">对比</span>
+          </button>
+          <button type="button" class="home-featured-action figure-case-save-btn" data-home-featured-key="${keyAttr}" data-support-save-case-key="${keyAttr}" onclick="toggleHomeFeaturedSaved(event, this)" aria-pressed="false" aria-label="收藏这笔案件" title="收藏">
+            <span class="home-featured-action-icon" aria-hidden="true">
+              <svg class="home-featured-action-svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                <path d="M12 20.25c-2.82-2.45-5.16-4.61-6.8-6.55C3.7 11.91 3 10.35 3 8.75 3 6.1 5.06 4 7.72 4c1.55 0 3.06.74 4 1.9L12 6.25l.28-.35c.94-1.16 2.45-1.9 4-1.9C18.94 4 21 6.1 21 8.75c0 1.6-.7 3.16-2.2 4.95-1.64 1.94-3.98 4.1-6.8 6.55Z" />
+              </svg>
+            </span>
+            <span class="home-featured-action-label">收藏</span>
+          </button>
         </div>`;
     }
 
     function homeFeaturedImage(item, cls, eager) {
       const thumb = String(item.thumb_url || item.hero_media_url || '').trim();
       if (!thumb) {
-        return `<div class="${cls} home-featured-img-placeholder"><strong>暫無圖片</strong><span>可進站內明細查看</span></div>`;
+        return `<div class="${cls} home-featured-img-placeholder"><strong>暂无图片</strong><span>可进站内明细查看</span></div>`;
       }
-      return `<img class="${cls}" src="${esc(thumb)}" alt="${esc(item.title || '日本房源圖片')}" loading="${eager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${eager ? 'high' : 'low'}" referrerpolicy="no-referrer">`;
+      return `<img class="${cls}" src="${esc(thumb)}" alt="${esc(item.title || '日本房源图片')}" loading="${eager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${eager ? 'high' : 'low'}" referrerpolicy="no-referrer">`;
     }
 
-    function homeFeaturedCardHtml(item, index) {
+    function homeFeaturedMediaSpecHtml(item) {
+      const price = String(item?.price_hint || item?.price_text_hant || '价格待确认').trim();
+      const area = String(item?.area_hint || item?.area_text_hant || '')
+        .replace(/^(?:專有|专有|専有面積|面積)\s*[:：]?/i, '')
+        .trim();
+      const layout = String(item?.layout_text_hant || item?.layout_line_jp || '').trim();
+      const specs = [area, layout].filter(Boolean);
+      return `<div class="home-featured-media-spec" aria-label="房源价格面积格局">
+        <strong>${esc(price || '价格待确认')}</strong>
+        ${specs.length ? `<span>${specs.map((part) => esc(part)).join('<i aria-hidden="true">|</i>')}</span>` : ''}
+      </div>`;
+    }
+
+    function homeFeaturedDisplayCardTitle(item) {
+      const raw = String(item?.title || item?.title_zh_hans || item?.title_zh_hant || '日本房源案件').trim();
+      const parts = raw.split(/\s*[|｜]\s*/).map((part) => part.trim()).filter(Boolean);
+      const isSpecPart = (part) => /(?:[0-9,]+(?:\.[0-9]+)?\s*(?:万|萬)?(?:日圆|日圓|円|元)|[0-9,]+(?:\.[0-9]+)?\s*坪|[0-9]+(?:LDK|DK|K)|[0-9]+\s*房|客餐|格局|價格|价格|面積|面积)/i.test(part);
+      const cleanedParts = parts.length > 1 ? parts.filter((part) => !isSpecPart(part)) : parts;
+      let title = (cleanedParts[0] || raw)
+        .replace(/\s*[|｜]\s*(?:價格|价格)?\s*[0-9,]+(?:\.[0-9]+)?\s*(?:万|萬)?(?:日圆|日圓|円|元).*$/i, '')
+        .replace(/\s*[|｜]\s*[0-9,]+(?:\.[0-9]+)?\s*坪.*$/i, '')
+        .trim();
+      return title || raw;
+    }
+
+    function homeFeaturedDisplayCardLocation(item) {
+      const raw = String(
+        item?.address_line_jp ||
+        item?.address_line_hant ||
+        item?.address_hint_zh ||
+        item?.region ||
+        item?.jp_region_display_zh ||
+        item?.transit ||
+        item?.title ||
+        '日本房源位置'
+      ).trim();
+      let cleaned = raw
+        .replace(/^(?:地址|地址位置|所在地|住所)\s*[:：]?\s*/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const jpAddress = cleaned.match(/(?:北海道|東京都|大阪府|京都府|[一-龥々]{1,8}県)[^|｜]*/);
+      if (jpAddress && jpAddress[0]) cleaned = jpAddress[0].trim();
+      cleaned = cleaned
+        .replace(/\s*(?:地図|地圖|地图|築年月|構造|结构|階数|總戶數|総戸数|オートロック|掲載画像|閲覧済|交通|價格|价格|間取り|格局).*$/i, '')
+        .trim();
+      return cleaned || '日本房源位置';
+    }
+
+    function homeFeaturedCardHtml(item, index, options = {}) {
       const key = supportCaseKeyFromItem(item);
       homeFeaturedCaseMap.set(key, item);
       const url = String(item.case_path || (item.source_item_id ? `/case/${item.source_item_id}` : '#')).trim();
       const tags = Array.isArray(item.theme_tags) ? item.theme_tags.slice(0, 2) : [];
-      return `<article class="home-featured-card" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
+      const displayLocation = homeFeaturedDisplayCardLocation(item);
+      const extraClass = options && options.hero ? ' home-featured-card--hero' : '';
+      return `<article class="home-featured-card${extraClass}" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
         <div class="home-featured-card-media" role="presentation">
           ${homeFeaturedImage(item, 'home-featured-card-img', index < 2)}
+          ${homeFeaturedMediaSpecHtml(item)}
           <span class="home-featured-source">${esc(item.source_name || '原站')}</span>
-          ${item.image_count ? `<span class="home-featured-image-count">${esc(String(item.image_count))} 張圖</span>` : ''}
           ${homeFeaturedActionButtons(item)}
         </div>
         <div class="home-featured-card-body">
-          <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(item.title || '日本房源案件')}</a></h3>
+          <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(displayLocation)}</a></h3>
           <div class="home-featured-card-meta">
-            <span class="home-featured-price">${esc(item.price_hint || '價格待確認')}</span>
             <span>${esc(item.source_name || '原站')}</span>
           </div>
           <div class="home-featured-tags">${tags.map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>
@@ -21506,26 +21735,30 @@
       const hero = items[0];
       if (hero) {
         const url = String(hero.case_path || (hero.source_item_id ? `/case/${hero.source_item_id}` : '#')).trim();
+        const heroArea = String(hero.area_hint || '').trim();
+        const heroTitle = homeFeaturedDisplayCardTitle(hero);
         homeFeaturedCaseMap.set(supportCaseKeyFromItem(hero), hero);
         heroEl.hidden = false;
         heroEl.innerHTML = `
           <article class="home-featured-hero-card" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
             <a class="home-featured-hero-media" href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">
               ${homeFeaturedImage(hero, 'home-featured-hero-img', true)}
+              ${homeFeaturedMediaSpecHtml(hero)}
             </a>
             <div class="home-featured-hero-copy">
-              <span class="home-featured-hero-label">本週推薦</span>
-              <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(hero.title || '日本房源案件')}</a></h3>
-              <p>${esc(hero.summary || '圖片與資料較完整，適合先做站內明細比較。')}</p>
+              <span class="home-featured-hero-label">本周推荐</span>
+              <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(heroTitle)}</a></h3>
+              <p>${esc(hero.summary || '图片与资料较完整，适合先做站内明细比较。')}</p>
               <div class="home-featured-hero-facts">
                 <span>${esc(hero.source_name || '原站')}</span>
-                <span>${esc(hero.price_hint || '價格待確認')}</span>
+                <span>${esc(hero.price_hint || '价格待确认')}</span>
+                ${heroArea ? `<span>${esc(heroArea)}</span>` : ''}
                 <span>${esc(hero.region || '日本')}</span>
               </div>
               <div class="home-featured-hero-cta">
-                <a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">查看站內明細</a>
-                ${homeFeaturedActionButtons(hero)}
+                <a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">查看站内明细</a>
               </div>
+              ${homeFeaturedActionButtons(hero)}
             </div>
           </article>`;
       } else {
@@ -21549,36 +21782,25 @@
 
     function hydrateHomeFeaturedInitial() {
       const preloadItems = homeFeaturedPayloadItems(HOME_FEATURED_PRELOAD);
-      const cachedHot = homeFeaturedStorageGet('', 0);
+      const cachedHot = homeFeaturedStorageGet(homeFeaturedSpotlightCacheKey(), 0);
       const cachedItems = homeFeaturedPayloadItems(cachedHot);
       const sourcePayload = preloadItems.length ? HOME_FEATURED_PRELOAD : cachedHot;
       const sourceItems = preloadItems.length ? preloadItems : cachedItems;
       if (!sourceItems.length) return false;
-      homeFeaturedCases = sourceItems.slice(0, HOME_FEATURED_PAGE_SIZE);
+      homeFeaturedCases = sourceItems.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
       homeFeaturedOffset = Number(sourcePayload?.next_offset || homeFeaturedCases.length || 0);
       homeFeaturedBatchOffset = 0;
       renderHomeFeaturedCases();
-      homeFeaturedSetStatus(`本批已推薦 ${homeFeaturedCases.length} 筆房源，可換一批或點卡片查看站內明細。`);
+      homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，每行最多 3 张卡，可换一批或点卡片查看站内明细。`);
 
-      if (!homeFeaturedTypeCases.length) {
-        homeFeaturedTypeCases = sourceItems.slice(0, HOME_FEATURED_PAGE_SIZE);
-        homeFeaturedTypeOffset = Number(sourcePayload?.next_offset || homeFeaturedTypeCases.length || 0);
-        homeFeaturedTypeCache.set(homeFeaturedCacheKey(''), {
-          items: homeFeaturedTypeCases.slice(),
-          offset: homeFeaturedTypeOffset,
-          hasMore: sourcePayload?.has_more !== false,
-        });
-        renderHomeFeaturedTypeCases();
-        homeFeaturedSetTypeStatus(`已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。`);
-      }
       if (preloadItems.length) {
-        homeFeaturedStorageSet('', 0, HOME_FEATURED_PRELOAD);
+        homeFeaturedStorageSet(homeFeaturedSpotlightCacheKey(), 0, HOME_FEATURED_PRELOAD);
       }
       return true;
     }
 
     async function refreshHomeFeaturedSpotlight() {
-      homeFeaturedBatchOffset += HOME_FEATURED_PAGE_SIZE;
+      homeFeaturedBatchOffset += HOME_FEATURED_RECOMMEND_SIZE;
       await loadHomeFeaturedCases({ append: false, offset: homeFeaturedBatchOffset, keepExisting: true });
       if (homeFeaturedCases.length === 0 && homeFeaturedBatchOffset > 0) {
         homeFeaturedBatchOffset = 0;
@@ -21591,14 +21813,14 @@
       if (!flow || homeFeaturedLoading) return;
       const requestOffset = Number.isFinite(Number(options.offset)) ? Math.max(0, Number(options.offset)) : 0;
       const keepExisting = !!options.keepExisting || !!options.background;
-      const storagePayload = requestOffset === 0 ? homeFeaturedStorageGet('', 0) : null;
+      const storagePayload = requestOffset === 0 ? homeFeaturedStorageGet(homeFeaturedSpotlightCacheKey(), 0) : null;
       if (!keepExisting && storagePayload) {
         const stored = homeFeaturedPayloadItems(storagePayload);
         if (stored.length) {
-          homeFeaturedCases = stored.slice(0, HOME_FEATURED_PAGE_SIZE);
+          homeFeaturedCases = stored.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
           homeFeaturedOffset = Number(storagePayload.next_offset || homeFeaturedCases.length || 0);
           renderHomeFeaturedCases();
-          homeFeaturedSetStatus(`本批已推薦 ${homeFeaturedCases.length} 筆房源，可換一批或點卡片查看站內明細。`);
+          homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，每行最多 3 张卡，可换一批或点卡片查看站内明细。`);
         }
       }
       if (!keepExisting && !homeFeaturedCases.length) homeFeaturedCases = [];
@@ -21606,12 +21828,12 @@
       if (!keepExisting || !homeFeaturedCases.length) renderHomeFeaturedCases();
       homeFeaturedLoading = true;
       flow.classList.add('is-loading');
-      homeFeaturedSetStatus(homeFeaturedCases.length ? '正在更新精選房源...' : '正在載入精選房源...');
+      homeFeaturedSetStatus(homeFeaturedCases.length ? '正在更新精选房源...' : '正在载入精选房源...');
       const refreshBtn = document.getElementById('home-featured-refresh');
       if (refreshBtn) refreshBtn.disabled = true;
       try {
         const params = new URLSearchParams({
-          limit: String(HOME_FEATURED_PAGE_SIZE),
+          limit: String(HOME_FEATURED_RECOMMEND_SIZE),
           offset: String(homeFeaturedOffset),
           category: 'hot',
         });
@@ -21620,15 +21842,15 @@
         if (!res.ok || !data || data.ok === false) throw new Error('featured cases unavailable');
         const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
         if (next.length || !homeFeaturedCases.length) {
-          homeFeaturedCases = next.slice(0, HOME_FEATURED_PAGE_SIZE);
+          homeFeaturedCases = next.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
           homeFeaturedOffset = Number(data.next_offset || (requestOffset + next.length) || requestOffset);
           renderHomeFeaturedCases();
-          homeFeaturedStorageSet('', requestOffset, data);
+          homeFeaturedStorageSet(homeFeaturedSpotlightCacheKey(), requestOffset, data);
         }
         const count = homeFeaturedCases.length;
-        homeFeaturedSetStatus(count ? `本批已推薦 ${count} 筆房源，可換一批或點卡片查看站內明細。` : '目前沒有可推薦的精選房源。');
+        homeFeaturedSetStatus(count ? `本批固定推荐 ${count} 笔高品质房源，每行最多 3 张卡，可换一批或点卡片查看站内明细。` : '目前没有可推荐的精选房源。');
       } catch (_) {
-        homeFeaturedSetStatus(homeFeaturedCases.length ? `已顯示上次載入的 ${homeFeaturedCases.length} 筆房源。` : '精選房源暫時無法載入，請稍後再試。');
+        homeFeaturedSetStatus(homeFeaturedCases.length ? `已显示上次载入的 ${homeFeaturedCases.length} 笔房源。` : '精选房源暂时无法载入，请稍后再试。');
       } finally {
         homeFeaturedLoading = false;
         flow.classList.remove('is-loading');
@@ -21638,51 +21860,46 @@
 
     async function loadHomeFeaturedTypeCases(options = {}) {
       const flow = document.getElementById('home-featured-flow');
-      if (!flow || homeFeaturedTypeLoading) return;
+      if (!flow || (homeFeaturedTypeLoading && options.append)) return;
       const append = !!options.append;
       const propertyType = typeof options.propertyType === 'string' ? options.propertyType : homeFeaturedType;
       const cacheKey = homeFeaturedCacheKey(propertyType);
       if (!append) {
-        const cached = homeFeaturedTypeCache.get(cacheKey);
-        if (cached && Array.isArray(cached.items)) {
+        const cached = homeFeaturedFirstPageCache(propertyType);
+        if (cached) {
           homeFeaturedType = propertyType;
           homeFeaturedTypeCases = cached.items.slice();
           homeFeaturedTypeOffset = Number(cached.offset || homeFeaturedTypeCases.length || 0);
           renderHomeFeaturedTypeCases();
           const moreBtn = document.getElementById('home-featured-type-more');
           if (moreBtn) moreBtn.hidden = cached.hasMore === false;
-          homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '目前沒有符合條件的物件類型房源。');
+          homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(propertyType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(propertyType)}」的房源。`);
           return;
         }
-        const storedPayload = homeFeaturedStorageGet(propertyType, 0);
-        const storedItems = homeFeaturedPayloadItems(storedPayload);
-        if (storedItems.length) {
-          homeFeaturedType = propertyType;
-          homeFeaturedTypeCases = storedItems;
-          homeFeaturedTypeOffset = Number(storedPayload.next_offset || storedItems.length || 0);
-          renderHomeFeaturedTypeCases();
-          const moreBtn = document.getElementById('home-featured-type-more');
-          if (moreBtn) moreBtn.hidden = storedPayload.has_more === false;
-          homeFeaturedSetTypeStatus(`已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。`);
-        } else {
+        if (!homeFeaturedTypeCases.length) {
           homeFeaturedTypeCases = [];
           homeFeaturedTypeOffset = 0;
+          renderHomeFeaturedTypeCases();
         }
-        if (!storedItems.length) renderHomeFeaturedTypeCases();
+        if (homeFeaturedTypeCases.length) homeFeaturedTypeOffset = 0;
       }
       homeFeaturedTypeLoading = true;
+      const requestSeq = ++homeFeaturedTypeRequestSeq;
       flow.classList.add('is-loading');
       homeFeaturedSetTypeStatus(
         append
-          ? '正在載入更多物件類型房源...'
-          : (homeFeaturedTypeCases.length ? '正在更新物件類型房源...' : '正在載入物件類型房源...')
+          ? '正在载入更多物件类型房源...'
+          : (homeFeaturedTypeCases.length
+            ? `正在准备「${homeFeaturedTypeDisplayLabel(propertyType)}」房源。`
+            : `正在载入「${homeFeaturedTypeDisplayLabel(propertyType)}」房源...`)
       );
       const moreBtn = document.getElementById('home-featured-type-more');
       if (moreBtn) moreBtn.disabled = true;
       try {
+        const fetchOffset = append ? homeFeaturedTypeOffset : 0;
         const params = new URLSearchParams({
           limit: String(HOME_FEATURED_PAGE_SIZE),
-          offset: String(homeFeaturedTypeOffset),
+          offset: String(fetchOffset),
           category: 'hot',
         });
         if (propertyType) params.set('property_type', propertyType);
@@ -21690,25 +21907,41 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data || data.ok === false) throw new Error('featured type cases unavailable');
         const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
-        const seen = new Set(homeFeaturedTypeCases.map((it) => supportCaseKeyFromItem(it)));
-        for (const item of next) {
-          const key = supportCaseKeyFromItem(item);
-          if (!key || seen.has(key)) continue;
-          seen.add(key);
-          homeFeaturedTypeCases.push(item);
+        if (!append && requestSeq !== homeFeaturedTypeRequestSeq) {
+          if (next.length) {
+            homeFeaturedStorageSet(propertyType, 0, data);
+            homeFeaturedTypeCache.set(cacheKey, {
+              items: next.slice(),
+              offset: Number(data.next_offset || next.length || 0),
+              hasMore: data.has_more !== false,
+            });
+          }
+          return;
         }
-        homeFeaturedTypeOffset = Number(data.next_offset || (homeFeaturedTypeOffset + next.length) || homeFeaturedTypeOffset);
+        if (append) {
+          const seen = new Set(homeFeaturedTypeCases.map((it) => supportCaseKeyFromItem(it)));
+          for (const item of next) {
+            const key = supportCaseKeyFromItem(item);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            homeFeaturedTypeCases.push(item);
+          }
+        } else {
+          homeFeaturedType = propertyType;
+          homeFeaturedTypeCases = next.slice(0, HOME_FEATURED_PAGE_SIZE);
+        }
+        homeFeaturedTypeOffset = Number(data.next_offset || (fetchOffset + next.length) || fetchOffset);
         renderHomeFeaturedTypeCases();
-        homeFeaturedStorageSet(propertyType, Number(params.get('offset') || 0), data);
+        homeFeaturedStorageSet(propertyType, fetchOffset, data);
         homeFeaturedTypeCache.set(cacheKey, {
           items: homeFeaturedTypeCases.slice(),
           offset: homeFeaturedTypeOffset,
           hasMore: data.has_more !== false && next.length > 0,
         });
-        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已載入 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '目前沒有符合條件的物件類型房源。');
+        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(propertyType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(propertyType)}」的房源。`);
         if (moreBtn) moreBtn.hidden = data.has_more === false || next.length === 0;
       } catch (_) {
-        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已顯示上次載入的 ${homeFeaturedTypeCases.length} 筆物件類型房源。` : '物件類型房源暫時無法載入，請稍後再試。');
+        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已显示上次载入的 ${homeFeaturedTypeCases.length} 笔物件类型房源。` : '物件类型房源暂时无法载入，请稍后再试。');
       } finally {
         homeFeaturedTypeLoading = false;
         flow.classList.remove('is-loading');
@@ -26904,6 +27137,12 @@
       root.addEventListener('click', (evt) => {
         const link = evt.target instanceof Element ? evt.target.closest('.bh-nav-keyword-panel a') : null;
         if (!link || !root.contains(link)) return;
+        if (link.matches('[data-nav-placeholder="true"]')) {
+          evt.preventDefault();
+          link.classList.add('is-nav-placeholder-tapped');
+          window.setTimeout(() => link.classList.remove('is-nav-placeholder-tapped'), 420);
+          return;
+        }
         window.setTimeout(closeMenu, 160);
 	      });
 	    }
@@ -27016,6 +27255,11 @@
 		        }
 		      };
 		      document.addEventListener('click', (evt) => {
+		        const placeholder = evt.target instanceof Element ? evt.target.closest('[data-nav-placeholder="true"]') : null;
+		        if (placeholder) {
+		          evt.preventDefault();
+		          return;
+		        }
 		        const trigger = evt.target instanceof Element ? evt.target.closest('[data-home-view-switch], a[href^="#"]') : null;
 		        if (!trigger) return;
 		        if (trigger.hasAttribute('data-home-view-switch')) {
@@ -27096,8 +27340,10 @@
       consumeInboundGeoKeywordSearch();
       installMobileHeaderMetrics();
       const homeFeaturedHydrated = hydrateHomeFeaturedInitial();
+      prefetchHomeFeaturedTypes();
       Promise.resolve(loadHomeFeaturedCases({ append: false, background: homeFeaturedHydrated }))
-        .finally(() => loadHomeFeaturedTypeCases({ append: false, background: homeFeaturedHydrated }));
+        .finally(() => loadHomeFeaturedTypeCases({ append: false, background: homeFeaturedHydrated }))
+        .finally(() => prefetchHomeFeaturedTypes());
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       scheduleAfterMobileFirstIntent(initHomeHeroCarousel, 12000);
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);

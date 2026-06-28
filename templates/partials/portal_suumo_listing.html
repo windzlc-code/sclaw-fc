@@ -3,6 +3,8 @@
 {% set m = listing_panel.meta %}
 {% set g_prop = listing_panel.gallery_property_urls or [] %}
 {% set g_full = listing_panel.gallery_urls or [] %}
+{% set g_sections = listing_panel.gallery_sections or [] %}
+{% set inv = listing_panel.investment_metrics or {} %}
 {% set fallback_img = '/static/img/listing-image-fallback.svg' %}
 {# 案件詳情：物件圖為空時勿 fallback 到含仲介人像的整包網址，以免主圖顯示業者照片 #}
 {% if restrict_hero_to_property_urls|default(true) %}
@@ -88,7 +90,73 @@
     <a class="portal-suumo-cta portal-suumo-cta--orange" href="{{ item_url }}" target="_blank" rel="nofollow noopener noreferrer" title="資料請求、見學預約等請於原站操作">開啟原站洽詢</a>
   </div>
 
-  <div class="portal-suumo-media portal-suumo-media--top">
+  <div class="portal-suumo-media portal-suumo-media--top{% if g_sections %} portal-suumo-media--album{% endif %}">
+    {% if g_sections %}
+    <div class="portal-suumo-gallery-invest-layout">
+    <div id="case-gallery" class="portal-suumo-gallery-sections" aria-label="案件圖片分類">
+      {% set total_gallery_count = namespace(n=0) %}
+      {% for sec in g_sections %}
+      {% set total_gallery_count.n = total_gallery_count.n + (sec.urls|length) %}
+      {% endfor %}
+      {% if main_u %}
+      <div class="portal-suumo-gallery-stage" aria-label="案件相簿主圖">
+        <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--prev" data-gallery-nav="prev" aria-label="上一張">‹</button>
+        <figure class="portal-suumo-herofig portal-suumo-gallery-main{% if main_u == fallback_img %} portal-suumo-herofig--fallback{% endif %}{% if main_is_floorplan %} portal-suumo-herofig--floorplan{% endif %}">
+          <img class="portal-suumo-heroimg zoomable-image" src="{{ main_u|case_static_image_url }}" data-full-src="{{ main_u }}" alt="案件主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="720" height="540">
+        </figure>
+        <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--next" data-gallery-nav="next" aria-label="下一張">›</button>
+      </div>
+      {% endif %}
+      <div class="portal-suumo-gallery-head">
+        <div>
+          <h4>案件圖片</h4>
+          <p>同一相簿內整理本案原站圖片，依來源分區切換查看</p>
+        </div>
+        <span>{{ total_gallery_count.n }} 張</span>
+      </div>
+      <div class="portal-suumo-gallery-tabs" role="tablist" aria-label="案件圖片類型">
+        {% for sec in g_sections %}
+        {% if sec.urls %}
+        <button type="button" class="portal-suumo-gallery-tab{% if loop.first %} is-active{% endif %}" data-gallery-tab="{{ sec.key }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}" role="tab">
+          {{ sec.label }} <span>{{ sec.count }}</span>
+        </button>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% for sec in g_sections %}
+      {% if sec.urls %}
+      <section class="portal-suumo-gallery-section portal-suumo-gallery-section--{{ sec.key }}{% if loop.first %} is-active{% endif %}" data-gallery-pane="{{ sec.key }}" {% if not loop.first %}hidden{% endif %}>
+        <p class="portal-suumo-gallery-section-hint">{{ sec.hint }}</p>
+        <div class="portal-suumo-gallery-section-grid">
+          {% for u in sec.urls %}
+          <a class="portal-suumo-gallery-section-thumb" href="{{ u }}" target="_blank" rel="nofollow noopener noreferrer" title="{{ sec.label }} {{ loop.index }}">
+            <img class="zoomable-image" src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="{{ sec.label }} {{ loop.index }}" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="180" height="126">
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+      {% endfor %}
+    </div>
+    <aside class="portal-suumo-invest-card" aria-label="租售比資料">
+      <h4>租售比</h4>
+      <p>投資收益參考</p>
+      <table>
+        <tbody>
+          {% for row in inv.rows or [] %}
+          <tr>
+            <th>{{ row.label }}</th>
+            <td>{{ row.value }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if inv.note %}
+      <div class="portal-suumo-invest-note">{{ inv.note }}</div>
+      {% endif %}
+    </aside>
+    </div>
+    {% else %}
     {% if main_u %}
     <figure class="portal-suumo-herofig{% if main_u == fallback_img %} portal-suumo-herofig--fallback{% endif %}{% if main_is_floorplan %} portal-suumo-herofig--floorplan{% endif %}">
       <img class="portal-suumo-heroimg zoomable-image" src="{{ main_u|case_static_image_url }}" data-full-src="{{ main_u }}" alt="主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="960" height="420">
@@ -111,6 +179,7 @@
       {% endif %}
       {% endfor %}
     </div>
+    {% endif %}
     {% endif %}
     {% if f.feature_tags_hant %}
     <div class="portal-suumo-photo-tags">

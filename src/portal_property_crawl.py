@@ -1364,11 +1364,11 @@ def _yahoo_search_enrich_from_details(
                 u = str(m.get("content") or "").strip()
                 if u and u.startswith("http") and u not in imgs:
                     imgs.append(u)
-            if len(imgs) >= 28:
+            if len(imgs) >= 120:
                 break
         except Exception:
             continue
-    return "\n".join(lines[: max(8, limit + 2)]), imgs[:28]
+    return "\n".join(lines[: max(8, limit + 2)]), imgs[:120]
 
 
 _YAHOO_DETAIL_TABLE_KEYS = frozenset(
@@ -2959,7 +2959,7 @@ def _urls_from_srcset_attr(val: str, page_url: str) -> list[str]:
     return out
 
 
-def _suumo_detail_image_urls(soup: BeautifulSoup, page_url: str, limit: int = 20) -> list[str]:
+def _suumo_detail_image_urls(soup: BeautifulSoup, page_url: str, limit: int = 80) -> list[str]:
     """SUUMO 詳情頁優先抽房源圖（gazo/bukken），排除公司/人像圖。"""
     out: list[str] = []
 
@@ -3034,7 +3034,7 @@ def _suumo_detail_image_urls(soup: BeautifulSoup, page_url: str, limit: int = 20
     return out
 
 
-def _suumo_property_image_urls_from_raw_html(raw_html: str, page_url: str, limit: int = 36) -> list[str]:
+def _suumo_property_image_urls_from_raw_html(raw_html: str, page_url: str, limit: int = 120) -> list[str]:
     """從 raw HTML（含 script 內嵌）的 resizeImage(src=...) 與直連圖檔還原 SUUMO 房源圖。"""
     out: list[str] = []
     text = str(raw_html or "")
@@ -3502,17 +3502,17 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
             homes_seen.add(u)
             homes_matched.append(u)
 
-    scan_cap = 200 if homes_tokens else 48
+    scan_cap = 200 if homes_tokens else 120
     if "suumo.jp" in pul and re.search(r"/(?:ms|chuko|mansion|chintai|ikkodate)/", pul):
-        for ju in _suumo_property_image_urls_from_raw_html(raw_html, page_url, limit=36):
+        for ju in _suumo_property_image_urls_from_raw_html(raw_html, page_url, limit=120):
             if ju not in imgs:
                 imgs.append(ju)
                 _track_homes_match(ju)
-        for ju in _suumo_detail_image_urls(soup, page_url, limit=28):
+        for ju in _suumo_detail_image_urls(soup, page_url, limit=80):
             if ju not in imgs:
                 imgs.append(ju)
                 _track_homes_match(ju)
-    for ju in _jsonld_image_urls(soup, page_url, limit=18):
+    for ju in _jsonld_image_urls(soup, page_url, limit=40):
         if ju not in imgs:
             imgs.append(ju)
             _track_homes_match(ju)
@@ -3650,7 +3650,7 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
         body += "\n\n[HOMES 階層導覽]\n" + homes_trail_line
     if athome_trail:
         body += "\n\n[AtHome 階層導覽]\n" + athome_trail
-    return title, body, imgs[:48]
+    return title, body, imgs[:120]
 
 
 def _fallback_listing_title(page_url: str) -> str:

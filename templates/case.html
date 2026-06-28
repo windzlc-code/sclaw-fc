@@ -6,7 +6,7 @@
   <title>來源案例詳情｜{{ site_name }}</title>
   <meta name="description" content="日本不動產來源案例詳情與站內對照。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260626-case-standalone">
+  <link rel="stylesheet" href="/static/site.css?v=20260628-case-standalone-readable">
 </head>
 <body class="site-home site-case site-case-suumo site-case-standalone site-lang-hant">
   {% include 'partials/site_header.html' %}
@@ -89,7 +89,7 @@
       <p class="muted suumo-case-footnote">資料為站內整理版本；實際房源狀態、價格與交易條件請以顧問確認為準。</p>
     </section>
 
-    {% if item.case_gallery_cells %}
+    {% if item.case_gallery_cells and not item.case_gallery_sections %}
     <section id="case-gallery" class="panel case-suumo-gallery">
       <h2 class="case-suumo-gallery-title">案件圖片</h2>
       <div class="case-image-grid case-image-grid--suumo">
@@ -106,7 +106,7 @@
     {% endif %}
     {% set _aux_imgs = item.case_media_aux_images or [] %}
     {% set _agent_imgs = item.case_agent_images or [] %}
-    {% if _agent_imgs %}
+    {% if _agent_imgs and not item.case_gallery_sections %}
     <section class="panel slim portal-suumo-agent-block" aria-label="智慧房仲參考圖" style="margin-top:0.65rem;">
       <h3 class="portal-suumo-agent-title" style="margin:0 0 0.35rem;font-size:1.05rem;">智慧房仲｜當地仲介參考</h3>
       <p class="muted" style="margin:0 0 0.5rem;font-size:0.88rem;line-height:1.45;">以下為原站店舖／擔當風格參考圖，置於物件實景之後；完整外觀、內裝、格局請以案件圖片與原站為準。</p>
@@ -121,7 +121,7 @@
       </div>
     </section>
     {% endif %}
-    {% if _aux_imgs %}
+    {% if _aux_imgs and not item.case_gallery_sections %}
     <details class="panel slim case-suumo-aux">
       <summary class="muted">其他圖片（來源附圖）</summary>
       <div class="case-image-grid case-image-grid--suumo" style="margin-top:0.5rem;">
@@ -689,11 +689,11 @@
       pushCandidate(candidates, heroImg.getAttribute('src'));
       const mediaWrap = figure.parentElement;
       if (mediaWrap) {
-        mediaWrap.querySelectorAll('.portal-suumo-subthumb img').forEach((node) => {
+        mediaWrap.querySelectorAll('.portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img').forEach((node) => {
           pushCandidate(candidates, node.getAttribute('src'));
         });
       }
-      document.querySelectorAll('.case-image-cell img, .article-inline-suumo-thumb').forEach((node) => {
+      document.querySelectorAll('.case-image-cell img, .article-inline-suumo-thumb, .portal-suumo-gallery-section-thumb img').forEach((node) => {
         pushCandidate(candidates, node.getAttribute('src'));
       });
       if (!candidates.length) return;
@@ -746,7 +746,7 @@
 
       const pool = [];
       document.querySelectorAll(
-        '.portal-suumo-subthumb img, .case-image-cell img, .article-inline-suumo-thumb, .case-xhs-cover-grid img'
+        '.portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .case-image-cell img, .article-inline-suumo-thumb, .case-xhs-cover-grid img'
       ).forEach((img) => {
         pushCandidate(pool, img.getAttribute('src'));
         pushCandidate(pool, img.getAttribute('data-full-src'));
@@ -756,7 +756,7 @@
       if (!pool.length) return;
 
       const bad = new Set();
-      document.querySelectorAll('.case-image-cell img, .portal-suumo-subthumb img, .case-xhs-cover-grid img').forEach((img) => {
+      document.querySelectorAll('.case-image-cell img, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .case-xhs-cover-grid img').forEach((img) => {
         const ownSrc = String(img.getAttribute('src') || '').trim();
         let idx = Math.max(0, pool.indexOf(ownSrc));
         img.onerror = () => {
@@ -772,7 +772,7 @@
           img.onerror = null;
           img.hidden = false;
           img.src = localFallback;
-          img.closest('.case-image-cell, .portal-suumo-subthumb, .case-xhs-cover-grid')?.classList.add('is-img-fallback');
+          img.closest('.case-image-cell, .portal-suumo-subthumb, .portal-suumo-gallery-section-thumb, .case-xhs-cover-grid')?.classList.add('is-img-fallback');
         };
         if (img.complete && Number(img.naturalWidth || 0) === 0) {
           img.onerror();
@@ -812,8 +812,80 @@
       setCaseContentTab(activeBtn ? activeBtn.getAttribute('data-case-content-tab') : 'hant');
     }
 
+    function initCaseGalleryTabs() {
+      const root = document.querySelector('#case-gallery.portal-suumo-gallery-sections');
+      if (!root) return;
+      const tabs = Array.from(root.querySelectorAll('[data-gallery-tab]'));
+      const panes = Array.from(root.querySelectorAll('[data-gallery-pane]'));
+      if (!tabs.length || !panes.length) return;
+      const activate = (key) => {
+        tabs.forEach((tab) => {
+          const active = String(tab.getAttribute('data-gallery-tab') || '') === key;
+          tab.classList.toggle('is-active', active);
+          tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        panes.forEach((pane) => {
+          const active = String(pane.getAttribute('data-gallery-pane') || '') === key;
+          pane.hidden = !active;
+          pane.classList.toggle('is-active', active);
+        });
+      };
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => activate(String(tab.getAttribute('data-gallery-tab') || '')));
+      });
+      const initial = tabs.find((tab) => tab.classList.contains('is-active')) || tabs[0];
+      activate(String(initial.getAttribute('data-gallery-tab') || ''));
+
+      const mainImg = root.querySelector('.portal-suumo-gallery-main .portal-suumo-heroimg');
+      if (mainImg) {
+        let activePaneKey = String(initial.getAttribute('data-gallery-tab') || '');
+        let activeIndex = 0;
+        const paneThumbs = (key) => Array.from(root.querySelectorAll(`[data-gallery-pane="${key}"] .portal-suumo-gallery-section-thumb`));
+        const syncMain = (thumb) => {
+          const img = thumb.querySelector('img');
+          const full = img?.getAttribute('data-full-src') || img?.getAttribute('src') || '';
+          const src = img?.getAttribute('src') || '';
+          if (!full) return;
+          const pane = thumb.closest('[data-gallery-pane]');
+          activePaneKey = String(pane?.getAttribute('data-gallery-pane') || activePaneKey);
+          const thumbs = paneThumbs(activePaneKey);
+          activeIndex = Math.max(0, thumbs.indexOf(thumb));
+          thumbs.forEach((node) => node.classList.toggle('is-active', node === thumb));
+          if (mainImg.getAttribute('data-full-src') === full) return;
+          mainImg.src = src || full;
+          mainImg.setAttribute('data-full-src', full);
+        };
+        const syncPaneFirst = (key) => {
+          const firstThumb = paneThumbs(key)[0];
+          if (firstThumb) syncMain(firstThumb);
+        };
+        root.querySelectorAll('.portal-suumo-gallery-section-thumb').forEach((thumb) => {
+          thumb.addEventListener('mouseenter', () => syncMain(thumb));
+          thumb.addEventListener('click', () => syncMain(thumb), { capture: true });
+        });
+        root.querySelectorAll('[data-gallery-tab]').forEach((tab) => {
+          tab.addEventListener('click', () => {
+            activePaneKey = String(tab.getAttribute('data-gallery-tab') || activePaneKey);
+            activeIndex = 0;
+            syncPaneFirst(activePaneKey);
+          });
+        });
+        root.querySelectorAll('[data-gallery-nav]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const thumbs = paneThumbs(activePaneKey);
+            if (!thumbs.length) return;
+            const dir = btn.getAttribute('data-gallery-nav') === 'prev' ? -1 : 1;
+            activeIndex = (activeIndex + dir + thumbs.length) % thumbs.length;
+            syncMain(thumbs[activeIndex]);
+          });
+        });
+        syncPaneFirst(activePaneKey);
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       initCaseContentTabs();
+      initCaseGalleryTabs();
       document.querySelectorAll('.rich-media-from-text').forEach((el) => {
         try {
           renderRichMediaFromText(el);
@@ -822,7 +894,7 @@
         }
       });
       document.querySelectorAll(
-        '.case-image-cell img, .article-inline-suumo-thumb, .portal-suumo-heroimg, .portal-suumo-subthumb img, .portal-suumo-agent-thumb img, .portal-yahoo-advisor-thumb:not(.portal-yahoo-advisor-thumb--default) img, .case-xhs-cover-grid img'
+        '.case-image-cell img, .article-inline-suumo-thumb, .portal-suumo-heroimg, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .portal-suumo-agent-thumb img, .portal-yahoo-advisor-thumb:not(.portal-yahoo-advisor-thumb--default) img, .case-xhs-cover-grid img'
       ).forEach((img) => img.classList.add('zoomable-image'));
       initPortalCaseHeroFallback();
       initCaseImageFallbackPool();

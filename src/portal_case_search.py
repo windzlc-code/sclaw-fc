@@ -2042,7 +2042,10 @@ def _canonical_listing_image_identity(u: str) -> str:
                 return f"suumo_src:{src}"
         if "realestate.yahoo.co.jp" in host:
             return f"path:{host}{path}"
-        if any(h in host for h in ("athome.co.jp", "homes.co.jp", "homes.jp", "rehouse.co.jp", "sumifu.co.jp")):
+        if "athome.co.jp" in host:
+            norm_path = path.replace("/cimages/", "/images/")
+            return f"path:{host}{norm_path}"
+        if any(h in host for h in ("homes.co.jp", "homes.jp", "rehouse.co.jp", "sumifu.co.jp")):
             if "homes.jp" in host:
                 q = dict(parse_qsl(p.query, keep_blank_values=True))
                 inner = str(q.get("file") or q.get("src") or "").strip().lower()
@@ -2253,8 +2256,8 @@ def split_listing_image_urls_property_vs_agent(
     agent_limit: int = 6,
 ) -> tuple[list[str], list[str]]:
     """物件內容圖（建物／地圖／格局等）與仲介人像分離；人像列於最後一組供 UI 顯示。"""
-    plim = max(1, min(int(prop_limit or 8), 14))
-    alim = max(0, min(int(agent_limit or 6), 8))
+    plim = max(1, min(int(prop_limit or 8), 80))
+    alim = max(0, min(int(agent_limit or 6), 12))
     max_cand = max(24, (plim + alim) * 4)
     scored = _listing_image_candidates_scored(
         image_urls,
@@ -2294,7 +2297,7 @@ def ordered_listing_image_urls(
     limit: int = 6,
 ) -> list[str]:
     """SUUMO 式列表：主圖 + 小圖；物件內容優先，仲介人像一律置後。"""
-    lim = max(1, min(int(limit or 6), 12))
+    lim = max(1, min(int(limit or 6), 80))
     prop, ag = split_listing_image_urls_property_vs_agent(
         image_urls,
         body_original,

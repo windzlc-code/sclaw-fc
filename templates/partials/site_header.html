@@ -15,7 +15,6 @@
       </a>
       <div class="bh-site-nav-links bh-nav-keywords" aria-label="導航關鍵詞">
       <div class="bh-nav-keyword-tabs" role="tablist" aria-label="關鍵詞分組">
-        <button type="button" class="bh-nav-keyword-tab bh-nav-workbench-tab" data-home-view-switch="workbench" aria-pressed="false"{% if nav_workbench_onclick %} onclick="{{ nav_workbench_onclick }}"{% endif %}>找房工作台</button>
         <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>地區找房</button>
         <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-buyer" data-bh-nav-keyword-tab="buyer"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>買家需求</button>
         <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-property" data-bh-nav-keyword-tab="property"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}>房源條件</button>
@@ -65,13 +64,13 @@
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-process" role="tabpanel" aria-label="流程知識關鍵詞" data-bh-nav-keyword-panel="process" data-bh-panel-title="流程知識" hidden>
           <div class="bh-nav-keyword-list">
           <a href="/guide/tw-buy-japan-property" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, '_blank', 'noopener,noreferrer'); return false;">日本買房流程</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本買房費用">日本買房費用</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本買房稅務">日本買房稅務</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本房貸外國人">日本房貸外國人</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本投資報酬">日本投資報酬</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本租賃管理">日本租賃管理</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本不動產法規">日本不動產法規</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本房產顧問">日本房產顧問</a>
+          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本買房費用</a>
+          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本買房稅務</a>
+          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本房貸外國人</a>
+          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本投資報酬</a>
+          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本租賃管理</a>
+          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本不動產法規</a>
+          <a href="#" data-nav-placeholder="true" aria-disabled="true" title="內容頁整理中">日本房產顧問</a>
           </div>
         </nav>
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-source" role="tabpanel" aria-label="平台來源關鍵詞" data-bh-nav-keyword-panel="source" data-bh-panel-title="平台來源" hidden>
@@ -234,6 +233,12 @@
           root.addEventListener('click', (evt) => {
             const link = evt.target instanceof Element ? evt.target.closest('.bh-nav-keyword-panel a') : null;
             if (!link || !root.contains(link)) return;
+            if (link.matches('[data-nav-placeholder="true"]')) {
+              evt.preventDefault();
+              link.classList.add('is-nav-placeholder-tapped');
+              window.setTimeout(() => link.classList.remove('is-nav-placeholder-tapped'), 420);
+              return;
+            }
             window.setTimeout(closeMenu, 160);
           });
           document.addEventListener('keydown', (evt) => {
@@ -246,6 +251,13 @@
         if (document.documentElement.dataset.sharedHomeRoutingBound === '1') return;
         document.documentElement.dataset.sharedHomeRoutingBound = '1';
         document.addEventListener('click', (event) => {
+          const placeholder = event.target instanceof Element
+            ? event.target.closest('[data-nav-placeholder="true"]')
+            : null;
+          if (placeholder) {
+            event.preventDefault();
+            return;
+          }
           const target = event.target instanceof Element
             ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-nav-keyword-panel a[data-geo-keyword], .bh-footer-directory a[data-geo-keyword], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]')
             : null;
