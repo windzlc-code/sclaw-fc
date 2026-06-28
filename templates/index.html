@@ -21724,6 +21724,7 @@
       homeFeaturedCaseMap.set(key, item);
       const url = String(item.case_path || (item.source_item_id ? `/case/${item.source_item_id}` : '#')).trim();
       const tags = Array.isArray(item.theme_tags) ? item.theme_tags.slice(0, 2) : [];
+      const displayTitle = homeFeaturedDisplayCardTitle(item);
       const displayLocation = homeFeaturedDisplayCardLocation(item);
       const extraClass = options && options.hero ? ' home-featured-card--hero' : '';
       return `<article class="home-featured-card${extraClass}" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
@@ -21734,9 +21735,11 @@
           ${homeFeaturedActionButtons(item)}
         </div>
         <div class="home-featured-card-body">
-          <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(displayLocation)}</a></h3>
+          <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(displayTitle)}</a></h3>
           <div class="home-featured-card-meta">
+            <span>${esc(displayLocation)}</span>
             <span>${esc(item.source_name || '原站')}</span>
+            ${item.price_hint ? `<span>${esc(item.price_hint)}</span>` : ''}
           </div>
           <div class="home-featured-tags">${tags.map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>
         </div>
