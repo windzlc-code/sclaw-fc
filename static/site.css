@@ -37797,6 +37797,51 @@ body.site-home .home-featured-type-grid .home-featured-card:focus-within .home-f
   }
 }
 
+/* 2026-06-28: flatten homepage recommendation/type sections without changing cards. */
+body.site-home .home-featured-flow {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.site-home .home-featured-board {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.site-home .home-featured-board--spotlight,
+body.site-home .home-featured-board--types,
+body.site-home .home-room-explore {
+  padding: 0 !important;
+}
+
+body.site-home .home-featured-board + .home-featured-board {
+  margin-top: clamp(30px, 4vw, 52px) !important;
+}
+
+body.site-home .home-featured-type-tabs {
+  padding: 0 0 6px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+body.site-home .home-room-explore-grid {
+  padding-inline: 0 !important;
+}
+
+body.site-home .jp-workbench-suite .figure-type-picks {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 /* 2026-06-28: standalone case detail readability and tighter top spacing. */
 body.site-case-standalone main.case-page-suumo {
   padding-top: clamp(18px, 2.4vw, 34px) !important;
