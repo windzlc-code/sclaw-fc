@@ -4087,6 +4087,7 @@
     }
     let figureResultsHidden = false;
     let activeQueryCount = 0;
+    let activeFigureSearchController = null;
     let supportChatHistory = [];
     let supportTgPollTimer = null;
     let supportHandoffSyncTimer = null;
@@ -5935,6 +5936,38 @@
         if (typeof suspendNonCriticalHomeMediaForQuery === 'function') suspendNonCriticalHomeMediaForQuery(false);
       }
     }
+
+    function cleanupSmartQueryUiBeforeNavigation(options = {}) {
+      const abortRequests = options.abortRequests !== false;
+      const wrap = document.getElementById('query-progress');
+      const marquee = document.getElementById('query-progress-marquee');
+      activeQueryCount = 0;
+      if (wrap) wrap.style.display = 'none';
+      if (marquee) marquee.setAttribute('data-text', '資料彙整中，請稍候...');
+      try {
+        document.body?.classList.remove('figure-query-in-flight');
+      } catch (_) {}
+      if (typeof suspendNonCriticalHomeMediaForQuery === 'function') {
+        try { suspendNonCriticalHomeMediaForQuery(false); } catch (_) {}
+      }
+      const dialog = document.getElementById('query-dialog');
+      if (dialog) dialog.setAttribute('aria-busy', 'false');
+      document.querySelectorAll('[data-geo-keyword].is-geo-keyword-active').forEach((node) => {
+        node.classList.remove('is-geo-keyword-active', 'is-geo-keyword-pressed');
+        node.removeAttribute('aria-current');
+      });
+      if (abortRequests) {
+        if (activeController) {
+          try { activeController.abort(); } catch (_) {}
+          activeController = null;
+        }
+        if (activeFigureSearchController) {
+          try { activeFigureSearchController.abort(); } catch (_) {}
+          activeFigureSearchController = null;
+        }
+      }
+    }
+    window.cleanupSmartQueryUiBeforeNavigation = cleanupSmartQueryUiBeforeNavigation;
 
     function dialogKnowledgeSourceCardsHtml(items) {
       const list = Array.isArray(items) ? items.filter(Boolean).slice(0, 6) : [];
@@ -21414,6 +21447,9 @@
     function navigatePortalCaseStandalone(rawUrl, returnTo = '/#figure-results') {
       const href = portalCaseStandaloneHref(rawUrl, returnTo);
       if (!href) return false;
+      if (typeof cleanupSmartQueryUiBeforeNavigation === 'function') {
+        cleanupSmartQueryUiBeforeNavigation({ reason: 'case-standalone' });
+      }
       window.location.href = href;
       return true;
     }
@@ -21638,6 +21674,9 @@
     async function openPortalCaseInlineDetail(rawUrl, sourceEl) {
       const url = normalizePortalCaseInlineUrl(rawUrl);
       if (!url) return false;
+      if (typeof cleanupSmartQueryUiBeforeNavigation === 'function') {
+        cleanupSmartQueryUiBeforeNavigation({ reason: 'case-inline-detail', abortRequests: true });
+      }
       const shell = getPortalCaseInlineDetailShell();
       const body = shell.querySelector('.portal-case-inline-detail-body');
       const titleEl = shell.querySelector('.portal-case-inline-detail-title');
@@ -25857,6 +25896,11 @@
       const geoLabel = geoBits.length ? geoBits.join(' › ') : '不限';
       const keywordLabel = keyword ? ` ｜ 關鍵詞：${keyword}` : '';
       const conditionLine = `區域：${geoLabel} ｜ 類型：${typeLabel} ｜ 總價：${priceLabel} ｜ 格局：${layoutLabel}${keywordLabel}`;
+      if (activeFigureSearchController) {
+        try { activeFigureSearchController.abort(); } catch (_) {}
+      }
+      activeFigureSearchController = new AbortController();
+      const figureSearchController = activeFigureSearchController;
       startQueryProgress(`智慧查詢中：${conditionLine}`);
       resultWrap.innerHTML = '<div class="panel muted">查詢站內案件資料中...</div>';
       figureResultsHidden = false;
@@ -25987,7 +26031,7 @@
           for (const attempt of attempts) {
             const res = await fetchPortalCaseSearch(buildPortalSearchBody(attempt.region, attempt.keyword, {
               page_size: FIGURE_RESULTS_PAGE_SIZE,
-            }));
+            }), { signal: figureSearchController.signal });
             const payload = await res.json();
             if (!res.ok) {
               const detailRaw = payload?.detail || payload?.error || payload?.message || '查詢失敗，請稍後再試。';
@@ -25998,7 +26042,7 @@
           data = mergePortalCaseSearchPayloads(payloads, attempts.map((attempt) => attempt.region));
         } else {
           for (const attempt of attempts) {
-            const res = await fetchPortalCaseSearch(buildPortalSearchBody(attempt.region, attempt.keyword));
+            const res = await fetchPortalCaseSearch(buildPortalSearchBody(attempt.region, attempt.keyword), { signal: figureSearchController.signal });
             const payload = await res.json();
             if (!res.ok) {
               const detailRaw = payload?.detail || payload?.error || payload?.message || '查詢失敗，請稍後再試。';
@@ -26011,11 +26055,12 @@
           }
         }
       } catch (err) {
+        if (err && err.name === 'AbortError') return;
         const errText = dedupeRepeatedFailureMessage(formatApiError(err) || '查詢失敗，請稍後再試。');
         resultWrap.innerHTML = `<div class="panel">${esc(errText)}</div>`;
-        stopQueryProgress();
         return;
       } finally {
+        if (activeFigureSearchController === figureSearchController) activeFigureSearchController = null;
         stopQueryProgress();
       }
 
@@ -27955,6 +28000,11 @@
 	      const showWorkbench = mode === 'workbench';
 	      const body = document.body;
 	      if (!body || !body.classList.contains('site-home')) return;
+	      const targetId = String(options.targetId || '').trim();
+	      const keepSmartQueryActive = showWorkbench && (targetId === 'query-dialog' || targetId === 'figure-results');
+	      if (!keepSmartQueryActive && typeof cleanupSmartQueryUiBeforeNavigation === 'function') {
+	        cleanupSmartQueryUiBeforeNavigation({ reason: showWorkbench ? 'workbench-switch' : 'home-switch' });
+	      }
 	      const navRoot = document.querySelector('.bh-nav-keywords');
 	      if (navRoot) {
 	        navRoot.classList.remove('is-open');
@@ -27982,12 +28032,12 @@
 		          el.classList.add('is-bh-inview');
 		        });
 		        if (typeof setJpWorkbenchTab === 'function') {
-		          const tabTarget = options.targetId === 'query-dialog' || options.targetId === 'figure-results' ? 'query' : 'map';
+		          const tabTarget = targetId === 'query-dialog' || targetId === 'figure-results' ? 'query' : 'map';
 		          setJpWorkbenchTab(tabTarget, { persist: false, scroll: false, instant: options.instant });
 		        }
 		        window.setTimeout(() => {
 		          try {
-		            if (options.targetId === 'query-dialog' || options.targetId === 'figure-results') return;
+		            if (targetId === 'query-dialog' || targetId === 'figure-results') return;
 		            if (typeof reactivateJpWorkbenchMap === 'function') {
 		              reactivateJpWorkbenchMap();
 		              return;
@@ -28019,8 +28069,8 @@
 	        }, 90);
 	      }
 	      if (options.scroll !== false) {
-		        const targetId = showWorkbench && (options.targetId === 'figure-results') ? 'figure-results' : (showWorkbench ? 'jp-workbench-suite' : 'home-hero-heading');
-		        const target = document.getElementById(targetId)
+		        const scrollTargetId = showWorkbench && (targetId === 'figure-results') ? 'figure-results' : (showWorkbench ? 'jp-workbench-suite' : 'home-hero-heading');
+		        const target = document.getElementById(scrollTargetId)
 		          || document.getElementById(showWorkbench ? 'jp-map-hub' : 'home-hero-heading')
 		          || document.querySelector(showWorkbench ? '#jp-workbench-suite' : '.site-home-hero');
 	        if (target) {
@@ -28033,7 +28083,7 @@
 	        }
 	      }
 		      if (options.persist !== false && window.history && window.location) {
-		        const workbenchTarget = options.targetId === 'query-dialog' || options.targetId === 'figure-results' ? `#${options.targetId}` : '#jp-map-hub';
+		        const workbenchTarget = targetId === 'query-dialog' || targetId === 'figure-results' ? `#${targetId}` : '#jp-map-hub';
 		        const nextHash = showWorkbench ? workbenchTarget : '#home-hero-heading';
 	        const base = `${window.location.pathname}${window.location.search}`;
 	        try {
