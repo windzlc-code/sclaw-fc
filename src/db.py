@@ -555,6 +555,8 @@ def init_db() -> None:
                 source_item_id INTEGER PRIMARY KEY,
                 representative_url TEXT NOT NULL DEFAULT '',
                 representative_static_url TEXT NOT NULL DEFAULT '',
+                backup_urls_json TEXT NOT NULL DEFAULT '[]',
+                backup_static_urls_json TEXT NOT NULL DEFAULT '[]',
                 image_signature TEXT NOT NULL DEFAULT '',
                 provider TEXT NOT NULL DEFAULT '',
                 model TEXT NOT NULL DEFAULT '',
@@ -567,6 +569,46 @@ def init_db() -> None:
                 FOREIGN KEY(source_item_id) REFERENCES source_items(id)
             )
             """
+        )
+        _ensure_column(conn, "case_representative_images", "backup_urls_json", "TEXT NOT NULL DEFAULT '[]'")
+        _ensure_column(conn, "case_representative_images", "backup_static_urls_json", "TEXT NOT NULL DEFAULT '[]'")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS case_gallery_image_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_item_id INTEGER NOT NULL,
+                image_url TEXT NOT NULL,
+                image_static_url TEXT NOT NULL DEFAULT '',
+                image_key TEXT NOT NULL DEFAULT '',
+                category TEXT NOT NULL DEFAULT '',
+                category_label TEXT NOT NULL DEFAULT '',
+                confidence INTEGER NOT NULL DEFAULT 0,
+                is_polluted INTEGER NOT NULL DEFAULT 0,
+                pollution_reason TEXT NOT NULL DEFAULT '',
+                information_value INTEGER NOT NULL DEFAULT 0,
+                provider TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL DEFAULT '',
+                reason TEXT NOT NULL DEFAULT '',
+                cleanup_attempts INTEGER NOT NULL DEFAULT 0,
+                cleanup_last_error TEXT NOT NULL DEFAULT '',
+                cleanup_failed_at TEXT NOT NULL DEFAULT '',
+                audited_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                image_signature TEXT NOT NULL DEFAULT '',
+                UNIQUE(source_item_id, image_key),
+                FOREIGN KEY(source_item_id) REFERENCES source_items(id)
+            )
+            """
+        )
+        _ensure_column(conn, "case_gallery_image_audit", "cleanup_attempts", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "case_gallery_image_audit", "cleanup_last_error", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "case_gallery_image_audit", "cleanup_failed_at", "TEXT NOT NULL DEFAULT ''")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_case_gallery_audit_source "
+            "ON case_gallery_image_audit(source_item_id, category, is_polluted)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_case_gallery_audit_cleanup "
+            "ON case_gallery_image_audit(is_polluted, cleanup_attempts, source_item_id)"
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_case_investment_quality "

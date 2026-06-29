@@ -6,7 +6,7 @@ import re
 import time
 import unicodedata
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import parse_qsl, urlparse, unquote
 
 from src.case_metadata import (
@@ -794,23 +794,85 @@ def _listing_value_present(value: Any) -> bool:
     return True
 
 
-_JP_KANA_RE = re.compile(r"[\u3040-\u30ff]")
+_JP_KANA_RE = re.compile(r"[ぁ-んァ-ヴー]")
 
 
 _PORTAL_CASE_TEXT_HANT_REPL: tuple[tuple[str, str], ...] = (
     ("【アットホーム】", ""),
     ("【ホームズ】", ""),
+    ("【SUUMO】", ""),
     ("LIFULL HOME'S", "LIFULL HOME'S"),
     ("アットホーム", "AtHome"),
     ("ホームズ", "LIFULL HOME'S"),
+    ("スーモ", "SUUMO"),
+    ("ライフルホームズ", "LIFULL HOME'S"),
+    ("イエステーション", "YesStation"),
+    ("お部屋探す", "OHEYASU"),
+    ("ディアナコート", "Diana Court"),
+    ("ヴェレーナ", "Verena"),
+    ("イノバス", "Innovus"),
+    ("ポレスター", "Polestar"),
+    ("モンドミオ", "Mond Mio"),
+    ("エクセレントシティ", "Excellent City"),
+    ("グランゲート", "Grand Gate"),
+    ("レーベン", "Leben"),
+    ("リビオ", "Livio"),
+    ("パークハイツ", "Park Heights"),
+    ("パークホームズ", "Park Homes"),
+    ("パークタワー", "Park Tower"),
+    ("パークコート", "Park Court"),
+    ("シティタワー", "City Tower"),
+    ("ザ・パークハウス", "The Parkhouse"),
+    ("ブランズ", "Branz"),
+    ("プラウド", "Proud"),
     ("ザ・マークス", "The Marks"),
     ("グランドパレス", "Grand Palace"),
     ("シーズガーデン", "Seeds Garden"),
     ("サンシャイン", "Sunshine"),
+    ("ステーションタワー", "Station Tower"),
+    ("タワー", "Tower"),
+    ("スクエア", "Square"),
+    ("フォート", "Fort"),
+    ("コート", "Court"),
+    ("ハイツ", "Heights"),
+    ("プラザ", "Plaza"),
+    ("レジデンス", "Residence"),
+    ("ヒルズ", "Hills"),
+    ("ガーデン", "Garden"),
+    ("ウォークインクロゼット", "步入式衣帽間"),
+    ("ウォークイン", "步入式"),
+    ("シューズクローク", "鞋櫃收納間"),
+    ("クローゼット", "收納衣櫃"),
+    ("ワンルーム", "單間套房"),
+    ("サービスルーム", "多功能房"),
+    ("ルーム", "房間"),
+    ("屋上テラス", "屋頂露台"),
+    ("テラス", "露台"),
+    ("土間収納", "玄關收納"),
+    ("パントリー", "食品儲藏室"),
+    ("リネン庫", "布草收納"),
+    ("畳コーナー", "榻榻米角落"),
+    ("こだわり収納", "精選收納"),
+    ("小屋裏収納", "閣樓收納"),
+    ("収納", "收納"),
+    ("スペース", "空間"),
+    ("マルチ", "多用途"),
+    ("アウトドア", "戶外"),
+    ("もちろん", "也可"),
+    ("活用できる", "可活用"),
+    ("多目的に", "多用途"),
+    ("など", "等"),
     ("マンション", "公寓"),
+    ("アパート", "公寓"),
+    ("コーポ", "公寓"),
+    ("メゾン", "公寓"),
     ("新築公寓", "新建公寓"),
     ("新築", "新建"),
     ("分譲", "分售"),
+    ("賃貸", "租賃"),
+    ("売買", "買賣"),
+    ("購入", "購買"),
+    ("物件情報", "物件資訊"),
     ("中古", "中古"),
     ("一戸建て", "一戶建"),
     ("戸建て", "戶建"),
@@ -832,9 +894,11 @@ _PORTAL_CASE_TEXT_HANT_REPL: tuple[tuple[str, str], ...] = (
     ("名古屋市営", "名古屋市營"),
     ("北九州モノレール", "北九州單軌電車"),
     ("モノレール", "單軌電車"),
+    ("つくばエクスプレス", "筑波快線"),
     ("地下鉄", "地下鐵"),
     ("都営", "都營"),
     ("ＪＲ", "JR"),
+    ("私鉄", "私鐵"),
     ("バス停下車", "巴士站下車"),
     ("バス停", "巴士站"),
     ("バス", "巴士"),
@@ -851,12 +915,21 @@ _PORTAL_CASE_TEXT_HANT_REPL: tuple[tuple[str, str], ...] = (
     ("築年", "屋齡"),
     ("予定", "預定"),
     ("総戸数", "總戶數"),
+    ("総武線", "總武線"),
+    ("浅草線", "淺草線"),
+    ("大江戸線", "大江戶線"),
+    ("東横線", "東橫線"),
+    ("山手線", "山手線"),
+    ("札沼線", "札沼線"),
+    ("室蘭本線", "室蘭本線"),
     ("管理員室", "管理員室"),
     ("集会室", "集會室"),
     ("店舗", "店鋪"),
     ("他に", "另有"),
     ("他、", "另有"),
     ("の一部", "的一部分"),
+    ("付の", "附"),
+    ("の", "的"),
     ("全", "共"),
     ("邸", "戶"),
     ("戸", "戶"),
@@ -887,7 +960,16 @@ _PORTAL_CASE_TEXT_HANT_REPL: tuple[tuple[str, str], ...] = (
     ("ヶ", "之"),
     ("ヶ所", "處"),
     ("ケ所", "處"),
+    ("ケ", "之"),
+    ("ノ", "之"),
+    ("および", "以及"),
+    ("下る", "往南"),
     ("地番", "地號"),
+    ("収益", "收益"),
+    ("浅", "淺"),
+    ("蔵", "藏"),
+    ("条", "條"),
+    ("広", "廣"),
 )
 
 
@@ -956,9 +1038,46 @@ def _portal_case_text_hant(raw: Any, *, max_len: int = 260) -> str:
     out = out.replace("｜", " | ")
     out = re.sub(r"\s+", " ", out)
     out = re.sub(r"\s*([|/・、，,])\s*", r"\1", out)
+    out = out.replace("は也可", "也可")
+    out = re.sub(r"(^|[|/、，,\s])は(?=$|[|/、，,\s])", r"\1", out)
+    out = re.sub(r"\|\s+", "|", out)
     out = re.sub(r"\b(AtHome|LIFULL HOME'S)（\1）", r"\1", out)
     out = out.strip(" ：:-|")
     return out[:max_len].strip()
+
+
+def _portal_case_kana_safe(raw: Any, *, max_len: int = 260) -> str:
+    """Translate common listing Japanese and suppress remaining kana fragments for display fields."""
+    out = _portal_case_text_hant(raw, max_len=max_len)
+    return "" if _portal_case_has_kana(out) else out
+
+
+def _portal_case_join_kana_safe(parts: Iterable[Any], *, max_len: int = 260) -> str:
+    rows: list[str] = []
+    for part in parts:
+        text = _portal_case_kana_safe(part, max_len=max_len)
+        if text:
+            rows.append(text)
+    return " ".join(rows)[:max_len].strip()
+
+
+def _portal_case_clean_access_segments(raw: Any, *, max_len: int = 180) -> str:
+    translated = _portal_case_text_hant(raw, max_len=600)
+    if not translated:
+        return ""
+    if not _portal_case_has_kana(translated):
+        return translated[:max_len].strip()
+    pieces = re.split(r"\s*(?:/|／|(?:\(\d+\))|(?:（\d+）)|[。；;])\s*", translated)
+    kept: list[str] = []
+    for piece in pieces:
+        p = piece.strip(" 、，,")
+        if not p or _portal_case_has_kana(p):
+            continue
+        if re.search(r"(?:站|步行|線|鐵|巴士|JR)", p):
+            kept.append(p)
+        if len(kept) >= 2:
+            break
+    return " / ".join(kept)[:max_len].strip()
 
 
 def _portal_case_source_name_display(raw: Any, item_url: Any = "") -> str:
@@ -1025,6 +1144,10 @@ def _portal_case_display_access(raw: Any, d: dict[str, Any], meta: dict[str, Any
     access_hant = _portal_case_text_hant(access_raw or meta.get("transit_line_zh") or "", max_len=180)
     if _portal_case_display_line_is_noisy(access_hant):
         access_hant = _portal_case_text_hant(meta.get("transit_line_zh") or "", max_len=120)
+    if _portal_case_has_kana(access_hant):
+        access_hant = _portal_case_clean_access_segments(access_raw, max_len=180)
+    if _portal_case_has_kana(access_hant):
+        access_hant = _portal_case_clean_access_segments(meta.get("transit_line_zh") or "", max_len=120)
     return "" if _portal_case_display_line_is_noisy(access_hant) else access_hant
 
 
@@ -1035,6 +1158,8 @@ def _portal_case_display_address(raw: Any, d: dict[str, Any], meta: dict[str, An
         address_raw = _extract_jp_address_fallback(source_blob)
     address_hant = _portal_case_text_hant(address_raw, max_len=160)
     if _portal_case_display_line_is_noisy(address_hant) or re.search(r"(?:站|步行)\s*\d", address_hant):
+        address_hant = str(meta.get("jp_region_display_zh") or "").strip()
+    if _portal_case_has_kana(address_hant):
         address_hant = str(meta.get("jp_region_display_zh") or "").strip()
     return address_hant
 
@@ -1091,7 +1216,7 @@ def _portal_case_display_title(
         return base
     region = str(meta.get("jp_region_display_zh") or "")
     short_addr = _portal_case_short_address(address_hant, region)
-    layout = str(listing_fields.get("layout_text_hant") or "").strip()
+    layout = _portal_case_text_hant(listing_fields.get("layout_text_hant") or "", max_len=80)
     ptype = _portal_case_property_type_hant(d, listing_fields)
     right = " ".join(x for x in (layout, ptype) if x).strip()
     if short_addr and right:
@@ -1124,6 +1249,24 @@ def _portal_case_display_fields(
     preview_source = body_hant_preview or _clean_portal_case_preview(d, listing_fields, script="hant")
     preview_hant = _portal_case_text_hant(preview_source, max_len=320)
     preview_hans = _portal_case_text_hant(body_hans_preview or preview_source, max_len=320)
+    if _portal_case_has_kana(preview_hant):
+        preview_hant = _clean_portal_case_preview(d, listing_fields, script="hant")
+    if _portal_case_has_kana(preview_hans):
+        preview_hans = _clean_portal_case_preview(d, listing_fields, script="hans")
+    if _portal_case_has_kana(preview_hant):
+        preview_hant = _portal_case_join_kana_safe(
+            (
+                title_display_hant,
+                listing_fields.get("price_text_hant"),
+                listing_fields.get("layout_text_hant"),
+                listing_fields.get("area_text_hant"),
+                address_hant,
+                access_hant,
+            ),
+            max_len=320,
+        )
+    if _portal_case_has_kana(preview_hans):
+        preview_hans = preview_hant
     title_display_hans = _portal_case_text_hant(title_hans_clean, max_len=120) if title_hans_clean else title_display_hant
     if not title_display_hans or _portal_case_has_kana(title_display_hans):
         title_display_hans = title_display_hant
@@ -1180,7 +1323,7 @@ def _clean_portal_case_preview(
     }
     label = labels_hans if script == "hans" else labels_hant
     rows: list[str] = []
-    title = _clean_translation_noise(str(d.get("title_original") or d.get("title_zh_hant") or ""))
+    title = _portal_case_kana_safe(d.get("title_zh_hant") or d.get("title_original") or "", max_len=120)
     if title:
         rows.append(title)
     for key in (
@@ -1192,12 +1335,12 @@ def _clean_portal_case_preview(
         "built_ym_jp",
         "floor_text_hant",
     ):
-        value = _clean_translation_noise(str(listing_fields.get(key) or ""))
+        value = _portal_case_kana_safe(listing_fields.get(key) or "", max_len=220)
         if not _listing_value_present(value):
             continue
         rows.append(f"{label.get(key, key)}：{value}")
     if len(rows) <= 1:
-        snippet = _clean_snippet_text(str(d.get("body_original") or ""))
+        snippet = _portal_case_kana_safe(_clean_snippet_text(str(d.get("body_original") or "")), max_len=260)
         if snippet and not _preview_text_looks_stale(snippet):
             rows.append(snippet)
     return " ".join(rows)[:320]
@@ -4313,12 +4456,16 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
         body_hant_preview=body_hant_preview,
         body_hans_preview=body_hans_preview,
     )
+    legacy_title_hant = str(display_fields.get("title_display_hant") or "").strip() or _portal_case_kana_safe(title_hant_clean, max_len=120)
+    legacy_title_hans = str(display_fields.get("title_display_hans") or "").strip() or legacy_title_hant
+    legacy_body_hant = str(display_fields.get("body_display_hant_preview") or "").strip() or _portal_case_kana_safe(body_hant_preview, max_len=320)
+    legacy_body_hans = str(display_fields.get("body_display_hans_preview") or "").strip() or legacy_body_hant
     return {
         "content_id": d.get("id"),
         "source_item_id": d.get("source_item_id"),
         "seo_slug": d.get("seo_slug") or "",
-        "title_zh_hant": title_hant_clean,
-        "title_zh_hans": title_hans_clean,
+        "title_zh_hant": legacy_title_hant,
+        "title_zh_hans": legacy_title_hans,
         "region_code": d.get("region_code") or "",
         "keyword_type": d.get("keyword_type") or "",
         "topic_category": d.get("topic_category") or "",
@@ -4331,8 +4478,8 @@ def _row_to_portal_case_item(r: Any) -> dict[str, Any]:
         "item_url": d.get("item_url") or "",
         "title_original": title_original_clean,
         "snippet_jp": _clean_snippet_text(str(d.get("body_original") or ""))[:260],
-        "body_zh_hant_preview": body_hant_preview,
-        "body_zh_hans_preview": body_hans_preview,
+        "body_zh_hant_preview": legacy_body_hant,
+        "body_zh_hans_preview": legacy_body_hans,
         "updated_at": str(d.get("updated_at") or ""),
         "published_at": str(d.get("published_at") or ""),
         "crawled_at": str(d.get("crawled_at") or ""),
@@ -4375,16 +4522,22 @@ def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
     body_hans_preview = _clean_translation_noise(str(d.get("body_zh_hans") or ""))[:320]
     display_title = _portal_case_text_hant(title_hant_clean or title_original_clean, max_len=120)
     if _portal_case_has_kana(display_title):
-        display_title = re.sub(r"^\s*日本房[產产]案源[:：]\s*", "", title_original_clean).strip()[:96]
+        region_hint = _portal_case_text_hant(d.get("case_jp_region_override") or "", max_len=40)
+        tx_hint = _portal_case_text_hant(d.get("case_transaction_override") or "", max_len=40)
+        display_title = "｜".join(x for x in (region_hint, tx_hint, "日本不動產案件") if x).strip("｜")[:96]
     display_preview_hant = _portal_case_text_hant(body_hant_preview, max_len=320)
     display_preview_hans = _portal_case_text_hant(body_hans_preview or body_hant_preview, max_len=320)
+    if _portal_case_has_kana(display_preview_hant):
+        display_preview_hant = display_title
+    if _portal_case_has_kana(display_preview_hans):
+        display_preview_hans = display_preview_hant
     gallery = [thumb] if thumb else []
     return {
         "content_id": d.get("id"),
         "source_item_id": d.get("source_item_id"),
         "seo_slug": d.get("seo_slug") or "",
-        "title_zh_hant": title_hant_clean,
-        "title_zh_hans": title_hans_clean,
+        "title_zh_hant": display_title,
+        "title_zh_hans": display_title,
         "title_display_hant": display_title,
         "title_display_hans": display_title,
         "region_code": d.get("region_code") or "",
@@ -4399,8 +4552,8 @@ def _row_to_portal_case_item_filter_fast(r: Any) -> dict[str, Any]:
         "item_url": d.get("item_url") or "",
         "title_original": title_original_clean,
         "snippet_jp": _clean_snippet_text(str(d.get("body_original") or ""))[:260],
-        "body_zh_hant_preview": body_hant_preview,
-        "body_zh_hans_preview": body_hans_preview,
+        "body_zh_hant_preview": display_preview_hant,
+        "body_zh_hans_preview": display_preview_hans,
         "body_display_hant_preview": display_preview_hant,
         "body_display_hans_preview": display_preview_hans,
         "updated_at": str(d.get("updated_at") or ""),
@@ -4523,12 +4676,14 @@ def _row_to_portal_case_item_matrix_fast(r: Any) -> dict[str, Any]:
     title_hant = str(d.get("title_zh_hant") or "").strip() or title_original
     title_hans = str(d.get("title_zh_hans") or "").strip() or title_hant
     title_display = _portal_case_text_hant(title_hant or title_original, max_len=120)
+    if _portal_case_has_kana(title_display):
+        title_display = "｜".join(x for x in (jp_region, tx_label, "日本不動產案件") if x).strip("｜")[:96]
     return {
         "content_id": d.get("id"),
         "source_item_id": d.get("source_item_id"),
         "seo_slug": d.get("seo_slug") or "",
-        "title_zh_hant": title_hant,
-        "title_zh_hans": title_hans,
+        "title_zh_hant": title_display,
+        "title_zh_hans": title_display,
         "title_display_hant": title_display,
         "title_display_hans": title_display,
         "region_code": d.get("region_code") or "",

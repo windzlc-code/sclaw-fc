@@ -186,6 +186,7 @@ def select_representative_listing_image_via_gemini(
     title: str = "",
     address: str = "",
     source_name: str = "",
+    listing_type: str = "building",
     model: str | None = None,
 ) -> dict[str, Any]:
     """Use the backend Gemini provider to pick one durable listing display image.
@@ -210,24 +211,46 @@ def select_representative_listing_image_via_gemini(
     if not usable:
         raise RuntimeError("No usable image candidates for Gemini representative selection.")
 
+    type_guidance = {
+        "land": "土地：优先地块实景、现场状态、道路临接、边界/整块土地、田畑/山林等能说明土地形态和开发条件的图片。",
+        "parking": "單售車位：优先车位本体、停车场入口、编号车位、机械车位或车库整体，避免普通道路空景。",
+        "shop": "店面：优先临街外观、门面、招牌、入口、可营业室内空间，能看出商业展示价值。",
+        "office": "辦公：优先办公室内、办公楼外观、入口大厅、楼层公共空间，能看出办公使用属性。",
+        "warehouse": "倉庫：优先仓库内部空间、卷帘门/装卸口、仓库外观、大空间或货运动线。",
+        "factory": "廠房：优先厂房外观、工业空间、厂区入口、生产/作业空间，不选无关道路空景。",
+        "detached": "別墅/透天：优先建筑外观、整栋立面、入口、客厅/LDK等主要生活空间。",
+        "studio": "套房：优先主居室、室内整体、采光与格局可辨识的图片，厨房/卫浴只作低优先备选。",
+        "apartment": "公寓：优先室内主空间、建筑外观、入口、可辨识公共空间。",
+        "tower": "大樓：优先大楼外观、入口大堂、室内主空间，体现楼体和居住品质。",
+        "midrise": "華廈：优先建筑外观、入口、室内主空间，体现小型集合住宅状态。",
+        "other": "其他：根据标题和案件描述判断用途，选择最能表达该案件真实状态和用途的图片。",
+        "building": "一般建物：优先室内主空间、建筑外观、整栋/立面、入口。",
+    }
     prompt = {
         "task": "从日本不动产案件图片中选择一张最适合作为网站卡片封面的代表图。",
         "listing": {
             "title": str(title or "")[:240],
             "address": str(address or "")[:180],
             "source_name": str(source_name or "")[:120],
+            "listing_type": str(listing_type or "building")[:40],
+            "type_guidance": type_guidance.get(str(listing_type or "building"), type_guidance["building"]),
         },
         "rules": [
-            "优先选择真实实拍图：室内客厅/卧室/厨房/阳台/建筑外观。",
+            "先以 listing_type/type_guidance 为主，再结合标题和地址核对案件类型，选择能表达该类型核心信息的真实实拍图。",
+            "住宅/建筑类优先客厅/LDK/卧室等室内主空间、建筑外观、整栋/立面、入口；厨房、阳台、玄关只作为次优备选。",
+            "商业/办公/仓库/厂房/车位/土地案件必须按其用途选择图片，不要套用住宅室内优先规则。",
             "不要选择户型图、结构图、地图、交通图、概念渲染图、广告海报、文字说明图、验证码/错误页、人物头像或纯 logo。",
-            "明显水印过重、模糊、裁切严重、无房屋主体的图要降权。",
-            "如果没有完美图片，选择最接近真实房源的外观或室内图。",
+            "不要选择厕所、浴室、洗面台、设备特写、杂乱角落等低信息图片；但土地/车位案件中，真实现场和道路临接可按该类型信息价值判断。",
+            "非土地/车位案件不要选择野外空景、道路/公园/停车场等看不到案件主体和用途的图片。",
+            "明显水印过重、模糊、裁切严重、无房屋主体、信息含糊不清的图要降权或拒绝。",
+            "如果没有完美图片，选择最接近该案件类型核心信息的真实图，而不是默认选择住宅图。",
         ],
         "candidates": [{"index": c["index"], "url": c["url"], "hint": c["hint"]} for c in usable],
         "response_schema": {
             "selected_index": "number，候选 index",
             "score": "0-100，代表图质量分",
-            "category": "real_interior|real_exterior|real_building|floor_plan|map|concept|ad|watermark|placeholder|unknown",
+            "category": "real_interior_main|real_interior_room|real_exterior|real_building|entrance|land_site|land_frontage|farmland|forest_land|parking_space|parking_lot|garage|shop_front|shop_interior|street_front|office_interior|office_building|warehouse_interior|warehouse_exterior|factory_interior|factory_exterior|kitchen|balcony|bath_toilet|facility_detail|environment|floor_plan|map|concept|ad|watermark|placeholder|unclear|unknown",
+            "information_value": "0-100，是否能看出该物件类型的核心信息和真实状态",
             "reason": "简短中文理由",
             "rejected": [{"index": "number", "reason": "简短原因"}],
         },
@@ -265,9 +288,125 @@ def select_representative_listing_image_via_gemini(
         "selected_index": idx,
         "score": score,
         "category": category,
+        "information_value": max(0, min(100, int(data.get("information_value") or data.get("info_value") or 0))),
         "reason": str(data.get("reason") or "").strip()[:400],
         "rejected": data.get("rejected") if isinstance(data.get("rejected"), list) else [],
     }
+
+
+def classify_listing_gallery_images_via_gemini(
+    candidates: list[dict[str, Any]],
+    *,
+    title: str = "",
+    address: str = "",
+    source_name: str = "",
+    listing_type: str = "building",
+    model: str | None = None,
+) -> dict[str, Any]:
+    """Classify listing gallery images and flag unrelated/polluted images."""
+    usable: list[dict[str, Any]] = []
+    for c in candidates:
+        url = str(c.get("url") or c.get("original_url") or "").strip()
+        if not url.lower().startswith(("http://", "https://", "data:image/")):
+            continue
+        usable.append(
+            {
+                "index": int(c.get("index") or len(usable) + 1),
+                "url": url,
+                "hint": str(c.get("hint") or "")[:180],
+            }
+        )
+        if len(usable) >= 16:
+            break
+    if not usable:
+        raise RuntimeError("No usable image candidates for Gemini gallery classification.")
+
+    categories = (
+        "interior_main|interior_room|exterior|building_entrance|kitchen|bath|toilet|"
+        "balcony_view|floor_plan|land_site|land_frontage|farmland|forest_land|"
+        "parking_space|parking_lot|garage|shop_front|shop_interior|street_front|"
+        "office_interior|office_building|warehouse_interior|warehouse_exterior|"
+        "factory_interior|factory_exterior|facility_detail|environment|map|"
+        "agent_staff|logo|ad|concept|watermark|placeholder|unclear|unrelated|unknown"
+    )
+    prompt = {
+        "task": "对日本不动产案件相册图片逐张分类归档，并标记污染/无关图片。",
+        "listing": {
+            "title": str(title or "")[:240],
+            "address": str(address or "")[:180],
+            "source_name": str(source_name or "")[:120],
+            "listing_type": str(listing_type or "building")[:40],
+        },
+        "rules": [
+            "逐张图片判断，必须返回每个候选 index 的结果。",
+            "分类要服务于案件相册归档：室内、室外/外观、厨房、浴室、厕所、阳台景观、户型图、土地、车位、店面、办公室、仓库、厂房等尽量细分。",
+            "污染图片包括：经纪人/员工头像、公司门店/Logo、广告海报、概念图/渲染图、地图/交通图、验证码/错误页、与该案件无关的推荐房源、网页 UI 截图、明显水印遮挡、无信息占位图。",
+            "是否污染要结合 listing_type 判断：土地案的真实土地/山林/道路临接不是污染；车位案的停车场/车位不是污染。",
+            "浴室、厕所、厨房本身不是污染，但信息价值低时要降低 information_value。",
+        ],
+        "candidates": [{"index": c["index"], "url": c["url"], "hint": c["hint"]} for c in usable],
+        "response_schema": {
+            "items": [
+                {
+                    "index": "number",
+                    "category": categories,
+                    "confidence": "0-100",
+                    "is_polluted": "boolean",
+                    "pollution_reason": "若污染，简短中文原因；否则空字串",
+                    "information_value": "0-100，该图对当前案件类型的信息价值",
+                    "reason": "简短中文分类理由",
+                }
+            ]
+        },
+    }
+    content: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": (
+                "你是严格的不动产相册审核员。只输出 JSON object，不要解释。"
+                f"\n\n输入：{json.dumps(prompt, ensure_ascii=False)}"
+            ),
+        }
+    ]
+    for c in usable:
+        content.append({"type": "image_url", "image_url": {"url": c["url"]}})
+
+    raw = chat_completion(
+        [
+            {"role": "system", "content": "你只输出一个合法 JSON object。"},
+            {"role": "user", "content": content},
+        ],
+        model=model,
+        temperature=0.05,
+        timeout_sec=120.0,
+        provider="gemini",
+        max_tokens=1800,
+    )
+    data = parse_json_object(raw)
+    raw_items = data.get("items") if isinstance(data.get("items"), list) else []
+    valid_indexes = {int(c["index"]) for c in usable}
+    items: list[dict[str, Any]] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("index") or 0)
+        except Exception:
+            continue
+        if idx not in valid_indexes:
+            continue
+        items.append(
+            {
+                "index": idx,
+                "category": str(item.get("category") or "unknown").strip().lower()[:80],
+                "confidence": max(0, min(100, int(item.get("confidence") or 0))),
+                "is_polluted": bool(item.get("is_polluted")),
+                "pollution_reason": str(item.get("pollution_reason") or "").strip()[:260],
+                "information_value": max(0, min(100, int(item.get("information_value") or 0))),
+                "reason": str(item.get("reason") or "").strip()[:300],
+            }
+        )
+    return {"items": items}
 
 
 LONG_SUPPORT_REFINE_THRESHOLD = 2200

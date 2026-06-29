@@ -4178,7 +4178,7 @@ button:hover {
 
 .social-radar-card-head {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: start;
   gap: 0.55rem;
 }
@@ -17895,6 +17895,171 @@ thead .admin-portal-matrix-sticky-col {
   line-height: 1.45;
 }
 
+.admin-media-review-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem 0.38rem;
+  margin-top: 0.28rem;
+  color: #5f6b85;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.admin-media-review-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0.08rem 0.46rem;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-media-review-badge--danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.admin-media-review-badge--warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.admin-media-review-badge--manual {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.admin-media-review-badge--ok {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.admin-media-review-meta,
+.admin-media-review-reason {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.admin-media-review-reason {
+  max-width: min(28rem, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-media-review-panel {
+  border-color: #d8e4f5;
+  background: linear-gradient(135deg, #fbfdff 0%, #f7fbf8 100%);
+}
+
+.admin-media-review-panel.admin-case-settings-details {
+  height: 100%;
+  margin: 0;
+}
+
+.admin-media-review-toolbar {
+  margin: 0.55rem 0 0.75rem;
+}
+
+.admin-media-review-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.admin-media-review-card {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid #dce6f6;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(20, 48, 92, 0.07);
+}
+
+.admin-media-review-thumb {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #d8e4f5;
+  border-radius: 16px;
+  background: #f8fbff;
+  color: #8a99ad;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-media-review-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-media-review-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  color: #17233d;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.admin-media-review-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.36rem;
+}
+
+.admin-media-review-facts span {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0.1rem 0.48rem;
+  border: 1px solid #d8e4f5;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #31527f;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.admin-media-review-reasons {
+  margin: 0.45rem 0 0;
+  padding-left: 1.15rem;
+  color: #4b5870;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-media-review-actions {
+  display: flex;
+  gap: 0.38rem;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.admin-media-review-actions button {
+  min-height: 34px;
+  padding: 0.35rem 0.62rem;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
 .admin-cases-table--compact td:nth-child(12),
 .admin-cases-table--compact td:nth-child(13) {
   width: 48px;
@@ -18113,9 +18278,628 @@ body.site-admin-standalone #admin-tab-llm .search-row-basic > button {
   border-radius: 12px;
 }
 
+.admin-ai-tool-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.38rem;
+  border: 1px solid #d8e4f5;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.admin-ai-tool-group--external {
+  border-color: #c7ead8;
+  background: #f7fef9;
+}
+
+.admin-ai-tool-group-label {
+  padding: 0 0.25rem;
+  color: #40546f;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-ai-console {
+  display: grid;
+  gap: 14px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(44, 111, 216, 0.12), transparent 30%),
+    radial-gradient(circle at 92% 18%, rgba(31, 157, 118, 0.10), transparent 28%),
+    #f8fbff !important;
+}
+
+.admin-ai-run-status {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  overflow: hidden;
+  padding: 14px 16px 18px;
+  border: 1px solid #d8e4f5;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 42px rgba(37, 66, 105, 0.08);
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-run-status,
+#admin-tab-cases .admin-ai-run-status {
+  position: sticky;
+  top: 86px;
+  z-index: 28;
+}
+
+.admin-ai-run-status::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.7) 44%, transparent 58%);
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+.admin-ai-run-status.is-running::before {
+  opacity: 0;
+  animation: none;
+}
+
+.admin-ai-status-orb {
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: #8aa0bd;
+  box-shadow: 0 0 0 7px rgba(138, 160, 189, 0.12);
+}
+
+.admin-ai-run-status.is-running .admin-ai-status-orb {
+  background: #1d63d8;
+  box-shadow: 0 0 0 8px rgba(29, 99, 216, 0.14), 0 0 18px rgba(29, 99, 216, 0.35);
+  animation: admin-ai-pulse 1.1s ease-in-out infinite;
+}
+
+.admin-ai-run-status.is-success .admin-ai-status-orb {
+  background: #1f9d76;
+  box-shadow: 0 0 0 8px rgba(31, 157, 118, 0.13);
+}
+
+.admin-ai-run-status.is-error .admin-ai-status-orb {
+  background: #cf3f3f;
+  box-shadow: 0 0 0 8px rgba(207, 63, 63, 0.12);
+}
+
+.admin-ai-run-status.is-warn .admin-ai-status-orb {
+  background: #c97a12;
+  box-shadow: 0 0 0 8px rgba(201, 122, 18, 0.13);
+}
+
+.admin-ai-status-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-ai-status-copy strong {
+  color: #172842;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.admin-ai-status-copy span {
+  color: #5a6f8d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.admin-ai-status-pill {
+  position: relative;
+  z-index: 1;
+  justify-self: end;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #d8e4f5;
+  border-radius: 999px;
+  color: #40546f;
+  background: #f7fbff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-ai-run-metrics {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.admin-ai-run-metrics[hidden] {
+  display: none !important;
+}
+
+.admin-ai-run-metrics span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid #d8e4f5;
+  border-radius: 999px;
+  color: #274563;
+  background: rgba(247, 251, 255, 0.92);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-ai-run-status.is-running .admin-ai-status-pill {
+  color: #1d4f9b;
+  border-color: #bcd3f8;
+  background: #eef6ff;
+}
+
+.admin-ai-run-status.is-success .admin-ai-status-pill {
+  color: #11684e;
+  border-color: #bee8dc;
+  background: #f0fff8;
+}
+
+.admin-ai-run-status.is-error .admin-ai-status-pill {
+  color: #9f2f2f;
+  border-color: #f0c2c2;
+  background: #fff6f6;
+}
+
+.admin-ai-progress {
+  position: absolute;
+  right: 16px;
+  bottom: 9px;
+  left: 16px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7eef8;
+}
+
+.admin-ai-progress span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1d63d8, #22a880);
+  opacity: 0;
+}
+
+.admin-ai-run-status.is-running .admin-ai-progress span {
+  opacity: 1;
+  animation: admin-ai-progress 1.15s ease-in-out infinite;
+}
+
+.admin-ai-progress.is-determinate span,
+.admin-ai-run-status.is-running .admin-ai-progress.is-determinate span {
+  width: 0;
+  min-width: 8px;
+  opacity: 1;
+  transform: none;
+  animation: none;
+  transition: width 0.45s ease;
+}
+
+.admin-ai-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-ai-tool-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-height: 100%;
+  padding: 16px;
+  border: 1px solid #d8e4f5;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 28px rgba(37, 66, 105, 0.06);
+  animation: admin-ai-card-in 0.32s ease both;
+}
+
+.admin-ai-tool-card--external {
+  border-color: #c7ead8;
+  background:
+    linear-gradient(135deg, rgba(31, 157, 118, 0.07), transparent 42%),
+    rgba(255, 255, 255, 0.92);
+}
+
+.admin-ai-tool-card--files {
+  border-color: #e4dcc8;
+  background:
+    linear-gradient(135deg, rgba(187, 132, 38, 0.08), transparent 42%),
+    rgba(255, 255, 255, 0.92);
+}
+
+.admin-ai-tool-card-head {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-ai-tool-kicker {
+  width: fit-content;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  color: #1d4f9b;
+  background: #edf5ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-ai-tool-card--external .admin-ai-tool-kicker {
+  color: #11684e;
+  background: #ecfff7;
+}
+
+.admin-ai-tool-card--files .admin-ai-tool-kicker {
+  color: #8b5a0b;
+  background: #fff8e8;
+}
+
+.admin-ai-tool-card-head strong {
+  color: #162944;
+  font-size: 16px;
+}
+
+.admin-ai-tool-card-head p {
+  margin: 0;
+  color: #5f718c;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.admin-ai-tool-actions,
+.admin-ai-form-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-ai-tool-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-ai-tool-actions--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-ai-review-panel {
+  margin: 0;
+}
+
+.admin-ai-review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.admin-ai-review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-ai-review-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d8e4f5;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(37, 66, 105, 0.06);
+}
+
+.admin-ai-review-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.admin-ai-review-card-head strong {
+  min-width: 0;
+  color: #162944;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-ai-review-card-head .muted {
+  grid-column: 2;
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-ai-review-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-ai-review-badge--ok {
+  background: #e9f8f1;
+  color: #14694e;
+}
+
+.admin-ai-review-badge--warn {
+  background: #fff6e4;
+  color: #8b5a0b;
+}
+
+.admin-ai-review-badge--empty {
+  background: #fcebea;
+  color: #a33a32;
+}
+
+.admin-ai-review-reason {
+  margin: 0;
+  color: #596a82;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-ai-review-empty {
+  padding: 12px;
+  border: 1px dashed #d8e4f5;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #66788f;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.admin-ai-review-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.admin-ai-review-thumb {
+  position: relative;
+  display: block;
+  min-height: 82px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: #eef4fb;
+  cursor: pointer;
+}
+
+.admin-ai-review-thumb input {
+  position: absolute;
+  inset: 8px auto auto 8px;
+  z-index: 2;
+}
+
+.admin-ai-review-thumb img {
+  display: block;
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+}
+
+.admin-ai-review-thumb span {
+  display: grid;
+  min-height: 96px;
+  place-items: center;
+  color: #66788f;
+  font-size: 12px;
+}
+
+.admin-ai-review-thumb.is-selected {
+  border-color: #2f7dfb;
+  box-shadow: 0 0 0 3px rgba(47, 125, 251, 0.14);
+}
+
+.admin-ai-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-ai-review-item-msg {
+  font-size: 12px;
+}
+
+.admin-ai-action-btn {
+  position: relative;
+  min-height: 42px;
+  transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
+}
+
+.admin-ai-action-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(29, 99, 216, 0.12);
+}
+
+.admin-ai-action-btn.is-running {
+  padding-right: 2.25rem;
+  color: #0e3d82;
+  border-color: #9ec4fb;
+  background: #edf5ff;
+}
+
+.admin-ai-action-btn.is-running::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0.8rem;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border: 2px solid rgba(29, 99, 216, 0.25);
+  border-top-color: #1d63d8;
+  border-radius: 999px;
+  animation: admin-ai-spin 0.8s linear infinite;
+}
+
+.admin-ai-action-btn.is-dimmed {
+  opacity: 0.48;
+}
+
+.admin-ai-action-btn--primary {
+  border-color: #a9dcca !important;
+  background: #f1fff9 !important;
+}
+
+.admin-ai-manual-hint {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed #c8d7eb;
+  border-radius: 14px;
+  color: #516783;
+  background: rgba(247, 251, 255, 0.82);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.admin-ai-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+  color: #40546f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-ai-field select,
+.admin-ai-field input[type="file"] {
+  width: 100%;
+}
+
+.admin-ai-form-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(90px, 0.55fr);
+  align-items: end;
+}
+
+.admin-ai-reload-btn {
+  grid-column: 1 / -1;
+}
+
+@keyframes admin-ai-scan {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes admin-ai-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.16); }
+}
+
+@keyframes admin-ai-progress {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(310%); }
+}
+
+@keyframes admin-ai-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes admin-ai-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 #admin-tab-cases #admin-cases-list-wrap {
   padding: 0;
   border: 0;
+  background: transparent;
+}
+
+.admin-cases-switch-shell {
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid #d8e4f5;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(29, 99, 216, 0.045), rgba(255, 255, 255, 0) 44%),
+    #ffffff;
+}
+
+.admin-cases-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.admin-cases-view-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.28rem;
+  border: 1px solid #d8e4f5;
+  border-radius: 999px;
+  background: #f8fbff;
+}
+
+.admin-cases-view-tab {
+  min-height: 34px;
+  padding: 0.36rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #31527f;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-cases-view-tab.is-active {
+  border-color: #b8d1f6;
+  background: #ffffff;
+  color: #1746a2;
+  box-shadow: 0 8px 18px rgba(20, 48, 92, 0.08);
+}
+
+.admin-cases-current-refresh {
+  min-height: 34px;
+  padding: 0.36rem 0.8rem;
+  white-space: normal;
+}
+
+.admin-cases-view-panel[hidden] {
+  display: none !important;
+}
+
+.admin-cases-list-panel {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
   background: transparent;
 }
 
@@ -30963,6 +31747,11 @@ body.site-admin-standalone .admin-drawer #admin-tab-cases:has(#admin-cases-list-
   display: flex !important;
 }
 
+body.site-admin-standalone .admin-drawer #admin-tab-cases .admin-media-review-pager,
+body.site-admin-standalone .admin-drawer #admin-tab-cases .admin-main-cases-pager {
+  display: flex !important;
+}
+
 body.site-admin-standalone .admin-drawer #admin-tab-home-content:has(.home-intro-video-panel.is-admin-section-active) .admin-home-hero-panel-head,
 body.site-admin-standalone .admin-drawer #admin-tab-home-content:has(.admin-home-carousel-manager.is-admin-section-active) .admin-home-hero-panel-head,
 body.site-admin-standalone .admin-drawer #admin-tab-home-content:not(:has(.admin-home-hero-layout.is-admin-section-active)) #admin-home-hero-msg {
@@ -36159,21 +36948,6 @@ body.site-home .home-featured-board--spotlight .home-featured-grid {
   gap: 16px;
 }
 
-body.site-home .home-featured-board--spotlight .home-featured-card-media {
-  height: 210px;
-}
-
-body.site-home .home-featured-board--spotlight .home-featured-card-body {
-  min-height: 136px;
-  padding: 14px;
-}
-
-body.site-home .home-featured-board--spotlight .home-featured-card h3 {
-  min-height: 44px;
-  font-size: 16px;
-  line-height: 1.36;
-}
-
 body.site-home .home-featured-board--types {
   padding: 18px 14px 14px;
 }
@@ -37755,11 +38529,6 @@ body.site-home .home-featured-action-label {
   body.site-home .home-featured-board--spotlight .home-featured-card {
     min-height: 320px;
   }
-
-  body.site-home .home-featured-board--spotlight .home-featured-card h3 {
-    font-size: 16px;
-    line-height: 1.25;
-  }
 }
 
 /* Property type picks: staggered IKEA-like image grid. */
@@ -37837,10 +38606,13 @@ body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 3) {
   grid-row: span 4;
 }
 
+body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card-body,
 body.site-home .home-featured-type-grid .home-featured-card-body {
+  padding: clamp(18px, 2vw, 24px);
   padding-right: clamp(58px, 5.4vw, 78px);
 }
 
+body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card h3,
 body.site-home .home-featured-type-grid .home-featured-card h3 {
   max-width: min(82%, 360px);
   font-size: clamp(15px, 1.12vw, 20px);
@@ -37941,15 +38713,15 @@ body.site-home .home-featured-type-grid .home-featured-action.figure-case-save-b
   }
 }
 
-/* Corrected spotlight layout: top detail card, then 3 + 2 horizontal rows. */
+/* Spotlight recommendation layout: seven shared cards in 2 + 3 + 2 rows. */
 body.site-home .home-featured-board--spotlight {
   display: block !important;
   gap: clamp(8px, 1vw, 14px);
 }
 
 body.site-home .home-featured-board--spotlight .home-featured-hero {
-  display: block !important;
-  margin: 0 0 clamp(8px, 1vw, 14px) !important;
+  display: none !important;
+  margin: 0 !important;
   min-height: 0 !important;
 }
 
@@ -38048,8 +38820,8 @@ body.site-home .home-featured-board--spotlight .home-featured-hero-cta .home-fea
 body.site-home .home-featured-board--spotlight #home-featured-grid {
   display: grid !important;
   grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-  grid-auto-rows: clamp(320px, 28vw, 430px);
-  gap: clamp(8px, 1vw, 14px) !important;
+  grid-auto-rows: clamp(250px, 21vw, 330px);
+  gap: clamp(10px, 1.1vw, 16px) !important;
   min-height: 0;
   height: auto !important;
   column-count: auto !important;
@@ -38066,28 +38838,42 @@ body.site-home .home-featured-board--spotlight #home-featured-grid .home-feature
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(1) {
-  grid-column: 1 / span 2;
+  grid-column: 1 / span 3;
   grid-row: 1;
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(2) {
-  grid-column: 3 / span 2;
+  grid-column: 4 / span 3;
   grid-row: 1;
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(3) {
-  grid-column: 5 / span 2;
-  grid-row: 1;
+  grid-column: 1 / span 2;
+  grid-row: 2;
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(4) {
-  grid-column: 1 / span 3;
+  grid-column: 3 / span 2;
   grid-row: 2;
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(5) {
-  grid-column: 4 / span 3;
+  grid-column: 5 / span 2;
   grid-row: 2;
+}
+
+body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(6) {
+  grid-column: 1 / span 3;
+  grid-row: 3;
+}
+
+body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(7) {
+  grid-column: 4 / span 3;
+  grid-row: 3;
+}
+
+body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card:nth-child(n + 8) {
+  display: none !important;
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card-actions {
@@ -38147,7 +38933,7 @@ body.site-home .home-featured-board--spotlight .home-featured-action.figure-case
   color: #d92757 !important;
 }
 
-/* Keep homepage recommendation cards in the original poster-card style. */
+/* Keep homepage recommendation cards aligned with the property-type common card. */
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-media-spec,
 body.site-home .home-featured-type-grid .home-featured-media-spec {
   left: clamp(16px, 1.4vw, 24px);
@@ -38239,20 +39025,25 @@ body.site-home .home-featured-type-grid .home-featured-card:focus-within .home-f
 
   body.site-home .home-featured-board--spotlight #home-featured-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-auto-rows: minmax(360px, auto);
+    grid-auto-rows: minmax(280px, auto);
     height: auto !important;
   }
 
   body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card {
     grid-column: auto !important;
     grid-row: auto !important;
-    min-height: 360px !important;
+    min-height: 280px !important;
   }
 }
 
 @media (max-width: 720px) {
   body.site-home .home-featured-board--spotlight #home-featured-grid {
     grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: minmax(300px, auto);
+  }
+
+  body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card {
+    min-height: 300px !important;
   }
 }
 
@@ -41647,4 +42438,203 @@ body .support-phone-login-modal {
     padding: 14px !important;
     border-radius: 20px !important;
   }
+}
+
+/* 2026-06-29: AI media tools console must stay card-based after admin theme overrides. */
+#admin-tab-cases .admin-cases-bulk-tools.admin-ai-console,
+body.site-admin-standalone #admin-tab-cases .admin-cases-bulk-tools.admin-ai-console {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+  padding: 16px !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-tool-grid,
+#admin-tab-cases .admin-ai-tool-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-run-status,
+#admin-tab-cases .admin-ai-run-status {
+  grid-column: 1 / -1 !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-tool-card,
+#admin-tab-cases .admin-ai-tool-card {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-tool-actions,
+#admin-tab-cases .admin-ai-tool-actions {
+  display: grid !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-tool-actions > button,
+#admin-tab-cases .admin-ai-tool-actions > button {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-form-grid,
+#admin-tab-cases .admin-ai-form-grid {
+  display: grid !important;
+}
+
+@media (max-width: 1180px) {
+  body.site-admin-standalone #admin-tab-cases .admin-ai-tool-grid,
+  #admin-tab-cases .admin-ai-tool-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.site-admin-standalone #admin-tab-cases .admin-ai-tool-actions,
+  #admin-tab-cases .admin-ai-tool-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  body.site-admin-standalone #admin-tab-cases .admin-ai-run-status,
+  #admin-tab-cases .admin-ai-run-status {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+  }
+
+  body.site-admin-standalone #admin-tab-cases .admin-ai-status-pill,
+  #admin-tab-cases .admin-ai-status-pill {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  body.site-admin-standalone #admin-tab-cases .admin-ai-run-metrics,
+  #admin-tab-cases .admin-ai-run-metrics {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  body.site-admin-standalone #admin-tab-cases .admin-ai-tool-actions,
+  #admin-tab-cases .admin-ai-tool-actions,
+  body.site-admin-standalone #admin-tab-cases .admin-ai-form-grid,
+  #admin-tab-cases .admin-ai-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* 2026-06-30: keep admin section tabs and AI tools clickable on narrow admin panes. */
+body.site-admin-standalone .admin-console-module-tabs,
+body.site-admin-standalone .admin-drawer .admin-console-module-tabs {
+  flex-wrap: wrap !important;
+  align-items: stretch !important;
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 44px !important;
+  row-gap: 0 !important;
+}
+
+body.site-admin-standalone .admin-console-module-tabs button,
+body.site-admin-standalone .admin-drawer .admin-console-module-tabs button {
+  flex: 1 1 128px !important;
+  min-width: min(128px, 100%) !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-case-settings-details--tools {
+  display: block !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-case-settings-details--tools #admin-ai-console {
+  opacity: 1 !important;
+}
+
+@media (max-width: 760px) {
+  body.site-admin-standalone .admin-console-module-tabs,
+  body.site-admin-standalone .admin-drawer .admin-console-module-tabs {
+    position: static !important;
+    margin-right: 12px !important;
+    margin-left: 12px !important;
+    padding: 8px !important;
+    gap: 6px !important;
+    border-top: 1px solid #dfe4ec !important;
+    border-radius: 14px !important;
+  }
+
+  body.site-admin-standalone .admin-console-module-tabs button,
+  body.site-admin-standalone .admin-drawer .admin-console-module-tabs button {
+    min-height: 38px !important;
+    border: 1px solid #dfe4ec !important;
+    border-radius: 10px !important;
+    background: #f8fbff !important;
+  }
+
+  body.site-admin-standalone .admin-console-module-tabs button.is-active {
+    border-color: #9fc5ff !important;
+    background: #eaf2ff !important;
+  }
+}
+
+/* Admin case containers: tabs switch views; refresh is a separate command. */
+body.site-admin-standalone #admin-tab-cases .admin-cases-view-toolbar,
+#admin-tab-cases .admin-cases-view-toolbar {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-view-tabs,
+#admin-tab-cases .admin-cases-view-tabs {
+  display: inline-flex !important;
+  flex: 1 1 auto !important;
+  flex-wrap: wrap !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 4px !important;
+  gap: 5px !important;
+  border: 1px solid #d8e4f5 !important;
+  border-radius: 999px !important;
+  background: #f8fbff !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-view-tab,
+#admin-tab-cases .admin-cases-view-tab {
+  width: auto !important;
+  min-height: 34px !important;
+  padding: 6px 14px !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: #31527f !important;
+  box-shadow: none !important;
+  white-space: normal !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-view-tab.is-active,
+#admin-tab-cases .admin-cases-view-tab.is-active {
+  border-color: #b8d1f6 !important;
+  background: #fff !important;
+  color: #1746a2 !important;
+  box-shadow: 0 8px 18px rgba(20, 48, 92, 0.08) !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-cases-current-refresh,
+#admin-tab-cases .admin-cases-current-refresh {
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+  white-space: normal !important;
+}
+
+body.site-admin-standalone #admin-tab-cases .admin-ai-review-card-head strong,
+#admin-tab-cases .admin-ai-review-card-head strong,
+body.site-admin-standalone #admin-tab-cases .admin-ai-review-card-head .muted,
+#admin-tab-cases .admin-ai-review-card-head .muted,
+body.site-admin-standalone #admin-tab-cases #admin-ai-review-summary,
+#admin-tab-cases #admin-ai-review-summary,
+body.site-admin-standalone #admin-tab-cases #admin-media-review-summary,
+#admin-tab-cases #admin-media-review-summary {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
 }

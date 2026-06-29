@@ -20,7 +20,7 @@ from io import StringIO
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse
 from uuid import uuid4
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 from opencc import OpenCC
@@ -101,6 +101,8 @@ from src.portal_case_search import (
     _clean_listing_access_line,
     _thumb_kind_label,
     _normalize_smart_property_types,
+    _portal_case_has_kana,
+    _portal_case_text_hant,
     _smart_property_type_hits,
     is_suumo_non_property_image_url,
     is_likely_agent_portrait_image_url,
@@ -117,6 +119,7 @@ from src.gemini_client import (
     PERSONA_REGION_LABELS,
     chat_completion,
     chat_support_reply_gemini,
+    classify_listing_gallery_images_via_gemini,
     format_llm_exception_for_user,
     is_gemini_configured,
     is_llm_configured,
@@ -1443,7 +1446,7 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
     return reason
 
 
-def _case_representative_url_reject_reason(raw_url: Any) -> str:
+def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "building") -> str:
     """Reject URLs that are useful in details but poor as a case card hero."""
     s = str(raw_url or "").strip()
     if not s:
@@ -1470,6 +1473,22 @@ def _case_representative_url_reject_reason(raw_url: Any) -> str:
         "圖面",
         "户型",
         "戶型",
+        "toire",
+        "toilet",
+        "bath",
+        "bathroom",
+        "powder",
+        "sanitary",
+        "washroom",
+        "lavatory",
+        "トイレ",
+        "便所",
+        "浴室",
+        "風呂",
+        "洗面",
+        "脱衣",
+        "廁",
+        "厕",
         "/map/",
         "chizu",
         "access",
@@ -1487,6 +1506,17 @@ def _case_representative_url_reject_reason(raw_url: Any) -> str:
         "周辺",
         "周邊",
     )
+    if profile in {"land", "parking"}:
+        profile_allowed_tokens = {
+            "outskirts",
+            "shuuhen",
+            "environment",
+            "周辺",
+            "周邊",
+        }
+        if profile == "parking":
+            profile_allowed_tokens |= {"parking"}
+        reject_tokens = tuple(tok for tok in reject_tokens if tok not in profile_allowed_tokens)
     if any(tok in hay for tok in reject_tokens):
         return "non-photo-context"
     if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/project_detail_slide/" in hay:
@@ -1498,6 +1528,335 @@ def _case_representative_url_reject_reason(raw_url: Any) -> str:
     if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/project_free/" in hay:
         return "new-build-promo"
     return ""
+
+
+_CASE_REPRESENTATIVE_STRONG_CATEGORIES = {"interior", "exterior"}
+_CASE_REPRESENTATIVE_ACCEPTABLE_CATEGORIES = {"interior", "exterior", "kitchen", "balcony_view", "other"}
+_CASE_REPRESENTATIVE_WEAK_CATEGORIES = {"kitchen", "balcony_view", "other"}
+_CASE_REPRESENTATIVE_REJECT_CATEGORIES = {
+    "floorplan",
+    "toilet",
+    "bath",
+    "kitchen_bath",
+    "environment",
+}
+_CASE_REPRESENTATIVE_HARD_REJECT_CATEGORIES = {
+    "floorplan",
+    "toilet",
+    "bath",
+    "kitchen_bath",
+}
+_CASE_REPRESENTATIVE_TYPE_TO_PROFILE = {
+    "公寓": "apartment",
+    "大樓": "tower",
+    "華廈": "midrise",
+    "套房": "studio",
+    "別墅/透天": "detached",
+    "辦公": "office",
+    "倉庫": "warehouse",
+    "店面": "shop",
+    "廠房": "factory",
+    "土地": "land",
+    "單售車位": "parking",
+    "其他": "other",
+}
+_CASE_REPRESENTATIVE_PROFILE_LABELS = {
+    "apartment": "公寓",
+    "tower": "大樓",
+    "midrise": "華廈",
+    "studio": "套房",
+    "detached": "別墅/透天",
+    "office": "辦公",
+    "warehouse": "倉庫",
+    "shop": "店面",
+    "factory": "廠房",
+    "land": "土地",
+    "parking": "單售車位",
+    "other": "其他",
+    "building": "一般建物",
+}
+_CASE_REPRESENTATIVE_NON_BUILDING_PROFILES = {"land", "parking"}
+_CASE_REPRESENTATIVE_VALID_STATUSES = {"selected", "fallback", "rules", "manual"}
+_CASE_GALLERY_AUDIT_CATEGORY_LABELS = {
+    "interior": "室內圖",
+    "interior_main": "室內主空間",
+    "interior_room": "房間",
+    "exterior": "室外圖",
+    "real_exterior": "室外圖",
+    "real_building": "建物外觀",
+    "building_entrance": "入口",
+    "entrance": "入口",
+    "kitchen": "廚房",
+    "bath": "浴室",
+    "bath_toilet": "廁浴",
+    "toilet": "廁所",
+    "balcony_view": "景觀圖",
+    "balcony": "陽台",
+    "floorplan": "房型圖",
+    "floor_plan": "房型圖",
+    "land_site": "土地現況",
+    "land_frontage": "土地臨路",
+    "farmland": "農地",
+    "forest_land": "山林地",
+    "parking_space": "車位",
+    "parking_lot": "停車場",
+    "garage": "車庫",
+    "shop_front": "店面門面",
+    "shop_interior": "店內空間",
+    "street_front": "臨街面",
+    "office_interior": "辦公室內",
+    "office_building": "辦公建物",
+    "warehouse_interior": "倉庫內部",
+    "warehouse_exterior": "倉庫外觀",
+    "factory_interior": "廠房內部",
+    "factory_exterior": "廠房外觀",
+    "facility_detail": "設備細節",
+    "environment": "環境圖",
+    "map": "地圖",
+    "agent_staff": "人像/員工",
+    "logo": "Logo",
+    "ad": "廣告",
+    "concept": "概念圖",
+    "watermark": "水印圖",
+    "placeholder": "占位圖",
+    "unclear": "不清楚",
+    "unrelated": "無關圖片",
+    "unknown": "未分類",
+    "other": "未分類",
+}
+_CASE_GALLERY_AI_TO_SECTION_CATEGORY = {
+    "interior_main": "interior",
+    "interior_room": "interior",
+    "real_interior_main": "interior",
+    "real_interior_room": "interior",
+    "real_interior": "interior",
+    "real_exterior": "exterior",
+    "real_building": "exterior",
+    "building_entrance": "exterior",
+    "entrance": "exterior",
+    "floor_plan": "floorplan",
+    "bath_toilet": "kitchen_bath",
+    "balcony": "balcony_view",
+    "parking_space": "parking",
+    "parking_lot": "parking",
+    "garage": "parking",
+}
+_CASE_GALLERY_POLLUTION_CATEGORIES = {
+    "agent_staff",
+    "logo",
+    "ad",
+    "concept",
+    "watermark",
+    "placeholder",
+    "unclear",
+    "unrelated",
+    "map",
+}
+
+
+def _case_representative_context_text(row: dict[str, Any] | None) -> str:
+    if not isinstance(row, dict):
+        return ""
+    parts: list[str] = []
+    for key in (
+        "property_type_hits",
+        "property_types",
+        "building_type_zh",
+        "topic_category",
+        "keyword_type",
+        "source_category",
+        "seo_title",
+        "title_original",
+        "title",
+        "property_type",
+        "item_url",
+        "source_url",
+        "case_path",
+    ):
+        value = row.get(key)
+        if isinstance(value, (list, tuple, set)):
+            parts.extend(str(x or "") for x in value)
+        else:
+            parts.append(str(value or ""))
+    return " ".join(x for x in parts if x).strip()
+
+
+def _case_representative_explicit_property_types(row: dict[str, Any] | None) -> list[str]:
+    if not isinstance(row, dict):
+        return []
+    raw: list[Any] = []
+    for key in ("property_type_hits", "property_types", "property_type"):
+        value = row.get(key)
+        if isinstance(value, (list, tuple, set)):
+            raw.extend(value)
+        elif value:
+            raw.append(value)
+    out = _normalize_smart_property_types([str(x or "").strip() for x in raw if str(x or "").strip()])
+    if out:
+        return out
+    try:
+        return _normalize_smart_property_types(list(_smart_property_type_hits(row)))
+    except Exception:
+        return []
+
+
+def _case_representative_profile(row: dict[str, Any] | None = None, *, context: str = "") -> str:
+    """Return the image-selection profile, primarily from the explicit property type."""
+    explicit_types = _case_representative_explicit_property_types(row)
+    for ptype in explicit_types:
+        profile = _CASE_REPRESENTATIVE_TYPE_TO_PROFILE.get(ptype)
+        if profile:
+            return profile
+    text = f"{_case_representative_context_text(row)} {context or ''}".strip()
+    try:
+        bag = unquote(text).lower()
+    except Exception:
+        bag = text.lower()
+    strong_land_tokens = (
+        "土地",
+        "売地",
+        "賣地",
+        "卖地",
+        "宅地",
+        "農地",
+        "农地",
+        "山林",
+        "林地",
+        "田畑",
+        "畑",
+        "tochi",
+        "/land/",
+        "/tochi/",
+        "land/detail",
+        "land/search",
+    )
+    if any(tok.lower() in bag for tok in strong_land_tokens):
+        return "land"
+    fallback_pairs = (
+        ("parking", ("單售車位", "車位", "駐車", "駐車場", "parking", "garage")),
+        ("factory", ("廠房", "工場", "factory", "plant")),
+        ("warehouse", ("倉庫", "warehouse", "souko")),
+        ("shop", ("店面", "店舗", "テナント", "shop", "store")),
+        ("office", ("辦公", "事務所", "オフィス", "office")),
+        ("detached", ("別墅", "透天", "一戶建", "一戸建", "戸建", "detached", "villa")),
+        ("studio", ("套房", "ワンルーム", "1r", "1k", "studio")),
+        ("apartment", ("公寓", "マンション", "mansion", "apartment")),
+        ("tower", ("大樓",)),
+        ("midrise", ("華廈",)),
+    )
+    for profile, tokens in fallback_pairs:
+        if any(tok.lower() in bag for tok in tokens):
+            return profile
+    return "building"
+
+
+def _case_representative_semantic_category(url: Any, context: str = "") -> str:
+    try:
+        cat = _case_gallery_category_for_url(str(url or ""), context)
+    except Exception:
+        cat = "other"
+    return str(cat or "other")
+
+
+def _case_representative_semantic_reject_reason(url: Any, context: str = "", *, profile: str = "building") -> str:
+    cat = _case_representative_semantic_category(url, context)
+    reject_categories = (
+        _CASE_REPRESENTATIVE_HARD_REJECT_CATEGORIES
+        if profile in _CASE_REPRESENTATIVE_NON_BUILDING_PROFILES
+        else _CASE_REPRESENTATIVE_REJECT_CATEGORIES
+    )
+    if cat in reject_categories:
+        return f"weak-semantic-{cat}"
+    try:
+        bag = unquote(f"{url or ''} {context or ''}").lower()
+    except Exception:
+        bag = f"{url or ''} {context or ''}".lower()
+    weak_tokens = (
+        "concept",
+        "render",
+        "perspective",
+        "パース",
+        "完成予想",
+        "完成イメージ",
+        "イメージ",
+        "illustration",
+        "野外",
+        "空地",
+        "原野",
+        "森林",
+        "forest",
+        "park",
+        "road",
+        "street",
+        "parking",
+        "公園",
+        "道路",
+        "駐車場",
+    )
+    if profile in _CASE_REPRESENTATIVE_NON_BUILDING_PROFILES:
+        weak_tokens = weak_tokens[:8]
+    if any(tok in bag for tok in weak_tokens):
+        return "weak-semantic-context"
+    return ""
+
+
+def _case_representative_raw_url_allowed(url: Any, context: str = "", *, profile: str = "building") -> bool:
+    return bool(
+        str(url or "").strip()
+        and not _case_representative_url_reject_reason(url, profile=profile)
+        and not _case_representative_semantic_reject_reason(url, context, profile=profile)
+    )
+
+
+def _case_representative_ai_category_accepted(category: str, information_value: int, *, profile: str = "building") -> bool:
+    cat = str(category or "").strip().lower()
+    strong = {"real_interior_main", "real_interior_room", "real_interior", "real_exterior", "real_building", "entrance"}
+    land_strong = {"land_site", "land_frontage", "farmland", "forest_land"}
+    shop_strong = {"shop_front", "shop_interior", "street_front"}
+    office_strong = {"office_interior", "office_building"}
+    warehouse_strong = {"warehouse_interior", "warehouse_exterior"}
+    factory_strong = {"factory_interior", "factory_exterior"}
+    parking_strong = {"parking_space", "parking_lot", "garage"}
+    weak = {"kitchen", "balcony"}
+    bad = {
+        "bath_toilet",
+        "facility_detail",
+        "environment",
+        "floor_plan",
+        "map",
+        "concept",
+        "ad",
+        "watermark",
+        "placeholder",
+        "unclear",
+    }
+    if profile == "land":
+        bad = bad - {"environment"}
+        if cat in land_strong:
+            return int(information_value or 0) >= 45
+        if cat == "environment":
+            return int(information_value or 0) >= 65
+    elif profile == "shop" and cat in shop_strong:
+        return int(information_value or 0) >= 45
+    elif profile == "office" and cat in office_strong:
+        return int(information_value or 0) >= 45
+    elif profile == "warehouse" and cat in warehouse_strong:
+        return int(information_value or 0) >= 45
+    elif profile == "factory" and cat in factory_strong:
+        return int(information_value or 0) >= 45
+    elif profile == "parking":
+        bad = bad - {"environment"}
+        if cat in parking_strong:
+            return int(information_value or 0) >= 45
+        if cat == "environment":
+            return int(information_value or 0) >= 70
+    if cat in bad:
+        return False
+    if cat in strong:
+        return int(information_value or 0) >= 45
+    if cat in weak:
+        return int(information_value or 0) >= 68
+    return int(information_value or 0) >= 72
 
 
 def _case_representative_raw_url_candidates(row: dict[str, Any], *, limit: int = 32) -> list[str]:
@@ -1538,40 +1897,77 @@ def _case_representative_image_signature(raw_urls: list[Any]) -> str:
 
 
 def _case_stored_representative_static_url(row: dict[str, Any], raw_urls: list[Any] | None = None) -> str:
+    media = _case_stored_representative_media(row, raw_urls)
+    return media[0] if media else ""
+
+
+def _case_stored_representative_media(row: dict[str, Any], raw_urls: list[Any] | None = None, *, limit: int = 4) -> list[str]:
     sid = int(row.get("source_item_id") or row.get("id") or 0)
     if sid <= 0:
-        return ""
-    candidates = raw_urls if raw_urls is not None else _case_representative_raw_url_candidates(row)
-    signature = _case_representative_image_signature(list(candidates or []))
-    if not signature:
-        return ""
+        return []
+    context = _case_representative_context_text(row)
+    profile = _case_representative_profile(row, context=context)
     try:
         with get_conn() as conn:
             rec = conn.execute(
                 """
-                SELECT representative_static_url, image_signature, status
+                SELECT representative_url, representative_static_url,
+                       backup_urls_json, backup_static_urls_json,
+                       image_signature, status
                 FROM case_representative_images
                 WHERE source_item_id = ?
                 """,
                 (sid,),
             ).fetchone()
     except Exception:
-        return ""
+        return []
     if not rec:
-        return ""
+        return []
     d = dict(rec)
-    if str(d.get("image_signature") or "") != signature:
-        return ""
-    if str(d.get("status") or "") not in {"selected", "fallback", "rules"}:
-        return ""
-    static_url = str(d.get("representative_static_url") or "").strip()
-    if not static_url:
-        return ""
-    if not _url_to_local_static_path(static_url):
-        return ""
-    if _case_image_visual_reject_reason(static_url):
-        return ""
-    return static_url
+    status = str(d.get("status") or "")
+    if status not in _CASE_REPRESENTATIVE_VALID_STATUSES:
+        return []
+
+    backup_url_raw = str(d.get("backup_urls_json") or "[]").strip() or "[]"
+    try:
+        backup_urls = json.loads(backup_url_raw)
+    except Exception:
+        backup_urls = []
+    if not isinstance(backup_urls, list):
+        backup_urls = []
+
+    def _valid_static_urls(values: list[tuple[Any, Any]]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for raw_value, static_value in values:
+            static_url = str(static_value or "").strip()
+            if not static_url or static_url in seen:
+                continue
+            raw_url = str(raw_value or "").strip()
+            if status != "manual" and raw_url and not _case_representative_raw_url_allowed(raw_url, context, profile=profile):
+                continue
+            if not _url_to_local_static_path(static_url):
+                continue
+            if _case_image_visual_reject_reason(static_url):
+                continue
+            seen.add(static_url)
+            out.append(static_url)
+            if len(out) >= max(1, int(limit or 1)):
+                break
+        return out
+
+    backup_raw = str(d.get("backup_static_urls_json") or "[]").strip() or "[]"
+    try:
+        backups = json.loads(backup_raw)
+    except Exception:
+        backups = []
+    if not isinstance(backups, list):
+        backups = []
+    pairs: list[tuple[Any, Any]] = [(d.get("representative_url"), d.get("representative_static_url"))]
+    for idx, static_url in enumerate(backups):
+        raw_url = backup_urls[idx] if idx < len(backup_urls) else ""
+        pairs.append((raw_url, static_url))
+    return _valid_static_urls(pairs)
 
 
 def _case_store_representative_image(
@@ -1579,6 +1975,8 @@ def _case_store_representative_image(
     source_item_id: int,
     representative_url: str,
     representative_static_url: str,
+    backup_urls: list[Any] | None = None,
+    backup_static_urls: list[Any] | None = None,
     image_signature: str,
     provider: str,
     model: str = "",
@@ -1591,18 +1989,23 @@ def _case_store_representative_image(
     if int(source_item_id or 0) <= 0:
         return
     try:
+        backup_urls_json = json.dumps(list(backup_urls or [])[:6], ensure_ascii=False)[:4000]
+        backup_static_urls_json = json.dumps(list(backup_static_urls or [])[:6], ensure_ascii=False)[:4000]
         rejected_json = json.dumps(rejected or [], ensure_ascii=False)[:4000]
         with get_conn() as conn:
             conn.execute(
                 """
                 INSERT INTO case_representative_images (
                     source_item_id, representative_url, representative_static_url,
+                    backup_urls_json, backup_static_urls_json,
                     image_signature, provider, model, status, score, reason,
                     rejected_json, selected_at, source_last_checked_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
                 ON CONFLICT(source_item_id) DO UPDATE SET
                     representative_url=excluded.representative_url,
                     representative_static_url=excluded.representative_static_url,
+                    backup_urls_json=excluded.backup_urls_json,
+                    backup_static_urls_json=excluded.backup_static_urls_json,
                     image_signature=excluded.image_signature,
                     provider=excluded.provider,
                     model=excluded.model,
@@ -1617,6 +2020,8 @@ def _case_store_representative_image(
                     int(source_item_id),
                     str(representative_url or "")[:1200],
                     str(representative_static_url or "")[:1200],
+                    backup_urls_json,
+                    backup_static_urls_json,
                     str(image_signature or "")[:80],
                     str(provider or "")[:80],
                     str(model or "")[:160],
@@ -1635,10 +2040,14 @@ def _case_store_representative_image(
 def _case_ai_candidate_pack(row: dict[str, Any], *, limit: int = 8) -> tuple[list[dict[str, Any]], list[str], str]:
     raw_urls = _case_representative_raw_url_candidates(row, limit=32)
     signature = _case_representative_image_signature(raw_urls)
+    context = _case_representative_context_text(row)
+    profile = _case_representative_profile(row, context=context)
     raw_candidates = [
-        u for u in raw_urls if u and not _case_representative_url_reject_reason(u)
+        u
+        for u in raw_urls
+        if _case_representative_raw_url_allowed(u, context, profile=profile)
     ]
-    sorted_raw = _sort_relevant_real_estate_images(raw_candidates, limit=max(16, limit * 2))
+    sorted_raw = _sort_relevant_real_estate_images(raw_candidates, limit=max(16, limit * 2), profile=profile)
     candidates: list[dict[str, Any]] = []
     for raw in sorted_raw:
         static_url = _case_image_download_to_cache(raw)
@@ -1652,12 +2061,42 @@ def _case_ai_candidate_pack(row: dict[str, Any], *, limit: int = 8) -> tuple[lis
                 "index": len(candidates) + 1,
                 "url": raw,
                 "static_url": static_url,
-                "hint": _thumb_kind_label(static_url),
+                "hint": f"{_thumb_kind_label(static_url)}｜{profile}｜{_case_representative_semantic_category(raw)}",
             }
         )
         if len(candidates) >= max(1, int(limit or 1)):
             break
     return candidates, raw_urls, signature
+
+
+def _case_representative_backup_selection(
+    candidates: list[dict[str, Any]],
+    selected: dict[str, Any] | None,
+    *,
+    limit: int = 3,
+) -> tuple[list[str], list[str]]:
+    selected_url = str((selected or {}).get("url") or "").strip()
+    selected_static = str((selected or {}).get("static_url") or "").strip()
+    backup_urls: list[str] = []
+    backup_static_urls: list[str] = []
+    seen_raw: set[str] = set()
+    seen_static: set[str] = set()
+    for candidate in candidates:
+        raw = str(candidate.get("url") or "").strip()
+        static = str(candidate.get("static_url") or "").strip()
+        if not raw or not static:
+            continue
+        if raw == selected_url or static == selected_static:
+            continue
+        if raw in seen_raw or static in seen_static:
+            continue
+        seen_raw.add(raw)
+        seen_static.add(static)
+        backup_urls.append(raw)
+        backup_static_urls.append(static)
+        if len(backup_static_urls) >= max(1, int(limit or 1)):
+            break
+    return backup_urls, backup_static_urls
 
 
 def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: bool = False) -> dict[str, Any]:
@@ -1666,17 +2105,52 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
         return {"ok": False, "status": "skip", "reason": "missing source_item_id"}
     raw_urls = _case_representative_raw_url_candidates(row, limit=32)
     signature = _case_representative_image_signature(raw_urls)
+    context = _case_representative_context_text(row)
+    profile = _case_representative_profile(row, context=context)
+    if force:
+        try:
+            with get_conn() as conn:
+                manual_rec = conn.execute(
+                    """
+                    SELECT representative_static_url
+                    FROM case_representative_images
+                    WHERE source_item_id = ? AND status = 'manual'
+                    """,
+                    (sid,),
+                ).fetchone()
+            manual_static = str((dict(manual_rec).get("representative_static_url") if manual_rec else "") or "").strip()
+            if manual_static and _url_to_local_static_path(manual_static) and not _case_image_visual_reject_reason(manual_static):
+                return {
+                    "ok": True,
+                    "status": "manual",
+                    "source_item_id": sid,
+                    "static_url": manual_static,
+                    "representative_url": manual_static,
+                    "reason": "Manual representative image is protected from forced AI reselection.",
+                }
+        except Exception as exc:
+            _log_backend_error("case-representative-manual-protect", exc)
     existing = "" if force else _case_stored_representative_static_url(row, raw_urls)
     if existing:
-        return {"ok": True, "status": "cached", "source_item_id": sid, "static_url": existing}
+        return {"ok": True, "status": "cached", "source_item_id": sid, "static_url": existing, "representative_url": existing}
     candidates, raw_urls, signature = _case_ai_candidate_pack(row, limit=8)
     if not candidates:
-        fallback = _case_representative_gallery_urls(raw_urls, limit=1, sync_download=True, proxy_fallback=False)
+        fallback = _case_representative_gallery_urls(
+            raw_urls,
+            limit=4,
+            sync_download=True,
+            proxy_fallback=False,
+            context=context,
+            profile=profile,
+        )
         static_url = fallback[0] if fallback else ""
+        backup_static_urls = fallback[1:4] if len(fallback) > 1 else []
         _case_store_representative_image(
             source_item_id=sid,
             representative_url="",
             representative_static_url=static_url,
+            backup_urls=[],
+            backup_static_urls=backup_static_urls,
             image_signature=signature,
             provider="rules",
             status="fallback" if static_url else "empty",
@@ -1684,7 +2158,22 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
             reason="No AI candidate; stored rule fallback.",
             source_last_checked_at=str(row.get("last_checked_at") or ""),
         )
-        return {"ok": bool(static_url), "status": "fallback" if static_url else "empty", "source_item_id": sid}
+        try:
+            gallery_audit = _case_audit_gallery_images_for_row(row, limit=16)
+            if int(gallery_audit.get("removed") or 0) > 0:
+                with _HOME_FEATURED_CASES_CACHE_LOCK:
+                    _HOME_FEATURED_CASES_CACHE.clear()
+                _portal_case_search_cache_clear()
+        except Exception as exc:
+            _log_backend_error("case-gallery-audit-after-rules-fallback", exc)
+        return {
+            "ok": bool(static_url),
+            "status": "fallback" if static_url else "empty",
+            "source_item_id": sid,
+            "static_url": static_url,
+            "representative_url": static_url,
+            "reason": "No AI candidate; stored rule fallback.",
+        }
 
     selected = candidates[0]
     provider = "rules"
@@ -1699,12 +2188,14 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
                 title=str(row.get("seo_title") or row.get("title_original") or ""),
                 address=str(row.get("case_jp_region_override") or row.get("body_original") or "")[:180],
                 source_name=str(row.get("source_name") or ""),
+                listing_type=profile,
             )
             selected_index = int(ai.get("selected_index") or 0)
             picked = next((c for c in candidates if int(c.get("index") or 0) == selected_index), None)
             category = str(ai.get("category") or "").lower()
-            bad_categories = {"floor_plan", "map", "concept", "ad", "watermark", "placeholder"}
-            if picked and category not in bad_categories and int(ai.get("score") or 0) >= 45:
+            information_value = int(ai.get("information_value") or 0)
+            accepted_by_ai = _case_representative_ai_category_accepted(category, information_value, profile=profile)
+            if picked and accepted_by_ai and int(ai.get("score") or 0) >= 55:
                 selected = picked
                 provider = "gemini"
                 status = "selected"
@@ -1733,7 +2224,7 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
                 provider = "gemini"
                 status = "fallback"
                 score = max(45, int(ai.get("score") or 0))
-                reason = f"Gemini result rejected ({category}); used rule fallback."
+                reason = f"Gemini result rejected ({category}, info={information_value}); used rule fallback."
         except Exception as exc:
             provider = "gemini"
             status = "fallback"
@@ -1752,10 +2243,16 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
         reason = "Selected image failed local cache/visual validation."
         static_url = ""
         original_url = ""
+    backup_urls, backup_static_urls = _case_representative_backup_selection(candidates, selected, limit=3)
+    if not static_url:
+        backup_urls = []
+        backup_static_urls = []
     _case_store_representative_image(
         source_item_id=sid,
         representative_url=original_url,
         representative_static_url=static_url,
+        backup_urls=backup_urls,
+        backup_static_urls=backup_static_urls,
         image_signature=signature,
         provider=provider,
         status=status,
@@ -1764,14 +2261,553 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
         rejected=rejected,
         source_last_checked_at=str(row.get("last_checked_at") or ""),
     )
+    try:
+        gallery_audit = _case_audit_gallery_images_for_row(row, limit=16)
+        if int(gallery_audit.get("removed") or 0) > 0:
+            with _HOME_FEATURED_CASES_CACHE_LOCK:
+                _HOME_FEATURED_CASES_CACHE.clear()
+            _portal_case_search_cache_clear()
+    except Exception as exc:
+        _log_backend_error("case-gallery-audit-after-representative", exc)
     return {
         "ok": bool(static_url),
         "status": status,
         "source_item_id": sid,
         "static_url": static_url,
+        "representative_url": original_url or static_url,
         "score": score,
         "provider": provider,
         "reason": reason,
+    }
+
+
+def _case_admin_representative_candidate_urls(row: dict[str, Any], *, limit: int = 120) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _push(value: Any) -> None:
+        raw = str(value or "").strip()
+        if not raw:
+            return
+        if raw.lower().startswith(("http://", "https://")):
+            raw = _normalize_listing_image_url_for_display(raw)
+        elif not raw.startswith("/static/"):
+            return
+        if not raw or raw in seen:
+            return
+        seen.add(raw)
+        out.append(raw)
+
+    for value in (row.get("hero_image_url"), row.get("thumbnail_url")):
+        _push(value)
+    for value in _row_primary_image_url_lines(row, limit=60):
+        _push(value)
+    try:
+        imgs, _vids = extract_media_urls_from_row(row)
+        for value in imgs:
+            _push(value)
+    except Exception:
+        pass
+    for entry in _parse_listing_media_field(row.get("listing_media_json")):
+        if isinstance(entry, dict):
+            _push(entry.get("url"))
+    for key in ("body_original", "body_zh_hant", "body_zh_hans", "seo_description"):
+        for value in _extract_image_urls_from_plain_blob(str(row.get(key) or ""), limit=24):
+            _push(value)
+    return out[: max(1, min(300, int(limit or 120)))]
+
+
+def _case_representative_url_matches_candidate(selected_url: str, candidates: list[str]) -> bool:
+    selected = str(selected_url or "").strip()
+    if not selected:
+        return False
+    if selected in candidates:
+        return True
+    selected_norm = _normalize_listing_image_url_for_display(selected) if selected.lower().startswith(("http://", "https://")) else selected
+    if selected_norm in candidates:
+        return True
+    selected_key = _case_gallery_url_identity_key(selected_norm) if selected_norm.lower().startswith(("http://", "https://")) else selected_norm
+    for cand in candidates:
+        cand_norm = _normalize_listing_image_url_for_display(cand) if cand.lower().startswith(("http://", "https://")) else cand
+        cand_key = _case_gallery_url_identity_key(cand_norm) if cand_norm.lower().startswith(("http://", "https://")) else cand_norm
+        if selected_key and cand_key and selected_key == cand_key:
+            return True
+    return False
+
+
+def _case_static_url_for_manual_representative(image_url: str) -> str:
+    selected = str(image_url or "").strip()
+    if not selected:
+        return ""
+    local_path = _url_to_local_static_path(selected)
+    if local_path:
+        return _case_image_static_url_from_path(local_path)
+    if selected.lower().startswith(("http://", "https://")):
+        return _case_image_download_to_cache(selected)
+    return ""
+
+
+def _case_gallery_audit_image_key(url: Any) -> str:
+    raw = str(url or "").strip()
+    if not raw:
+        return ""
+    norm = _normalize_listing_image_url_for_display(raw) if raw.lower().startswith(("http://", "https://")) else raw
+    return _case_gallery_url_identity_key(norm) or norm
+
+
+def _case_gallery_normalize_ai_category(category: Any) -> str:
+    cat = str(category or "unknown").strip().lower()
+    cat = _CASE_GALLERY_AI_TO_SECTION_CATEGORY.get(cat, cat)
+    if cat == "floor_plan":
+        cat = "floorplan"
+    return cat or "unknown"
+
+
+def _case_gallery_category_label(category: str) -> str:
+    return _CASE_GALLERY_AUDIT_CATEGORY_LABELS.get(str(category or "").strip().lower(), "未分類")
+
+
+def _case_gallery_local_audit_item(
+    *,
+    source_item_id: int,
+    image_url: str,
+    static_url: str = "",
+    context: str = "",
+    image_signature: str = "",
+) -> dict[str, Any]:
+    category = _case_gallery_category_for_url(image_url, context)
+    polluted = False
+    pollution_reason = ""
+    if is_likely_agent_portrait_image_url(image_url):
+        category = "agent_staff"
+        polluted = True
+        pollution_reason = "疑似仲介或人物頭像"
+    elif _case_gallery_context_is_non_property_media(image_url, context):
+        polluted = True
+        pollution_reason = "疑似頁面素材、公司/門店或非本案圖片"
+    elif category in {"map"}:
+        polluted = True
+        pollution_reason = "地圖或交通圖不屬於房源相冊照片"
+    elif _case_representative_semantic_reject_reason(image_url, context, profile="building") == "weak-semantic-context":
+        polluted = True
+        pollution_reason = "疑似概念圖、廣告圖或低信息圖片"
+    return {
+        "source_item_id": int(source_item_id or 0),
+        "image_url": image_url,
+        "image_static_url": static_url,
+        "image_key": _case_gallery_audit_image_key(image_url),
+        "category": _case_gallery_normalize_ai_category(category),
+        "category_label": _case_gallery_category_label(category),
+        "confidence": 55,
+        "is_polluted": bool(polluted),
+        "pollution_reason": pollution_reason,
+        "information_value": 25 if polluted else 50,
+        "provider": "rules",
+        "model": "",
+        "reason": "Rule-based gallery classification.",
+        "image_signature": image_signature,
+    }
+
+
+def _case_store_gallery_image_audit(source_item_id: int, items: list[dict[str, Any]]) -> None:
+    sid = int(source_item_id or 0)
+    if sid <= 0 or not items:
+        return
+    try:
+        with get_conn() as conn:
+            for raw in items:
+                image_url = str(raw.get("image_url") or "").strip()
+                image_key = str(raw.get("image_key") or _case_gallery_audit_image_key(image_url)).strip()
+                if not image_url or not image_key:
+                    continue
+                category = _case_gallery_normalize_ai_category(raw.get("category"))
+                conn.execute(
+                    """
+                    INSERT INTO case_gallery_image_audit (
+                        source_item_id, image_url, image_static_url, image_key,
+                        category, category_label, confidence, is_polluted,
+                        pollution_reason, information_value, provider, model,
+                        reason, audited_at, image_signature
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                    ON CONFLICT(source_item_id, image_key) DO UPDATE SET
+                        image_url=excluded.image_url,
+                        image_static_url=excluded.image_static_url,
+                        category=excluded.category,
+                        category_label=excluded.category_label,
+                        confidence=excluded.confidence,
+                        is_polluted=excluded.is_polluted,
+                        pollution_reason=excluded.pollution_reason,
+                        information_value=excluded.information_value,
+                        provider=excluded.provider,
+                        model=excluded.model,
+                        reason=excluded.reason,
+                        audited_at=CURRENT_TIMESTAMP,
+                        image_signature=excluded.image_signature
+                    """,
+                    (
+                        sid,
+                        image_url[:1200],
+                        str(raw.get("image_static_url") or "")[:1200],
+                        image_key[:1200],
+                        category[:80],
+                        _case_gallery_category_label(category)[:80],
+                        max(0, min(100, int(raw.get("confidence") or 0))),
+                        1 if bool(raw.get("is_polluted")) else 0,
+                        str(raw.get("pollution_reason") or "")[:500],
+                        max(0, min(100, int(raw.get("information_value") or 0))),
+                        str(raw.get("provider") or "")[:80],
+                        str(raw.get("model") or "")[:160],
+                        str(raw.get("reason") or "")[:600],
+                        str(raw.get("image_signature") or "")[:80],
+                    ),
+                )
+            conn.commit()
+    except Exception as exc:
+        _log_backend_error("case-gallery-audit-store", exc)
+
+
+def _case_gallery_audit_by_source_item(source_item_id: int) -> dict[str, dict[str, Any]]:
+    sid = int(source_item_id or 0)
+    if sid <= 0:
+        return {}
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT image_key, image_url, image_static_url, category, category_label,
+                       confidence, is_polluted, pollution_reason, information_value,
+                       provider, reason, audited_at
+                FROM case_gallery_image_audit
+                WHERE source_item_id = ?
+                """,
+                (sid,),
+            ).fetchall()
+    except Exception:
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        d = dict(row)
+        key = str(d.get("image_key") or "").strip()
+        if key:
+            out[key] = d
+    return out
+
+
+def _case_gallery_audit_candidate_pack(
+    row: dict[str, Any],
+    *,
+    limit: int = 16,
+) -> tuple[list[dict[str, Any]], list[str], str]:
+    raw_urls = _case_representative_raw_url_candidates(row, limit=max(32, int(limit or 16) * 3))
+    signature = _case_representative_image_signature(raw_urls)
+    context_by_key = _case_gallery_context_by_url(row)
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in raw_urls:
+        url = _normalize_listing_image_url_for_display(str(raw or "").strip())
+        if not url.lower().startswith(("http://", "https://")):
+            continue
+        key = _case_gallery_audit_image_key(url)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        context = context_by_key.get(key, "")
+        local_cat = _case_gallery_category_for_url(url, context)
+        candidates.append(
+            {
+                "index": len(candidates) + 1,
+                "url": url,
+                "static_url": _case_image_cached_static_url(url),
+                "context": context,
+                "hint": f"{_thumb_kind_label(url)}｜{local_cat}｜{context[:80]}",
+                "image_key": key,
+            }
+        )
+        if len(candidates) >= max(1, min(24, int(limit or 16))):
+            break
+    return candidates, raw_urls, signature
+
+
+def _case_gallery_polluted_items_for_removal(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    removable: list[dict[str, Any]] = []
+    for item in items:
+        if not bool(item.get("is_polluted")):
+            continue
+        cat = _case_gallery_normalize_ai_category(item.get("category"))
+        if cat in _CASE_GALLERY_POLLUTION_CATEGORIES or str(item.get("pollution_reason") or "").strip():
+            removable.append(item)
+    return removable
+
+
+def _case_mark_gallery_cleanup_attempt(
+    source_item_id: int,
+    items: list[dict[str, Any]],
+    *,
+    error: str = "",
+) -> None:
+    sid = int(source_item_id or 0)
+    if sid <= 0 or not items:
+        return
+    keys = [
+        str(x.get("image_key") or _case_gallery_audit_image_key(x.get("image_url"))).strip()
+        for x in items
+    ]
+    keys = [x for x in keys if x]
+    if not keys:
+        return
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE case_gallery_image_audit
+                SET cleanup_attempts = cleanup_attempts + 1,
+                    cleanup_last_error = ?,
+                    cleanup_failed_at = CURRENT_TIMESTAMP
+                WHERE source_item_id = ?
+                  AND image_key IN ({})
+                """.format(",".join("?" for _ in keys)),
+                (str(error or "仍未能從相冊中移除污染圖片")[:500], sid, *keys),
+            )
+            conn.commit()
+    except Exception as exc:
+        _log_backend_error("case-gallery-cleanup-attempt", exc)
+
+
+def _case_remove_polluted_gallery_images(source_item_id: int, items: list[dict[str, Any]]) -> dict[str, Any]:
+    sid = int(source_item_id or 0)
+    removable = _case_gallery_polluted_items_for_removal(items)
+    if sid <= 0 or not removable:
+        return {"removed": 0, "removed_urls": []}
+    remove_keys = {str(x.get("image_key") or _case_gallery_audit_image_key(x.get("image_url"))).strip() for x in removable}
+    remove_urls = {str(x.get("image_url") or "").strip() for x in removable if str(x.get("image_url") or "").strip()}
+    if not remove_keys and not remove_urls:
+        return {"removed": 0, "removed_urls": []}
+
+    def _is_removed_url(value: Any) -> bool:
+        s = str(value or "").strip()
+        if not s:
+            return False
+        key = _case_gallery_audit_image_key(s)
+        return bool(s in remove_urls or key in remove_keys)
+
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                """
+                SELECT s.image_urls, s.hero_image_url, s.thumbnail_url,
+                       COALESCE(c.listing_media_json, '[]') AS listing_media_json
+                FROM source_items s
+                LEFT JOIN content_items c ON c.source_item_id = s.id
+                WHERE s.id = ?
+                LIMIT 1
+                """,
+                (sid,),
+            ).fetchone()
+            if not row:
+                return {"removed": 0, "removed_urls": []}
+            d = dict(row)
+            removed_urls: list[str] = []
+
+            image_lines = [x.strip() for x in str(d.get("image_urls") or "").replace("\r", "\n").splitlines() if x.strip()]
+            kept_lines: list[str] = []
+            for line in image_lines:
+                if _is_removed_url(line):
+                    removed_urls.append(line)
+                else:
+                    kept_lines.append(line)
+
+            hero = str(d.get("hero_image_url") or "").strip()
+            thumb = str(d.get("thumbnail_url") or "").strip()
+            hero_new = "" if _is_removed_url(hero) else hero
+            thumb_new = "" if _is_removed_url(thumb) else thumb
+            if hero and not hero_new:
+                removed_urls.append(hero)
+            if thumb and not thumb_new:
+                removed_urls.append(thumb)
+
+            media_changed = False
+            media_raw = str(d.get("listing_media_json") or "[]")
+            media = _parse_listing_media_field(media_raw)
+            kept_media: list[Any] = []
+            for entry in media:
+                if isinstance(entry, dict) and _is_removed_url(entry.get("url")):
+                    removed_urls.append(str(entry.get("url") or ""))
+                    media_changed = True
+                    continue
+                kept_media.append(entry)
+            if len(kept_media) != len(media):
+                media_changed = True
+
+            if kept_lines != image_lines or hero_new != hero or thumb_new != thumb:
+                conn.execute(
+                    """
+                    UPDATE source_items
+                    SET image_urls = ?, hero_image_url = ?, thumbnail_url = ?, last_checked_at = last_checked_at
+                    WHERE id = ?
+                    """,
+                    ("\n".join(kept_lines), hero_new, thumb_new, sid),
+                )
+            if media_changed:
+                conn.execute(
+                    """
+                    UPDATE content_items
+                    SET listing_media_json = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE source_item_id = ?
+                    """,
+                    (json.dumps(kept_media, ensure_ascii=False), sid),
+                )
+            if removed_urls:
+                removed_keys = {
+                    _case_gallery_audit_image_key(url)
+                    for url in removed_urls
+                    if _case_gallery_audit_image_key(url)
+                }
+                if removed_keys:
+                    conn.execute(
+                        "DELETE FROM case_gallery_image_audit WHERE source_item_id = ? AND image_key IN ({})".format(
+                            ",".join("?" for _ in removed_keys)
+                        ),
+                        (sid, *list(removed_keys)),
+                    )
+                conn.commit()
+    except Exception as exc:
+        _log_backend_error("case-gallery-pollution-cleanup", exc)
+        _case_mark_gallery_cleanup_attempt(sid, removable, error=str(exc)[:180])
+        return {"removed": 0, "removed_urls": [], "error": str(exc)[:180]}
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for url in removed_urls:
+        s = str(url or "").strip()
+        if s and s not in seen:
+            seen.add(s)
+            deduped.append(s)
+    removed_key_set = {_case_gallery_audit_image_key(url) for url in deduped if _case_gallery_audit_image_key(url)}
+    remaining = [
+        x
+        for x in removable
+        if str(x.get("image_key") or _case_gallery_audit_image_key(x.get("image_url"))).strip() not in removed_key_set
+    ]
+    if remaining:
+        _case_mark_gallery_cleanup_attempt(
+            sid,
+            remaining,
+            error="污染圖片已標記，但未能在 source_items/content_items 相冊欄位中匹配到可刪除網址",
+        )
+    return {"removed": len(deduped), "removed_urls": deduped[:20]}
+
+
+def _case_retry_polluted_gallery_cleanup(*, limit: int = 30) -> dict[str, Any]:
+    """Retry polluted image cleanup up to three times before surfacing manual review."""
+    lim = max(1, min(100, int(limit or 30)))
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT source_item_id, image_url, image_static_url, image_key,
+                       category, category_label, confidence, is_polluted,
+                       pollution_reason, information_value, provider, model,
+                       reason, cleanup_attempts
+                FROM case_gallery_image_audit
+                WHERE is_polluted = 1
+                  AND cleanup_attempts < 3
+                ORDER BY cleanup_attempts ASC, audited_at ASC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+    except Exception as exc:
+        _log_backend_error("case-gallery-cleanup-retry-load", exc)
+        return {"attempted": 0, "removed": 0, "error": str(exc)[:180]}
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        d = dict(row)
+        sid = int(d.get("source_item_id") or 0)
+        if sid > 0:
+            grouped.setdefault(sid, []).append(d)
+    attempted = 0
+    removed = 0
+    for sid, items in grouped.items():
+        attempted += len(items)
+        cleanup = _case_remove_polluted_gallery_images(sid, items)
+        removed += int(cleanup.get("removed") or 0)
+    return {"attempted": attempted, "removed": removed}
+
+
+def _case_audit_gallery_images_for_row(row: dict[str, Any], *, limit: int = 16) -> dict[str, Any]:
+    sid = int(row.get("source_item_id") or row.get("id") or 0)
+    if sid <= 0:
+        return {"ok": False, "reason": "missing_source_item_id"}
+    candidates, raw_urls, signature = _case_gallery_audit_candidate_pack(row, limit=limit)
+    if not candidates:
+        return {"ok": False, "reason": "no_gallery_candidates"}
+    local_items = [
+        _case_gallery_local_audit_item(
+            source_item_id=sid,
+            image_url=str(c.get("url") or ""),
+            static_url=str(c.get("static_url") or ""),
+            context=str(c.get("context") or ""),
+            image_signature=signature,
+        )
+        for c in candidates
+    ]
+    _case_store_gallery_image_audit(sid, local_items)
+    provider = "rules"
+    ai_items: list[dict[str, Any]] = []
+    if is_gemini_configured():
+        try:
+            context = _case_representative_context_text(row)
+            profile = _case_representative_profile(row, context=context)
+            ai = classify_listing_gallery_images_via_gemini(
+                candidates,
+                title=str(row.get("seo_title") or row.get("title_original") or ""),
+                address=str(row.get("case_jp_region_override") or row.get("body_original") or "")[:180],
+                source_name=str(row.get("source_name") or ""),
+                listing_type=profile,
+            )
+            by_index = {int(c.get("index") or 0): c for c in candidates}
+            for item in list(ai.get("items") or []):
+                if not isinstance(item, dict):
+                    continue
+                c = by_index.get(int(item.get("index") or 0))
+                if not c:
+                    continue
+                cat = _case_gallery_normalize_ai_category(item.get("category"))
+                polluted = bool(item.get("is_polluted")) or cat in _CASE_GALLERY_POLLUTION_CATEGORIES
+                ai_items.append(
+                    {
+                        "source_item_id": sid,
+                        "image_url": str(c.get("url") or ""),
+                        "image_static_url": str(c.get("static_url") or ""),
+                        "image_key": str(c.get("image_key") or _case_gallery_audit_image_key(c.get("url"))),
+                        "category": cat,
+                        "category_label": _case_gallery_category_label(cat),
+                        "confidence": int(item.get("confidence") or 0),
+                        "is_polluted": polluted,
+                        "pollution_reason": str(item.get("pollution_reason") or ("AI 標記為污染圖片" if polluted else "")),
+                        "information_value": int(item.get("information_value") or 0),
+                        "provider": "gemini",
+                        "model": "",
+                        "reason": str(item.get("reason") or ""),
+                        "image_signature": signature,
+                    }
+                )
+            if ai_items:
+                _case_store_gallery_image_audit(sid, ai_items)
+                provider = "gemini"
+        except Exception as exc:
+            _log_backend_error("case-gallery-audit-gemini", exc)
+    final_items = ai_items or local_items
+    cleanup = _case_remove_polluted_gallery_images(sid, final_items)
+    return {
+        "ok": True,
+        "source_item_id": sid,
+        "provider": provider,
+        "candidate_count": len(candidates),
+        "classified": len(final_items),
+        "polluted": sum(1 for x in final_items if bool(x.get("is_polluted"))),
+        "removed": int(cleanup.get("removed") or 0),
+        "removed_urls": list(cleanup.get("removed_urls") or [])[:8],
+        "raw_count": len(raw_urls),
     }
 
 
@@ -1782,6 +2818,8 @@ def _case_representative_gallery_urls(
     fetch_limit: int = 14,
     sync_download: bool = False,
     proxy_fallback: bool = True,
+    context: str = "",
+    profile: str = "building",
 ) -> list[str]:
     """Select fixed representative static images for cards.
 
@@ -1792,9 +2830,9 @@ def _case_representative_gallery_urls(
     raw_candidates = [
         str(u or "").strip()
         for u in raw_urls
-        if str(u or "").strip() and not _case_representative_url_reject_reason(u)
+        if _case_representative_raw_url_allowed(u, context, profile=profile)
     ]
-    candidates = _sort_relevant_real_estate_images(raw_candidates, limit=max(fetch_limit, lim))
+    candidates = _sort_relevant_real_estate_images(raw_candidates, limit=max(fetch_limit, lim), profile=profile)
     if candidates:
         _case_image_prefetch(candidates[: max(lim, min(fetch_limit, 12))], limit=max(lim, min(fetch_limit, 12)), force=True)
     accepted: list[str] = []
@@ -1832,6 +2870,40 @@ def _case_representative_gallery_urls(
                 break
         return proxied[:lim]
     return []
+
+
+def _case_representative_review_item(row: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    candidates = _case_admin_representative_candidate_urls(row, limit=80)
+    selected_url = str(result.get("representative_url") or result.get("selected_url") or "").strip()
+    selected_static = str(result.get("static_url") or result.get("representative_static_url") or "").strip()
+    try:
+        score = int(result.get("score") or 0)
+    except (TypeError, ValueError):
+        score = 0
+    gallery: list[str] = []
+    selected_is_candidate = _case_representative_url_matches_candidate(selected_url, candidates)
+    for url in ([selected_url] if selected_is_candidate else []) + candidates:
+        u = str(url or "").strip()
+        if u and u not in gallery:
+            gallery.append(u)
+        if len(gallery) >= 16:
+            break
+    title = str(row.get("seo_title") or row.get("title_zh_hant") or row.get("title_zh_hans") or row.get("title_original") or "").strip()
+    return {
+        "content_id": int(row.get("content_id") or 0),
+        "source_item_id": int(result.get("source_item_id") or row.get("source_item_id") or row.get("id") or 0),
+        "title": title[:160],
+        "source_name": str(row.get("source_name") or "")[:80],
+        "status": str(result.get("status") or "").strip(),
+        "ok": bool(result.get("ok")),
+        "provider": str(result.get("provider") or "")[:40],
+        "score": score,
+        "reason": str(result.get("reason") or "").strip()[:320],
+        "selected_url": selected_url,
+        "selected_static_url": selected_static,
+        "gallery_urls": gallery,
+        "candidate_count": len(candidates),
+    }
 
 
 def _row_primary_image_url_lines(row: dict[str, Any], *, limit: int = 12) -> list[str]:
@@ -2065,7 +3137,7 @@ _HOME_FEATURED_HOT_REGIONS = (
 
 
 def _home_featured_has_kana(text: Any) -> bool:
-    return bool(re.search(r"[\u3040-\u30ff]", str(text or "")))
+    return _portal_case_has_kana(text)
 
 
 _HOME_FEATURED_T2S = OpenCC("t2s")
@@ -2112,6 +3184,15 @@ def _home_featured_region_label(value: Any) -> str:
         .replace("東京", "東京")
         .strip()
     )
+
+
+def _home_featured_clean_listing_text(value: Any, *, fallback: Any = "", max_len: int = 160) -> str:
+    text = _portal_case_text_hant(value, max_len=max_len)
+    if not text or _portal_case_has_kana(text):
+        text = _portal_case_text_hant(fallback, max_len=max_len)
+    if _portal_case_has_kana(text):
+        text = ""
+    return _home_featured_to_hans(text)
 
 
 def _home_featured_region_from_row(row: dict[str, Any]) -> str:
@@ -2454,15 +3535,21 @@ def _home_featured_property_type_search_terms(property_type: str) -> tuple[str, 
     return ()
 
 
-def _home_featured_fast_cached_gallery_urls(raw_urls: list[Any], *, limit: int = 8) -> list[str]:
+def _home_featured_fast_cached_gallery_urls(
+    raw_urls: list[Any],
+    *,
+    limit: int = 8,
+    context: str = "",
+    profile: str = "building",
+) -> list[str]:
     """Return already cached static images without remote IO or visual scanning."""
     lim = max(1, min(int(limit or 8), 24))
     raw_candidates = [
         str(u or "").strip()
         for u in raw_urls
-        if str(u or "").strip() and not _case_representative_url_reject_reason(u)
+        if _case_representative_raw_url_allowed(u, context, profile=profile)
     ]
-    candidates = _sort_relevant_real_estate_images(raw_candidates, limit=max(lim * 2, 12))
+    candidates = _sort_relevant_real_estate_images(raw_candidates, limit=max(lim * 2, 12), profile=profile)
     out: list[str] = []
     seen: set[str] = set()
     for raw in candidates:
@@ -2575,15 +3662,25 @@ def _home_featured_case_public_row(row: dict[str, Any], *, sync_static: bool = T
         str(base.get("thumb_url") or "").strip(),
         *primary_imgs,
     ]
+    rep_context = _case_representative_context_text(row)
+    rep_profile = _case_representative_profile(row, context=rep_context)
     if sync_static:
-        stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
-        gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
-        if stored_thumb:
-            gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+        stored_gallery = _case_stored_representative_media(row, raw_gallery_candidates, limit=4)
+        gallery = stored_gallery[:]
         if not gallery:
-            gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
+            gallery = _home_featured_fast_cached_gallery_urls(
+                [*raw_gallery_candidates, *imgs],
+                limit=8,
+                context=rep_context,
+                profile=rep_profile,
+            )
     else:
-        gallery = _home_featured_fast_cached_gallery_urls([*raw_gallery_candidates, *imgs], limit=8)
+        gallery = _home_featured_fast_cached_gallery_urls(
+            [*raw_gallery_candidates, *imgs],
+            limit=8,
+            context=rep_context,
+            profile=rep_profile,
+        )
     thumb = str(base.get("thumb_url") or "").strip()
     if gallery:
         thumb = gallery[0]
@@ -2622,14 +3719,20 @@ def _home_featured_case_public_row(row: dict[str, Any], *, sync_static: bool = T
         "jp_region_display_zh": region,
         "transit": transit,
         "transit_line_zh": transit,
-        "address_hint_zh": str(
+        "address_hint_zh": _home_featured_clean_listing_text(
             fields.get("address_hint_zh")
             or fields.get("address_line_hant")
             or fields.get("address_line_jp")
             or row.get("address_hint_zh")
-            or ""
-        ).strip()[:160],
-        "address_line_jp": str(fields.get("address_line_jp") or row.get("address_line_jp") or "").strip()[:160],
+            or "",
+            fallback=region,
+            max_len=160,
+        ),
+        "address_line_jp": _home_featured_clean_listing_text(
+            fields.get("address_line_jp") or row.get("address_line_jp") or "",
+            fallback=region,
+            max_len=160,
+        ),
         "price_hint": price_hint,
         "price_text_hant": price_hint,
         "area_text_hant": str(fields.get("area_text_hant") or row.get("area_text_hant") or "").strip()[:80],
@@ -2673,15 +3776,25 @@ def _home_featured_case_public_row_fast(
         str(row.get("thumbnail_url") or "").strip(),
         *primary_imgs,
     ]
+    rep_context = _case_representative_context_text(row)
+    rep_profile = _case_representative_profile(row, context=rep_context)
     if sync_static:
-        stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
-        gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
-        if stored_thumb:
-            gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+        stored_gallery = _case_stored_representative_media(row, raw_gallery_candidates, limit=4)
+        gallery = stored_gallery[:]
         if not gallery:
-            gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
+            gallery = _home_featured_fast_cached_gallery_urls(
+                [*raw_gallery_candidates, *imgs],
+                limit=8,
+                context=rep_context,
+                profile=rep_profile,
+            )
     elif fast_cached_media:
-        gallery = _home_featured_fast_cached_gallery_urls([*raw_gallery_candidates, *imgs], limit=8)
+        gallery = _home_featured_fast_cached_gallery_urls(
+            [*raw_gallery_candidates, *imgs],
+            limit=8,
+            context=rep_context,
+            profile=rep_profile,
+        )
     else:
         gallery = []
     hero = gallery[0] if gallery else ""
@@ -2717,13 +3830,19 @@ def _home_featured_case_public_row_fast(
         "jp_region_display_zh": region,
         "transit": transit,
         "transit_line_zh": transit,
-        "address_hint_zh": str(
+        "address_hint_zh": _home_featured_clean_listing_text(
             fields.get("address_hint_zh")
             or fields.get("address_line_hant")
             or fields.get("address_line_jp")
-            or ""
-        ).strip()[:160],
-        "address_line_jp": str(fields.get("address_line_jp") or "").strip()[:160],
+            or "",
+            fallback=region,
+            max_len=160,
+        ),
+        "address_line_jp": _home_featured_clean_listing_text(
+            fields.get("address_line_jp") or "",
+            fallback=region,
+            max_len=160,
+        ),
         "price_hint": price_hint,
         "price_text_hant": price_hint,
         "area_text_hant": str(fields.get("area_text_hant") or "").strip()[:80],
@@ -2745,6 +3864,69 @@ def _home_featured_case_public_row_fast(
         "theme_tags": tags,
         "property_type_hits": property_hits,
     }
+
+
+_HOME_FEATURED_INVALID_PRICE_RE = re.compile(
+    r"(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認|價格待確認|价格待确认",
+    re.I,
+)
+
+
+def _home_featured_has_display_image(item: dict[str, Any]) -> bool:
+    thumb = str(item.get("thumb_url") or item.get("hero_media_url") or "").strip()
+    if thumb.startswith("/static/cache/case-images/") and not _home_featured_static_cache_image_url(thumb):
+        return False
+    gallery = item.get("gallery_urls") or []
+    if isinstance(gallery, str):
+        gallery = [gallery]
+    gallery_count = 0
+    if isinstance(gallery, (list, tuple)):
+        gallery_count = len(
+            [
+                url
+                for url in gallery
+                if str(url or "").strip()
+                and (
+                    not str(url or "").strip().startswith("/static/cache/case-images/")
+                    or _home_featured_static_cache_image_url(url)
+                )
+            ]
+        )
+    return bool(thumb) and max(int(item.get("image_count") or 0), gallery_count) > 0
+
+
+def _home_featured_has_display_price(item: dict[str, Any]) -> bool:
+    price = str(item.get("price_hint") or item.get("price_text_hant") or "").strip()
+    return bool(price) and not _HOME_FEATURED_INVALID_PRICE_RE.search(price)
+
+
+def _home_featured_supporting_info_score(item: dict[str, Any]) -> int:
+    def has_text(*keys: str) -> bool:
+        return any(str(item.get(key) or "").strip() not in {"", "—", "-"} for key in keys)
+
+    score = 0
+    if has_text("region", "jp_region_display_zh", "address_hint_zh", "address_line_jp"):
+        score += 1
+    if has_text("transit", "transit_line_zh"):
+        score += 1
+    if has_text("area_text_hant", "exclusive_area_jp", "building_area_jp", "land_area_jp", "other_area_jp"):
+        score += 1
+    if has_text("layout_text_hant"):
+        score += 1
+    if has_text("building_type_zh") or bool(item.get("property_type_hits") or []):
+        score += 1
+    title = str(item.get("title") or item.get("title_zh_hans") or item.get("title_zh_hant") or "").strip()
+    if title and not re.search(r"^(?:日本房源|日本房產|日本房产|日本精选|精选房源|日本優選|日本优选)", title, re.I):
+        score += 1
+    return score
+
+
+def _home_featured_item_homepage_eligible(item: dict[str, Any]) -> bool:
+    return (
+        _home_featured_has_display_image(item)
+        and _home_featured_has_display_price(item)
+        and _home_featured_supporting_info_score(item) >= 2
+    )
 
 
 _HOME_FEATURED_CASES_CACHE_TTL_SECONDS = 300.0
@@ -2786,7 +3968,8 @@ def _home_featured_cases_cache_key(
 ) -> str:
     return json.dumps(
         {
-            "media_policy": "representative-v3",
+            "media_policy": "representative-v6-homepage-quality",
+            "text_policy": "jp-display-clean-v1",
             "limit": int(limit),
             "offset": int(offset),
             "category": str(category or "hot"),
@@ -2967,6 +4150,7 @@ def _home_featured_cases_payload(
             """,
             [*params, sql_limit, off],
         ).fetchall()
+    _case_schedule_representative_selection([dict(row) for row in rows[: min(len(rows), max(lim, 6))]], limit=min(6, lim))
     items: list[dict[str, Any]] = []
     for row in rows:
         row_dict = dict(row)
@@ -2996,12 +4180,7 @@ def _home_featured_cases_payload(
             re.I,
         ):
             continue
-        item_price = str(item.get("price_hint") or item.get("price_text_hant") or "").strip()
-        if not item_price or re.search(r"(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認", item_price, re.I):
-            continue
-        if not fast_keyword_search and not str(item.get("thumb_url") or "").strip():
-            continue
-        if not fast_keyword_search and int(item.get("image_count") or 0) <= 0:
+        if not _home_featured_item_homepage_eligible(item):
             continue
         items.append(item)
         if len(items) >= lim:
@@ -3238,13 +4417,31 @@ def _home_featured_url_original_image(value: Any) -> str:
     return ""
 
 
+def _home_featured_static_cache_image_displayable(static_url: str) -> bool:
+    path = _url_to_local_static_path(static_url)
+    if not path or not path.is_file():
+        return False
+    try:
+        # Homepage recommendation cards must not promote cached placeholder images.
+        # Real listing photos in this cache are normally much larger; the known
+        # "image preparing" placeholders are tiny 640px PNGs saved under jpg names.
+        if path.stat().st_size < 8 * 1024:
+            return False
+    except Exception:
+        return False
+    try:
+        return not bool(_case_image_visual_reject_reason(static_url))
+    except Exception:
+        return True
+
+
 def _home_featured_static_cache_image_url(value: Any) -> str:
     raw = str(value or "").strip()
     if not raw:
         return ""
     if not re.match(r"^/static/cache/case-images/[a-f0-9]{2}/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$", raw, re.I):
         return ""
-    return raw if _url_to_local_static_path(raw) else ""
+    return raw if _home_featured_static_cache_image_displayable(raw) else ""
 
 
 def _home_featured_item_image_candidates(item: dict[str, Any]) -> list[str]:
@@ -3301,10 +4498,11 @@ def _home_featured_static_payload(payload: dict[str, Any], *, target_static: int
             fixed["thumb_url"] = thumb
             fixed["hero_media_url"] = thumb
             fixed["gallery_urls"] = [thumb, *[url for url in gallery if url != thumb]]
+            fixed["image_count"] = max(int(fixed.get("image_count") or 0), len(fixed["gallery_urls"]))
         else:
-            fixed["thumb_url"] = ""
-            fixed["hero_media_url"] = ""
-            fixed["gallery_urls"] = []
+            continue
+        if not _home_featured_item_homepage_eligible(fixed):
+            continue
         prepared.append(fixed)
     return {**payload, "items": prepared}
 
@@ -3313,7 +4511,7 @@ _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS = 600.0
 _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v13"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v15"
 _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 6 * 60 * 60
 
 
@@ -4733,6 +5931,30 @@ class AdminRepresentativeImageSelectPost(BaseModel):
     only_missing: bool = True
 
 
+class AdminRepresentativeImagePrewarmPost(BaseModel):
+    batch_limit: int = Field(default=40, ge=1, le=80)
+    max_batches: int = Field(default=10, ge=1, le=100)
+    max_cases: int = Field(default=400, ge=1, le=8000)
+    force: bool = False
+    only_missing: bool = True
+    sleep: float = Field(default=0.05, ge=0.0, le=2.0)
+
+
+class AdminRepresentativeImageAuditPost(BaseModel):
+    limit: int = Field(default=500, ge=1, le=10000)
+    dry_run: bool = False
+
+
+class AdminGalleryImageAuditPost(BaseModel):
+    limit: int = Field(default=24, ge=1, le=80)
+    offset: int = Field(default=0, ge=0, le=500000)
+    only_missing: bool = True
+
+
+class AdminRepresentativeImageManualPost(BaseModel):
+    image_url: str = Field(min_length=1, max_length=2000)
+
+
 class KnowledgeBootstrapRequest(BaseModel):
     q: str = ""
     target_count: int = Field(default=18, ge=5, le=50)
@@ -5316,6 +6538,21 @@ def _push_backend_error_log(method: str, path: str, status_code: int, message: s
     }
     with _backend_log_lock:
         _backend_error_logs.appendleft(row)
+
+
+def _log_backend_error(scope: str, exc: BaseException | str) -> None:
+    """Record non-request background failures without crashing cleanup/fallback paths."""
+    if isinstance(exc, BaseException):
+        message = f"{type(exc).__name__}: {str(exc)[:360]}"
+    else:
+        message = str(exc or "")[:400]
+    _push_backend_error_log(
+        method="BG",
+        path=str(scope or "background"),
+        status_code=500,
+        message=message,
+        elapsed_ms=0,
+    )
 
 
 @app.middleware("http")
@@ -6809,7 +8046,7 @@ def _dedupe_case_gallery_urls(
     return out
 
 
-def _real_estate_image_score(u: str) -> int:
+def _real_estate_image_score(u: str, *, profile: str = "building") -> int:
     """縮圖智能排序：主圖(房屋/室內)優先；站台 UI、地圖交通與碎片圖降權。"""
     s = str(u or "").strip()
     if is_likely_agent_portrait_image_url(s):
@@ -6818,10 +8055,45 @@ def _real_estate_image_score(u: str) -> int:
     if not _row_image_url_is_usable(s):
         return -999
     score = 0
+    semantic_category = _case_representative_semantic_category(s)
+    reject_categories = (
+        _CASE_REPRESENTATIVE_HARD_REJECT_CATEGORIES
+        if profile in _CASE_REPRESENTATIVE_NON_BUILDING_PROFILES
+        else _CASE_REPRESENTATIVE_REJECT_CATEGORIES
+    )
+    if semantic_category in reject_categories:
+        return -999
+    if profile in _CASE_REPRESENTATIVE_NON_BUILDING_PROFILES and semantic_category == "environment":
+        score += 170
+    elif semantic_category in _CASE_REPRESENTATIVE_STRONG_CATEGORIES:
+        score += 180
+    elif semantic_category in _CASE_REPRESENTATIVE_WEAK_CATEGORIES:
+        score -= 35
     primary_tokens = (
         "bukken", "mansion", "apartment", "house", "building", "property",
-        "gaikan", "naikan", "living", "kitchen", "room", "bedroom", "balcony",
+        "gaikan", "naikan", "living", "ldk", "dining", "room", "bedroom",
         "estate", "residence", "chintai", "rehouse", "homephoto",
+    )
+    land_tokens = (
+        "land", "tochi", "土地", "売地", "宅地", "農地", "农地", "山林",
+        "現地", "genchi", "site", "frontage", "roadside", "forest", "field",
+        "畑", "区画", "kukaku",
+    )
+    profile_tokens: dict[str, tuple[str, ...]] = {
+        "shop": ("shop", "store", "tenant", "tenanto", "店舗", "テナント", "店面", "front", "facade", "street"),
+        "office": ("office", "事務所", "オフィス", "辦公", "办公", "building", "floor", "entrance"),
+        "warehouse": ("warehouse", "souko", "倉庫", "仓库", "物流", "storage", "interior", "exterior"),
+        "factory": ("factory", "plant", "工場", "廠房", "厂房", "industrial", "warehouse", "site"),
+        "parking": ("parking", "garage", "駐車", "駐車場", "車位", "車庫", "carspace", "lot"),
+        "detached": ("house", "detached", "戸建", "一戸建", "透天", "villa", "gaikan", "building", "entrance"),
+        "studio": ("room", "studio", "1r", "1k", "ワンルーム", "套房", "living", "interior"),
+        "apartment": ("mansion", "apartment", "room", "living", "ldk", "gaikan", "building", "interior"),
+        "tower": ("mansion", "building", "tower", "外観", "gaikan", "living", "ldk", "interior"),
+        "midrise": ("mansion", "apartment", "building", "華廈", "外観", "gaikan", "living", "interior"),
+    }
+    weak_detail_tokens = (
+        "kitchen", "balcony", "veranda", "terrace", "entrance", "genkan",
+        "キッチン", "台所", "バルコニー", "ベランダ", "玄関",
     )
     map_tokens = ("map", "chizu", "location", "access", "station", "route", "周辺", "地図")
     floor_tokens = ("madori", "floorplan", "floor_plan", "間取", "layout", "plan")
@@ -6847,6 +8119,13 @@ def _real_estate_image_score(u: str) -> int:
         score += 36
     if any(t in lu for t in primary_tokens):
         score += 120
+    if profile == "land" and any(t.lower() in lu for t in land_tokens):
+        score += 150
+    type_tokens = profile_tokens.get(profile, ())
+    if type_tokens and any(t.lower() in lu for t in type_tokens):
+        score += 135
+    if any(t in lu for t in weak_detail_tokens):
+        score -= 18
     if any(t in lu for t in map_tokens):
         score -= 180
     if any(t in lu for t in floor_tokens):
@@ -6866,7 +8145,7 @@ def _real_estate_image_score(u: str) -> int:
     return score
 
 
-def _sort_relevant_real_estate_images(urls: list[str], *, limit: int = 10) -> list[str]:
+def _sort_relevant_real_estate_images(urls: list[str], *, limit: int = 10, profile: str = "building") -> list[str]:
     uniq: list[str] = []
     seen: set[str] = set()
     for u in urls:
@@ -6877,7 +8156,7 @@ def _sort_relevant_real_estate_images(urls: list[str], *, limit: int = 10) -> li
         uniq.append(s)
     scored: list[tuple[int, str]] = []
     for x in uniq:
-        sc = _real_estate_image_score(x)
+        sc = _real_estate_image_score(x, profile=profile)
         if not _is_case_property_gallery_image_url(x):
             continue
         # 極低分多為站台樣板/廣告圖，不進縮圖候選，避免選到 Yahoo 橫幅。
@@ -10377,6 +11656,7 @@ def _case_investment_metrics(
 
 def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str], aux_urls: list[str], agent_urls: list[str]) -> list[dict[str, Any]]:
     context_by_key = _case_gallery_context_by_url(row)
+    audit_by_key = _case_gallery_audit_by_source_item(int((row or {}).get("source_item_id") or (row or {}).get("id") or 0))
     item_url = str((row or {}).get("item_url") or "")
     homes_structured_media = bool(context_by_key) and ("homes.co.jp" in item_url.lower() or "homes.jp" in item_url.lower())
     raw_sources: list[str] = []
@@ -10398,6 +11678,13 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         "kitchen_bath": [],
         "exterior": [],
         "balcony_view": [],
+        "land_site": [],
+        "parking": [],
+        "shop": [],
+        "office": [],
+        "warehouse": [],
+        "factory": [],
+        "facility_detail": [],
         "environment": [],
         "other": [],
     }
@@ -10423,6 +11710,9 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         if homes_structured_media and key not in context_by_key:
             continue
         context = context_by_key.get(key, "")
+        audit = audit_by_key.get(key) or {}
+        if bool(audit.get("is_polluted")):
+            continue
         if _case_gallery_context_is_non_property_media(u, context):
             continue
         seen.add(key)
@@ -10431,6 +11721,19 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         if not _is_case_property_gallery_image_url(u) and _case_gallery_category_for_url(u, context) != "floorplan":
             continue
         cat = _case_gallery_category_for_url(u, context)
+        audit_cat = _case_gallery_normalize_ai_category(audit.get("category"))
+        if audit_cat and audit_cat not in {"unknown", "other"}:
+            if audit_cat in {"land_frontage", "farmland", "forest_land"}:
+                audit_cat = "land_site"
+            elif audit_cat in {"shop_front", "shop_interior", "street_front"}:
+                audit_cat = "shop"
+            elif audit_cat in {"office_interior", "office_building"}:
+                audit_cat = "office"
+            elif audit_cat in {"warehouse_interior", "warehouse_exterior"}:
+                audit_cat = "warehouse"
+            elif audit_cat in {"factory_interior", "factory_exterior"}:
+                audit_cat = "factory"
+            cat = audit_cat
         accepted_index += 1
         categories.setdefault(cat, []).append(u)
 
@@ -10443,6 +11746,13 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         ("floorplan", "房型圖", "格局圖、平面圖與房型配置"),
         ("exterior", "室外圖", "建物外觀、入口與外部立面"),
         ("balcony_view", "景觀圖", "陽台、露台與窗外視野"),
+        ("land_site", "土地現況", "土地、臨路、農地、山林與基地現況"),
+        ("parking", "車位／停車", "車位、車庫、停車場與出入口"),
+        ("shop", "店面", "店面門面、臨街面、招牌與店內空間"),
+        ("office", "辦公", "辦公室內、辦公樓與入口空間"),
+        ("warehouse", "倉庫", "倉庫內部、外觀、裝卸口與物流空間"),
+        ("factory", "廠房", "廠房外觀、作業空間與工業用途照片"),
+        ("facility_detail", "設備細節", "設備、局部與輔助設施"),
         ("environment", "環境圖", "道路、停車、周邊設施與環境照片"),
         ("other", "未分類", "來源相簿中未標註類型的本案圖片"),
     ]
@@ -22307,15 +23617,25 @@ def api_cases_dashboard_thumb_backfill_remaining_three_alias(
     return api_admin_thumb_backfill_remaining_three(payload, request)
 
 
-@app.post("/api/admin/cases/select-representative-images")
-def api_admin_cases_select_representative_images(payload: AdminRepresentativeImageSelectPost, request: Request):
-    """Use backend Gemini once to persist one stable representative image per listing."""
-    _require_admin_password(request)
-    lim = max(1, min(80, int(payload.limit or 24)))
-    off = max(0, min(500000, int(payload.offset or 0)))
+def _case_representative_selection_batch(
+    *,
+    limit: int = 24,
+    offset: int = 0,
+    force: bool = False,
+    only_missing: bool = True,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    lim = max(1, min(80, int(limit or 24)))
+    off = max(0, min(500000, int(offset or 0)))
     sql_extra = ""
-    if bool(payload.only_missing) and not bool(payload.force):
-        sql_extra = "AND r.source_item_id IS NULL"
+    if bool(only_missing) and not bool(force):
+        sql_extra = """
+              AND (
+                r.source_item_id IS NULL
+                OR COALESCE(r.status, '') NOT IN ('selected', 'fallback', 'rules', 'manual')
+                OR TRIM(COALESCE(r.representative_static_url, '')) = ''
+              )
+        """
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -22354,35 +23674,777 @@ def api_admin_cases_select_representative_images(payload: AdminRepresentativeIma
             (lim, off),
         ).fetchall()
     results: list[dict[str, Any]] = []
+    review_items: list[dict[str, Any]] = []
     ok_count = 0
+    failed_count = 0
+    empty_count = 0
+    total_count = len(rows)
+    if progress_callback:
+        progress_callback(
+            {
+                "stage": "selecting_representative_images",
+                "total_cases": total_count,
+                "processed": 0,
+                "selected": 0,
+                "failed": 0,
+                "empty": 0,
+                "current_case": "",
+                "current_source_item_id": 0,
+            }
+        )
     for row in rows:
         d = dict(row)
+        current_title = (
+            str(d.get("seo_title") or d.get("title_zh_hant") or d.get("title_zh_hans") or d.get("title_original") or "")
+            .strip()
+            [:120]
+        )
+        current_source_item_id = int(d.get("source_item_id") or d.get("id") or 0)
+        if progress_callback:
+            progress_callback(
+                {
+                    "stage": "selecting_representative_images",
+                    "total_cases": total_count,
+                    "processed": len(results),
+                    "selected": ok_count,
+                    "failed": failed_count,
+                    "empty": empty_count,
+                    "current_case": current_title,
+                    "current_source_item_id": current_source_item_id,
+                }
+            )
         try:
-            res = _case_select_representative_image_with_ai(d, force=bool(payload.force))
+            res = _case_select_representative_image_with_ai(d, force=bool(force))
         except Exception as exc:
             _log_backend_error("case-representative-select", exc)
             res = {
                 "ok": False,
                 "status": "error",
+                "content_id": int(d.get("content_id") or 0),
                 "source_item_id": int(d.get("source_item_id") or d.get("id") or 0),
                 "reason": f"{type(exc).__name__}: {str(exc)[:180]}",
             }
+        if "content_id" not in res:
+            res = {**res, "content_id": int(d.get("content_id") or 0)}
         if bool(res.get("ok")):
             ok_count += 1
+        else:
+            failed_count += 1
+        if str(res.get("status") or "").strip().lower() in ("empty", "no_images", "no_candidates"):
+            empty_count += 1
         results.append(res)
+        review_items.append(_case_representative_review_item(d, res))
+        if progress_callback:
+            progress_callback(
+                {
+                    "stage": "selecting_representative_images",
+                    "total_cases": total_count,
+                    "processed": len(results),
+                    "selected": ok_count,
+                    "failed": failed_count,
+                    "empty": empty_count,
+                    "current_case": current_title,
+                    "current_source_item_id": current_source_item_id,
+                    "last_status": str(res.get("status") or ""),
+                    "last_reason": str(res.get("reason") or "")[:240],
+                }
+            )
+    return {
+        "processed": len(results),
+        "selected": ok_count,
+        "failed": failed_count,
+        "empty": empty_count,
+        "total_cases": total_count,
+        "offset": off,
+        "limit": lim,
+        "force": bool(force),
+        "only_missing": bool(only_missing),
+        "results": results,
+        "review_items": review_items,
+    }
+
+
+def _case_audit_representative_images(*, limit: int = 500, dry_run: bool = False) -> dict[str, Any]:
+    lim = max(1, min(10000, int(limit or 500)))
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT r.source_item_id, r.representative_url, r.representative_static_url,
+                   r.backup_urls_json, r.backup_static_urls_json, r.image_signature,
+                   r.provider, r.model, r.status, r.score, r.reason,
+                   s.source_name, s.source_category, s.item_url, s.title_original, s.body_original
+            FROM case_representative_images r
+            LEFT JOIN source_items s ON s.id = r.source_item_id
+            WHERE r.status IN ('selected', 'fallback', 'rules', 'manual')
+            ORDER BY r.selected_at DESC
+            LIMIT ?
+            """,
+            (lim,),
+        ).fetchall()
+
+    checked = 0
+    ok = 0
+    promoted = 0
+    emptied = 0
+    pruned = 0
+    changes: list[dict[str, Any]] = []
+
+    def _static_ok(
+        static_url: Any,
+        raw_url: Any = "",
+        *,
+        context: str = "",
+        profile: str = "building",
+        skip_semantic: bool = False,
+    ) -> bool:
+        s = str(static_url or "").strip()
+        raw = str(raw_url or "").strip()
+        if not skip_semantic and raw and not _case_representative_raw_url_allowed(raw, context, profile=profile):
+            return False
+        return bool(s and _url_to_local_static_path(s) and not _case_image_visual_reject_reason(s))
+
+    for row in rows:
+        d = dict(row)
+        checked += 1
+        sid = int(d.get("source_item_id") or 0)
+        rep_context = _case_representative_context_text(d)
+        rep_profile = _case_representative_profile(d, context=rep_context)
+        is_manual = str(d.get("status") or "") == "manual"
+        primary = str(d.get("representative_static_url") or "").strip()
+        try:
+            backup_urls = json.loads(str(d.get("backup_urls_json") or "[]"))
+        except Exception:
+            backup_urls = []
+        try:
+            backup_static_urls = json.loads(str(d.get("backup_static_urls_json") or "[]"))
+        except Exception:
+            backup_static_urls = []
+        if not isinstance(backup_urls, list):
+            backup_urls = []
+        if not isinstance(backup_static_urls, list):
+            backup_static_urls = []
+
+        valid_pairs: list[tuple[str, str]] = []
+        for idx, static_url in enumerate(backup_static_urls):
+            su = str(static_url or "").strip()
+            raw = str(backup_urls[idx] if idx < len(backup_urls) else "").strip()
+            if not _static_ok(su, raw, context=rep_context, profile=rep_profile, skip_semantic=is_manual):
+                continue
+            valid_pairs.append((raw, su))
+
+        if _static_ok(primary, d.get("representative_url"), context=rep_context, profile=rep_profile, skip_semantic=is_manual):
+            ok += 1
+            clean_raw = [raw for raw, _su in valid_pairs][:6]
+            clean_static = [su for _raw, su in valid_pairs][:6]
+            if len(clean_static) != len(backup_static_urls):
+                pruned += 1
+                changes.append({"source_item_id": sid, "action": "prune_backups", "backup_count": len(clean_static)})
+                if not dry_run:
+                    _case_store_representative_image(
+                        source_item_id=sid,
+                        representative_url=str(d.get("representative_url") or ""),
+                        representative_static_url=primary,
+                        backup_urls=clean_raw,
+                        backup_static_urls=clean_static,
+                        image_signature=str(d.get("image_signature") or ""),
+                        provider=str(d.get("provider") or ""),
+                        model=str(d.get("model") or ""),
+                        status=str(d.get("status") or "rules"),
+                        score=int(d.get("score") or 0),
+                        reason=str(d.get("reason") or ""),
+                    )
+            continue
+
+        if valid_pairs:
+            promoted += 1
+            new_raw, new_static = valid_pairs[0]
+            rest = valid_pairs[1:6]
+            changes.append({"source_item_id": sid, "action": "promote_backup", "static_url": new_static})
+            if not dry_run:
+                _case_store_representative_image(
+                    source_item_id=sid,
+                    representative_url=new_raw or str(d.get("representative_url") or ""),
+                    representative_static_url=new_static,
+                    backup_urls=[raw for raw, _su in rest],
+                    backup_static_urls=[su for _raw, su in rest],
+                    image_signature=str(d.get("image_signature") or ""),
+                    provider=str(d.get("provider") or ""),
+                    model=str(d.get("model") or ""),
+                    status=str(d.get("status") or "fallback"),
+                    score=int(d.get("score") or 0),
+                    reason="Promoted backup representative image after audit.",
+                )
+        else:
+            emptied += 1
+            changes.append({"source_item_id": sid, "action": "mark_empty"})
+            if not dry_run:
+                _case_store_representative_image(
+                    source_item_id=sid,
+                    representative_url="",
+                    representative_static_url="",
+                    backup_urls=[],
+                    backup_static_urls=[],
+                    image_signature=str(d.get("image_signature") or ""),
+                    provider=str(d.get("provider") or ""),
+                    model=str(d.get("model") or ""),
+                    status="empty",
+                    score=0,
+                    reason="Representative image cache failed audit; waiting for reselection.",
+                )
+
+    return {
+        "ok": True,
+        "dry_run": bool(dry_run),
+        "checked": checked,
+        "valid": ok,
+        "promoted": promoted,
+        "pruned": pruned,
+        "emptied": emptied,
+        "changes": changes[:80],
+    }
+
+
+@app.post("/api/admin/cases/select-representative-images")
+def api_admin_cases_select_representative_images(payload: AdminRepresentativeImageSelectPost, request: Request):
+    """Use backend Gemini once to persist one stable representative image per listing."""
+    _require_admin_password(request)
+    batch = _case_representative_selection_batch(
+        limit=int(payload.limit or 24),
+        offset=int(payload.offset or 0),
+        force=bool(payload.force),
+        only_missing=bool(payload.only_missing),
+    )
     with _HOME_FEATURED_CASES_CACHE_LOCK:
         _HOME_FEATURED_CASES_CACHE.clear()
     return JSONResponse(
         {
             "ok": True,
             "gemini_configured": is_gemini_configured(),
-            "processed": len(results),
-            "selected": ok_count,
-            "offset": off,
-            "limit": lim,
+            **batch,
+        }
+    )
+
+
+@app.post("/api/admin/cases/select-representative-images/start")
+def api_admin_cases_select_representative_images_start(payload: AdminRepresentativeImageSelectPost, request: Request):
+    """Start representative image selection in the background so the admin UI can poll real progress."""
+    _require_admin_password(request)
+    _cleanup_admin_crawl_tasks()
+    task_id = uuid4().hex
+    now_iso = _admin_crawl_now_iso()
+    with _admin_crawl_tasks_lock:
+        _admin_crawl_tasks[task_id] = {
+            "task_id": task_id,
+            "task_type": "representative_images",
+            "status": "running",
+            "stage": "queued",
+            "total_cases": 0,
+            "processed": 0,
+            "selected": 0,
+            "failed": 0,
+            "empty": 0,
+            "current_case": "",
+            "current_source_item_id": 0,
+            "warning": "",
+            "error": "",
+            "gemini_configured": is_gemini_configured(),
+            "started_at": now_iso,
+            "updated_at": now_iso,
+            "finished_at": "",
+            "elapsed_ms": 0,
+            "updated_ts": time.time(),
+        }
+
+    task_payload = AdminRepresentativeImageSelectPost(
+        limit=int(payload.limit or 24),
+        offset=int(payload.offset or 0),
+        force=bool(payload.force),
+        only_missing=bool(payload.only_missing),
+    )
+
+    def _runner() -> None:
+        t0 = time.perf_counter()
+
+        def _progress(fields: dict[str, Any]) -> None:
+            _update_admin_crawl_task(
+                task_id,
+                **fields,
+                elapsed_ms=int((time.perf_counter() - t0) * 1000),
+            )
+
+        try:
+            result = _case_representative_selection_batch(
+                limit=int(task_payload.limit or 24),
+                offset=int(task_payload.offset or 0),
+                force=bool(task_payload.force),
+                only_missing=bool(task_payload.only_missing),
+                progress_callback=_progress,
+            )
+            with _HOME_FEATURED_CASES_CACHE_LOCK:
+                _HOME_FEATURED_CASES_CACHE.clear()
+            _update_admin_crawl_task(
+                task_id,
+                status="done",
+                stage="done",
+                total_cases=int(result.get("total_cases") or result.get("processed") or 0),
+                processed=int(result.get("processed") or 0),
+                selected=int(result.get("selected") or 0),
+                failed=int(result.get("failed") or 0),
+                empty=int(result.get("empty") or 0),
+                current_case="",
+                current_source_item_id=0,
+                result={k: v for k, v in result.items() if k != "results"} | {"sample_results": list(result.get("results") or [])[:12]},
+                elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                finished_at=_admin_crawl_now_iso(),
+            )
+        except Exception as exc:
+            _log_backend_error("case-representative-select-task", exc)
+            _update_admin_crawl_task(
+                task_id,
+                status="error",
+                stage="error",
+                error=f"{type(exc).__name__}: {str(exc)[:360]}",
+                elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                finished_at=_admin_crawl_now_iso(),
+            )
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return JSONResponse(
+        {
+            "ok": True,
+            "task_id": task_id,
+            "status": "running",
+            "gemini_configured": is_gemini_configured(),
+            "status_url": f"/api/admin/cases/select-representative-images/status?task_id={task_id}",
+        }
+    )
+
+
+@app.post("/api/admin/cases/prewarm-representative-images")
+def api_admin_cases_prewarm_representative_images(payload: AdminRepresentativeImagePrewarmPost, request: Request):
+    """Batch preselect representative images so public cards can stay cache-only."""
+    _require_admin_password(request)
+    max_cases = max(1, min(8000, int(payload.max_cases or 400)))
+    batch_limit = max(1, min(80, int(payload.batch_limit or 40)))
+    max_batches = max(1, min(100, int(payload.max_batches or 10)))
+    processed = 0
+    selected = 0
+    batches: list[dict[str, Any]] = []
+    offset = 0
+    for idx in range(max_batches):
+        remaining = max_cases - processed
+        if remaining <= 0:
+            break
+        batch = _case_representative_selection_batch(
+            limit=min(batch_limit, remaining),
+            offset=offset,
+            force=bool(payload.force),
+            only_missing=bool(payload.only_missing),
+        )
+        processed += int(batch.get("processed") or 0)
+        selected += int(batch.get("selected") or 0)
+        batches.append(
+            {k: v for k, v in batch.items() if k != "results"}
+            | {"sample_results": list(batch.get("results") or [])[:5]}
+        )
+        if int(batch.get("processed") or 0) <= 0:
+            break
+        if not bool(payload.only_missing) or bool(payload.force):
+            offset += int(batch.get("processed") or 0)
+        if float(payload.sleep or 0) > 0 and idx + 1 < max_batches:
+            time.sleep(float(payload.sleep or 0))
+    with _HOME_FEATURED_CASES_CACHE_LOCK:
+        _HOME_FEATURED_CASES_CACHE.clear()
+    return JSONResponse(
+        {
+            "ok": True,
+            "gemini_configured": is_gemini_configured(),
+            "processed": processed,
+            "selected": selected,
+            "batch_limit": batch_limit,
+            "max_batches": max_batches,
+            "max_cases": max_cases,
             "force": bool(payload.force),
             "only_missing": bool(payload.only_missing),
+            "batches": batches,
+        }
+    )
+
+
+@app.post("/api/admin/cases/prewarm-representative-images/start")
+def api_admin_cases_prewarm_representative_images_start(payload: AdminRepresentativeImagePrewarmPost, request: Request):
+    """Start batch prewarming in the background and expose batch-level progress for the admin UI."""
+    _require_admin_password(request)
+    _cleanup_admin_crawl_tasks()
+    task_id = uuid4().hex
+    now_iso = _admin_crawl_now_iso()
+    max_cases = max(1, min(8000, int(payload.max_cases or 400)))
+    with _admin_crawl_tasks_lock:
+        _admin_crawl_tasks[task_id] = {
+            "task_id": task_id,
+            "task_type": "representative_prewarm",
+            "status": "running",
+            "stage": "queued",
+            "total_cases": max_cases,
+            "processed": 0,
+            "selected": 0,
+            "failed": 0,
+            "empty": 0,
+            "current_case": "",
+            "current_source_item_id": 0,
+            "current_batch": 0,
+            "max_batches": int(payload.max_batches or 10),
+            "warning": "",
+            "error": "",
+            "gemini_configured": is_gemini_configured(),
+            "started_at": now_iso,
+            "updated_at": now_iso,
+            "finished_at": "",
+            "elapsed_ms": 0,
+            "updated_ts": time.time(),
+        }
+
+    task_payload = AdminRepresentativeImagePrewarmPost(
+        batch_limit=int(payload.batch_limit or 40),
+        max_batches=int(payload.max_batches or 10),
+        max_cases=max_cases,
+        force=bool(payload.force),
+        only_missing=bool(payload.only_missing),
+        sleep=float(payload.sleep or 0),
+    )
+
+    def _runner() -> None:
+        t0 = time.perf_counter()
+        batch_limit = max(1, min(80, int(task_payload.batch_limit or 40)))
+        max_batches = max(1, min(100, int(task_payload.max_batches or 10)))
+        processed = 0
+        selected = 0
+        failed = 0
+        empty = 0
+        batches: list[dict[str, Any]] = []
+        offset = 0
+        try:
+            for idx in range(max_batches):
+                remaining = max_cases - processed
+                if remaining <= 0:
+                    break
+
+                def _progress(fields: dict[str, Any], batch_no: int = idx + 1) -> None:
+                    batch_processed = int(fields.get("processed") or 0)
+                    _update_admin_crawl_task(
+                        task_id,
+                        stage="selecting_representative_images",
+                        current_batch=batch_no,
+                        total_cases=max_cases,
+                        processed=processed + batch_processed,
+                        selected=selected + int(fields.get("selected") or 0),
+                        failed=failed + int(fields.get("failed") or 0),
+                        empty=empty + int(fields.get("empty") or 0),
+                        current_case=str(fields.get("current_case") or ""),
+                        current_source_item_id=int(fields.get("current_source_item_id") or 0),
+                        last_status=str(fields.get("last_status") or ""),
+                        last_reason=str(fields.get("last_reason") or "")[:240],
+                        elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                    )
+
+                batch = _case_representative_selection_batch(
+                    limit=min(batch_limit, remaining),
+                    offset=offset,
+                    force=bool(task_payload.force),
+                    only_missing=bool(task_payload.only_missing),
+                    progress_callback=_progress,
+                )
+                bp = int(batch.get("processed") or 0)
+                processed += bp
+                selected += int(batch.get("selected") or 0)
+                failed += int(batch.get("failed") or 0)
+                empty += int(batch.get("empty") or 0)
+                batches.append({k: v for k, v in batch.items() if k != "results"} | {"sample_results": list(batch.get("results") or [])[:5]})
+                _update_admin_crawl_task(
+                    task_id,
+                    current_batch=idx + 1,
+                    processed=processed,
+                    selected=selected,
+                    failed=failed,
+                    empty=empty,
+                    elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                )
+                if bp <= 0:
+                    break
+                if not bool(task_payload.only_missing) or bool(task_payload.force):
+                    offset += bp
+                if float(task_payload.sleep or 0) > 0 and idx + 1 < max_batches:
+                    time.sleep(float(task_payload.sleep or 0))
+            with _HOME_FEATURED_CASES_CACHE_LOCK:
+                _HOME_FEATURED_CASES_CACHE.clear()
+            final_total_cases = (
+                processed
+                if processed < max_cases and (not batches or int(batches[-1].get("processed") or 0) <= 0)
+                else max_cases
+            )
+            result = {
+                "ok": True,
+                "gemini_configured": is_gemini_configured(),
+                "processed": processed,
+                "selected": selected,
+                "failed": failed,
+                "empty": empty,
+                "total_cases": final_total_cases,
+                "batch_limit": batch_limit,
+                "max_batches": max_batches,
+                "max_cases": max_cases,
+                "force": bool(task_payload.force),
+                "only_missing": bool(task_payload.only_missing),
+                "batches": batches,
+            }
+            _update_admin_crawl_task(
+                task_id,
+                status="done",
+                stage="done",
+                total_cases=final_total_cases,
+                processed=processed,
+                selected=selected,
+                failed=failed,
+                empty=empty,
+                current_case="",
+                current_source_item_id=0,
+                result=result,
+                elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                finished_at=_admin_crawl_now_iso(),
+            )
+        except Exception as exc:
+            _log_backend_error("case-representative-prewarm-task", exc)
+            _update_admin_crawl_task(
+                task_id,
+                status="error",
+                stage="error",
+                error=f"{type(exc).__name__}: {str(exc)[:360]}",
+                elapsed_ms=int((time.perf_counter() - t0) * 1000),
+                finished_at=_admin_crawl_now_iso(),
+            )
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return JSONResponse(
+        {
+            "ok": True,
+            "task_id": task_id,
+            "status": "running",
+            "gemini_configured": is_gemini_configured(),
+            "status_url": f"/api/admin/cases/prewarm-representative-images/status?task_id={task_id}",
+        }
+    )
+
+
+@app.get("/api/admin/cases/select-representative-images/status")
+def api_admin_cases_select_representative_images_status(task_id: str, request: Request):
+    _require_admin_password(request)
+    _cleanup_admin_crawl_tasks()
+    with _admin_crawl_tasks_lock:
+        row = dict(_admin_crawl_tasks.get(task_id) or {})
+    if not row:
+        raise HTTPException(status_code=404, detail="task not found")
+    row.pop("updated_ts", None)
+    return JSONResponse({"ok": True, **row})
+
+
+@app.get("/api/admin/cases/prewarm-representative-images/status")
+def api_admin_cases_prewarm_representative_images_status(task_id: str, request: Request):
+    return api_admin_cases_select_representative_images_status(task_id, request)
+
+
+@app.post("/api/admin/cases/audit-representative-images")
+def api_admin_cases_audit_representative_images(payload: AdminRepresentativeImageAuditPost, request: Request):
+    """Validate stored representative image files and promote backups when needed."""
+    _require_admin_password(request)
+    report = _case_audit_representative_images(limit=int(payload.limit or 500), dry_run=bool(payload.dry_run))
+    if not bool(payload.dry_run):
+        with _HOME_FEATURED_CASES_CACHE_LOCK:
+            _HOME_FEATURED_CASES_CACHE.clear()
+    return JSONResponse(report)
+
+
+@app.post("/api/admin/cases/audit-gallery-images")
+def api_admin_cases_audit_gallery_images(payload: AdminGalleryImageAuditPost, request: Request):
+    """Classify listing gallery images and flag polluted/unrelated images."""
+    _require_admin_password(request)
+    lim = max(1, min(80, int(payload.limit or 24)))
+    off = max(0, min(500000, int(payload.offset or 0)))
+    sql_extra = ""
+    if bool(payload.only_missing):
+        sql_extra = "AND a.source_item_id IS NULL"
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                c.id AS content_id,
+                c.source_item_id,
+                c.seo_title,
+                c.title_zh_hant,
+                c.title_zh_hans,
+                c.case_jp_region_override,
+                c.listing_media_json,
+                c.topic_category,
+                s.id,
+                s.source_name,
+                s.source_category,
+                s.item_url,
+                s.title_original,
+                substr(COALESCE(s.body_original, ''), 1, 1200) AS body_original,
+                s.image_urls,
+                s.thumbnail_url,
+                s.hero_image_url,
+                s.last_checked_at
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            LEFT JOIN (
+                SELECT source_item_id, COUNT(1) AS audit_count
+                FROM case_gallery_image_audit
+                GROUP BY source_item_id
+            ) a ON a.source_item_id = s.id
+            WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+              AND (
+                TRIM(COALESCE(s.hero_image_url, '')) <> ''
+                OR TRIM(COALESCE(s.thumbnail_url, '')) <> ''
+                OR TRIM(COALESCE(s.image_urls, '')) <> ''
+                OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
+              )
+              {sql_extra}
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (lim, off),
+        ).fetchall()
+    results: list[dict[str, Any]] = []
+    ok_count = 0
+    polluted_count = 0
+    removed_count = 0
+    for row in rows:
+        d = dict(row)
+        try:
+            res = _case_audit_gallery_images_for_row(d, limit=16)
+        except Exception as exc:
+            _log_backend_error("case-gallery-audit-batch", exc)
+            res = {
+                "ok": False,
+                "source_item_id": int(d.get("source_item_id") or d.get("id") or 0),
+                "reason": f"{type(exc).__name__}: {str(exc)[:180]}",
+            }
+        if bool(res.get("ok")):
+            ok_count += 1
+            polluted_count += int(res.get("polluted") or 0)
+            removed_count += int(res.get("removed") or 0)
+        results.append(res)
+    if removed_count > 0:
+        with _HOME_FEATURED_CASES_CACHE_LOCK:
+            _HOME_FEATURED_CASES_CACHE.clear()
+        _portal_case_search_cache_clear()
+    return JSONResponse(
+        {
+            "ok": True,
+            "processed": len(results),
+            "classified_cases": ok_count,
+            "polluted_images": polluted_count,
+            "removed_images": removed_count,
+            "offset": off,
+            "limit": lim,
+            "only_missing": bool(payload.only_missing),
+            "gemini_configured": is_gemini_configured(),
             "results": results,
+        }
+    )
+
+
+@app.post("/api/admin/cases/{content_id}/representative-image")
+def api_admin_case_set_representative_image(content_id: int, payload: AdminRepresentativeImageManualPost, request: Request):
+    """Manually bind a case card representative image from the listing's existing gallery."""
+    _require_admin_password(request)
+    cid = int(content_id)
+    selected = str(payload.image_url or "").strip()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+              c.id AS content_id,
+              c.source_item_id,
+              c.seo_title,
+              c.seo_description,
+              c.title_zh_hant,
+              c.title_zh_hans,
+              c.body_zh_hant,
+              c.body_zh_hans,
+              c.topic_category,
+              COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+              s.id,
+              s.source_name,
+              s.source_category,
+              s.item_url,
+              s.title_original,
+              s.body_original,
+              s.image_urls,
+              s.thumbnail_url,
+              s.hero_image_url,
+              s.last_checked_at
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE c.id = ?
+            LIMIT 1
+            """,
+            (cid,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="case not found")
+    d = dict(row)
+    sid = int(d.get("source_item_id") or d.get("id") or 0)
+    candidates = _case_admin_representative_candidate_urls(d, limit=160)
+    if not _case_representative_url_matches_candidate(selected, candidates):
+        raise HTTPException(status_code=400, detail="image_url must be one of this case's existing gallery images")
+    static_url = _case_static_url_for_manual_representative(selected)
+    if not static_url or not _url_to_local_static_path(static_url):
+        raise HTTPException(status_code=400, detail="selected image could not be cached locally")
+    reject_reason = _case_image_visual_reject_reason(static_url)
+    if reject_reason:
+        raise HTTPException(status_code=400, detail=f"selected image failed visual validation: {reject_reason}")
+    backup_urls: list[str] = []
+    backup_static_urls: list[str] = []
+    selected_norm = _normalize_listing_image_url_for_display(selected) if selected.lower().startswith(("http://", "https://")) else selected
+    for cand in candidates:
+        if cand == selected or cand == selected_norm:
+            continue
+        cand_static = _case_static_url_for_manual_representative(cand) if cand.startswith("/static/") else _case_image_cached_static_url(cand)
+        if not cand_static or not _url_to_local_static_path(cand_static):
+            continue
+        if _case_image_visual_reject_reason(cand_static):
+            continue
+        backup_urls.append(cand)
+        backup_static_urls.append(cand_static)
+        if len(backup_static_urls) >= 3:
+            break
+    _case_store_representative_image(
+        source_item_id=sid,
+        representative_url=selected,
+        representative_static_url=static_url,
+        backup_urls=backup_urls,
+        backup_static_urls=backup_static_urls,
+        image_signature=_case_representative_image_signature(candidates),
+        provider="manual",
+        model="admin",
+        status="manual",
+        score=100,
+        reason="Manual representative image selected by admin from existing gallery.",
+        source_last_checked_at=str(d.get("last_checked_at") or ""),
+    )
+    with _HOME_FEATURED_CASES_CACHE_LOCK:
+        _HOME_FEATURED_CASES_CACHE.clear()
+    _portal_case_search_cache_clear()
+    return JSONResponse(
+        {
+            "ok": True,
+            "content_id": cid,
+            "source_item_id": sid,
+            "representative_url": selected,
+            "representative_static_url": static_url,
+            "backup_count": len(backup_static_urls),
+            "status": "manual",
         }
     )
 
@@ -22652,6 +24714,7 @@ def api_admin_cases(
         admin_case_select_sql = """
             SELECT
               c.id AS content_id,
+              c.source_item_id,
               c.seo_slug,
               c.title_zh_hant,
               c.title_zh_hans,
@@ -22677,11 +24740,29 @@ def api_admin_cases(
               s.image_urls,
               substr(COALESCE(s.body_original,''),1,2000) AS body_original,
               s.title_original,
-              COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind
+              COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind,
+              COALESCE(r.representative_static_url, '') AS representative_static_url,
+              COALESCE(r.status, '') AS representative_status,
+              COALESCE(r.provider, '') AS representative_provider,
+              COALESCE(r.score, 0) AS representative_score,
+              COALESCE(r.reason, '') AS representative_reason,
+              COALESCE(r.backup_static_urls_json, '[]') AS representative_backup_static_urls_json,
+              COALESCE(ga.polluted_count, 0) AS gallery_polluted_count,
+              COALESCE(ga.failed_polluted_count, 0) AS gallery_failed_polluted_count,
+              COALESCE(ga.audit_count, 0) AS gallery_audit_count
         """
         admin_case_tail_sql = """
             LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
             LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+            LEFT JOIN case_representative_images r ON r.source_item_id = s.id
+            LEFT JOIN (
+                SELECT source_item_id,
+                       COUNT(1) AS audit_count,
+                       SUM(CASE WHEN is_polluted THEN 1 ELSE 0 END) AS polluted_count,
+                       SUM(CASE WHEN is_polluted AND cleanup_attempts >= 3 THEN 1 ELSE 0 END) AS failed_polluted_count
+                FROM case_gallery_image_audit
+                GROUP BY source_item_id
+            ) ga ON ga.source_item_id = s.id
         """
         if use_region_index_page:
             placeholders = ",".join("?" for _ in fast_region_keys)
@@ -22750,6 +24831,52 @@ def api_admin_cases(
                 if u.startswith("http"):
                     _append_thumb_candidate(u)
         thumb = thumb_candidates[0] if thumb_candidates else ""
+        stored_thumb = _case_stored_representative_static_url(d, thumb_candidates)
+        if stored_thumb:
+            thumb = stored_thumb
+            thumb_candidates = [stored_thumb, *[u for u in thumb_candidates if u != stored_thumb]]
+        rep_status = str(d.get("representative_status") or "").strip()
+        rep_provider = str(d.get("representative_provider") or "").strip()
+        rep_reason = str(d.get("representative_reason") or "").strip()
+        rep_static = str(d.get("representative_static_url") or "").strip()
+        try:
+            rep_backups = json.loads(str(d.get("representative_backup_static_urls_json") or "[]"))
+        except Exception:
+            rep_backups = []
+        if not isinstance(rep_backups, list):
+            rep_backups = []
+        rep_backup_count = len([x for x in rep_backups if str(x or "").strip()])
+        polluted_count = int(d.get("gallery_polluted_count") or 0)
+        failed_polluted_count = int(d.get("gallery_failed_polluted_count") or 0)
+        audit_count = int(d.get("gallery_audit_count") or 0)
+        media_review_reasons: list[str] = []
+        media_review_level = "ok"
+        media_review_label = "正常"
+        if not thumb_candidates and not imgs and not lm:
+            media_review_reasons.append("相冊沒有可用圖片")
+        if not rep_status:
+            media_review_reasons.append("尚未進行代表圖篩選")
+        elif rep_status == "empty":
+            media_review_reasons.append("沒有可用主展示圖")
+        elif rep_status == "fallback":
+            media_review_reasons.append(rep_reason or "AI 未選出合格展示圖，已降級使用規則圖")
+        elif rep_status == "rules":
+            media_review_reasons.append("Gemini 未配置或未使用，代表圖由規則選出")
+        if rep_status in {"selected", "fallback", "rules"} and not rep_static:
+            media_review_reasons.append("代表圖本地靜態檔缺失")
+        if rep_status in {"selected", "fallback", "rules", "manual"} and rep_backup_count <= 0:
+            media_review_reasons.append("沒有備用展示圖")
+        if failed_polluted_count > 0:
+            media_review_reasons.append(f"相冊仍有 {failed_polluted_count} 張污染圖自動清理三次後仍未成功")
+        if rep_status == "manual":
+            media_review_level = "manual"
+            media_review_label = "人工固定"
+        elif any(x in " ".join(media_review_reasons) for x in ("沒有可用主展示圖", "相冊沒有可用圖片", "本地靜態檔缺失")):
+            media_review_level = "danger"
+            media_review_label = "需人工"
+        elif media_review_reasons:
+            media_review_level = "warn"
+            media_review_label = "待確認"
         items.append(
             {
                 "content_id": d.get("content_id"),
@@ -22764,6 +24891,19 @@ def api_admin_cases(
                 "thumb_candidates": thumb_candidates[:8],
                 "thumb_kind": _thumbnail_kind_label(thumb) if thumb else "",
                 "video_count": len(vids),
+                "representative_status": rep_status,
+                "representative_provider": rep_provider,
+                "representative_score": int(d.get("representative_score") or 0),
+                "representative_reason": rep_reason,
+                "representative_static_url": rep_static,
+                "representative_backup_count": rep_backup_count,
+                "gallery_audit_count": audit_count,
+                "gallery_polluted_count": polluted_count,
+                "gallery_failed_polluted_count": failed_polluted_count,
+                "media_review_level": media_review_level,
+                "media_review_label": media_review_label,
+                "media_review_reasons": media_review_reasons[:6],
+                "media_needs_review": media_review_level in {"danger", "warn"},
                 "region_code": d.get("region_code") or "",
                 "keyword_type": d.get("keyword_type") or "",
                 "topic_category": d.get("topic_category") or "",
@@ -22793,6 +24933,216 @@ def api_admin_cases(
                 "walk_max": int(walk_max or 0),
             },
             "items": items,
+        }
+    )
+
+
+@app.get("/api/admin/media-review/cases")
+@app.get("/api/admin/cases/media-review")
+def api_admin_cases_media_review(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=5, le=100),
+):
+    """Dedicated admin queue for cases whose representative/gallery media needs human review."""
+    _require_admin_password(request)
+    page = max(1, int(page))
+    page_size = min(100, max(5, int(page_size)))
+    for _ in range(3):
+        retry = _case_retry_polluted_gallery_cleanup(limit=80)
+        if int(retry.get("attempted") or 0) <= 0:
+            break
+
+    select_sql = """
+        SELECT
+          c.id AS content_id,
+          c.source_item_id,
+          c.seo_slug,
+          c.title_zh_hant,
+          c.seo_title,
+          c.updated_at,
+          COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+          COALESCE(c.featured_weight, 0) AS featured_weight,
+          s.id AS source_item_id,
+          s.source_name,
+          s.item_url,
+          s.image_urls,
+          s.thumbnail_url,
+          s.hero_image_url,
+          s.title_original,
+          substr(COALESCE(s.body_original,''),1,1200) AS body_original,
+          COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS content_kind,
+          COALESCE(r.representative_static_url, '') AS representative_static_url,
+          COALESCE(r.status, '') AS representative_status,
+          COALESCE(r.provider, '') AS representative_provider,
+          COALESCE(r.score, 0) AS representative_score,
+          COALESCE(r.reason, '') AS representative_reason,
+          COALESCE(r.backup_static_urls_json, '[]') AS representative_backup_static_urls_json,
+          COALESCE(ga.audit_count, 0) AS gallery_audit_count,
+          COALESCE(ga.polluted_count, 0) AS gallery_polluted_count,
+          COALESCE(ga.auto_polluted_count, 0) AS gallery_auto_polluted_count,
+          COALESCE(ga.failed_polluted_count, 0) AS gallery_failed_polluted_count,
+          COALESCE(ga.max_cleanup_attempts, 0) AS gallery_max_cleanup_attempts,
+          COALESCE(ga.cleanup_last_error, '') AS gallery_cleanup_last_error
+        FROM content_items c
+        JOIN source_items s ON s.id = c.source_item_id
+        LEFT JOIN case_representative_images r ON r.source_item_id = s.id
+        LEFT JOIN (
+            SELECT source_item_id,
+                   COUNT(1) AS audit_count,
+                   SUM(CASE WHEN is_polluted THEN 1 ELSE 0 END) AS polluted_count,
+                   SUM(CASE WHEN is_polluted AND cleanup_attempts < 3 THEN 1 ELSE 0 END) AS auto_polluted_count,
+                   SUM(CASE WHEN is_polluted AND cleanup_attempts >= 3 THEN 1 ELSE 0 END) AS failed_polluted_count,
+                   MAX(cleanup_attempts) AS max_cleanup_attempts,
+                   MAX(cleanup_last_error) AS cleanup_last_error
+            FROM case_gallery_image_audit
+            GROUP BY source_item_id
+        ) ga ON ga.source_item_id = s.id
+        WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+          AND (
+            r.source_item_id IS NULL
+            OR COALESCE(r.status, '') IN ('', 'empty', 'fallback', 'rules')
+            OR COALESCE(r.status, '') IN ('selected', 'manual')
+            OR COALESCE(r.representative_static_url, '') = ''
+            OR COALESCE(r.backup_static_urls_json, '[]') IN ('', '[]')
+            OR COALESCE(ga.failed_polluted_count, 0) > 0
+            OR (
+              TRIM(COALESCE(s.hero_image_url, '')) = ''
+              AND TRIM(COALESCE(s.thumbnail_url, '')) = ''
+              AND TRIM(COALESCE(s.image_urls, '')) = ''
+              AND TRIM(COALESCE(c.listing_media_json, '')) IN ('', '[]')
+            )
+          )
+        ORDER BY
+          CASE
+            WHEN COALESCE(ga.failed_polluted_count, 0) > 0 THEN 0
+            WHEN COALESCE(r.status, '') IN ('', 'empty') THEN 1
+            WHEN COALESCE(r.representative_static_url, '') = '' THEN 2
+            ELSE 3
+          END ASC,
+          c.updated_at DESC,
+          c.id DESC
+    """
+    with get_conn() as conn:
+        rows = conn.execute(select_sql).fetchall()
+
+    review_items: list[dict[str, Any]] = []
+    for row in rows:
+        d = dict(row)
+        imgs, vids = extract_media_urls_from_row(d)
+        lm = _parse_listing_media_field(d.get("listing_media_json"))
+        thumb_candidates: list[str] = []
+        for u in imgs:
+            s = str(u or "").strip()
+            if s and s not in thumb_candidates and _row_image_url_is_usable(s):
+                thumb_candidates.append(s)
+        for m in lm:
+            if not isinstance(m, dict):
+                continue
+            u = str(m.get("url") or "").strip()
+            if u.startswith("http") and u not in thumb_candidates and _row_image_url_is_usable(u):
+                thumb_candidates.append(u)
+        stored_thumb = _case_stored_representative_static_url(d, thumb_candidates)
+        thumb = stored_thumb or (thumb_candidates[0] if thumb_candidates else "")
+
+        rep_status = str(d.get("representative_status") or "").strip()
+        rep_reason = str(d.get("representative_reason") or "").strip()
+        rep_static = str(d.get("representative_static_url") or "").strip()
+        try:
+            rep_backups = json.loads(str(d.get("representative_backup_static_urls_json") or "[]"))
+        except Exception:
+            rep_backups = []
+        if not isinstance(rep_backups, list):
+            rep_backups = []
+        rep_backup_count = len([x for x in rep_backups if str(x or "").strip()])
+        failed_polluted = int(d.get("gallery_failed_polluted_count") or 0)
+        auto_polluted = int(d.get("gallery_auto_polluted_count") or 0)
+        attempts = int(d.get("gallery_max_cleanup_attempts") or 0)
+        reasons: list[str] = []
+        level = "warn"
+        label = "待確認"
+        if failed_polluted > 0:
+            level = "danger"
+            label = "污染圖需人工"
+            err = str(d.get("gallery_cleanup_last_error") or "").strip()
+            reasons.append(f"相冊仍有 {failed_polluted} 張污染圖，已自動清理 {attempts} 次仍未成功。{err}".strip())
+        if not thumb_candidates and not imgs and not lm:
+            level = "danger"
+            if label == "待確認":
+                label = "無圖"
+            reasons.append("相冊沒有可用圖片，前台只能顯示無圖占位。")
+        if not rep_status:
+            reasons.append("尚未進行代表圖篩選，需要執行 AI 代表圖預選。")
+        elif rep_status == "empty":
+            level = "danger"
+            if label == "待確認":
+                label = "無主圖"
+            reasons.append("AI/規則均未找到可用主展示圖。")
+        elif rep_status == "fallback":
+            reasons.append(rep_reason or "AI 未選出合格展示圖，已降級使用規則圖。")
+        elif rep_status == "rules":
+            reasons.append("Gemini 未配置或未使用，代表圖由規則選出，建議人工抽查。")
+        if rep_status in {"selected", "fallback", "rules"} and not rep_static:
+            level = "danger"
+            if label == "待確認":
+                label = "檔案缺失"
+            reasons.append("代表圖記錄存在，但本地靜態檔缺失。")
+        if rep_status in {"selected", "fallback", "rules", "manual"} and rep_static:
+            static_path = _url_to_local_static_path(rep_static)
+            visual_reject = _case_image_visual_reject_reason(rep_static) if static_path else ""
+            if not static_path:
+                level = "danger"
+                if label == "待確認":
+                    label = "檔案缺失"
+                reasons.append("代表圖記錄存在，但本地靜態檔不存在或不在 static 目錄內。")
+            elif visual_reject:
+                level = "danger"
+                if label == "待確認":
+                    label = "展示圖需重選"
+                reasons.append(f"代表圖本地視覺檢查未通過：{visual_reject}。")
+        if rep_status in {"selected", "fallback", "rules", "manual"} and rep_backup_count <= 0:
+            reasons.append("沒有備用展示圖，主圖失效時缺少替補。")
+        if auto_polluted > 0:
+            reasons.append(f"另有 {auto_polluted} 張污染圖尚在自動清理重試中，未滿三次暫不列為人工失敗。")
+        if not reasons:
+            continue
+        review_items.append(
+            {
+                "content_id": d.get("content_id"),
+                "source_item_id": d.get("source_item_id"),
+                "title_zh_hant": d.get("title_zh_hant") or d.get("seo_title") or d.get("title_original") or "",
+                "source_name": d.get("source_name") or "",
+                "item_url": d.get("item_url") or "",
+                "updated_at": d.get("updated_at") or "",
+                "thumb_url": thumb,
+                "image_count": len(imgs),
+                "video_count": len(vids),
+                "representative_status": rep_status,
+                "representative_provider": str(d.get("representative_provider") or ""),
+                "representative_score": int(d.get("representative_score") or 0),
+                "representative_backup_count": rep_backup_count,
+                "gallery_audit_count": int(d.get("gallery_audit_count") or 0),
+                "gallery_polluted_count": int(d.get("gallery_polluted_count") or 0),
+                "gallery_failed_polluted_count": failed_polluted,
+                "gallery_auto_polluted_count": auto_polluted,
+                "gallery_cleanup_attempts": attempts,
+                "media_review_level": level,
+                "media_review_label": label,
+                "media_review_reasons": reasons[:8],
+            }
+        )
+
+    total = len(review_items)
+    start = (page - 1) * page_size
+    page_items = review_items[start : start + page_size]
+    return JSONResponse(
+        {
+            "ok": True,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "gemini_configured": is_gemini_configured(),
+            "items": page_items,
         }
     )
 
@@ -22845,6 +25195,7 @@ def api_admin_case_preview(content_id: int, request: Request):
         raise HTTPException(status_code=404, detail="case not found")
     d = dict(row)
     imgs, vids = extract_media_urls_from_row(d)
+    representative_media = _case_stored_representative_media(d, imgs, limit=1)
     meta = infer_case_metadata(d)
     slug = (d.get("seo_slug") or "").strip()
     article_path = _standard_article_path(slug, d.get("source_item_id")) if slug else ""
@@ -22852,6 +25203,7 @@ def api_admin_case_preview(content_id: int, request: Request):
         {
             "ok": True,
             "content_id": d.get("content_id"),
+            "source_item_id": d.get("source_item_id"),
             "seo_slug": d.get("seo_slug"),
             "seo_title": d.get("seo_title"),
             "seo_description": d.get("seo_description"),
@@ -22864,6 +25216,7 @@ def api_admin_case_preview(content_id: int, request: Request):
             "updated_at": d.get("updated_at"),
             "image_urls": imgs,
             "video_urls": vids,
+            "representative_static_url": representative_media[0] if representative_media else "",
             "article_path": article_path,
             "region_code": d.get("region_code") or "",
             "keyword_type": d.get("keyword_type") or "",
@@ -23912,6 +26265,57 @@ def api_cases_list_no_admin_path(
 def api_case_preview_no_admin_path(content_id: int, request: Request):
     """與 GET /api/admin/cases/{id}/preview 相同。"""
     return api_admin_case_preview(content_id, request)
+
+
+@app.post("/api/cases/{content_id}/representative-image")
+def api_case_set_representative_image_no_admin_path(
+    content_id: int,
+    payload: AdminRepresentativeImageManualPost,
+    request: Request,
+):
+    """與 POST /api/admin/cases/{id}/representative-image 相同。"""
+    return api_admin_case_set_representative_image(content_id, payload, request)
+
+
+@app.post("/api/cases/select-representative-images/start")
+def api_cases_select_representative_images_start_no_admin_path(
+    payload: AdminRepresentativeImageSelectPost,
+    request: Request,
+):
+    """與 POST /api/admin/cases/select-representative-images/start 相同。"""
+    return api_admin_cases_select_representative_images_start(payload, request)
+
+
+@app.get("/api/cases/select-representative-images/status")
+def api_cases_select_representative_images_status_no_admin_path(task_id: str, request: Request):
+    """與 GET /api/admin/cases/select-representative-images/status 相同。"""
+    return api_admin_cases_select_representative_images_status(task_id, request)
+
+
+@app.post("/api/cases/prewarm-representative-images/start")
+def api_cases_prewarm_representative_images_start_no_admin_path(
+    payload: AdminRepresentativeImagePrewarmPost,
+    request: Request,
+):
+    """與 POST /api/admin/cases/prewarm-representative-images/start 相同。"""
+    return api_admin_cases_prewarm_representative_images_start(payload, request)
+
+
+@app.get("/api/cases/prewarm-representative-images/status")
+def api_cases_prewarm_representative_images_status_no_admin_path(task_id: str, request: Request):
+    """與 GET /api/admin/cases/prewarm-representative-images/status 相同。"""
+    return api_admin_cases_prewarm_representative_images_status(task_id, request)
+
+
+@app.post("/api/cases/audit-gallery-images")
+def api_cases_audit_gallery_images_no_admin_path(payload: AdminGalleryImageAuditPost, request: Request):
+    """與 POST /api/admin/cases/audit-gallery-images 相同。"""
+    return api_admin_cases_audit_gallery_images(payload, request)
+
+
+@app.post("/api/cases-dashboard/audit-gallery-images")
+def api_cases_dashboard_audit_gallery_images_alias(payload: AdminGalleryImageAuditPost, request: Request):
+    return api_admin_cases_audit_gallery_images(payload, request)
 
 
 @app.delete("/api/cases/{content_id}")
@@ -27189,6 +29593,7 @@ SMART_QUERY_PORTAL_ALIASES = {
 def _portal_case_apply_representative_media(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Normalize search card media to the same representative image policy as home cards."""
     sid_media: dict[int, list[str]] = {}
+    sid_context: dict[int, dict[str, Any]] = {}
     sids = sorted(
         {
             int(item.get("source_item_id") or 0)
@@ -27201,18 +29606,26 @@ def _portal_case_apply_representative_media(items: list[dict[str, Any]]) -> list
             placeholders = ",".join("?" for _ in sids)
             with get_conn() as conn:
                 rows = conn.execute(
-                    f"SELECT id, image_urls, hero_image_url, thumbnail_url FROM source_items WHERE id IN ({placeholders})",
+                    f"""
+                    SELECT id, source_name, source_category, item_url, title_original,
+                           body_original, image_urls, hero_image_url, thumbnail_url
+                    FROM source_items
+                    WHERE id IN ({placeholders})
+                    """,
                     sids,
                 ).fetchall()
             for row in rows:
                 d = dict(row)
-                sid_media[int(d.get("id") or 0)] = [
+                sid = int(d.get("id") or 0)
+                sid_context[sid] = d
+                sid_media[sid] = [
                     str(d.get("hero_image_url") or "").strip(),
                     str(d.get("thumbnail_url") or "").strip(),
                     *_row_primary_image_url_lines(d, limit=12),
                 ]
         except Exception:
             sid_media = {}
+            sid_context = {}
     out: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
@@ -27226,17 +29639,22 @@ def _portal_case_apply_representative_media(items: list[dict[str, Any]]) -> list
             *[str(u or "").strip() for u in (nit.get("image_urls") or [])],
         ]
         raw_candidates = primary_candidates or fallback_candidates
-        stored_thumb = _case_stored_representative_static_url(
-            {"source_item_id": sid, "id": sid},
-            raw_candidates,
+        rep_row = {**sid_context.get(sid, {}), **nit, "source_item_id": sid, "id": sid}
+        rep_context = _case_representative_context_text(rep_row)
+        rep_profile = _case_representative_profile(rep_row, context=rep_context)
+        stored_gallery = _case_stored_representative_media(rep_row, raw_candidates, limit=4)
+        gallery = (
+            stored_gallery[:]
+            if stored_gallery
+            else _home_featured_fast_cached_gallery_urls(raw_candidates, limit=8, context=rep_context, profile=rep_profile)
         )
-        gallery = _case_representative_gallery_urls(raw_candidates, limit=8, fetch_limit=12)
-        if stored_thumb:
-            gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
         if not gallery and primary_candidates:
-            gallery = _case_representative_gallery_urls(fallback_candidates, limit=8, fetch_limit=12)
-            if stored_thumb:
-                gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+            gallery = _home_featured_fast_cached_gallery_urls(
+                fallback_candidates,
+                limit=8,
+                context=rep_context,
+                profile=rep_profile,
+            )
         if gallery:
             nit["thumb_url"] = gallery[0]
             nit["gallery_urls"] = gallery
@@ -27382,7 +29800,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
             "offset": page_offset if page_size > 0 else 0,
             "page_size": page_size if page_size > 0 else 0,
             "detail_gate": "openable-v1",
-            "media_policy": "representative-v1",
+            "media_policy": "detail-panel-gallery-v7",
         }
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
@@ -27430,7 +29848,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     )
     allow_search_live_backfill, live_backfill_reason = _portal_search_live_backfill_allowed(
         has_transit_filter=has_transit_filter,
-        request_limit=lim,
+        request_limit=page_size if page_size > 0 else lim,
     )
     items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
         list(data.get("items") or []),
@@ -27446,6 +29864,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     items_bf, detail_gate_meta = _portal_case_filter_openable_detail_items(items_bf)
     items_bf = _portal_case_prioritize_displayable_media(items_bf)
     items_bf = _portal_case_apply_representative_media(items_bf)
+    _case_schedule_representative_selection(items_bf[: min(len(items_bf), 4)], limit=4)
     data["items"] = items_bf
     data["portal_detail_gate"] = detail_gate_meta
     data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
@@ -30050,14 +32469,28 @@ def _portal_case_filter_openable_detail_items(items: list[dict[str, Any]]) -> tu
         if _case_detail_unavailable_reason(row):
             removed_ids.append(sid)
             continue
-        display_row = _ensure_case_listing_media_json_for_display(dict(row))
-        try:
-            case_listing_panel = _build_portal_listing_panel(display_row)
-        except Exception:
-            case_listing_panel = {}
-        if _case_missing_verified_gallery_unavailable_reason(display_row, case_listing_panel):
-            removed_ids.append(sid)
-            continue
+        display_row = _ensure_case_listing_media_json_for_display(dict(row), persist_if_empty=False)
+        if not _portal_case_has_displayable_property_media(item):
+            panel_gallery = _case_verified_property_gallery_urls(display_row, limit=8)
+            panel_gallery = _dedupe_case_gallery_urls(
+                [
+                    _normalize_listing_image_url_for_display(
+                        str(u or "").strip(),
+                        suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                        suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+                    )
+                    for u in panel_gallery
+                    if str(u or "").strip()
+                ],
+                suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+            )
+            if panel_gallery:
+                item = dict(item)
+                item["gallery_urls"] = panel_gallery[:8]
+                item["thumb_url"] = panel_gallery[0]
+                item["thumb_kind"] = _thumb_kind_label(panel_gallery[0])
+                item["image_count"] = max(int(item.get("image_count") or 0), len(panel_gallery))
         kept.append(item)
     return kept, {
         "enabled": True,
@@ -30151,6 +32584,59 @@ _PORTAL_SEARCH_ENRICH_LOCK = threading.Lock()
 _PORTAL_SEARCH_ENRICH_INFLIGHT: set[int] = set()
 _PORTAL_SEARCH_ENRICH_RECENT: dict[int, float] = {}
 _PORTAL_SEARCH_ENRICH_RECENT_MAX = 1200
+_CASE_REPRESENTATIVE_SELECT_LOCK = threading.Lock()
+_CASE_REPRESENTATIVE_SELECT_INFLIGHT: set[int] = set()
+_CASE_REPRESENTATIVE_SELECT_RECENT: dict[int, float] = {}
+_CASE_REPRESENTATIVE_SELECT_RECENT_MAX = 2000
+
+
+def _case_schedule_representative_selection(rows: list[dict[str, Any]], *, limit: int = 4, force: bool = False) -> dict[str, Any]:
+    if not is_gemini_configured():
+        return {"enabled": False, "scheduled": 0, "reason": "gemini_not_configured"}
+    now = time.time()
+    picked: list[dict[str, Any]] = []
+    with _CASE_REPRESENTATIVE_SELECT_LOCK:
+        stale = [sid for sid, ts in _CASE_REPRESENTATIVE_SELECT_RECENT.items() if now - float(ts or 0.0) > 6 * 3600]
+        for sid in stale:
+            _CASE_REPRESENTATIVE_SELECT_RECENT.pop(sid, None)
+        for row in rows:
+            if len(picked) >= max(1, int(limit or 1)):
+                break
+            if not isinstance(row, dict):
+                continue
+            sid = int(row.get("source_item_id") or row.get("id") or 0)
+            if sid <= 0:
+                continue
+            if sid in _CASE_REPRESENTATIVE_SELECT_INFLIGHT:
+                continue
+            if not force and sid in _CASE_REPRESENTATIVE_SELECT_RECENT:
+                continue
+            if not force and _case_stored_representative_static_url(row):
+                continue
+            _CASE_REPRESENTATIVE_SELECT_INFLIGHT.add(sid)
+            _CASE_REPRESENTATIVE_SELECT_RECENT[sid] = now
+            picked.append(dict(row))
+        if len(_CASE_REPRESENTATIVE_SELECT_RECENT) > _CASE_REPRESENTATIVE_SELECT_RECENT_MAX:
+            for sid, _ts in sorted(_CASE_REPRESENTATIVE_SELECT_RECENT.items(), key=lambda item: item[1])[
+                : len(_CASE_REPRESENTATIVE_SELECT_RECENT) - _CASE_REPRESENTATIVE_SELECT_RECENT_MAX
+            ]:
+                _CASE_REPRESENTATIVE_SELECT_RECENT.pop(sid, None)
+    if not picked:
+        return {"enabled": True, "scheduled": 0}
+
+    def _worker(batch: list[dict[str, Any]]) -> None:
+        for row in batch:
+            sid = int(row.get("source_item_id") or row.get("id") or 0)
+            try:
+                _case_select_representative_image_with_ai(row, force=force)
+            except Exception as exc:
+                _log_backend_error("case-representative-select-async", exc)
+            finally:
+                with _CASE_REPRESENTATIVE_SELECT_LOCK:
+                    _CASE_REPRESENTATIVE_SELECT_INFLIGHT.discard(sid)
+
+    threading.Thread(target=_worker, args=(picked,), daemon=True).start()
+    return {"enabled": True, "scheduled": len(picked), "source_item_ids": [int(x.get("source_item_id") or x.get("id") or 0) for x in picked]}
 
 
 def _source_item_text_has_any(source_item_id: int, tokens: tuple[str, ...]) -> bool:

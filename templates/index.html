@@ -1651,59 +1651,158 @@
         </details>
         <details class="admin-case-settings-details admin-case-settings-details--tools">
           <summary>
-            <strong>CSV 匯入匯出與批量工具</strong>
-            <span class="muted">重爬、模板、匯入、分頁</span>
+            <strong>AI 图片筛选与批量工具</strong>
+            <span class="muted">本地筛选、外部补抓、CSV 与分页</span>
           </summary>
-        <div class="admin-cases-bulk-tools search-row-basic" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
-          <label class="muted admin-technical-info">每來源筆數上限
-            <select id="admin-cases-per-source">
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="160" selected>160（建議）</option>
-              <option value="200">200</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-              <option value="2000">2000</option>
-              <option value="5000">5000</option>
-              <option value="10000">10000</option>
-            </select>
-            <span class="muted admin-inline-hint">七站累積上限；大量入庫請分批。</span>
-          </label>
-          <button type="button" class="secondary" onclick="batchRecrawlAdminCasesPage()">批次重爬本頁</button>
-          <button type="button" class="secondary" onclick="downloadAdminCasesTemplate()">下載 CSV 範本</button>
-          <button type="button" class="secondary" onclick="exportAdminCasesCsv()">匯出 CSV</button>
-          <label class="muted" style="margin:0;">匯入 CSV
-            <input id="admin-cases-import-csv" type="file" accept=".csv,text/csv" style="max-width:11rem;" onchange="importAdminCasesCsv(event)">
-          </label>
-          <label class="muted">每頁筆數
-            <select id="admin-cases-page-size" onchange="adminCasesPage=1;loadAdminCasesPage();">
-              <option value="20" selected>20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="200">200</option>
-            </select>
-          </label>
-          <button type="button" class="secondary" onclick="adminCasesPage=1;loadAdminCasesPage();">重新載入列表</button>
+        <div id="admin-ai-console" class="admin-cases-bulk-tools admin-ai-console">
+          <div id="admin-ai-run-status" class="admin-ai-run-status" data-phase="idle" aria-live="polite">
+            <span class="admin-ai-status-orb" aria-hidden="true"></span>
+            <div class="admin-ai-status-copy">
+              <strong id="admin-ai-run-status-title">AI 工具待命</strong>
+              <span id="admin-ai-run-status-detail">选择一个工具后，这里会显示运行阶段、AI 是否启用和执行结果。</span>
+            </div>
+            <span id="admin-ai-run-status-ai" class="admin-ai-status-pill">AI 状态待检测</span>
+            <div id="admin-ai-run-metrics" class="admin-ai-run-metrics" hidden>
+              <span id="admin-ai-run-count">0 / 0</span>
+              <span id="admin-ai-run-selected">固定 0</span>
+              <span id="admin-ai-run-issues">异常 0</span>
+            </div>
+            <div id="admin-ai-progress" class="admin-ai-progress" aria-hidden="true"><span id="admin-ai-progress-bar"></span></div>
+          </div>
+
+          <div class="admin-ai-tool-grid">
+            <section class="admin-ai-tool-card admin-ai-tool-card--local">
+              <div class="admin-ai-tool-card-head">
+                <span class="admin-ai-tool-kicker">本地已有数据</span>
+                <strong>站内图片智能整理</strong>
+                <p>只处理当前数据库已有案件与相册，适合先修复展示图、分类和污染图。</p>
+              </div>
+              <div class="admin-ai-tool-actions">
+                <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="local-representative" onclick="selectAdminCaseRepresentativeImages(false)">AI 筛选展示图</button>
+                <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="local-prewarm" onclick="prewarmAdminCaseRepresentativeImages()">AI 批量预选</button>
+                <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="local-gallery" onclick="auditAdminCaseGalleryImages()">相册分类/污染审计</button>
+              </div>
+              <p class="admin-ai-manual-hint">人工筛选：在下方案件列表点「查看」，打开相册后点击图片下方「设为展示图」。人工固定图不会被普通 AI 筛选覆盖。</p>
+            </section>
+
+            <section class="admin-ai-tool-card admin-ai-tool-card--external">
+              <div class="admin-ai-tool-card-head">
+                <span class="admin-ai-tool-kicker">外部来源补抓后</span>
+                <strong>补抓 + AI 连续流程</strong>
+                <p>先从外部来源补抓或更新，再自动进入展示图筛选、相册审计或完整流程。</p>
+              </div>
+              <label class="admin-ai-field admin-technical-info">每来源笔数上限
+                <select id="admin-cases-per-source">
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="160" selected>160（建议）</option>
+                  <option value="200">200</option>
+                  <option value="500">500</option>
+                  <option value="1000">1000</option>
+                  <option value="2000">2000</option>
+                  <option value="5000">5000</option>
+                  <option value="10000">10000</option>
+                </select>
+                <span class="muted admin-inline-hint">七站累计上限；大量入库请分批。</span>
+              </label>
+              <div class="admin-ai-tool-actions">
+                <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="external-representative" onclick="runExternalCrawlThenAdminAi('representative')">补抓 + 展示图</button>
+                <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="external-gallery" onclick="runExternalCrawlThenAdminAi('gallery')">补抓 + 相册审计</button>
+                <button type="button" class="secondary admin-ai-action-btn admin-ai-action-btn--primary" data-admin-ai-action="external-all" onclick="runExternalCrawlThenAdminAi('all')">补抓 + 完整 AI 流程</button>
+              </div>
+            </section>
+
+            <section class="admin-ai-tool-card admin-ai-tool-card--files">
+              <div class="admin-ai-tool-card-head">
+                <span class="admin-ai-tool-kicker">文件与列表工具</span>
+                <strong>CSV / 重爬 / 分页</strong>
+                <p>这些是数据维护工具，不会直接调用 AI，和智能筛选流程分开处理。</p>
+              </div>
+              <div class="admin-ai-tool-actions admin-ai-tool-actions--compact">
+                <button type="button" class="secondary" onclick="batchRecrawlAdminCasesPage()">批次重爬本页</button>
+                <button type="button" class="secondary" onclick="downloadAdminCasesTemplate()">下载 CSV 范本</button>
+                <button type="button" class="secondary" onclick="exportAdminCasesCsv()">导出 CSV</button>
+              </div>
+              <div class="admin-ai-form-grid">
+                <label class="admin-ai-field">导入 CSV
+                  <input id="admin-cases-import-csv" type="file" accept=".csv,text/csv" onchange="importAdminCasesCsv(event)">
+                </label>
+                <label class="admin-ai-field">每页笔数
+                  <select id="admin-cases-page-size" onchange="adminCasesPage=1;loadAdminCasesPage();">
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                  </select>
+                </label>
+                <button type="button" class="secondary admin-ai-reload-btn" onclick="adminCasesPage=1;loadAdminCasesPage();">重新载入列表</button>
+              </div>
+            </section>
+          </div>
         </div>
         </details>
         <p id="admin-cases-msg" class="muted"></p>
-        <div id="admin-cases-progress-wrap" class="panel slim" style="display:none;margin:0.35rem 0 0.6rem;">
-          <div id="admin-cases-progress-label" class="muted">補抓準備中...</div>
-          <div class="admin-cases-marquee" aria-live="polite">
-            <div class="admin-cases-marquee-track" id="admin-cases-marquee-track">等待工作階段…</div>
+        <div class="admin-cases-switch-shell">
+          <div class="admin-cases-view-toolbar">
+            <div class="admin-cases-view-tabs" role="tablist" aria-label="案件管理列表切換">
+              <button id="admin-cases-view-list-btn" type="button" class="admin-cases-view-tab is-active" role="tab" aria-selected="true" onclick="switchAdminCasesView('list')">案件列表</button>
+              <button id="admin-cases-view-media-btn" type="button" class="admin-cases-view-tab" role="tab" aria-selected="false" onclick="switchAdminCasesView('media')">媒體異常審核</button>
+              <button id="admin-cases-view-ai-review-btn" type="button" class="admin-cases-view-tab" role="tab" aria-selected="false" onclick="switchAdminCasesView('ai-review')">AI筛选复审</button>
+            </div>
+            <button id="admin-cases-current-refresh-btn" type="button" class="secondary admin-cases-current-refresh" onclick="refreshAdminCasesCurrentView()">刷新案件列表</button>
           </div>
-          <div style="width:100%;height:8px;background:#eef3ff;border-radius:999px;overflow:hidden;margin-top:0.35rem;">
-            <div id="admin-cases-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#2f7dfb 0%,#66a7ff 100%);transition:width .35s ease;"></div>
-          </div>
-          <div id="admin-cases-progress-meta" class="muted" style="margin-top:0.35rem;"></div>
-        </div>
-        <div id="admin-cases-list-wrap" class="muted">請先登入。</div>
-        <div class="search-row-basic admin-cases-pager" style="margin-top:0.5rem;">
-          <button id="admin-cases-prev-btn" type="button" class="secondary" onclick="adminCasesPage=Math.max(1,(adminCasesPage||1)-1);loadAdminCasesPage();" disabled>上一頁</button>
-          <span id="admin-cases-page-label" class="muted">第 1 頁</span>
-          <button id="admin-cases-next-btn" type="button" class="secondary" onclick="adminCasesPage=(adminCasesPage||1)+1;loadAdminCasesPage();" disabled>下一頁</button>
+          <section id="admin-cases-view-media-panel" class="admin-cases-view-panel" role="tabpanel" hidden>
+            <details class="admin-case-settings-details admin-media-review-panel" open>
+              <summary>
+                <strong>媒體異常審核</strong>
+                <span class="muted">代表圖／備用圖／污染圖清理失敗</span>
+              </summary>
+              <div class="search-row-basic admin-media-review-toolbar" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
+                <span id="admin-media-review-summary" class="muted">尚未載入。</span>
+              </div>
+              <div id="admin-media-review-list-wrap" class="muted">請先登入。</div>
+              <div class="search-row-basic admin-cases-pager admin-media-review-pager" style="margin-top:0.5rem;">
+                <button id="admin-media-review-prev-btn" type="button" class="secondary" onclick="adminMediaReviewPage=Math.max(1,(adminMediaReviewPage||1)-1);loadAdminMediaReviewPage();" disabled>上一頁</button>
+                <span id="admin-media-review-page-label" class="muted">第 1 頁</span>
+                <button id="admin-media-review-next-btn" type="button" class="secondary" onclick="adminMediaReviewPage=(adminMediaReviewPage||1)+1;loadAdminMediaReviewPage();" disabled>下一頁</button>
+              </div>
+            </details>
+          </section>
+          <section id="admin-cases-view-ai-review-panel" class="admin-cases-view-panel" role="tabpanel" hidden>
+            <details class="admin-case-settings-details admin-ai-review-panel" open>
+              <summary>
+                <strong>AI筛选复审</strong>
+                <span class="muted">本次筛选结果可人工改图，确认后覆盖 AI 展示图</span>
+              </summary>
+              <div class="admin-ai-review-toolbar">
+                <span id="admin-ai-review-summary" class="muted">完成一次展示图筛选后，这里会显示可人工复审的案件列表。</span>
+                <button type="button" class="secondary" onclick="clearAdminAiReviewList()">清空本次复审</button>
+              </div>
+              <div id="admin-ai-review-list-wrap" class="muted">暂无筛选结果。刷新页面或取消复审不会改动 AI 已筛选展示图。</div>
+            </details>
+          </section>
+          <section id="admin-cases-view-list-panel" class="admin-cases-view-panel is-active" role="tabpanel">
+            <div class="admin-cases-list-panel">
+              <div id="admin-cases-progress-wrap" class="panel slim" style="display:none;margin:0.35rem 0 0.6rem;">
+                <div id="admin-cases-progress-label" class="muted">補抓準備中...</div>
+                <div class="admin-cases-marquee" aria-live="polite">
+                  <div class="admin-cases-marquee-track" id="admin-cases-marquee-track">等待工作階段…</div>
+                </div>
+                <div style="width:100%;height:8px;background:#eef3ff;border-radius:999px;overflow:hidden;margin-top:0.35rem;">
+                  <div id="admin-cases-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#2f7dfb 0%,#66a7ff 100%);transition:width .35s ease;"></div>
+                </div>
+                <div id="admin-cases-progress-meta" class="muted" style="margin-top:0.35rem;"></div>
+              </div>
+              <div id="admin-cases-list-wrap" class="muted">請先登入。</div>
+              <div class="search-row-basic admin-cases-pager admin-main-cases-pager" style="margin-top:0.5rem;">
+                <button id="admin-cases-prev-btn" type="button" class="secondary" onclick="adminCasesPage=Math.max(1,(adminCasesPage||1)-1);loadAdminCasesPage();" disabled>上一頁</button>
+                <span id="admin-cases-page-label" class="muted">第 1 頁</span>
+                <button id="admin-cases-next-btn" type="button" class="secondary" onclick="adminCasesPage=(adminCasesPage||1)+1;loadAdminCasesPage();" disabled>下一頁</button>
+              </div>
+            </div>
+          </section>
         </div>
         </div>
       </div>
@@ -4231,6 +4330,9 @@
     let adminOfflineScenarios = [];
     let adminSupportQaTraining = [];
     let adminCasesPage = 1;
+    let adminMediaReviewPage = 1;
+    let adminCasesView = 'list';
+    let adminAiReviewItems = [];
     let adminHandoffPage = 1;
     let adminHandoffQuery = '';
     let adminHandoffSelectedIds = new Set();
@@ -4384,7 +4486,6 @@
         { label: '條件篩選', selector: '#admin-cases-subtab-general .admin-case-settings-details--filters' },
         { label: '來源設定', selector: '#admin-cases-subtab-general .admin-case-settings-details--sources' },
         { label: '資料補齊', selector: '#admin-cases-maintenance-panel' },
-        { label: '批量操作', selector: '#admin-cases-subtab-general .admin-case-settings-details--tools' },
       ],
       handoffs: [
         { label: '客戶留單', selector: '#admin-tab-handoffs > .panel' },
@@ -16070,6 +16171,385 @@
       await loadAdminCasesPage();
     }
 
+    function setTextIfChanged(el, value) {
+      if (!el) return;
+      const next = String(value ?? '');
+      if (el.textContent !== next) el.textContent = next;
+    }
+
+    function updateAdminAiProgressVisual(task = null) {
+      const metrics = document.getElementById('admin-ai-run-metrics');
+      const countEl = document.getElementById('admin-ai-run-count');
+      const selectedEl = document.getElementById('admin-ai-run-selected');
+      const issuesEl = document.getElementById('admin-ai-run-issues');
+      const progress = document.getElementById('admin-ai-progress');
+      const bar = document.getElementById('admin-ai-progress-bar');
+      if (!task) {
+        if (metrics) metrics.hidden = true;
+        if (progress) progress.classList.remove('is-determinate');
+        if (bar) {
+          bar.style.width = '';
+          bar.style.opacity = '';
+        }
+        return;
+      }
+      const total = Math.max(0, Number(task.total_cases || task.max_cases || 0));
+      const processed = Math.max(0, Number(task.processed || 0));
+      const selected = Math.max(0, Number(task.selected || 0));
+      const failed = Math.max(0, Number(task.failed || 0));
+      const empty = Math.max(0, Number(task.empty || 0));
+      const pct = total > 0 ? Math.max(3, Math.min(100, Math.round((processed / total) * 100))) : 0;
+      if (metrics) metrics.hidden = false;
+      setTextIfChanged(countEl, total > 0 ? `${processed} / ${total}` : `已处理 ${processed}`);
+      setTextIfChanged(selectedEl, `固定 ${selected}`);
+      setTextIfChanged(issuesEl, `异常 ${failed}｜无图 ${empty}`);
+      if (progress) progress.classList.toggle('is-determinate', total > 0);
+      if (bar) {
+        bar.style.opacity = '1';
+        bar.style.width = total > 0 ? `${pct}%` : '';
+      }
+    }
+
+    function describeAdminAiProgressTask(task, fallbackTotal = 0) {
+      const total = Math.max(0, Number(task?.total_cases || task?.max_cases || fallbackTotal || 0));
+      const processed = Math.max(0, Number(task?.processed || 0));
+      const selected = Math.max(0, Number(task?.selected || 0));
+      const failed = Math.max(0, Number(task?.failed || 0));
+      const empty = Math.max(0, Number(task?.empty || 0));
+      const current = String(task?.current_case || '').trim();
+      const batch = Number(task?.current_batch || 0);
+      const prefix = batch > 0 ? `第 ${batch} 批，` : '';
+      const count = total > 0 ? `${processed}/${total}` : `${processed}`;
+      const currentText = current ? ` 当前：${current.slice(0, 42)}。` : '';
+      return `${prefix}已处理 ${count} 笔，固定 ${selected}，异常 ${failed}，无图 ${empty}。${currentText}`;
+    }
+
+    async function pollAdminRepresentativeImageTask({
+      taskId,
+      statusUrl,
+      actionKey,
+      runningTitle,
+      successTitle,
+      failureTitle,
+      fallbackTotal = 0,
+      quiet = false,
+    }) {
+      const msg = document.getElementById('admin-cases-msg');
+      const cleanStatusUrl = String(statusUrl || '/api/admin/cases/select-representative-images/status');
+      for (;;) {
+        const qs = cleanStatusUrl.includes('?')
+          ? cleanStatusUrl
+          : `${cleanStatusUrl}?${new URLSearchParams({ task_id: String(taskId || '') }).toString()}`;
+        const statusCandidates = qs.startsWith('/api/admin/')
+          ? [qs.replace(/^\/api\/admin\//, '/api/'), qs]
+          : [qs];
+        const res = await fetchSclawApiFirstOk(statusCandidates, { headers: adminApiHeaders(false) });
+        const task = await parseApiResponseSafe(res);
+        if (!res.ok) {
+          throw new Error(task.detail || task.message || 'task status request failed');
+        }
+        updateAdminAiProgressVisual(task);
+        const detail = describeAdminAiProgressTask(task, fallbackTotal);
+        const status = String(task.status || '').toLowerCase();
+        if (status === 'done') {
+          const result = task.result && typeof task.result === 'object' ? task.result : task;
+          const doneDetail = `处理 ${Number(result.processed || task.processed || 0)} 笔，固定 ${Number(result.selected || task.selected || 0)} 笔，异常 ${Number(result.failed || task.failed || 0)}，无图 ${Number(result.empty || task.empty || 0)}。`;
+          setAdminAiToolStatus('success', successTitle || '展示图筛选完成', doneDetail, actionKey, {
+            aiConfigured: Boolean(task.gemini_configured),
+            quietMessage: quiet,
+          });
+          updateAdminAiProgressVisual(result);
+          if (msg && !quiet) setTextIfChanged(msg, `${successTitle || '展示图筛选完成'}：${doneDetail}${task.gemini_configured ? '已使用 AI。' : 'Gemini 未设置，使用规则降级。'}`);
+          return result;
+        }
+        if (status === 'error') {
+          throw new Error(String(task.error || '任务执行失败'));
+        }
+        setAdminAiToolStatus('running', runningTitle || 'AI 展示图筛选中', detail, actionKey, {
+          aiConfigured: Boolean(task.gemini_configured),
+          quietMessage: quiet,
+        });
+        if (msg && !quiet) setTextIfChanged(msg, `${runningTitle || 'AI 展示图筛选中'}：${detail}`);
+        await sleepMs(1000);
+      }
+    }
+
+    function setAdminAiToolStatus(phase, title, detail, actionKey = '', options = {}) {
+      const normalized = ['idle', 'running', 'success', 'error', 'warn'].includes(String(phase || '')) ? String(phase) : 'idle';
+      const status = document.getElementById('admin-ai-run-status');
+      const titleEl = document.getElementById('admin-ai-run-status-title');
+      const detailEl = document.getElementById('admin-ai-run-status-detail');
+      const aiEl = document.getElementById('admin-ai-run-status-ai');
+      const msg = document.getElementById('admin-cases-msg');
+      const copy = {
+        idle: ['AI 工具待命', '选择一个工具后，这里会显示运行阶段、AI 是否启用和执行结果。'],
+        running: ['AI 正在运行', '正在提交任务，请勿重复点击。'],
+        success: ['执行完成', '任务已完成。'],
+        error: ['执行失败', '请查看错误信息后重试。'],
+        warn: ['需要处理', '请先完成必要操作。'],
+      };
+      const fallback = copy[normalized] || copy.idle;
+      if (status) {
+        status.dataset.phase = normalized;
+        status.classList.toggle('is-running', normalized === 'running');
+        status.classList.toggle('is-success', normalized === 'success');
+        status.classList.toggle('is-error', normalized === 'error');
+        status.classList.toggle('is-warn', normalized === 'warn');
+      }
+      setTextIfChanged(titleEl, title || fallback[0]);
+      setTextIfChanged(detailEl, detail || fallback[1]);
+      if (aiEl) {
+        const aiStatus = options.aiConfigured === true
+          ? 'AI 已启用'
+          : options.aiConfigured === false
+            ? 'AI 未启用，规则降级'
+            : 'AI 状态待检测';
+        setTextIfChanged(aiEl, aiStatus);
+      }
+      if (options.progressTask) {
+        updateAdminAiProgressVisual(options.progressTask);
+      } else if (normalized !== 'running') {
+        updateAdminAiProgressVisual(null);
+      }
+      document.querySelectorAll('[data-admin-ai-action]').forEach((btn) => {
+        const isActive = actionKey && btn.dataset.adminAiAction === actionKey;
+        btn.disabled = normalized === 'running';
+        btn.classList.toggle('is-running', normalized === 'running' && isActive);
+        btn.classList.toggle('is-dimmed', normalized === 'running' && !isActive);
+        btn.setAttribute('aria-busy', normalized === 'running' && isActive ? 'true' : 'false');
+      });
+      if (msg && normalized !== 'idle' && !options.quietMessage) {
+        setTextIfChanged(msg, `${title || fallback[0]}${detail ? `：${detail}` : ''}`);
+      }
+    }
+
+    function requireAdminForAiTool(actionKey) {
+      if (adminPanelPassword) return true;
+      setAdminAiToolStatus('warn', '请先登录后台', '登录后才能执行 AI 筛选、补抓和媒体审计。', actionKey);
+      return false;
+    }
+
+    function describeGeminiUse(data, aiWord = 'AI') {
+      return data?.gemini_configured ? `${aiWord} 已使用。` : 'Gemini 未设置，已使用规则降级。';
+    }
+
+    function waitForAdminAiStatusPaint() {
+      return new Promise((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+      });
+    }
+
+    async function auditAdminCaseGalleryImages(options = {}) {
+      const opts = typeof options === 'object' && options != null ? options : {};
+      const actionKey = opts.actionKey || 'local-gallery';
+      if (!requireAdminForAiTool(actionKey)) return;
+      const msg = document.getElementById('admin-cases-msg');
+      const ps = Math.max(5, Math.min(80, parseInt(String(document.getElementById('admin-cases-page-size')?.value || '20'), 10) || 20));
+      const offset = Math.max(0, ((Number(adminCasesPage || 1) - 1) * ps));
+      if (!opts.skipConfirm) {
+        setAdminAiToolStatus('warn', '等待确认相册审计', `点击确认后会审计最多 ${ps} 笔案件，并清理识别出的垃圾图。`, actionKey, { quietMessage: opts.quiet });
+        await waitForAdminAiStatusPaint();
+        if (!window.confirm(`將對案件相冊進行分類歸檔並標記污染圖片（本批最多 ${ps} 筆，只處理未分類案件）。確定？`)) {
+          setAdminAiToolStatus('warn', '已取消相册审计', '没有执行任何相册分类或污染图清理。', actionKey, { quietMessage: opts.quiet });
+          return;
+        }
+      }
+      setAdminAiToolStatus('running', '相册分类/污染审计运行中', `正在审计当前范围最多 ${ps} 笔案件，识别分类、污染图并执行清理。`, actionKey, { quietMessage: opts.quiet });
+      if (msg && !opts.quiet) msg.textContent = '正在進行相冊分類／污染審計…';
+      try {
+        const res = await fetchSclawApiFirstOk([
+          '/api/cases/audit-gallery-images',
+          '/api/admin/cases/audit-gallery-images',
+          '/api/cases-dashboard/audit-gallery-images',
+        ], {
+          method: 'POST',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({ limit: ps, offset, only_missing: true }),
+        });
+        const data = await parseApiResponseSafe(res);
+        setAdminAiToolStatus(
+          'success',
+          '相册审计完成',
+          `处理 ${Number(data.processed || 0)} 笔，分类 ${Number(data.classified_cases || 0)} 笔，污染 ${Number(data.polluted_images || 0)} 张，删除 ${Number(data.removed_images || 0)} 张。`,
+          actionKey,
+          { aiConfigured: Boolean(data.gemini_configured), quietMessage: opts.quiet }
+        );
+        if (msg && !opts.quiet) {
+          msg.textContent = `相冊審計完成：處理 ${Number(data.processed || 0)} 筆，完成分類 ${Number(data.classified_cases || 0)} 筆，識別污染圖片 ${Number(data.polluted_images || 0)} 張，已從相冊刪除 ${Number(data.removed_images || 0)} 張垃圾圖。${data.gemini_configured ? '已使用 AI。' : 'Gemini 未設定，使用規則分類。'}`;
+        }
+        await loadAdminCasesPage();
+        await loadAdminMediaReviewPage();
+        return data;
+      } catch (err) {
+        setAdminAiToolStatus('error', '相册审计失败', formatApiError(err), actionKey);
+        if (msg) msg.textContent = `相冊審計失敗：${formatApiError(err)}`;
+        if (opts.rethrow) throw err;
+      }
+    }
+
+    async function selectAdminCaseRepresentativeImages(force, options = {}) {
+      const opts = typeof options === 'object' && options != null ? options : {};
+      const actionKey = opts.actionKey || 'local-representative';
+      if (!requireAdminForAiTool(actionKey)) return;
+      const msg = document.getElementById('admin-cases-msg');
+      const ps = Math.max(5, Math.min(80, parseInt(String(document.getElementById('admin-cases-page-size')?.value || '20'), 10) || 20));
+      const offset = Math.max(0, ((Number(adminCasesPage || 1) - 1) * ps));
+      const willForce = Boolean(force);
+      if (!opts.skipConfirm) {
+        setAdminAiToolStatus('warn', '等待确认展示图筛选', `点击确认后会为最多 ${ps} 笔案件筛选固定主图。`, actionKey, { quietMessage: opts.quiet });
+        await waitForAdminAiStatusPaint();
+        if (!window.confirm(`將使用 AI/規則為目前分頁範圍最多 ${ps} 筆案件篩選固定展示圖。${willForce ? '會覆蓋既有非人工展示圖。' : '只處理尚未篩選的案件。'}確定？`)) {
+          setAdminAiToolStatus('warn', '已取消展示图筛选', '没有执行 AI 筛选，也没有改动展示图缓存。', actionKey, { quietMessage: opts.quiet });
+          return;
+        }
+      }
+      setAdminAiToolStatus('running', 'AI 展示图筛选中', `正在为当前范围最多 ${ps} 笔案件选择固定主图和备用图。`, actionKey, { quietMessage: opts.quiet });
+      if (msg && !opts.quiet) msg.textContent = '正在執行 AI 展示圖篩選…';
+      try {
+        const res = await fetchSclawApiFirstOk([
+          '/api/cases/select-representative-images/start',
+          '/api/admin/cases/select-representative-images/start',
+        ], {
+          method: 'POST',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({ limit: ps, offset, only_missing: !willForce, force: willForce }),
+        });
+        const startData = await parseApiResponseSafe(res);
+        if (!res.ok || !startData.task_id) {
+          throw new Error(startData.detail || startData.message || 'representative image task start failed');
+        }
+        setAdminAiToolStatus('running', 'AI 展示图筛选已提交', `任务已创建，正在读取进度：0/${ps}。`, actionKey, {
+          aiConfigured: Boolean(startData.gemini_configured),
+          quietMessage: opts.quiet,
+          progressTask: { total_cases: ps, processed: 0, selected: 0, failed: 0, empty: 0 },
+        });
+        const data = await pollAdminRepresentativeImageTask({
+          taskId: startData.task_id,
+          statusUrl: startData.status_url || '/api/admin/cases/select-representative-images/status',
+          actionKey,
+          runningTitle: 'AI 展示图筛选中',
+          successTitle: '展示图筛选完成',
+          failureTitle: '展示图筛选失败',
+          fallbackTotal: ps,
+          quiet: opts.quiet,
+        });
+        if (!opts.quiet) showAdminAiReviewItems(data, '展示图筛选复审');
+        await loadAdminCasesPage();
+        await loadAdminMediaReviewPage();
+        return data;
+      } catch (err) {
+        setAdminAiToolStatus('error', '展示图筛选失败', formatApiError(err), actionKey);
+        if (msg) msg.textContent = `展示圖篩選失敗：${formatApiError(err)}`;
+        if (opts.rethrow) throw err;
+      }
+    }
+
+    async function prewarmAdminCaseRepresentativeImages(options = {}) {
+      const opts = typeof options === 'object' && options != null ? options : {};
+      const actionKey = opts.actionKey || 'local-prewarm';
+      if (!requireAdminForAiTool(actionKey)) return;
+      const msg = document.getElementById('admin-cases-msg');
+      const ps = Math.max(10, Math.min(80, parseInt(String(document.getElementById('admin-cases-page-size')?.value || '20'), 10) || 20));
+      const maxCases = Math.max(ps, Math.min(800, ps * 10));
+      if (!opts.skipConfirm) {
+        setAdminAiToolStatus('warn', '等待确认批量预选', `点击确认后会批量预选最多 ${maxCases} 笔案件展示图。`, actionKey, { quietMessage: opts.quiet });
+        await waitForAdminAiStatusPaint();
+        if (!window.confirm(`將批量預選最多 ${maxCases} 筆案件展示圖，降低前台即時載入壓力。只處理未篩選案件。確定？`)) {
+          setAdminAiToolStatus('warn', '已取消批量预选', '没有执行批量预选，也没有改动展示图缓存。', actionKey, { quietMessage: opts.quiet });
+          return;
+        }
+      }
+      setAdminAiToolStatus('running', 'AI 批量预选运行中', `正在批量处理最多 ${maxCases} 笔未筛选案件，降低前台实时加载压力。`, actionKey, { quietMessage: opts.quiet });
+      if (msg && !opts.quiet) msg.textContent = '正在批量預選展示圖…';
+      try {
+        const res = await fetchSclawApiFirstOk([
+          '/api/cases/prewarm-representative-images/start',
+          '/api/admin/cases/prewarm-representative-images/start',
+        ], {
+          method: 'POST',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({ batch_limit: ps, max_batches: 10, max_cases: maxCases, only_missing: true, force: false, sleep: 0.05 }),
+        });
+        const startData = await parseApiResponseSafe(res);
+        if (!res.ok || !startData.task_id) {
+          throw new Error(startData.detail || startData.message || 'representative prewarm task start failed');
+        }
+        setAdminAiToolStatus('running', 'AI 批量预选已提交', `任务已创建，正在读取进度：0/${maxCases}。`, actionKey, {
+          aiConfigured: Boolean(startData.gemini_configured),
+          quietMessage: opts.quiet,
+          progressTask: { total_cases: maxCases, processed: 0, selected: 0, failed: 0, empty: 0 },
+        });
+        const data = await pollAdminRepresentativeImageTask({
+          taskId: startData.task_id,
+          statusUrl: startData.status_url || '/api/admin/cases/prewarm-representative-images/status',
+          actionKey,
+          runningTitle: 'AI 批量预选运行中',
+          successTitle: '批量预选完成',
+          failureTitle: '批量预选失败',
+          fallbackTotal: maxCases,
+          quiet: opts.quiet,
+        });
+        if (!opts.quiet) showAdminAiReviewItems(data, '批量预选复审');
+        await loadAdminCasesPage();
+        await loadAdminMediaReviewPage();
+        return data;
+      } catch (err) {
+        setAdminAiToolStatus('error', '批量预选失败', formatApiError(err), actionKey);
+        if (msg) msg.textContent = `批量預選失敗：${formatApiError(err)}`;
+        if (opts.rethrow) throw err;
+      }
+    }
+
+    async function runExternalCrawlThenAdminAi(mode) {
+      const msg = document.getElementById('admin-cases-msg');
+      const m = String(mode || 'all').trim().toLowerCase();
+      const actionKey = m === 'representative' ? 'external-representative' : m === 'gallery' ? 'external-gallery' : 'external-all';
+      if (!requireAdminForAiTool(actionKey)) return;
+      const modeLabel = m === 'representative'
+        ? 'AI展示圖'
+          : m === 'gallery'
+          ? '相冊審計'
+          : '完整AI流程';
+      setAdminAiToolStatus('warn', `等待确认外部补抓 + ${modeLabel}`, '点击确认后会先补抓外部来源，再串联执行对应 AI 流程。', actionKey);
+      await waitForAdminAiStatusPaint();
+      if (!window.confirm(`將先從外部來源補抓／更新案件，再執行「${modeLabel}」。這會修改本地資料庫中的案件圖片與審計結果。確定？`)) {
+        setAdminAiToolStatus('warn', `已取消外部补抓 + ${modeLabel}`, '没有执行补抓，也没有改动案件图片或审计结果。', actionKey);
+        return;
+      }
+      try {
+        setAdminAiToolStatus('running', '外部补抓运行中', `正在补抓/更新外部来源，完成后会自动执行 ${modeLabel}。`, actionKey);
+        if (msg) msg.textContent = `外部來源補抓中，完成後會執行 ${modeLabel}…`;
+        await runAdminCasesCrawl('mainstream_portal', [], '', { rethrow: true });
+        adminCasesPage = 1;
+        const parts = ['外部補抓完成。'];
+        let lastGeminiConfigured = null;
+        let representativeReviewData = null;
+        if (m === 'representative' || m === 'all') {
+          setAdminAiToolStatus('running', '外部补抓完成，正在预选展示图', '正在为新入库/更新案件选择高质量固定主图。', actionKey);
+          if (msg) msg.textContent = '外部補抓完成，正在為新入庫/更新案件批量預選展示圖…';
+          const rep = await prewarmAdminCaseRepresentativeImages({ skipConfirm: true, quiet: true, rethrow: true, actionKey });
+          representativeReviewData = rep;
+          lastGeminiConfigured = Boolean(rep?.gemini_configured);
+          parts.push(`展示圖：處理 ${Number(rep?.processed || 0)}，固定 ${Number(rep?.selected || 0)}。${describeGeminiUse(rep)}`);
+        }
+        if (m === 'gallery' || m === 'all') {
+          setAdminAiToolStatus('running', '外部补抓完成，正在审计相册', '正在分类相册、识别污染图并清理垃圾图。', actionKey);
+          if (msg) msg.textContent = '外部補抓完成，正在進行相冊分類／污染審計…';
+          const audit = await auditAdminCaseGalleryImages({ skipConfirm: true, quiet: true, rethrow: true, actionKey });
+          lastGeminiConfigured = Boolean(audit?.gemini_configured);
+          parts.push(`相冊審計：處理 ${Number(audit?.processed || 0)}，分類 ${Number(audit?.classified_cases || 0)}，污染 ${Number(audit?.polluted_images || 0)}，刪除 ${Number(audit?.removed_images || 0)}。${describeGeminiUse(audit)}`);
+        }
+        setAdminAiToolStatus('success', `外部补抓 + ${modeLabel} 完成`, parts.join(' '), actionKey, { aiConfigured: lastGeminiConfigured });
+        if (msg) msg.textContent = parts.join(' ');
+        await loadAdminCasesPage();
+        await loadAdminMediaReviewPage();
+        if (representativeReviewData) showAdminAiReviewItems(representativeReviewData, `外部补抓 + ${modeLabel} 复审`);
+      } catch (err) {
+        setAdminAiToolStatus('error', `外部补抓 + ${modeLabel} 失败`, formatApiError(err), actionKey);
+        if (msg) msg.textContent = `外部補抓＋${modeLabel} 失敗：${formatApiError(err)}`;
+      }
+    }
+
     function closeAdminCaseEdit() {
       const shell = document.getElementById('admin-case-edit');
       if (shell) shell.style.display = 'none';
@@ -16762,6 +17242,339 @@
       if (next) next.disabled = safeTotal <= 0 || !hasItems || safePage >= safePages;
     }
 
+    function collectAdminAiReviewItems(payload) {
+      const out = [];
+      const seen = new Set();
+      const pushMany = (items) => {
+        if (!Array.isArray(items)) return;
+        items.forEach((item) => {
+          if (!item || typeof item !== 'object') return;
+          const id = Number(item.content_id || 0);
+          const key = id || `${item.source_item_id || ''}:${item.title || ''}:${out.length}`;
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          out.push(item);
+        });
+      };
+      pushMany(payload?.review_items);
+      pushMany(payload?.sample_review_items);
+      if (Array.isArray(payload?.batches)) {
+        payload.batches.forEach((batch) => {
+          pushMany(batch?.review_items);
+          pushMany(batch?.sample_review_items);
+        });
+      }
+      return out;
+    }
+
+    function showAdminAiReviewItems(payload, title = 'AI筛选复审') {
+      const items = collectAdminAiReviewItems(payload);
+      adminAiReviewItems = items;
+      renderAdminAiReviewList(title);
+      if (items.length) switchAdminCasesView('ai-review');
+    }
+
+    function clearAdminAiReviewList() {
+      adminAiReviewItems = [];
+      renderAdminAiReviewList('AI筛选复审');
+    }
+
+    function adminAiReviewStatusLabel(item) {
+      const status = String(item?.status || '').trim().toLowerCase();
+      if (status === 'manual') return '人工固定';
+      if (status === 'selected') return 'AI已选';
+      if (status === 'fallback' || status === 'rules') return '规则备选';
+      if (status === 'cached') return '已有缓存';
+      if (status === 'empty' || status === 'no_images' || status === 'no_candidates') return '无可用图';
+      if (status === 'error') return '异常';
+      return status || '待确认';
+    }
+
+    function refreshAdminCasesCurrentView() {
+      const view = String(adminCasesView || 'list');
+      const msg = document.getElementById('admin-cases-msg');
+      if (view === 'media') {
+        adminMediaReviewPage = 1;
+        loadAdminMediaReviewPage().catch((err) => {
+          if (msg) msg.textContent = `媒体异常审核刷新失败：${formatApiError(err)}`;
+        });
+        return;
+      }
+      if (view === 'ai-review') {
+        renderAdminAiReviewList('AI筛选复审');
+        if (msg) msg.textContent = '已刷新当前 AI 复审分栏。';
+        return;
+      }
+      adminCasesPage = 1;
+      loadAdminCasesPage().catch((err) => {
+        if (msg) msg.textContent = `案件列表刷新失败：${formatApiError(err)}`;
+      });
+    }
+
+    function updateAdminCasesRefreshButtonLabel(view) {
+      const btn = document.getElementById('admin-cases-current-refresh-btn');
+      if (!btn) return;
+      const v = String(view || adminCasesView || 'list');
+      btn.textContent = v === 'media' ? '刷新媒体异常' : v === 'ai-review' ? '刷新复审栏' : '刷新案件列表';
+    }
+
+    function renderAdminAiReviewList(title = 'AI筛选复审') {
+      const wrap = document.getElementById('admin-ai-review-list-wrap');
+      const summary = document.getElementById('admin-ai-review-summary');
+      if (!wrap) return;
+      const items = Array.isArray(adminAiReviewItems) ? adminAiReviewItems : [];
+      const okCount = items.filter((it) => it && it.ok).length;
+      const emptyCount = items.filter((it) => /^(empty|no_images|no_candidates)$/i.test(String(it?.status || ''))).length;
+      const issueCount = items.length - okCount;
+      if (summary) {
+        summary.textContent = items.length
+          ? `${title}：共 ${items.length} 笔，AI/规则成功 ${okCount}，异常 ${issueCount}，真实无图或无可用图 ${emptyCount}。刷新或清空不会覆盖 AI 结果。`
+          : '完成一次展示图筛选后，这里会显示可人工复审的案件列表。';
+      }
+      if (!items.length) {
+        wrap.innerHTML = '<p class="muted">暂无筛选结果。刷新页面或取消复审不会改动 AI 已筛选展示图。</p>';
+        return;
+      }
+      let html = '<div class="admin-ai-review-list">';
+      items.forEach((item, idx) => {
+        const id = Number(item.content_id || 0);
+        const titleText = String(item.title || '未命名案件').slice(0, 120);
+        const sourceName = String(item.source_name || '').slice(0, 40);
+        const statusLabel = adminAiReviewStatusLabel(item);
+        const status = String(item.status || '').toLowerCase();
+        const statusClass = item.ok ? 'admin-ai-review-badge--ok' : status === 'empty' || status === 'no_images' || status === 'no_candidates' ? 'admin-ai-review-badge--empty' : 'admin-ai-review-badge--warn';
+        const reason = String(item.reason || '').trim();
+        const provider = String(item.provider || '').trim();
+        const score = Number(item.score || 0);
+        const gallery = Array.isArray(item.gallery_urls)
+          ? item.gallery_urls.map((x) => String(x || '').trim()).filter(Boolean)
+          : [];
+        const selected = String(item.selected_url || item.selected_static_url || gallery[0] || '').trim();
+        html += `<article class="admin-ai-review-card" data-admin-ai-review-index="${idx}">`;
+        html += '<div class="admin-ai-review-card-head">';
+        html += `<span class="admin-ai-review-badge ${statusClass}">${esc(statusLabel)}</span>`;
+        html += `<strong>${esc(titleText)}</strong>`;
+        html += `<span class="muted">#${esc(String(id || item.source_item_id || ''))}${sourceName ? `｜${esc(sourceName)}` : ''}${provider ? `｜${esc(provider)}` : ''}${score ? `｜评分 ${esc(String(score))}` : ''}</span>`;
+        html += '</div>';
+        html += reason ? `<p class="admin-ai-review-reason">${esc(reason)}</p>` : '<p class="admin-ai-review-reason muted">后端未提供原因，可打开相册复查。</p>';
+        if (gallery.length) {
+          html += '<div class="admin-ai-review-gallery">';
+          gallery.slice(0, 12).forEach((url, imageIdx) => {
+            const displayUrl = adminCasesThumbDisplayUrl(url);
+            const checked = String(url) === selected || (!selected && imageIdx === 0);
+            html += `<label class="admin-ai-review-thumb${checked ? ' is-selected' : ''}">`;
+            html += `<input type="radio" name="admin-ai-review-choice-${idx}" value="${esc(url)}"${checked ? ' checked' : ''} onchange="syncAdminAiReviewChoice(${idx})">`;
+            html += displayUrl
+              ? `<img src="${esc(displayUrl)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+              : '<span>无预览</span>';
+            html += '</label>';
+          });
+          html += '</div>';
+        } else {
+          html += '<div class="admin-ai-review-empty">没有候选图片。通常是真实无图、原站图抓取失败，或全部图片被污染/语义规则剔除；需要先补抓或编辑案件图片。</div>';
+        }
+        html += '<div class="admin-ai-review-actions">';
+        html += id ? `<button type="button" class="secondary" onclick="previewAdminCase(${id})">打开相册</button>` : '';
+        html += id ? `<button type="button" class="secondary" onclick="openAdminCaseEdit(${id})">编辑案件</button>` : '';
+        html += id && gallery.length ? `<button type="button" onclick="confirmAdminAiReviewItem(${idx})">确认覆盖 AI 展示图</button>` : '<button type="button" disabled>无法确认</button>';
+        html += '<span class="admin-ai-review-item-msg muted"></span>';
+        html += '</div>';
+        html += '</article>';
+      });
+      html += '</div>';
+      wrap.innerHTML = html;
+    }
+
+    function syncAdminAiReviewChoice(index) {
+      const card = document.querySelector(`[data-admin-ai-review-index="${Number(index)}"]`);
+      if (!card) return;
+      card.querySelectorAll('.admin-ai-review-thumb').forEach((label) => {
+        const input = label.querySelector('input[type="radio"]');
+        label.classList.toggle('is-selected', Boolean(input && input.checked));
+      });
+    }
+
+    async function confirmAdminAiReviewItem(index) {
+      const idx = Number(index);
+      const item = Array.isArray(adminAiReviewItems) ? adminAiReviewItems[idx] : null;
+      const id = Number(item?.content_id || 0);
+      const card = document.querySelector(`[data-admin-ai-review-index="${idx}"]`);
+      const msg = card?.querySelector('.admin-ai-review-item-msg');
+      const choice = card?.querySelector(`input[name="admin-ai-review-choice-${idx}"]:checked`);
+      const url = String(choice?.value || '').trim();
+      if (!id || !url) {
+        if (msg) msg.textContent = '请先选择一张候选图。';
+        return;
+      }
+      if (msg) msg.textContent = '正在人工确认覆盖…';
+      try {
+        const data = await setAdminCaseRepresentativeImage(id, url, { skipConfirm: true, silent: true, noPreviewReload: true, rethrow: true });
+        if (msg) msg.textContent = `已人工固定：${String(data?.representative_static_url || '').slice(0, 80)}`;
+        adminAiReviewItems[idx] = {
+          ...item,
+          ok: true,
+          status: 'manual',
+          provider: 'manual',
+          selected_url: url,
+          selected_static_url: String(data?.representative_static_url || ''),
+          reason: '人工复审确认覆盖 AI/规则展示图。',
+        };
+        renderAdminAiReviewList('AI筛选复审已更新');
+        await loadAdminMediaReviewPage();
+      } catch (err) {
+        if (msg) msg.textContent = `确认失败：${formatApiError(err)}`;
+      }
+    }
+
+    function switchAdminCasesView(view) {
+      const nextView = view === 'media' ? 'media' : view === 'ai-review' ? 'ai-review' : 'list';
+      adminCasesView = nextView;
+      const listPanel = document.getElementById('admin-cases-view-list-panel');
+      const mediaPanel = document.getElementById('admin-cases-view-media-panel');
+      const aiReviewPanel = document.getElementById('admin-cases-view-ai-review-panel');
+      const listBtn = document.getElementById('admin-cases-view-list-btn');
+      const mediaBtn = document.getElementById('admin-cases-view-media-btn');
+      const aiReviewBtn = document.getElementById('admin-cases-view-ai-review-btn');
+      if (listPanel) {
+        listPanel.hidden = nextView !== 'list';
+        listPanel.classList.toggle('is-active', nextView === 'list');
+      }
+      if (mediaPanel) {
+        mediaPanel.hidden = nextView !== 'media';
+        mediaPanel.classList.toggle('is-active', nextView === 'media');
+      }
+      if (aiReviewPanel) {
+        aiReviewPanel.hidden = nextView !== 'ai-review';
+        aiReviewPanel.classList.toggle('is-active', nextView === 'ai-review');
+      }
+      if (listBtn) {
+        listBtn.classList.toggle('is-active', nextView === 'list');
+        listBtn.setAttribute('aria-selected', nextView === 'list' ? 'true' : 'false');
+      }
+      if (mediaBtn) {
+        mediaBtn.classList.toggle('is-active', nextView === 'media');
+        mediaBtn.setAttribute('aria-selected', nextView === 'media' ? 'true' : 'false');
+      }
+      if (aiReviewBtn) {
+        aiReviewBtn.classList.toggle('is-active', nextView === 'ai-review');
+        aiReviewBtn.setAttribute('aria-selected', nextView === 'ai-review' ? 'true' : 'false');
+      }
+      updateAdminCasesRefreshButtonLabel(nextView);
+      if (nextView === 'ai-review') {
+        renderAdminAiReviewList();
+      }
+    }
+
+    function updateAdminMediaReviewPager(page, totalPages, total, hasItems = true) {
+      const lab = document.getElementById('admin-media-review-page-label');
+      const prev = document.getElementById('admin-media-review-prev-btn');
+      const next = document.getElementById('admin-media-review-next-btn');
+      const summary = document.getElementById('admin-media-review-summary');
+      const ai = String(window.__adminMediaReviewAiStatus || '');
+      const aiText = ai ? `｜${ai}` : '';
+      const safeTotal = Math.max(0, Number(total || 0));
+      const safePages = safeTotal > 0 ? Math.max(1, Number(totalPages || 1)) : 0;
+      const safePage = safePages > 0 ? Math.min(Math.max(1, Number(page || 1)), safePages) : 1;
+      if (lab) {
+        lab.textContent = safeTotal > 0
+          ? (hasItems ? `第 ${safePage} / ${safePages} 頁（共 ${safeTotal} 筆）` : `本頁無資料（共 ${safeTotal} 筆）`)
+          : '無異常';
+      }
+      if (summary) summary.textContent = safeTotal > 0
+        ? `目前有 ${safeTotal} 筆需人工確認的媒體問題。污染圖會先自動清理最多 3 次，仍失敗才出現在這裡。${aiText}`
+        : `目前沒有需要人工處理的媒體異常。${aiText}`;
+      if (prev) prev.disabled = safeTotal <= 0 || safePage <= 1;
+      if (next) next.disabled = safeTotal <= 0 || !hasItems || safePage >= safePages;
+    }
+
+    async function loadAdminMediaReviewPage() {
+      const wrap = document.getElementById('admin-media-review-list-wrap');
+      if (!wrap) return;
+      if (!adminPanelPassword) {
+        wrap.innerHTML = '<p class="muted">請先登入。</p>';
+        updateAdminMediaReviewPager(1, 0, 0);
+        return;
+      }
+      const ps = Math.max(5, Math.min(100, parseInt(String(document.getElementById('admin-cases-page-size')?.value || '20'), 10) || 20));
+      wrap.textContent = '載入媒體審核列表中…';
+      try {
+        const qs = new URLSearchParams({
+          page: String(adminMediaReviewPage || 1),
+          page_size: String(ps),
+        }).toString();
+        const res = await fetchSclawApiFirstOk([
+          `/api/admin/media-review/cases?${qs}`,
+          `/api/admin/cases/media-review?${qs}`,
+        ], { headers: adminApiHeaders(false) });
+        const data = await parseApiResponseSafe(res);
+        window.__adminMediaReviewAiStatus = data.gemini_configured ? 'AI 已配置' : 'AI 未配置，列表只顯示規則／已存審核結果';
+        const total = Number(data.total || 0);
+        const page = Math.max(1, Number(data.page || 1));
+        const pageSize = Number(data.page_size || ps);
+        const totalPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+        if (total <= 0) {
+          adminMediaReviewPage = 1;
+          updateAdminMediaReviewPager(1, 0, 0);
+          wrap.innerHTML = '<p class="muted">目前沒有需要人工審核的媒體問題。</p>';
+          return;
+        }
+        if (page > totalPages) {
+          adminMediaReviewPage = totalPages;
+          return loadAdminMediaReviewPage();
+        }
+        adminMediaReviewPage = page;
+        const items = Array.isArray(data.items) ? data.items : [];
+        updateAdminMediaReviewPager(page, totalPages, total, Boolean(items.length));
+        if (!items.length) {
+          wrap.innerHTML = '<p class="muted">本頁沒有資料，請回上一頁或重新刷新。</p>';
+          return;
+        }
+        let html = '<div class="admin-media-review-list">';
+        for (const it of items) {
+          const id = Number(it.content_id || 0);
+          const title = esc(String(it.title_zh_hant || '未命名').slice(0, 120));
+          const src = esc(String(it.source_name || ''));
+          const updated = esc(String(it.updated_at || ''));
+          const thumb = adminCasesThumbDisplayUrl(String(it.thumb_url || '').trim());
+          const level = String(it.media_review_level || 'warn');
+          const label = esc(String(it.media_review_label || '待確認'));
+          const cls = level === 'danger' ? 'admin-media-review-badge--danger' : 'admin-media-review-badge--warn';
+          const reasons = Array.isArray(it.media_review_reasons)
+            ? it.media_review_reasons.map((x) => String(x || '').trim()).filter(Boolean)
+            : [];
+          const reasonHtml = reasons.length
+            ? `<ul class="admin-media-review-reasons">${reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
+            : '<p class="muted">後端未提供原因，請進入預覽頁檢查相冊。</p>';
+          const repStatus = esc(String(it.representative_status || '未篩選'));
+          const repProvider = esc(String(it.representative_provider || ''));
+          const backupCount = esc(String(Number(it.representative_backup_count || 0)));
+          const failedPolluted = esc(String(Number(it.gallery_failed_polluted_count || 0)));
+          const autoPolluted = esc(String(Number(it.gallery_auto_polluted_count || 0)));
+          const attempts = esc(String(Number(it.gallery_cleanup_attempts || 0)));
+          html += '<article class="admin-media-review-card">';
+          html += thumb
+            ? `<div class="admin-media-review-thumb"><img src="${esc(thumb)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>`
+            : '<div class="admin-media-review-thumb admin-media-review-thumb--empty">無圖</div>';
+          html += '<div class="admin-media-review-body">';
+          html += `<div class="admin-media-review-head"><span class="admin-media-review-badge ${cls}">${label}</span><strong>${title}</strong></div>`;
+          html += `<div class="admin-media-review-meta">#${esc(String(id))}｜${src}｜更新 ${updated}</div>`;
+          html += `<div class="admin-media-review-facts"><span>代表圖: ${repStatus}${repProvider ? ` / ${repProvider}` : ''}</span><span>備用圖: ${backupCount}</span><span>污染失敗: ${failedPolluted}</span><span>自動重試中: ${autoPolluted}</span><span>清理次數: ${attempts}/3</span></div>`;
+          html += reasonHtml;
+          html += '</div>';
+          html += '<div class="admin-media-review-actions">';
+          html += `<button type="button" class="secondary" onclick="previewAdminCase(${id})">查看相冊</button>`;
+          html += `<button type="button" class="secondary" onclick="openAdminCaseEdit(${id})">編輯案件</button>`;
+          html += '</div>';
+          html += '</article>';
+        }
+        html += '</div>';
+        wrap.innerHTML = html;
+      } catch (err) {
+        updateAdminMediaReviewPager(1, 0, 0, false);
+        wrap.innerHTML = `<p class="muted">媒體審核列表載入失敗：${esc(formatApiError(err))}</p>`;
+      }
+    }
+
     async function loadAdminCasesPage() {
       const wrap = document.getElementById('admin-cases-list-wrap');
       const msg = document.getElementById('admin-cases-msg');
@@ -16805,6 +17618,7 @@
           window.__adminCasesLastTotal = 0;
           updateAdminCasesPager(1, 0, 0);
           wrap.innerHTML = '<p class="muted">目前篩選條件沒有案件資料。</p>';
+          loadAdminMediaReviewPage().catch(() => {});
           return;
         }
         if (page > totalPages) {
@@ -16863,6 +17677,7 @@
         }
         html += '</tbody></table>';
         wrap.innerHTML = `<div class="admin-cases-scroll">${html}</div>`;
+        loadAdminMediaReviewPage().catch(() => {});
       } catch (err) {
         window.__adminCasesLastItems = [];
         window.__adminCasesLastTotal = 0;
@@ -16960,6 +17775,48 @@
       });
     }
 
+    async function setAdminCaseRepresentativeImage(contentId, imageUrl, options = {}) {
+      const opts = typeof options === 'object' && options != null ? options : {};
+      const id = Number(contentId);
+      const url = String(imageUrl || '').trim();
+      const msg = document.getElementById('admin-cases-msg');
+      if (!id || !url) {
+        const err = new Error('缺少案件或图片资料，无法设定展示图。');
+        if (opts.rethrow) throw err;
+        return;
+      }
+      if (!adminPanelPassword) {
+        const err = new Error('请先登录后台管理，再设定展示图。');
+        if (opts.rethrow) throw err;
+        return;
+      }
+      if (!opts.skipConfirm && !window.confirm('將把這張相冊圖片固定為案件卡片展示圖。確定？')) return;
+      if (msg && !opts.silent) msg.textContent = '正在設定展示圖…';
+      try {
+        const res = await fetchSclawApiFirstOk([
+          `/api/cases/${id}/representative-image`,
+          `/api/admin/cases/${id}/representative-image`,
+        ], {
+          method: 'POST',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({ image_url: url }),
+        });
+        const data = await parseApiResponseSafe(res);
+        if (msg && !opts.silent) msg.textContent = `已設定展示圖：${String(data.representative_static_url || '').slice(0, 120)}`;
+        if (!opts.noPreviewReload) await previewAdminCase(id);
+        await loadAdminCasesPage();
+        return data;
+      } catch (err) {
+        if (msg && !opts.silent) msg.textContent = `設定展示圖失敗：${formatApiError(err)}`;
+        if (opts.rethrow) throw err;
+      }
+    }
+
+    function setAdminCaseRepresentativeImageFromButton(btn) {
+      if (!btn) return;
+      setAdminCaseRepresentativeImage(btn.getAttribute('data-content-id'), btn.getAttribute('data-rep-url'));
+    }
+
     async function previewAdminCase(contentId) {
       const id = Number(contentId);
       const shell = document.getElementById('admin-case-preview');
@@ -16984,6 +17841,10 @@
         const fwPrev = Number(d.featured_weight || 0);
         if (fwPrev > 0) {
           h += `<p class="muted">重點推薦權重：<strong>${esc(String(fwPrev))}</strong>（智能客服會依權重主動提出）</p>`;
+        }
+        if (d.representative_static_url) {
+          const ru = esc(String(d.representative_static_url));
+          h += `<p class="muted">目前固定展示圖：<a href="${ru}" target="_blank" rel="noopener noreferrer">${ru}</a></p>`;
         }
         if (d.item_url) {
           const iu = esc(String(d.item_url));
@@ -17029,9 +17890,15 @@
             const uu = esc(String(u));
             const su = esc(portalListingThumbDisplayUrl(String(u), 720, 480));
             const fp = ix < 3 ? 'fetchpriority="high"' : '';
+            const isCurrentRep = String(d.representative_static_url || '') && String(d.representative_static_url || '') === String(u);
+            const repLabel = isCurrentRep ? '当前展示图' : '设为展示图';
+            const repDisabled = isCurrentRep ? ' disabled' : '';
+            h += '<div class="admin-case-preview-media-choice" style="display:flex;flex-direction:column;gap:0.35rem;align-items:stretch;">';
             h += `<button type="button" class="admin-case-preview-zoombtn" data-full="${uu}" title="點擊放大預覽">`;
             h += `<img src="${su}" alt="案件圖片" class="admin-case-preview-zoomimg" width="360" height="240" loading="${ix < 6 ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer" ${fp}>`;
             h += '</button>';
+            h += `<button type="button" class="secondary" data-content-id="${esc(String(id))}" data-rep-url="${uu}" onclick="setAdminCaseRepresentativeImageFromButton(this)"${repDisabled}>${repLabel}</button>`;
+            h += '</div>';
           }
           h += '</div>';
         }
@@ -21753,11 +22620,11 @@
       return false;
     }
 
-    const HOME_FEATURED_RECOMMEND_SIZE = 6;
+    const HOME_FEATURED_RECOMMEND_SIZE = 7;
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
     const HOME_FEATURED_TYPE_PRELOADS = {{ home_featured_type_preloads|default({})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v18.';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v19.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
@@ -22538,43 +23405,11 @@
       const heroEl = document.getElementById('home-featured-hero');
       const gridEl = document.getElementById('home-featured-grid');
       if (!heroEl || !gridEl) return;
-      const items = homeFeaturedCases.map(homeFeaturedNormalizeCase).filter(Boolean);
+      const items = homeFeaturedCases.map(homeFeaturedNormalizeCase).filter(Boolean).slice(0, HOME_FEATURED_RECOMMEND_SIZE);
       homeFeaturedCases = items;
-      const hero = items[0];
-      if (hero) {
-        const url = String(hero.case_path || (hero.source_item_id ? `/case/${hero.source_item_id}` : '#')).trim();
-        const heroArea = String(hero.area_hint || '').trim();
-        const heroTitle = homeFeaturedHeroPromoTitle(hero);
-        const heroText = homeFeaturedHeroPromoText(hero);
-        homeFeaturedCaseMap.set(supportCaseKeyFromItem(hero), hero);
-        heroEl.hidden = false;
-        heroEl.innerHTML = `
-          <article class="home-featured-hero-card" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
-            <div class="home-featured-hero-media">
-              <a class="home-featured-hero-media-link" href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)" aria-label="查看本周推荐房源明细">
-                ${homeFeaturedImage(hero, 'home-featured-hero-img', true)}
-                ${homeFeaturedMediaSpecHtml(hero)}
-              </a>
-              ${homeFeaturedActionButtons(hero)}
-            </div>
-            <div class="home-featured-hero-copy">
-              <span class="home-featured-hero-label">本周推荐</span>
-              <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(heroTitle)}</a></h3>
-              <p>${esc(heroText)}</p>
-              <div class="home-featured-hero-facts">
-                <span>${esc(hero.source_name || '原站')}</span>
-                <span>${esc(hero.price_hint || '价格待确认')}</span>
-                ${heroArea ? `<span>${esc(heroArea)}</span>` : ''}
-                <span>${esc(homeFeaturedCardLocation(hero))}</span>
-              </div>
-            </div>
-          </article>`;
-      } else {
-        heroEl.hidden = true;
-        heroEl.innerHTML = '';
-      }
-      gridEl.innerHTML = items.slice(1).map((item, ix) => homeFeaturedCardHtml(item, ix + 1)).join('');
-      bindHomeFeaturedImageContentCrop(heroEl);
+      heroEl.hidden = true;
+      heroEl.innerHTML = '';
+      gridEl.innerHTML = items.map((item, ix) => homeFeaturedCardHtml(item, ix)).join('');
       bindHomeFeaturedImageContentCrop(gridEl);
       syncFigureCaseFavoriteButtons();
       syncFigureCaseSavedButtons();
@@ -22602,7 +23437,7 @@
       homeFeaturedOffset = Number(sourcePayload?.next_offset || homeFeaturedCases.length || 0);
       homeFeaturedBatchOffset = 0;
       renderHomeFeaturedCases();
-      homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，每行最多 3 张卡，可换一批或点卡片查看站内明细。`);
+      homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，按 2 + 3 + 2 通用卡片排列，可换一批或点卡片查看站内明细。`);
 
       if (preloadItems.length) {
         homeFeaturedStorageSet(homeFeaturedSpotlightCacheKey(), 0, HOME_FEATURED_PRELOAD);
@@ -22662,7 +23497,7 @@
           homeFeaturedCases = stored.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
           homeFeaturedOffset = Number(storagePayload.next_offset || homeFeaturedCases.length || 0);
           renderHomeFeaturedCases();
-          homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，每行最多 3 张卡，可换一批或点卡片查看站内明细。`);
+          homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，按 2 + 3 + 2 通用卡片排列，可换一批或点卡片查看站内明细。`);
         }
       }
       if (!keepExisting && !homeFeaturedCases.length) homeFeaturedCases = [];
@@ -22687,7 +23522,7 @@
           homeFeaturedStorageSet(homeFeaturedSpotlightCacheKey(), requestOffset, data);
         }
         const count = homeFeaturedCases.length;
-        homeFeaturedSetStatus(count ? `本批固定推荐 ${count} 笔高品质房源，每行最多 3 张卡，可换一批或点卡片查看站内明细。` : '目前没有可推荐的精选房源。');
+        homeFeaturedSetStatus(count ? `本批固定推荐 ${count} 笔高品质房源，按 2 + 3 + 2 通用卡片排列，可换一批或点卡片查看站内明细。` : '目前没有可推荐的精选房源。');
       } catch (_) {
         homeFeaturedSetStatus(homeFeaturedCases.length ? `已显示上次载入的 ${homeFeaturedCases.length} 笔房源。` : '精选房源暂时无法载入，请稍后再试。');
       } finally {
