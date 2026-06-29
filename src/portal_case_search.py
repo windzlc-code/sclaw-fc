@@ -23,6 +23,10 @@ from src.coverage_matrix_sql import coverage_region_where_sql
 from src.db import get_conn
 from src.homes_media_filter import is_homes_non_property_media, media_entry_url_context
 from src.jp_listing_region_index import REGION_INDEX_SEARCH_KEYS, normalize_region_index_search_key
+from src.portal_media_filter import (
+    is_portal_non_property_image_url,
+    is_suumo_non_property_image_url as _shared_is_suumo_non_property_image_url,
+)
 
 # 與「日本區域」下拉、巡檢矩陣地區列一致，供關鍵字首詞推斷
 _JP_AREA_LABEL_SET: frozenset[str] = frozenset(x for x in JP_AREA_FILTER_LABELS if str(x or "").strip())
@@ -1779,6 +1783,8 @@ def _is_non_listing_asset_url(text: str) -> bool:
     s = str(text or "").strip().lower()
     if not s:
         return False
+    if _shared_is_suumo_non_property_image_url(s):
+        return True
     if _is_yahoo_listing_image_url(s):
         return False
     try:
@@ -1896,6 +1902,11 @@ def _is_non_listing_asset_url(text: str) -> bool:
     if dims and max(int(x) for x in dims) <= 180:
         return True
     return False
+
+
+def is_suumo_non_property_image_url(text: str) -> bool:
+    """Return True for SUUMO page chrome, agency media, thumbnails and nearby-facility photos."""
+    return _shared_is_suumo_non_property_image_url(text)
 
 
 def _is_yahoo_listing_image_url(text: str) -> bool:
@@ -2138,11 +2149,13 @@ def _listing_image_candidates_scored(
     def _at_cap() -> bool:
         return max_c > 0 and len(candidates) >= max_c
 
-    def _push(u: str, *, from_lm: bool = False, from_body: bool = False) -> None:
+    def _push(u: str, *, from_lm: bool = False, from_body: bool = False, context: str = "") -> None:
         s = str(u or "").strip().rstrip(").,;\"'")
         if not s:
             return
         if not s.startswith("http"):
+            return
+        if is_portal_non_property_image_url(s, item_url=item_url, context=context):
             return
         if not _is_percent_encoding_valid(s):
             return
@@ -2191,9 +2204,10 @@ def _listing_image_candidates_scored(
                 u, ctx = media_entry_url_context(entry)
                 if not u:
                     continue
-                if is_homes_non_property_media(u, ctx):
+                u_lc = str(u or "").lower()
+                if ("homes.co.jp" in u_lc or "homes.jp" in u_lc) and is_homes_non_property_media(u, ctx):
                     continue
-                _push(u, from_lm=True)
+                _push(u, from_lm=True, context=ctx)
         else:
             i = 0
             n = len(lm_text)

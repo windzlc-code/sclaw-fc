@@ -26,6 +26,7 @@ from src.bsoup import soup_from_html
 from src.config import DATA_DIR
 from src.homes_media_filter import is_homes_non_property_asset_url
 from src.homes_media_token import homes_listing_image_tokens
+from src.portal_media_filter import clean_portal_image_urls, is_portal_non_property_image_url
 from src.portal_http import PORTAL_BROWSER_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -2911,6 +2912,10 @@ def _suumo_resize_decoded_src_is_property(src_dec: str) -> bool:
         )
     ):
         return False
+    if re.search(r"/front/gazo/fr/bukken/[^?\s\"']+_s\d+[ot]\.(?:jpe?g|png|webp)", low):
+        return False
+    if re.search(r"/front/gazo/fr/bukken/[^?\s\"']+_(?:g|c|r|\d+|s\d+)t\.(?:jpe?g|png|webp)", low):
+        return False
     return any(
         x in low
         for x in (
@@ -3482,7 +3487,7 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
                 return parsed._replace(query=urlencode(list(q.items()), doseq=True)).geturl()
         except Exception:
             pass
-        if is_homes_non_property_asset_url(s):
+        if is_homes_non_property_asset_url(s) or is_portal_non_property_image_url(s, item_url=page_url):
             return ""
         return s if s.startswith(("http://", "https://")) else ""
 
@@ -3537,6 +3542,8 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
             lu = nu.lower()
             if any(x in lu for x in ("logo", "icon", "spacer", "pixel", "1x1")):
                 continue
+            if is_portal_non_property_image_url(nu, item_url=page_url):
+                continue
             if nu not in imgs:
                 imgs.append(nu)
                 _track_homes_match(nu)
@@ -3544,6 +3551,8 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
             for nu2 in _urls_from_srcset_attr(str(img.get(attr) or ""), page_url):
                 lu2 = nu2.lower()
                 if any(x in lu2 for x in ("logo", "icon", "spacer", "pixel", "1x1")):
+                    continue
+                if is_portal_non_property_image_url(nu2, item_url=page_url):
                     continue
                 if nu2 not in imgs:
                     imgs.append(nu2)
@@ -3555,6 +3564,7 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
     # 直接丟棄以避免跨案汙染。
     if homes_tokens:
         imgs = homes_matched if homes_matched else []
+    imgs = clean_portal_image_urls(page_url, imgs, max_urls=120)
 
     main = soup.find("main") or soup.find("article") or soup.find("body")
     text = ""

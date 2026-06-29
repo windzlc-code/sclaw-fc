@@ -25,6 +25,8 @@ from src.portal_property_crawl import (
     _suumo_goo_mirror_url_candidates,
 )
 from src.portal_case_search import _fast_first_image_url, _fast_first_media_url, _is_probably_listing_detail_result
+from src.portal_case_search import is_suumo_non_property_image_url, ordered_listing_image_urls as ordered_src_listing_image_urls
+from src.portal_media_filter import is_portal_non_property_image_url
 
 
 class CaseMediaFilterTests(unittest.TestCase):
@@ -140,6 +142,53 @@ class CaseMediaFilterTests(unittest.TestCase):
             "",
         )
         self.assertEqual(_fast_first_image_url(f"{btn}\n{banner}"), "")
+
+    def test_suumo_gallery_filters_chrome_agency_thumbs_and_nearby_facilities(self):
+        real_room = "https://img01.suumo.com/front/gazo/fr/bukken/872/100510552872/100510552872_go.jpg"
+        floorplan = "https://img01.suumo.com/front/gazo/fr/bukken/872/100510552872/100510552872_co.jpg"
+        room_thumb = "https://img01.suumo.com/front/gazo/fr/bukken/872/100510552872/100510552872_gt.jpg"
+        nearby_store = "https://img01.suumo.com/front/gazo/fr/bukken/872/100510552872/100510552872_s2o.jpg"
+        chrome = "https://suumo.jp/jj/jjcommon/img/tab_bkdt-around.gif?20180307"
+        agency = "https://img01.suumo.com/front/gazo/fr/front_kaisha/39/107039021/107039021_tgk_w.jpg"
+
+        self.assertFalse(is_suumo_non_property_image_url(real_room))
+        self.assertFalse(is_suumo_non_property_image_url(floorplan))
+        self.assertTrue(is_suumo_non_property_image_url(room_thumb))
+        self.assertTrue(is_suumo_non_property_image_url(nearby_store))
+        self.assertTrue(is_suumo_non_property_image_url(chrome))
+        self.assertTrue(is_suumo_non_property_image_url(agency))
+
+        gallery = ordered_src_listing_image_urls(
+            "\n".join([chrome, real_room, floorplan, room_thumb, nearby_store, agency]),
+            "",
+            "[]",
+            item_url="https://suumo.jp/chintai/jnc_000107669299/",
+            limit=10,
+        )
+
+        self.assertEqual(gallery, [real_room, floorplan])
+
+    def test_cross_portal_gallery_filters_known_non_listing_assets(self):
+        athome_real = "https://www.athome.co.jp/image_files/path/XhhSCezB3GEO6fT64CWcag==?width=572&height=418&margin=false"
+        athome_asset = "https://www.athome.co.jp/images/common/logo.svg"
+        yahoo_real = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2489/3214/0001/sample_01.jpg?w=1080&h=1080"
+        )
+        yahoo_asset = "https://s.yimg.jp/images/realestate/common/logo.png"
+        homes_real = (
+            "https://image2.homes.jp/smallimg/image.php?"
+            "file=http%3A%2F%2Fimg.homes.jp%2F9381%2Fsale%2F1007%2F2%2F1%2Fgmss.jpg"
+            "&width=1600&height=1600"
+        )
+        homes_asset = "https://www.homes.co.jp/assets/pc/img/logo.svg"
+
+        self.assertFalse(is_portal_non_property_image_url(athome_real, item_url="https://www.athome.co.jp/kodate/1193560219/"))
+        self.assertTrue(is_portal_non_property_image_url(athome_asset, item_url="https://www.athome.co.jp/kodate/1193560219/"))
+        self.assertFalse(is_portal_non_property_image_url(yahoo_real, item_url="https://realestate.yahoo.co.jp/used/mansion/detail_corp/b0024893214/"))
+        self.assertTrue(is_portal_non_property_image_url(yahoo_asset, item_url="https://realestate.yahoo.co.jp/used/mansion/detail_corp/b0024893214/"))
+        self.assertFalse(is_portal_non_property_image_url(homes_real, item_url="https://www.homes.co.jp/kodate/b-93810001007/"))
+        self.assertTrue(is_portal_non_property_image_url(homes_asset, item_url="https://www.homes.co.jp/kodate/b-93810001007/"))
 
     def test_blocked_official_detail_snapshot_is_not_displayable_listing(self):
         self.assertFalse(

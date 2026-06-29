@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="别墅透天物件示意图">
+  <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e5eff0"/><stop offset="1" stop-color="#9aa99b"/></linearGradient></defs>
+  <rect width="1200" height="900" fill="url(#b)"/>
+  <path d="M220 440 600 180 980 440 Z" fill="#526b80"/>
+  <rect x="285" y="430" width="630" height="330" rx="24" fill="#eef2ec"/>
+  <rect x="540" y="545" width="126" height="215" rx="18" fill="#2f4658"/>
+  <rect x="360" y="505" width="120" height="88" rx="12" fill="#547086"/>
+  <rect x="720" y="505" width="120" height="88" rx="12" fill="#547086"/>
+  <path d="M150 770 C360 700 570 718 730 748 C885 778 1015 760 1120 720 L1120 900 L150 900 Z" fill="#52664f" opacity=".45"/>
+  <rect x="72" y="70" width="380" height="110" rx="30" fill="#14263a" opacity=".75"/>
+  <text x="116" y="135" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">别墅/透天</text>
+</svg>

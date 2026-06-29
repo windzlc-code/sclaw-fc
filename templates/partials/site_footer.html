@@ -1,5 +1,10 @@
 {% set footer_hash_prefix = site_footer_hash_prefix | default('', true) %}
 {% set footer_support_onclick = site_footer_support_onclick | default('toggleSupportChat(true)', true) %}
+{% set footer_company = company_profile | default({}, true) %}
+{% set footer_company_name = footer_company.name | default('沐新株式會社', true) %}
+{% set footer_company_address = footer_company.address | default('東京都豊島区北大塚2-17-4 大塚キャリアビル B1', true) %}
+{% set footer_company_contact = footer_company.contact | default('mokushin.tokyo@gmail.com', true) %}
+{% set footer_company_reference_url = footer_company.reference_url | default('https://www.moon-bears.com/manus/app/views/services.php', true) %}
   <footer class="bh-site-footer{% if site_footer_extra_class is defined and site_footer_extra_class %} {{ site_footer_extra_class }}{% endif %}" aria-label="網站頁尾" style="--bh-enter-delay: 350ms;">
     <section class="bh-footer-directory" aria-label="網站頁尾導覽">
       <div class="bh-footer-logo-column">
@@ -21,10 +26,6 @@
       </nav>
       <nav class="bh-footer-directory-column" aria-label="買家需求">
         <h3>買家需求</h3>
-        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="海外買家日本不動產">海外買家日本房</a>
-        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="台灣人買日本房">台灣人買日本房</a>
-        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="香港人買日本房">香港人買日本房</a>
-        <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="外國人日本買房">外國人日本買房</a>
         <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本投資房產">日本投資房產</a>
         <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本自住房產">日本自住房產</a>
         <a href="{{ footer_hash_prefix }}#query-dialog" data-geo-keyword="日本收租物件">日本收租物件</a>
@@ -61,32 +62,41 @@
     </section>
 
     <section class="bh-footer-apps" aria-label="通訊軟體入口">
-      <h3>聯絡諮詢</h3>
-      <div class="bh-footer-app-list">
-        <button class="bh-footer-app-button bh-footer-app-button--support" type="button" onclick="{{ footer_support_onclick }}">
-          <span class="bh-footer-app-icon" aria-hidden="true">AI</span>
-          <span class="bh-footer-app-copy"><strong>智能客服</strong><small>線上對話</small></span>
-          <span class="bh-footer-contact-popover" role="tooltip">
-            <strong>智能客服</strong>
-            <small>點擊開啟站內 AI 對話；登入號碼後可同步顧問接手。</small>
-          </span>
-        </button>
-        <button class="bh-footer-app-button bh-footer-app-button--line" type="button" aria-label="顯示 LINE 專人 QR">
-          <span class="bh-footer-app-icon" aria-hidden="true">LINE</span>
-          <span class="bh-footer-app-copy"><strong>LINE</strong><small>專人 QR</small></span>
-          <span class="bh-footer-contact-popover" role="tooltip">
-            <img src="/static/human-handoff/line.png" width="188" height="188" alt="LINE 專人 QR" loading="eager" decoding="async">
-          </span>
-        </button>
-        <button class="bh-footer-app-button bh-footer-app-button--wechat" type="button" aria-label="顯示 WeChat 專人 QR">
-          <span class="bh-footer-app-icon" aria-hidden="true">微信</span>
-          <span class="bh-footer-app-copy"><strong>WeChat</strong><small>專人 QR</small></span>
-          <span class="bh-footer-contact-popover" role="tooltip">
-            <img src="/static/human-handoff/wechat.png" width="188" height="188" alt="WeChat 專人 QR" loading="eager" decoding="async">
-          </span>
-        </button>
+      <div class="bh-footer-apps-panel">
+        <h3>聯絡諮詢</h3>
+        <div class="bh-footer-app-list">
+          <button class="bh-footer-app-button bh-footer-app-button--line" type="button" aria-label="顯示 LINE 專人 QR">
+            <span class="bh-footer-app-icon" aria-hidden="true">LINE</span>
+            <span class="bh-footer-app-copy"><strong>LINE</strong><small>專人 QR</small></span>
+            <span class="bh-footer-contact-popover" role="tooltip">
+              <img src="/static/human-handoff/line.png" width="188" height="188" alt="LINE 專人 QR" loading="eager" decoding="async">
+            </span>
+          </button>
+          <button class="bh-footer-app-button bh-footer-app-button--wechat" type="button" aria-label="顯示 WeChat 專人 QR">
+            <span class="bh-footer-app-icon" aria-hidden="true">微信</span>
+            <span class="bh-footer-app-copy"><strong>WeChat</strong><small>專人 QR</small></span>
+            <span class="bh-footer-contact-popover" role="tooltip">
+              <img src="/static/human-handoff/wechat.png" width="188" height="188" alt="WeChat 專人 QR" loading="eager" decoding="async">
+            </span>
+          </button>
+        </div>
       </div>
     </section>
+
+    <div class="bh-footer-company-strip" aria-label="公司聯絡方式">
+      <a class="bh-footer-company-row" href="/company">
+        <span class="bh-footer-company-icon bh-footer-company-icon--company" aria-hidden="true"></span>
+        <span><strong>公司：</strong>{{ footer_company_name }}</span>
+      </a>
+      <span class="bh-footer-company-row">
+        <span class="bh-footer-company-icon bh-footer-company-icon--address" aria-hidden="true"></span>
+        <span><strong>所在地：</strong>{{ footer_company_address }}</span>
+      </span>
+      <a class="bh-footer-company-row" href="mailto:{{ footer_company_contact }}">
+        <span class="bh-footer-company-icon bh-footer-company-icon--email" aria-hidden="true"></span>
+        <span><strong>Email：</strong>{{ footer_company_contact }}</span>
+      </a>
+    </div>
 
     <section class="bh-footer-legal" aria-label="網站聲明">
       <p class="bh-footer-copyright">© 2026 {{ site_name }}. 日本不動產全球指定搜尋網。</p>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="套房物件示意图">
+  <defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f6f3"/><stop offset="1" stop-color="#98a9aa"/></linearGradient></defs>
+  <rect width="1200" height="900" fill="url(#b)"/>
+  <rect x="260" y="210" width="680" height="500" rx="34" fill="#eef2ef"/>
+  <rect x="330" y="500" width="355" height="96" rx="26" fill="#d8dfd8"/>
+  <rect x="382" y="395" width="230" height="105" rx="26" fill="#b8c2bc"/>
+  <rect x="710" y="330" width="150" height="270" rx="20" fill="#516b7c"/>
+  <circle cx="466" cy="330" r="62" fill="#f8faf7"/>
+  <path d="M330 632h530" stroke="#526b80" stroke-width="18" stroke-linecap="round" opacity=".35"/>
+  <rect x="72" y="70" width="300" height="110" rx="30" fill="#14263a" opacity=".75"/>
+  <text x="116" y="135" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">套房</text>
+</svg>

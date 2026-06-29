@@ -6,7 +6,7 @@
   <title>{{ item.seo_title }}</title>
   <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords(item.keyword or '') }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-legacy-pages-unified-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260629-footer-ikea-a">
   <link rel="canonical" href="{{ site_url }}/seo-draft/{{ item.seo_slug }}">
   <script type="application/ld+json">{{ item.faq_schema_json|safe }}</script>
 </head>
@@ -52,5 +52,6 @@
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
   {% include 'partials/site_footer.html' %}
+  {% include 'partials/support_chat_public_fab.html' %}
 </body>
 </html>

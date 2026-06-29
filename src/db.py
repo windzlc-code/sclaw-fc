@@ -550,8 +550,31 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS case_representative_images (
+                source_item_id INTEGER PRIMARY KEY,
+                representative_url TEXT NOT NULL DEFAULT '',
+                representative_static_url TEXT NOT NULL DEFAULT '',
+                image_signature TEXT NOT NULL DEFAULT '',
+                provider TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT '',
+                score INTEGER NOT NULL DEFAULT 0,
+                reason TEXT NOT NULL DEFAULT '',
+                rejected_json TEXT NOT NULL DEFAULT '[]',
+                selected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                source_last_checked_at TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(source_item_id) REFERENCES source_items(id)
+            )
+            """
+        )
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_case_investment_quality "
             "ON case_investment_metrics(data_quality, computed_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_case_representative_status "
+            "ON case_representative_images(status, selected_at DESC)"
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_seo_slug ON content_items(seo_slug)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_source_item ON content_items(source_item_id)")

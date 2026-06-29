@@ -105,7 +105,7 @@ def format_llm_exception_for_user(exc: BaseException) -> str:
 
 
 def chat_completion(
-    messages: list[dict[str, str]],
+    messages: list[dict[str, Any]],
     *,
     model: str | None = None,
     temperature: float = 0.65,
@@ -178,6 +178,96 @@ def _strip_json_fence(text: str) -> str:
 def parse_json_object(text: str) -> dict[str, Any]:
     raw = _strip_json_fence(text)
     return json.loads(raw)
+
+
+def select_representative_listing_image_via_gemini(
+    candidates: list[dict[str, Any]],
+    *,
+    title: str = "",
+    address: str = "",
+    source_name: str = "",
+    model: str | None = None,
+) -> dict[str, Any]:
+    """Use the backend Gemini provider to pick one durable listing display image.
+
+    Candidates must include 1-based ``index`` and an externally reachable
+    ``url``. The caller owns local caching and fallback rules.
+    """
+    usable: list[dict[str, Any]] = []
+    for c in candidates:
+        url = str(c.get("url") or c.get("original_url") or "").strip()
+        if not url.lower().startswith(("http://", "https://", "data:image/")):
+            continue
+        usable.append(
+            {
+                "index": int(c.get("index") or len(usable) + 1),
+                "url": url,
+                "hint": str(c.get("hint") or "")[:160],
+            }
+        )
+        if len(usable) >= 8:
+            break
+    if not usable:
+        raise RuntimeError("No usable image candidates for Gemini representative selection.")
+
+    prompt = {
+        "task": "从日本不动产案件图片中选择一张最适合作为网站卡片封面的代表图。",
+        "listing": {
+            "title": str(title or "")[:240],
+            "address": str(address or "")[:180],
+            "source_name": str(source_name or "")[:120],
+        },
+        "rules": [
+            "优先选择真实实拍图：室内客厅/卧室/厨房/阳台/建筑外观。",
+            "不要选择户型图、结构图、地图、交通图、概念渲染图、广告海报、文字说明图、验证码/错误页、人物头像或纯 logo。",
+            "明显水印过重、模糊、裁切严重、无房屋主体的图要降权。",
+            "如果没有完美图片，选择最接近真实房源的外观或室内图。",
+        ],
+        "candidates": [{"index": c["index"], "url": c["url"], "hint": c["hint"]} for c in usable],
+        "response_schema": {
+            "selected_index": "number，候选 index",
+            "score": "0-100，代表图质量分",
+            "category": "real_interior|real_exterior|real_building|floor_plan|map|concept|ad|watermark|placeholder|unknown",
+            "reason": "简短中文理由",
+            "rejected": [{"index": "number", "reason": "简短原因"}],
+        },
+    }
+    content: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": (
+                "你是严格的不动产封面图审核员。只输出 JSON，不要解释。"
+                f"\n\n输入：{json.dumps(prompt, ensure_ascii=False)}"
+            ),
+        }
+    ]
+    for c in usable:
+        content.append({"type": "image_url", "image_url": {"url": c["url"]}})
+
+    raw = chat_completion(
+        [
+            {"role": "system", "content": "你只输出一个合法 JSON object。"},
+            {"role": "user", "content": content},
+        ],
+        model=model,
+        temperature=0.1,
+        timeout_sec=90.0,
+        provider="gemini",
+        max_tokens=700,
+    )
+    data = parse_json_object(raw)
+    idx = int(data.get("selected_index") or 0)
+    if idx not in {int(c["index"]) for c in usable}:
+        raise RuntimeError(f"Gemini returned invalid selected_index={idx}.")
+    score = max(0, min(100, int(data.get("score") or 0)))
+    category = str(data.get("category") or "unknown").strip().lower()
+    return {
+        "selected_index": idx,
+        "score": score,
+        "category": category,
+        "reason": str(data.get("reason") or "").strip()[:400],
+        "rejected": data.get("rejected") if isinstance(data.get("rejected"), list) else [],
+    }
 
 
 LONG_SUPPORT_REFINE_THRESHOLD = 2200

@@ -1,4 +1,4 @@
-{# 與首頁 index 浮動智能客服相同之 DOM；需搭配首頁既有內嵌腳本（toggleSupportChat 等）。 #}
+{# 與首頁 index 浮動客服共用同一套 DOM；非首頁由下方兜底腳本接入真實客服 API。 #}
     <div id="support-chat-widget" class="support-chat-widget" aria-live="polite">
       <div id="support-chat-backdrop" class="support-chat-backdrop" style="display: none;" onclick="toggleSupportChat(false)" aria-hidden="true"></div>
       <div id="support-selected-cases-drawer-backdrop" class="support-selected-cases-drawer-backdrop" style="display:none;" onclick="toggleSupportSelectedCasesDrawer(false)" aria-hidden="true"></div>
@@ -187,29 +187,500 @@
           </svg>
         </span>
 	      </button>
-	      <button id="purchase-tool-toggle" type="button" class="purchase-tool-toggle floating-action-btn" onclick="window.location.href='/purchase-tools'" aria-label="開啟日本購房工具頁" title="日本購房工具" data-floating-label="購房工具">
-	        <span class="purchase-tool-toggle-icon" aria-hidden="true">
-	          <svg viewBox="0 0 32 32" focusable="false">
-	            <path d="M10 4.8h12a2.7 2.7 0 0 1 2.7 2.7v17a2.7 2.7 0 0 1-2.7 2.7H10a2.7 2.7 0 0 1-2.7-2.7v-17A2.7 2.7 0 0 1 10 4.8Z" />
-	            <path d="M11.2 8.5h9.6v4.1h-9.6Z" />
-	            <path d="M11.8 16.2h.1M16 16.2h.1M20.2 16.2h.1M11.8 20.1h.1M16 20.1h.1M20.2 20.1h.1M11.8 24h.1M16 24h.1M20.2 24h.1" />
-	          </svg>
-	        </span>
-	      </button>
+		      <button id="purchase-tool-toggle" type="button" class="purchase-tool-toggle floating-action-btn" onclick="window.location.href='/purchase-tools'" aria-label="開啟日本購房工具頁" title="日本購房工具" data-floating-label="購房工具">
+		        <span class="purchase-tool-toggle-icon" aria-hidden="true">
+		          <svg viewBox="0 0 32 32" focusable="false">
+		            <path d="M9.2 4.6h13.6a3 3 0 0 1 3 3v16.8a3 3 0 0 1-3 3H9.2a3 3 0 0 1-3-3V7.6a3 3 0 0 1 3-3Zm2.5 4.2v4.6h8.6V8.8h-8.6Zm.2 7.7a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7Zm4.1 0a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7Zm4.1 0a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7Zm-8.2 4.7a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7Zm4.1 0a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7Zm4.1 0a1.35 1.35 0 1 0 0 2.7 1.35 1.35 0 0 0 0-2.7Z" />
+		          </svg>
+		        </span>
+		      </button>
       <button id="support-selected-cases-fab" type="button" class="support-selected-cases-fab support-selected-cases-fab--compare floating-action-btn" onclick="toggleSupportSelectedCasesDrawer()" aria-label="案件對比清單" aria-haspopup="dialog" aria-controls="support-selected-cases-drawer" aria-expanded="false" data-floating-label="案件對比">
-        <span class="support-selected-cases-fab-icon" aria-hidden="true">+</span>
+        <span class="support-selected-cases-fab-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" focusable="false">
+            <path d="M14 5.6h4v8.4h8.4v4H18v8.4h-4V18H5.6v-4H14V5.6Z" />
+          </svg>
+        </span>
         <span id="support-selected-cases-fab-count" class="support-selected-cases-fab-count" aria-hidden="true">0</span>
       </button>
       <button id="support-saved-cases-fab" type="button" class="support-saved-cases-fab floating-action-btn" onclick="toggleSupportSavedCasesDrawer()" aria-label="收藏案件" aria-haspopup="dialog" aria-controls="support-saved-cases-drawer" aria-expanded="false" title="收藏案件" data-floating-label="收藏案件">
-        <span class="support-saved-cases-fab-icon" aria-hidden="true">♥</span>
+        <span class="support-saved-cases-fab-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" focusable="false">
+            <path d="M16 27.2C8.9 22.6 5.2 18.6 5.2 13.8c0-3.3 2.5-5.9 5.7-5.9 2.1 0 3.9 1.1 5.1 2.8 1.2-1.7 3-2.8 5.1-2.8 3.2 0 5.7 2.6 5.7 5.9 0 4.8-3.7 8.8-10.8 13.4Z" />
+          </svg>
+        </span>
         <span id="support-saved-cases-fab-count" class="support-selected-cases-fab-count" aria-hidden="true" hidden>0</span>
       </button>
+	    <button id="support-chat-toggle" type="button" class="support-chat-toggle support-chat-toggle--bottom floating-action-btn" onclick="toggleSupportChat()" aria-label="號碼登入後開啟線上客服對話" aria-controls="support-chat-panel" aria-expanded="false" title="線上客服" data-floating-label="線上客服">
+	      <span class="support-chat-toggle-bubble-icon" aria-hidden="true">
+	        <svg viewBox="0 0 32 32" focusable="false">
+	          <path d="M6.4 9.5a5.4 5.4 0 0 1 5.4-5.4h8.4a5.4 5.4 0 0 1 5.4 5.4v5.9a5.4 5.4 0 0 1-5.4 5.4h-5.4l-6.2 5v-5.4a5.4 5.4 0 0 1-2.2-4.4V9.5Zm6 2.5h8.1v-2.2h-8.1V12Zm0 4.2h6.2V14h-6.2v2.2Z" />
+	        </svg>
+	      </span>
+	    </button>
     </div>
-    <button id="support-chat-toggle" type="button" class="support-chat-toggle support-chat-toggle--bottom floating-action-btn" onclick="toggleSupportChat()" aria-label="號碼登入後開啟線上客服對話" aria-controls="support-chat-panel" aria-expanded="false" title="線上客服" data-floating-label="線上客服">
-      <span class="support-chat-toggle-bubble-icon" aria-hidden="true">
-        <svg viewBox="0 0 32 32" focusable="false">
-          <path d="M7.2 9.2a5 5 0 0 1 5-5h7.6a5 5 0 0 1 5 5v5.5a5 5 0 0 1-5 5h-6.1l-5.3 4.2v-4.5a5 5 0 0 1-1.2-3.2Z" />
-          <path d="M12.1 11.5h7.8M12.1 15.4h5.6" />
-        </svg>
-      </span>
-    </button>
+<script>
+  (function () {
+    if (window.__sclawSupportWidgetFallbackReady) return;
+    window.__sclawSupportWidgetFallbackReady = true;
+
+    var selectedKey = 'sclaw_support_selected_cases_v1';
+    var savedKey = 'sclaw_support_saved_cases_v1';
+    var phoneKey = 'sclaw_support_phone_login';
+    var phoneCountryKey = 'sclaw_support_phone_login_country';
+    var legacyPhoneProfileKey = 'sclaw_support_phone_profile_v1';
+
+    function esc(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch] || ch;
+      });
+    }
+
+    function readList(key) {
+      try {
+        var value = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(value) ? value : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function writeList(key, list) {
+      try {
+        localStorage.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
+      } catch (_) {}
+    }
+
+    function setDisplay(id, open, displayValue) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = open ? (displayValue || 'block') : 'none';
+      return el;
+    }
+
+    function setExpanded(id, open) {
+      var el = document.getElementById(id);
+      if (el) el.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function hasSupportFallbackPhoneProfile() {
+      try {
+        if (String(localStorage.getItem(phoneKey) || '').trim()) return true;
+        var raw = localStorage.getItem(legacyPhoneProfileKey) || '';
+        if (!raw) return false;
+        var data = JSON.parse(raw);
+        return !!(data && String(data.phone || data.normalizedPhone || '').trim());
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function stableKey(item) {
+      return String((item && (item.case_key || item.source_item_id || item.content_id || item.item_url || item.url || item.title)) || '');
+    }
+
+    function supportFallbackSalesSessionId() {
+      var key = 'sclaw_support_sales_session_v1';
+      try {
+        var cached = localStorage.getItem(key);
+        if (cached) return cached;
+        var generated = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem(key, generated);
+        return generated;
+      } catch (_) {
+        return 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+      }
+    }
+
+    function supportFallbackSanitizePublicCopy(value) {
+      return String(value || '')
+        .replace(/日本不動產智能客服/g, '日本不動產線上客服')
+        .replace(/線上智能客服/g, '線上客服')
+        .replace(/智能客服/g, '線上客服')
+        .replace(/智能助理/g, '線上客服')
+        .replace(/\bAI\s*客服\b/gi, '線上客服')
+        .replace(/\bAI\s*助理\b/gi, '線上客服')
+        .replace(/\bAI\s*助手\b/gi, '線上客服')
+        .replace(/人工智能/gi, '線上客服')
+        .replace(/機器人/gi, '線上客服')
+        .replace(/机器人/gi, '線上客服')
+        .replace(/自動生成/gi, '整理回覆');
+    }
+
+    function supportFallbackFormatText(value) {
+      var text = supportFallbackSanitizePublicCopy(value).trim();
+      if (!text) return '';
+      return text.split(/\n{2,}/).map(function (block) {
+        var lines = String(block || '').split('\n').map(function (line) { return esc(line.trim()); }).filter(Boolean);
+        return lines.length ? '<p>' + lines.join('<br>') + '</p>' : '';
+      }).join('');
+    }
+
+    var supportFallbackWelcomeText = '您好，這裡是日本不動產線上客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。您先告訴我想看的地區、預算或用途，我這邊先幫您收斂。';
+    var supportFallbackHistory = [];
+    var supportFallbackBootstrapPromise = null;
+
+    function supportFallbackWelcomeHtml(text) {
+      var intro = esc(supportFallbackSanitizePublicCopy(text || supportFallbackWelcomeText).trim() || supportFallbackWelcomeText);
+      return (
+        '<div class="support-chat-welcome-card">' +
+          '<strong>日本不動產線上客服</strong>' +
+          '<p>' + intro + '</p>' +
+          '<div class="support-chat-suggestion-pills" aria-label="客服推薦選項">' +
+            '<button type="button" data-support-quick-prompt="我想查日本不動產案件，先從東京或大阪開始">查找案件</button>' +
+            '<button type="button" data-support-quick-prompt="我想了解日本買房，請先幫我整理需要準備哪些條件">買房諮詢</button>' +
+            '<button type="button" data-support-quick-prompt="我想比較已收藏案件的價格、交通和格局">比較收藏</button>' +
+            '<button type="button" data-support-quick-prompt="我想聯絡顧問，請先告訴我需要準備哪些資訊">聯絡顧問</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function setSupportFallbackThinking(on, labelText) {
+      var thinking = document.getElementById('support-chat-thinking');
+      var send = document.getElementById('support-chat-send-btn');
+      var input = document.getElementById('support-chat-input');
+      var panel = document.getElementById('support-chat-panel');
+      var label = document.getElementById('support-chat-thinking-label');
+      if (thinking) thinking.style.display = on ? 'flex' : 'none';
+      if (send) send.disabled = !!on;
+      if (input) input.disabled = !!on;
+      if (panel) panel.setAttribute('aria-busy', on ? 'true' : 'false');
+      if (label) label.textContent = on ? (String(labelText || '').trim() || '顧問正在整理回覆…') : '思考中…';
+    }
+
+    function renderSupportFallbackChatMessages() {
+      var wrap = document.getElementById('support-chat-messages');
+      if (!wrap) return;
+      if (!supportFallbackHistory.length) {
+        supportFallbackHistory.push({
+          role: 'assistant',
+          content: supportFallbackWelcomeText,
+          contentHtml: supportFallbackWelcomeHtml(supportFallbackWelcomeText),
+          supportWelcome: true
+        });
+      }
+      wrap.innerHTML = supportFallbackHistory.map(function (row) {
+        if (!row || !row.role) return '';
+        var role = row.role === 'user' ? '您' : '線上客服';
+        var rowClass = row.role === 'user' ? 'support-chat-row-user' : 'support-chat-row-assistant';
+        var bubbleClass = row.role === 'user' ? 'support-chat-user' : 'support-chat-assistant support-chat-advisor-bubble';
+        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + supportFallbackFormatText(row.content || '') + '</div>');
+        if (row.contentHtml) body = supportFallbackSanitizePublicCopy(body);
+        return '<div class="support-chat-row ' + rowClass + ' support-chat-row--enter"><div class="support-chat-bubble-col"><span class="support-chat-role">' + role + '</span>' + body + '</div></div>';
+      }).join('');
+      wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    async function hydrateSupportFallbackWelcome() {
+      if (supportFallbackBootstrapPromise) return supportFallbackBootstrapPromise;
+      var welcome = supportFallbackHistory.find(function (row) { return row && row.supportWelcome; });
+      if (!welcome || welcome.supportWelcomeHydrated) return;
+      supportFallbackBootstrapPromise = (async function () {
+        try {
+          var res = await fetch('/api/ai/chat-support/bootstrap?' + new URLSearchParams({
+            session_id: supportFallbackSalesSessionId(),
+            t: String(Date.now())
+          }), { cache: 'no-store' });
+          var data = await res.json().catch(function () { return {}; });
+          if (!res.ok || !data || data.ok === false) return;
+          var reply = supportFallbackSanitizePublicCopy(String(data.reply || '').trim());
+          if (reply) {
+            welcome.content = reply;
+            welcome.contentHtml = supportFallbackWelcomeHtml(reply);
+            welcome.supportWelcomeHydrated = true;
+            renderSupportFallbackChatMessages();
+          }
+        } catch (_) {
+          // Keep local welcome card if bootstrap is unavailable.
+        } finally {
+          supportFallbackBootstrapPromise = null;
+        }
+      })();
+      return supportFallbackBootstrapPromise;
+    }
+
+    function primaryLink(item) {
+      var href = String((item && (item.detail_url || item.standalone_url || item.local_url || item.case_path || item.item_url || item.url)) || '').trim();
+      return /^javascript:/i.test(href) ? '' : href;
+    }
+
+    function thumbUrl(item) {
+      if (!item) return '';
+      if (item.thumb_url) return String(item.thumb_url);
+      if (item.image_url) return String(item.image_url);
+      if (Array.isArray(item.gallery_urls) && item.gallery_urls.length) return String(item.gallery_urls[0]);
+      return '';
+    }
+
+    function refreshSupportFallbackBadges() {
+      var selectedCount = readList(selectedKey).length;
+      var savedCount = readList(savedKey).length;
+      [
+        ['support-selected-cases-fab-count', selectedCount],
+        ['support-chat-selected-cases-count', selectedCount],
+        ['support-saved-cases-fab-count', savedCount],
+        ['support-selected-cases-drawer-count', selectedCount],
+        ['support-saved-cases-drawer-count', savedCount]
+      ].forEach(function (pair) {
+        var el = document.getElementById(pair[0]);
+        if (!el) return;
+        el.textContent = pair[1] + (pair[0].indexOf('drawer-count') > -1 ? ' 筆' : '');
+        if (pair[0].indexOf('fab-count') > -1) el.hidden = pair[1] <= 0;
+      });
+    }
+
+    function renderCaseList(key, wrapId, emptyText) {
+      var wrap = document.getElementById(wrapId);
+      if (!wrap) return;
+      var list = readList(key);
+      if (!list.length) {
+        wrap.classList.add('muted');
+        wrap.innerHTML = esc(emptyText);
+        return;
+      }
+      wrap.classList.remove('muted');
+      wrap.innerHTML = '<div class="support-selected-cases-cart">' + list.map(function (item) {
+        var title = String((item && item.title) || '日本不動產案件').slice(0, 96);
+        var meta = String((item && (item.meta_text || item.location_text || item.address_text || item.addr || item.address)) || '').slice(0, 80);
+        var price = String((item && (item.price_text_hant || item.price_text || item.price)) || '');
+        var href = primaryLink(item);
+        var thumb = thumbUrl(item);
+        var keyVal = stableKey(item);
+        var img = thumb ? '<img src="' + esc(thumb) + '" alt="' + esc(title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">' : '';
+        var media = '<span class="support-selected-cases-card-thumb' + (thumb ? '' : ' is-empty') + '">' + img + '</span>';
+        var titleHtml = href ? '<a class="support-selected-cases-cart-link" href="' + esc(href) + '">' + esc(title) + '</a>' : '<strong class="support-selected-cases-cart-link">' + esc(title) + '</strong>';
+        return '<article class="support-selected-cases-cart-item">' + media + '<div class="support-selected-cases-cart-main">' + titleHtml + (meta ? '<div class="support-selected-cases-cart-meta">' + esc(meta) + '</div>' : '') + (price ? '<div class="support-selected-cases-cart-price">' + esc(price) + '</div>' : '') + '</div><button type="button" class="support-selected-cases-cart-remove" data-storage-key="' + esc(key) + '" data-case-key="' + esc(keyVal) + '" onclick="removeSupportFloatingCaseByBtn(this)">移除</button></article>';
+      }).join('') + '</div>';
+    }
+
+    function closeSupportFallbackPanels(keep) {
+      if (keep !== 'phone' && typeof window.toggleSupportPhoneLoginModal === 'function') window.toggleSupportPhoneLoginModal(false);
+      if (keep !== 'selected' && typeof window.toggleSupportSelectedCasesDrawer === 'function') window.toggleSupportSelectedCasesDrawer(false);
+      if (keep !== 'saved' && typeof window.toggleSupportSavedCasesDrawer === 'function') window.toggleSupportSavedCasesDrawer(false);
+      if (keep !== 'chat' && typeof window.toggleSupportChat === 'function') window.toggleSupportChat(false);
+    }
+
+    if (typeof window.toggleSupportPhoneLoginModal !== 'function') {
+      window.toggleSupportPhoneLoginModal = function (force) {
+        var modal = document.getElementById('support-phone-login-modal');
+        var open = typeof force === 'boolean' ? force : !(modal && modal.style.display !== 'none' && modal.style.display !== '');
+        if (open) closeSupportFallbackPanels('phone');
+        setDisplay('support-phone-login-modal', open, 'block');
+        setDisplay('support-phone-login-backdrop', open, 'block');
+        if (modal) {
+          modal.classList.toggle('is-visible', open);
+          modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+          modal.style.pointerEvents = open ? 'auto' : '';
+        }
+        setExpanded('support-phone-login-toggle', open);
+        document.body.classList.toggle('support-phone-login-open', open);
+      };
+    }
+
+    if (typeof window.toggleSupportSelectedCasesDrawer !== 'function') {
+      window.toggleSupportSelectedCasesDrawer = function (force) {
+        var drawer = document.getElementById('support-selected-cases-drawer');
+        var open = typeof force === 'boolean' ? force : !(drawer && drawer.style.display !== 'none' && drawer.style.display !== '');
+        if (open) closeSupportFallbackPanels('selected');
+        setDisplay('support-selected-cases-drawer', open, 'flex');
+        setDisplay('support-selected-cases-drawer-backdrop', open, 'block');
+        setExpanded('support-selected-cases-fab', open);
+        document.body.classList.toggle('support-selected-cases-open', open);
+        if (open) renderCaseList(selectedKey, 'support-selected-cases-drawer-list', '尚未加入案件。可在智慧查詢結果點選加號加入案件對比。');
+        refreshSupportFallbackBadges();
+      };
+    }
+
+    if (typeof window.toggleSupportSavedCasesDrawer !== 'function') {
+      window.toggleSupportSavedCasesDrawer = function (force) {
+        var drawer = document.getElementById('support-saved-cases-drawer');
+        var open = typeof force === 'boolean' ? force : !(drawer && drawer.style.display !== 'none' && drawer.style.display !== '');
+        if (open) closeSupportFallbackPanels('saved');
+        setDisplay('support-saved-cases-drawer', open, 'flex');
+        setDisplay('support-saved-cases-drawer-backdrop', open, 'block');
+        setExpanded('support-saved-cases-fab', open);
+        document.body.classList.toggle('support-saved-cases-open', open);
+        if (open) renderCaseList(savedKey, 'support-saved-cases-drawer-list', '尚未收藏案件。可在智慧查詢結果點選愛心收藏。');
+        refreshSupportFallbackBadges();
+      };
+    }
+
+    if (typeof window.toggleSupportChat !== 'function') {
+      window.toggleSupportChat = function (force) {
+        var panel = document.getElementById('support-chat-panel');
+        var widget = document.getElementById('support-chat-widget');
+        var open = typeof force === 'boolean' ? force : !(panel && panel.style.display !== 'none' && panel.style.display !== '');
+        if (open && !hasSupportFallbackPhoneProfile()) {
+          if (typeof window.toggleSupportPhoneLoginModal === 'function') window.toggleSupportPhoneLoginModal(true);
+          return;
+        }
+        if (open) closeSupportFallbackPanels('chat');
+        setDisplay('support-chat-panel', open, 'flex');
+        setDisplay('support-chat-backdrop', open, 'block');
+        setExpanded('support-chat-toggle', open);
+        if (panel) {
+          panel.classList.toggle('is-chat-visible', open);
+          panel.classList.toggle('is-chat-hiding', false);
+          panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (widget) widget.classList.toggle('is-expanded', open);
+        if (open) {
+          renderSupportFallbackChatMessages();
+          hydrateSupportFallbackWelcome();
+          var input = document.getElementById('support-chat-input');
+          if (input) {
+            setTimeout(function () {
+              try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); }
+            }, 30);
+          }
+        }
+      };
+    }
+
+    window.openSupportSelectedCasesComparePage = window.openSupportSelectedCasesComparePage || function () {
+      window.location.href = '/selected-cases-compare';
+    };
+
+    window.clearSupportSelectedCases = window.clearSupportSelectedCases || function () {
+      writeList(selectedKey, []);
+      renderCaseList(selectedKey, 'support-selected-cases-drawer-list', '尚未加入案件。可在智慧查詢結果點選加號加入案件對比。');
+      refreshSupportFallbackBadges();
+    };
+
+    window.clearSupportSavedCases = window.clearSupportSavedCases || function () {
+      writeList(savedKey, []);
+      renderCaseList(savedKey, 'support-saved-cases-drawer-list', '尚未收藏案件。可在智慧查詢結果點選愛心收藏。');
+      refreshSupportFallbackBadges();
+    };
+
+    window.removeSupportFloatingCaseByBtn = window.removeSupportFloatingCaseByBtn || function (btn) {
+      var key = btn && btn.getAttribute('data-case-key');
+      var storageKey = btn && btn.getAttribute('data-storage-key');
+      if (!key || !storageKey) return;
+      writeList(storageKey, readList(storageKey).filter(function (item) { return stableKey(item) !== key; }));
+      renderCaseList(storageKey, storageKey === selectedKey ? 'support-selected-cases-drawer-list' : 'support-saved-cases-drawer-list', storageKey === selectedKey ? '尚未加入案件。可在智慧查詢結果點選加號加入案件對比。' : '尚未收藏案件。可在智慧查詢結果點選愛心收藏。');
+      refreshSupportFallbackBadges();
+    };
+
+    window.toggleSupportChatMenu = window.toggleSupportChatMenu || function (force) {
+      var menu = document.getElementById('support-chat-menu');
+      var open = typeof force === 'boolean' ? force : !!(menu && menu.hidden);
+      if (menu) menu.hidden = !open;
+      setExpanded('support-chat-menu-toggle', open);
+    };
+
+    window.openSupportChatMenuCases = window.openSupportChatMenuCases || function () {
+      window.toggleSupportChatMenu(false);
+      window.toggleSupportSelectedCasesDrawer(true);
+    };
+
+    window.openSupportChatHistoryPanel = window.openSupportChatHistoryPanel || function (force) {
+      var panel = document.getElementById('support-chat-history-panel');
+      var open = typeof force === 'boolean' ? force : !(panel && panel.style.display !== 'none' && panel.style.display !== '');
+      setDisplay('support-chat-history-panel', open, 'block');
+    };
+
+    window.toggleSupportChatHistoryPanel = window.toggleSupportChatHistoryPanel || window.openSupportChatHistoryPanel;
+    window.toggleSupportChatSpeech = window.toggleSupportChatSpeech || function () {};
+    window.renderSupportKbHistoryList = window.renderSupportKbHistoryList || function () {};
+    window.clearSupportKbHistory = window.clearSupportKbHistory || function () {};
+    window.refreshSupportPhoneLoginHint = window.refreshSupportPhoneLoginHint || function () {};
+
+    window.submitSupportPhoneLogin = window.submitSupportPhoneLogin || function () {
+      var input = document.getElementById('support-phone-login-input');
+      var msg = document.getElementById('support-phone-login-msg');
+      var phone = input ? String(input.value || '').trim() : '';
+      if (!phone) {
+        if (msg) msg.textContent = '請先輸入聯絡電話。';
+        return;
+      }
+      try {
+        localStorage.setItem(phoneKey, phone);
+        var country = document.getElementById('support-phone-country');
+        localStorage.setItem(phoneCountryKey, String((country && country.value) || 'tw'));
+        localStorage.setItem(legacyPhoneProfileKey, JSON.stringify({ phone: phone, saved_at: new Date().toISOString() }));
+      } catch (_) {}
+      window.toggleSupportPhoneLoginModal(false);
+      window.toggleSupportChat(true);
+    };
+
+    window.logoutSupportPhoneLogin = window.logoutSupportPhoneLogin || function () {
+      try {
+        localStorage.removeItem(phoneKey);
+        localStorage.removeItem(phoneCountryKey);
+        localStorage.removeItem(legacyPhoneProfileKey);
+      } catch (_) {}
+      window.toggleSupportPhoneLoginModal(false);
+    };
+
+    window.sendSupportChat = window.sendSupportChat || async function () {
+      var input = document.getElementById('support-chat-input');
+      var text = input ? String(input.value || '').trim() : '';
+      if (!text) return;
+      input.value = '';
+      supportFallbackHistory = supportFallbackHistory.filter(function (row) { return !(row && row.transientWelcome); });
+      supportFallbackHistory.push({ role: 'user', content: text });
+      renderSupportFallbackChatMessages();
+      setSupportFallbackThinking(true, /人工|真人|顧問|顾问|買房|买房|看屋|看房/.test(text) ? '正在整理顧問諮詢方向…' : '顧問正在整理回覆…');
+      try {
+        var selectedCases = readList(selectedKey).slice(0, 20);
+        var history = supportFallbackHistory
+          .filter(function (row) { return row && row.role && !row.supportWelcome; })
+          .slice(0, -1)
+          .slice(-12)
+          .map(function (row) { return { role: row.role, content: String(row.content || '') }; });
+        var res = await fetch('/api/ai/chat-support', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            history: history,
+            use_knowledge: true,
+            knowledge_query: text,
+            sales_session_id: supportFallbackSalesSessionId(),
+            selected_cases: selectedCases,
+            persona_region: 'tw',
+            knowledge_days: 72,
+            knowledge_merged_max: 26,
+            knowledge_zh_variant: (typeof window.getSiteLanguagePreference === 'function' && window.getSiteLanguagePreference() === 'hans') ? 'hans' : 'hant'
+          })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (data && data.session_id) {
+          try { localStorage.setItem('sclaw_support_sales_session_v1', String(data.session_id)); } catch (_) {}
+        }
+        if (!res.ok || (data && data.ok === false)) {
+          var d = data && (data.detail || data.error || data.message);
+          var msg = typeof d === 'string' ? d : ('請求失敗（HTTP ' + res.status + '），請稍後再試。');
+          supportFallbackHistory.push({ role: 'assistant', content: msg });
+        } else {
+          var reply = data && (data.reply || data.detail || '已收到，我這邊先幫您整理。');
+          supportFallbackHistory.push({
+            role: 'assistant',
+            content: supportFallbackSanitizePublicCopy(typeof reply === 'string' ? reply : String(reply))
+          });
+        }
+      } catch (_) {
+        supportFallbackHistory.push({ role: 'assistant', content: '連線失敗，請稍後再試。' });
+      } finally {
+        setSupportFallbackThinking(false);
+        if (supportFallbackHistory.length > 24) supportFallbackHistory = supportFallbackHistory.slice(-24);
+        renderSupportFallbackChatMessages();
+      }
+    };
+
+    document.addEventListener('click', function (event) {
+      var btn = event.target && event.target.closest ? event.target.closest('[data-support-quick-prompt]') : null;
+      if (!btn) return;
+      var input = document.getElementById('support-chat-input');
+      if (!input) return;
+      event.preventDefault();
+      input.value = String(btn.getAttribute('data-support-quick-prompt') || '').trim();
+      try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); }
+      if (btn.getAttribute('data-support-quick-send') === '1' && typeof window.sendSupportChat === 'function') {
+        window.sendSupportChat();
+      }
+    });
+
+    refreshSupportFallbackBadges();
+  })();
+</script>

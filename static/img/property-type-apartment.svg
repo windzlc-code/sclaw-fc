@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="公寓物件示意图">
+  <defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#edf4f4"/><stop offset="1" stop-color="#8298a4"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7fbfa"/><stop offset="1" stop-color="#cfdadb"/></linearGradient></defs>
+  <rect width="1200" height="900" fill="url(#b)"/>
+  <rect x="235" y="180" width="360" height="620" rx="26" fill="url(#g)"/>
+  <rect x="630" y="285" width="310" height="515" rx="24" fill="#dde7e7"/>
+  <g fill="#355064" opacity=".9"><rect x="300" y="260" width="80" height="74" rx="10"/><rect x="448" y="260" width="80" height="74" rx="10"/><rect x="300" y="390" width="80" height="74" rx="10"/><rect x="448" y="390" width="80" height="74" rx="10"/><rect x="300" y="520" width="80" height="74" rx="10"/><rect x="448" y="520" width="80" height="74" rx="10"/><rect x="700" y="370" width="70" height="64" rx="9"/><rect x="810" y="370" width="70" height="64" rx="9"/><rect x="700" y="490" width="70" height="64" rx="9"/><rect x="810" y="490" width="70" height="64" rx="9"/></g>
+  <rect x="72" y="70" width="300" height="110" rx="30" fill="#14263a" opacity=".75"/>
+  <text x="116" y="135" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">公寓</text>
+</svg>

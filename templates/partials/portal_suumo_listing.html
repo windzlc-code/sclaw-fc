@@ -136,8 +136,16 @@
           <table>
             <tbody>
               {% for row in inv.sale_rows %}
+              {% set row_label = row.label %}
+              {% if row_label in ['收益率', '滿租租售比', '現行租售比'] %}
+                {% set row_label = '满租投资回报率' %}
+              {% elif row_label in ['年收入', '年收入（滿租時）'] %}
+                {% set row_label = '年收入（满租时）' %}
+              {% elif row_label == '回收参考' %}
+                {% set row_label = '回本参考' %}
+              {% endif %}
               <tr>
-                <th>{{ row.label }}</th>
+                <th>{{ row_label }}</th>
                 <td>{{ row.value }}</td>
               </tr>
               {% endfor %}
@@ -237,7 +245,7 @@
           <p class="portal-suumo-narrative portal-suumo-narrative--sub">{{ f.staff_message_jp|e }}</p>
         </div>
         {% endif %}
-        <p class="muted portal-suumo-inline-links"><a href="{{ item_url }}" target="_blank" rel="nofollow noopener">原站全文</a></p>
+        <p class="muted portal-suumo-inline-links"><a href="{{ item_url }}" target="_blank" rel="nofollow noopener">開啟原站全文</a></p>
       </section>
 
       <section class="portal-suumo-tabpanel" role="tabpanel" data-suumo-panel="map" hidden>

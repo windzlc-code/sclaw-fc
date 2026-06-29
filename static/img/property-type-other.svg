@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="其他物件示意图">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e9f1f3"/>
+      <stop offset=".55" stop-color="#c8d5d7"/>
+      <stop offset="1" stop-color="#81939a"/>
+    </linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7f7f1"/>
+      <stop offset="1" stop-color="#d9ded7"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6f8797"/>
+      <stop offset="1" stop-color="#23394a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#bg)"/>
+  <path d="M116 718 L522 438 L1080 542 L1080 900 L116 900 Z" fill="#435766" opacity=".38"/>
+  <rect x="205" y="285" width="790" height="470" rx="18" fill="url(#wall)"/>
+  <path d="M205 285 L996 285 L930 224 L270 224 Z" fill="#667b83"/>
+  <path d="M292 352 h176 v140 H292 Z M522 352 h176 v140 H522 Z M752 352 h160 v140 H752 Z" fill="url(#glass)" opacity=".9"/>
+  <path d="M292 550 h176 v136 H292 Z M522 550 h176 v136 H522 Z M752 550 h160 v136 H752 Z" fill="url(#glass)" opacity=".75"/>
+  <g stroke="#eef4f2" stroke-width="10" opacity=".82">
+    <path d="M380 352 v140 M610 352 v140 M832 352 v140"/>
+    <path d="M380 550 v136 M610 550 v136 M832 550 v136"/>
+  </g>
+  <path d="M145 754 C340 700 516 692 694 724 C858 753 999 806 1150 790 L1150 900 L145 900 Z" fill="#253847" opacity=".26"/>
+  <rect x="72" y="70" width="360" height="110" rx="30" fill="#14263a" opacity=".72"/>
+  <text x="116" y="135" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">其他物件</text>
+</svg>

@@ -13,6 +13,50 @@
           <small>{{ seo_phrase_entry }}</small>
         </span>
       </a>
+      <form class="bh-title-search" role="search" aria-label="站內案件搜尋" autocomplete="off">
+        <label class="bh-title-search-box">
+          <svg class="bh-title-search-icon" aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+            <circle cx="11" cy="11" r="6.2" fill="none" stroke="currentColor" stroke-width="2"></circle>
+            <path d="m16 16 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          </svg>
+          <input id="bh-title-case-search-input" class="bh-title-search-input" type="search" name="q" placeholder="搜索地區、車站、價格或物件關鍵詞" aria-label="搜索地區、車站、價格或物件關鍵詞" aria-controls="bh-title-case-search-panel" aria-expanded="false">
+          <button class="bh-title-search-submit" type="submit" aria-label="搜尋案件">
+            <span>搜尋</span>
+          </button>
+        </label>
+        <div id="bh-title-case-search-panel" class="bh-title-search-panel" role="listbox" aria-label="站內推薦案件" hidden>
+          <div class="bh-title-search-keywords" aria-label="熱門站內入口">
+            <div class="bh-title-search-section-head">
+              <strong>熱門關鍵詞</strong>
+              <span>站內入口</span>
+            </div>
+            <div class="bh-title-search-keyword-list">
+              <span class="bh-title-search-keyword-group">案件查詢</span>
+              <a class="bh-title-search-quicklink" href="/?geo_keyword=東京不動產#query-dialog" data-title-search-action="case-query" data-geo-keyword="東京不動產">東京不動產</a>
+              <a class="bh-title-search-quicklink" href="/?geo_keyword=大阪公寓#query-dialog" data-title-search-action="case-query" data-geo-keyword="大阪公寓">大阪公寓</a>
+              <a class="bh-title-search-quicklink" href="/?geo_keyword=福岡收租物件#query-dialog" data-title-search-action="case-query" data-geo-keyword="福岡收租物件">福岡收租</a>
+              <a class="bh-title-search-quicklink" href="/?geo_keyword=新建公寓#query-dialog" data-title-search-action="case-query" data-geo-keyword="新建公寓">新建公寓</a>
+              <a class="bh-title-search-quicklink" href="/?geo_keyword=中古公寓#query-dialog" data-title-search-action="case-query" data-geo-keyword="中古公寓">中古公寓</a>
+              <span class="bh-title-search-keyword-group">站內工具</span>
+              <a class="bh-title-search-quicklink" href="/#jp-map-hub" data-title-search-action="workbench-map">地圖找房</a>
+              <a class="bh-title-search-quicklink" href="/saved-cases" data-title-search-action="page">查看收藏</a>
+              <a class="bh-title-search-quicklink" href="/selected-cases-compare" data-title-search-action="page">案件對比</a>
+              <a class="bh-title-search-quicklink" href="/purchase-tools" data-title-search-action="page">買房工具</a>
+              <span class="bh-title-search-keyword-group">服務資訊</span>
+              <a class="bh-title-search-quicklink" href="/guide/tw-buy-japan-property" data-title-search-action="page">日本買房流程</a>
+              <a class="bh-title-search-quicklink" href="/company" data-title-search-action="page">公司背景</a>
+              <a class="bh-title-search-quicklink" href="/?open_support=1" data-title-search-action="support">智能客服</a>
+            </div>
+          </div>
+          <div class="bh-title-search-cases" aria-label="推薦案件房源">
+            <div class="bh-title-search-panel-head bh-title-search-section-head">
+              <strong data-title-search-heading>熱門推薦案件</strong>
+              <span data-title-search-status>載入中...</span>
+            </div>
+            <div class="bh-title-search-results" data-title-search-results></div>
+          </div>
+        </div>
+      </form>
       <div class="bh-site-nav-links bh-nav-keywords" aria-label="導航關鍵詞">
       <div class="bh-nav-keyword-tabs" role="tablist" aria-label="關鍵詞分組">
         <button type="button" class="bh-nav-keyword-tab" role="tab" aria-selected="false" aria-expanded="false" aria-controls="bh-nav-keywords-region" data-bh-nav-keyword-tab="region"{% if nav_query_onclick %} onclick="{{ nav_query_onclick }}"{% endif %}><span class="bh-nav-keyword-tab-label">地區找房</span><svg class="bh-nav-keyword-tab-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4.25 6.25 8 10l3.75-3.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -38,10 +82,6 @@
         </nav>
         <nav class="bh-nav-keyword-panel" id="bh-nav-keywords-buyer" role="tabpanel" aria-label="買家需求關鍵詞" data-bh-nav-keyword-panel="buyer" data-bh-panel-title="買家需求" hidden>
           <div class="bh-nav-keyword-list">
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="海外買家日本不動產">海外買家日本房</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="台灣人買日本房">台灣人買日本房</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="香港人買日本房">香港人買日本房</a>
-          <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="外國人日本買房">外國人日本買房</a>
           <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本投資房產">日本投資房產</a>
           <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本自住房產">日本自住房產</a>
           <a href="{{ nav_hash_prefix }}#query-dialog" data-geo-keyword="日本收租物件">日本收租物件</a>
@@ -83,8 +123,14 @@
       </div>
       <div class="bh-site-titlebar-actions" aria-label="首頁工具列">
         {% include 'partials/site_language_switch.html' %}
-        <button id="bh-nav-phone-login-btn" type="button" class="bh-nav-phone-login-btn" onclick="{{ nav_login_onclick }}" aria-label="未登录" aria-haspopup="dialog" aria-controls="support-phone-login-modal" title="未登录">
-          <span id="bh-nav-phone-login-text" class="bh-nav-phone-login-text">未登录</span>
+        <button id="bh-nav-phone-login-btn" type="button" class="bh-nav-phone-login-btn" onclick="{{ nav_login_onclick }}" aria-label="登录账号" aria-haspopup="dialog" aria-controls="support-phone-login-modal" title="登录账号">
+          <span class="bh-nav-phone-login-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <circle cx="12" cy="7.6" r="3.2"></circle>
+              <path d="M5.5 20c0-4 2.7-6.5 6.5-6.5s6.5 2.5 6.5 6.5"></path>
+            </svg>
+          </span>
+          <span id="bh-nav-phone-login-text" class="bh-nav-phone-login-text">登录账号</span>
         </button>
       </div>
     </nav>
@@ -103,7 +149,7 @@
 
       function syncSharedPhoneLoginState() {
         const logged = !!getSupportPhoneLoginValue();
-        const label = logged ? '已登录' : '未登录';
+        const label = logged ? '已登录' : '登录账号';
         const navBtn = document.getElementById('bh-nav-phone-login-btn');
         const navText = document.getElementById('bh-nav-phone-login-text');
         const floatingBtn = document.getElementById('support-phone-login-toggle');
@@ -125,6 +171,230 @@
         syncSharedPhoneLoginState();
         window.setTimeout(syncSharedPhoneLoginState, 0);
         window.setTimeout(syncSharedPhoneLoginState, 120);
+      }
+
+      function initSharedHeaderCaseSearch() {
+        const form = document.querySelector('.bh-title-search');
+        if (!form || form.dataset.bound === '1') return;
+        form.dataset.bound = '1';
+        const input = form.querySelector('.bh-title-search-input');
+        const panel = form.querySelector('.bh-title-search-panel');
+        const results = form.querySelector('[data-title-search-results]');
+        const heading = form.querySelector('[data-title-search-heading]');
+        const status = form.querySelector('[data-title-search-status]');
+        const quickLinks = Array.from(form.querySelectorAll('.bh-title-search-quicklink'));
+        const submitButton = form.querySelector('.bh-title-search-submit');
+        if (!input || !panel || !results) return;
+
+        let timer = 0;
+        let seq = 0;
+        let popularLoaded = false;
+        let lastQuery = '';
+
+        const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (ch) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        }[ch] || ch));
+
+        const trustedImage = (item) => {
+          const gallery = Array.isArray(item?.gallery_urls) ? item.gallery_urls : [];
+          const raw = String(item?.thumb_url || item?.hero_media_url || gallery[0] || '').trim();
+          return raw || '/static/template-bhomeland/feature_img_1.jpg';
+        };
+
+        const itemHref = (item) => {
+          const sid = Number(item?.source_item_id || 0);
+          return sid > 0 ? `/case/${sid}?return_to=${encodeURIComponent('/#home-hero-heading')}` : '#';
+        };
+
+        const itemSummary = (item) => {
+          const parts = [
+            item?.price_hint || item?.price_text_hant || '',
+            item?.area_hint || item?.area_text_hant || '',
+            item?.layout_text_hant || item?.layout_line_jp || '',
+          ].map((x) => String(x || '').trim()).filter(Boolean);
+          return parts.slice(0, 3).join(' ｜ ') || String(item?.summary || item?.seo_description || '').trim();
+        };
+
+        const renderItems = (items, query) => {
+          const safeItems = Array.isArray(items) ? items.filter(Boolean).slice(0, 6) : [];
+          if (heading) heading.textContent = query ? `匹配「${query}」` : '熱門推薦案件';
+          if (status) status.textContent = safeItems.length ? `${safeItems.length} 筆` : '暫無結果';
+          if (!safeItems.length) {
+            results.innerHTML = '<div class="bh-title-search-empty">暫時沒有匹配案件，換個地區或車站關鍵詞試試。</div>';
+            return;
+          }
+          results.innerHTML = safeItems.map((item) => {
+            const href = itemHref(item);
+            const title = String(item.title_zh_hans || item.title_zh_hant || item.title || item.title_original || '日本房源').trim();
+            const location = String(item.address_hint_zh || item.region || item.jp_region_display_zh || item.transit || '').trim();
+            const summary = itemSummary(item);
+            return `
+              <a class="bh-title-search-card" href="${escapeHtml(href)}" role="option">
+                <img src="${escapeHtml(trustedImage(item))}" alt="" loading="lazy" decoding="async">
+                <span class="bh-title-search-card-copy">
+                  <strong>${escapeHtml(title)}</strong>
+                  ${summary ? `<em>${escapeHtml(summary)}</em>` : ''}
+                  ${location ? `<small>${escapeHtml(location)}</small>` : ''}
+                </span>
+              </a>
+            `;
+          }).join('');
+        };
+
+        const openPanel = () => {
+          panel.hidden = false;
+          form.classList.add('is-open');
+          input.setAttribute('aria-expanded', 'true');
+        };
+
+        const closePanel = () => {
+          panel.hidden = true;
+          form.classList.remove('is-open', 'is-loading');
+          input.setAttribute('aria-expanded', 'false');
+        };
+
+        const loadCases = async (query = '') => {
+          const q = String(query || '').trim();
+          const requestSeq = ++seq;
+          lastQuery = q;
+          openPanel();
+          form.classList.add('is-loading');
+          if (heading) heading.textContent = q ? `匹配「${q}」` : '熱門推薦案件';
+          if (status) status.textContent = '載入中...';
+          try {
+            const params = new URLSearchParams({ limit: '6', offset: '0', category: 'hot' });
+            if (q) params.set('q', q);
+            const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: q ? 'no-store' : 'default' });
+            const data = await res.json().catch(() => ({}));
+            if (requestSeq !== seq) return;
+            if (!res.ok || !data || data.ok === false) throw new Error('case search failed');
+            renderItems(data.items || [], q);
+            if (!q) popularLoaded = true;
+          } catch (_) {
+            if (requestSeq !== seq) return;
+            if (status) status.textContent = '載入失敗';
+            results.innerHTML = '<div class="bh-title-search-empty">案件推薦暫時無法載入，請稍後再試。</div>';
+          } finally {
+            if (requestSeq === seq) form.classList.remove('is-loading');
+          }
+        };
+
+        const scheduleSearch = () => {
+          const q = String(input.value || '').trim();
+          window.clearTimeout(timer);
+          timer = window.setTimeout(() => {
+            if (q) loadCases(q);
+            else if (!popularLoaded) loadCases('');
+            else openPanel();
+          }, q ? 180 : 40);
+        };
+
+        function submitTitleSearch(evt) {
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+          const q = String(input.value || lastQuery || '').trim();
+          if (!q) {
+            loadCases('');
+            return;
+          }
+          const normalizedQ = q.replace(/\s+/g, '').toLowerCase();
+          const matchedEntry = quickLinks.find((link) => {
+            const text = String(link.textContent || '').replace(/\s+/g, '').toLowerCase();
+            const geo = String(link.getAttribute('data-geo-keyword') || '').replace(/\s+/g, '').toLowerCase();
+            const href = String(link.getAttribute('href') || '').replace(/\s+/g, '').toLowerCase();
+            return normalizedQ && (normalizedQ === text || normalizedQ === geo || normalizedQ === href);
+          });
+          if (matchedEntry) {
+            runQuickLinkAction(matchedEntry, evt);
+            return;
+          }
+          if (typeof window.runGeoKeywordSearch === 'function' && document.getElementById('query-dialog')) {
+            window.runGeoKeywordSearch(q, null);
+            closePanel();
+            return;
+          }
+          window.location.href = `/?geo_keyword=${encodeURIComponent(q)}#query-dialog`;
+        }
+
+        form.addEventListener('submit', submitTitleSearch);
+        if (submitButton) {
+          submitButton.addEventListener('click', submitTitleSearch, { capture: true });
+        }
+
+        input.addEventListener('focus', () => {
+          if (String(input.value || '').trim()) scheduleSearch();
+          else if (!popularLoaded) loadCases('');
+          else openPanel();
+        });
+        input.addEventListener('input', scheduleSearch);
+        input.addEventListener('keydown', (evt) => {
+          if (evt.key === 'Enter') {
+            submitTitleSearch(evt);
+            return;
+          }
+          if (evt.key === 'Escape') closePanel();
+        });
+        const runQuickLinkAction = (link, evt) => {
+          const action = String(link.getAttribute('data-title-search-action') || 'page').trim();
+          const keyword = String(link.getAttribute('data-geo-keyword') || '').trim();
+          closePanel();
+          if (action === 'case-query') {
+            if (!keyword) return;
+            if (typeof window.runGeoKeywordSearch === 'function' && document.getElementById('query-dialog')) {
+              evt.preventDefault();
+              evt.stopPropagation();
+              window.runGeoKeywordSearch(keyword, link);
+              return;
+            }
+            return;
+          }
+          if (action === 'workbench-map') {
+            if (document.getElementById('jp-map-hub')) {
+              evt.preventDefault();
+              evt.stopPropagation();
+              if (typeof window.setHomeInternalView === 'function') {
+                window.setHomeInternalView('workbench', { targetId: 'jp-map-hub', persist: true, scroll: true, instant: false });
+              }
+              if (typeof window.setJpWorkbenchTab === 'function') {
+                window.setJpWorkbenchTab('map', { persist: true, scroll: true, instant: false });
+              }
+              const map = document.getElementById('jp-map-hub');
+              if (map && typeof map.scrollIntoView === 'function') map.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            return;
+          }
+          if (action === 'page') {
+            const href = String(link.getAttribute('href') || '').trim();
+            if (href) {
+              evt.preventDefault();
+              evt.stopPropagation();
+              window.location.href = href;
+            }
+            return;
+          }
+          if (action === 'support') {
+            if (typeof window.toggleSupportChat === 'function') {
+              evt.preventDefault();
+              evt.stopPropagation();
+              window.toggleSupportChat(true);
+            }
+          }
+        };
+
+        quickLinks.forEach((link) => {
+          link.addEventListener('click', (evt) => runQuickLinkAction(link, evt));
+        });
+        results.addEventListener('click', (evt) => {
+          const link = evt.target instanceof Element ? evt.target.closest('a[href]') : null;
+          if (!link) return;
+          closePanel();
+        });
+        document.addEventListener('pointerdown', (evt) => {
+          if (!form.contains(evt.target)) closePanel();
+        });
       }
 
       function initSharedHeaderKeywordTabs() {
@@ -275,7 +545,7 @@
           document.documentElement.dataset.sharedHomeRoutingBound = '1';
           document.addEventListener('click', (event) => {
           const target = event.target instanceof Element
-            ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-nav-keyword-panel a[data-geo-keyword], .bh-footer-directory a[data-geo-keyword], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]')
+            ? event.target.closest('.bh-site-brand, .bh-nav-workbench-tab[data-home-view-switch="workbench"], .bh-title-search-quicklink[data-geo-keyword], .bh-nav-keyword-panel a[data-geo-keyword], .bh-footer-directory a[data-geo-keyword], .bh-nav-keyword-panel a[href^="#"], .bh-footer-directory a[href^="#"]')
             : null;
           if (!target) return;
           if (target.matches('.bh-site-brand')) {
@@ -310,11 +580,13 @@
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
           initSharedHeaderKeywordTabs();
+          initSharedHeaderCaseSearch();
           initSharedHeaderHomeRouting();
           scheduleSharedPhoneLoginStateSync();
         });
       } else {
         initSharedHeaderKeywordTabs();
+        initSharedHeaderCaseSearch();
         initSharedHeaderHomeRouting();
         scheduleSharedPhoneLoginStateSync();
       }

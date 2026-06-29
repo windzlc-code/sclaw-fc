@@ -1,4 +1,5 @@
 ﻿import csv
+import copy
 import base64
 import hashlib
 import hmac
@@ -17,7 +18,7 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
-from urllib.parse import parse_qsl, quote, urlencode, unquote, urljoin, urlparse
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse
 from uuid import uuid4
 from typing import Any
 
@@ -101,11 +102,13 @@ from src.portal_case_search import (
     _thumb_kind_label,
     _normalize_smart_property_types,
     _smart_property_type_hits,
+    is_suumo_non_property_image_url,
     is_likely_agent_portrait_image_url,
     ordered_listing_image_urls,
     search_portal_cases,
     sort_property_image_urls_for_hero,
 )
+from src.portal_media_filter import is_portal_non_property_image_url
 from src.portal_property_crawl import LISTING_HUB_PAGES
 from src.live_enrich_urls import live_enrich_eligible_url
 from src.homes_geo import HOMES_KODATE_CHUKO_PREFS, homes_kodate_chuko_city_groups, homes_kodate_chuko_pref_catalog
@@ -115,9 +118,11 @@ from src.gemini_client import (
     chat_completion,
     chat_support_reply_gemini,
     format_llm_exception_for_user,
+    is_gemini_configured,
     is_llm_configured,
     refine_long_support_reply_dual_stage,
     sanitize_support_chat_visible_reply,
+    select_representative_listing_image_via_gemini,
     support_knowledge_keyword_hint,
 )
 from src.llm_runtime import (
@@ -1364,6 +1369,478 @@ def case_static_image_url(raw_url: Any) -> str:
     return _case_image_proxy_url(raw)
 
 
+_CASE_REPRESENTATIVE_VISUAL_CACHE: dict[str, bool] = {}
+_CASE_REPRESENTATIVE_VISUAL_CACHE_MAX = 5000
+
+
+def _case_image_visual_reject_reason(static_url: Any) -> str:
+    """Lightweight local visual filter for card thumbnails.
+
+    This intentionally does not call an AI model. It rejects obvious floor plans,
+    diagrams, placeholders and extreme-ratio fragments after the image has been
+    cached locally, then lets ordinary exterior/interior photos pass through.
+    """
+    s = str(static_url or "").strip()
+    if not s:
+        return "empty"
+    if s in _CASE_REPRESENTATIVE_VISUAL_CACHE:
+        return "visual" if _CASE_REPRESENTATIVE_VISUAL_CACHE[s] else ""
+    path = _url_to_local_static_path(s)
+    if not path or not path.is_file():
+        return ""
+    try:
+        from PIL import Image, ImageFilter, ImageStat  # type: ignore
+
+        with Image.open(path) as im0:
+            im = im0.convert("RGB")
+            w, h = im.size
+            if w <= 0 or h <= 0:
+                reason = "invalid"
+            else:
+                aspect = w / max(1, h)
+                if min(w, h) < 120 or max(w, h) < 260:
+                    reason = "tiny"
+                elif aspect < 0.45 or aspect > 3.2:
+                    reason = "extreme-ratio"
+                else:
+                    small = im.resize((96, 96))
+                    hsv = small.convert("HSV")
+                    sat_mean = float(ImageStat.Stat(hsv).mean[1]) / 255.0
+                    gray = small.convert("L")
+                    px = list(gray.getdata())
+                    total = max(1, len(px))
+                    light_ratio = sum(1 for v in px if v >= 232) / total
+                    dark_ratio = sum(1 for v in px if v <= 28) / total
+                    edge = gray.filter(ImageFilter.FIND_EDGES)
+                    edge_mean = float(ImageStat.Stat(edge).mean[0]) / 255.0
+                    reason = ""
+                    # Floor plans and structure diagrams are usually bright, low-saturation
+                    # line drawings with many hard edges. Keep the thresholds conservative
+                    # so normal room photos with bright walls are not rejected.
+                    if light_ratio >= 0.38 and edge_mean >= 0.105 and sat_mean <= 0.38:
+                        reason = "floor-plan"
+                    elif light_ratio >= 0.58 and edge_mean >= 0.075 and sat_mean <= 0.28:
+                        reason = "line-diagram"
+                    elif sat_mean <= 0.10 and light_ratio >= 0.20 and dark_ratio <= 0.04 and edge_mean >= 0.16:
+                        reason = "access-map"
+                    elif light_ratio >= 0.78 and dark_ratio <= 0.03 and sat_mean <= 0.18:
+                        reason = "blank-placeholder"
+    except Exception:
+        reason = ""
+    reject = bool(reason)
+    if len(_CASE_REPRESENTATIVE_VISUAL_CACHE) >= _CASE_REPRESENTATIVE_VISUAL_CACHE_MAX:
+        _CASE_REPRESENTATIVE_VISUAL_CACHE.clear()
+    _CASE_REPRESENTATIVE_VISUAL_CACHE[s] = reject
+    return reason
+
+
+def _case_representative_url_reject_reason(raw_url: Any) -> str:
+    """Reject URLs that are useful in details but poor as a case card hero."""
+    s = str(raw_url or "").strip()
+    if not s:
+        return "empty"
+    try:
+        decoded = unquote(s)
+    except Exception:
+        decoded = s
+    hay = f"{s} {decoded}".lower()
+    if is_likely_agent_portrait_image_url(s):
+        return "agent"
+    if is_portal_non_property_image_url(s):
+        return "portal-asset"
+    reject_tokens = (
+        "madori",
+        "floorplan",
+        "floor_plan",
+        "layout",
+        "heimen",
+        "間取",
+        "間取り",
+        "平面図",
+        "図面",
+        "圖面",
+        "户型",
+        "戶型",
+        "/map/",
+        "chizu",
+        "access",
+        "route",
+        "rosen",
+        "station",
+        "train",
+        "bus",
+        "guidance",
+        "outskirts",
+        "shuuhen",
+        "environment",
+        "案内図",
+        "現地案内",
+        "周辺",
+        "周邊",
+    )
+    if any(tok in hay for tok in reject_tokens):
+        return "non-photo-context"
+    if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/project_detail_slide/" in hay:
+        return "new-build-concept"
+    if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/gaikan/" in hay:
+        return "new-build-render"
+    if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/energy_saving/" in hay:
+        return "new-build-spec"
+    if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/project_free/" in hay:
+        return "new-build-promo"
+    return ""
+
+
+def _case_representative_raw_url_candidates(row: dict[str, Any], *, limit: int = 32) -> list[str]:
+    """Build ordered original image candidates for one listing."""
+    raw: list[Any] = [
+        row.get("hero_image_url"),
+        row.get("thumbnail_url"),
+        *(_row_primary_image_url_lines(row, limit=20) if isinstance(row, dict) else []),
+    ]
+    try:
+        imgs, _vids = extract_media_urls_from_row(row)
+        raw.extend(imgs)
+    except Exception:
+        pass
+    out: list[str] = []
+    seen: set[str] = set()
+    for u in raw:
+        s = _normalize_listing_image_url_for_display(str(u or "").strip())
+        if not s.lower().startswith(("http://", "https://")):
+            continue
+        if s in seen:
+            continue
+        seen.add(s)
+        out.append(s)
+        if len(out) >= max(1, int(limit or 1)):
+            break
+    return out
+
+
+def _case_representative_image_signature(raw_urls: list[Any]) -> str:
+    normalized: list[str] = []
+    for u in raw_urls[:40]:
+        s = _normalize_listing_image_url_for_display(str(u or "").strip())
+        if s:
+            normalized.append(s)
+    payload = json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def _case_stored_representative_static_url(row: dict[str, Any], raw_urls: list[Any] | None = None) -> str:
+    sid = int(row.get("source_item_id") or row.get("id") or 0)
+    if sid <= 0:
+        return ""
+    candidates = raw_urls if raw_urls is not None else _case_representative_raw_url_candidates(row)
+    signature = _case_representative_image_signature(list(candidates or []))
+    if not signature:
+        return ""
+    try:
+        with get_conn() as conn:
+            rec = conn.execute(
+                """
+                SELECT representative_static_url, image_signature, status
+                FROM case_representative_images
+                WHERE source_item_id = ?
+                """,
+                (sid,),
+            ).fetchone()
+    except Exception:
+        return ""
+    if not rec:
+        return ""
+    d = dict(rec)
+    if str(d.get("image_signature") or "") != signature:
+        return ""
+    if str(d.get("status") or "") not in {"selected", "fallback", "rules"}:
+        return ""
+    static_url = str(d.get("representative_static_url") or "").strip()
+    if not static_url:
+        return ""
+    if not _url_to_local_static_path(static_url):
+        return ""
+    if _case_image_visual_reject_reason(static_url):
+        return ""
+    return static_url
+
+
+def _case_store_representative_image(
+    *,
+    source_item_id: int,
+    representative_url: str,
+    representative_static_url: str,
+    image_signature: str,
+    provider: str,
+    model: str = "",
+    status: str,
+    score: int = 0,
+    reason: str = "",
+    rejected: list[Any] | None = None,
+    source_last_checked_at: str = "",
+) -> None:
+    if int(source_item_id or 0) <= 0:
+        return
+    try:
+        rejected_json = json.dumps(rejected or [], ensure_ascii=False)[:4000]
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO case_representative_images (
+                    source_item_id, representative_url, representative_static_url,
+                    image_signature, provider, model, status, score, reason,
+                    rejected_json, selected_at, source_last_checked_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                ON CONFLICT(source_item_id) DO UPDATE SET
+                    representative_url=excluded.representative_url,
+                    representative_static_url=excluded.representative_static_url,
+                    image_signature=excluded.image_signature,
+                    provider=excluded.provider,
+                    model=excluded.model,
+                    status=excluded.status,
+                    score=excluded.score,
+                    reason=excluded.reason,
+                    rejected_json=excluded.rejected_json,
+                    selected_at=CURRENT_TIMESTAMP,
+                    source_last_checked_at=excluded.source_last_checked_at
+                """,
+                (
+                    int(source_item_id),
+                    str(representative_url or "")[:1200],
+                    str(representative_static_url or "")[:1200],
+                    str(image_signature or "")[:80],
+                    str(provider or "")[:80],
+                    str(model or "")[:160],
+                    str(status or "")[:40],
+                    max(0, min(100, int(score or 0))),
+                    str(reason or "")[:600],
+                    rejected_json,
+                    str(source_last_checked_at or "")[:80],
+                ),
+            )
+            conn.commit()
+    except Exception as exc:
+        _log_backend_error("case-representative-store", exc)
+
+
+def _case_ai_candidate_pack(row: dict[str, Any], *, limit: int = 8) -> tuple[list[dict[str, Any]], list[str], str]:
+    raw_urls = _case_representative_raw_url_candidates(row, limit=32)
+    signature = _case_representative_image_signature(raw_urls)
+    raw_candidates = [
+        u for u in raw_urls if u and not _case_representative_url_reject_reason(u)
+    ]
+    sorted_raw = _sort_relevant_real_estate_images(raw_candidates, limit=max(16, limit * 2))
+    candidates: list[dict[str, Any]] = []
+    for raw in sorted_raw:
+        static_url = _case_image_download_to_cache(raw)
+        if not static_url or not _url_to_local_static_path(static_url):
+            continue
+        reject_reason = _case_image_visual_reject_reason(static_url)
+        if reject_reason:
+            continue
+        candidates.append(
+            {
+                "index": len(candidates) + 1,
+                "url": raw,
+                "static_url": static_url,
+                "hint": _thumb_kind_label(static_url),
+            }
+        )
+        if len(candidates) >= max(1, int(limit or 1)):
+            break
+    return candidates, raw_urls, signature
+
+
+def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: bool = False) -> dict[str, Any]:
+    sid = int(row.get("source_item_id") or row.get("id") or 0)
+    if sid <= 0:
+        return {"ok": False, "status": "skip", "reason": "missing source_item_id"}
+    raw_urls = _case_representative_raw_url_candidates(row, limit=32)
+    signature = _case_representative_image_signature(raw_urls)
+    existing = "" if force else _case_stored_representative_static_url(row, raw_urls)
+    if existing:
+        return {"ok": True, "status": "cached", "source_item_id": sid, "static_url": existing}
+    candidates, raw_urls, signature = _case_ai_candidate_pack(row, limit=8)
+    if not candidates:
+        fallback = _case_representative_gallery_urls(raw_urls, limit=1, sync_download=True, proxy_fallback=False)
+        static_url = fallback[0] if fallback else ""
+        _case_store_representative_image(
+            source_item_id=sid,
+            representative_url="",
+            representative_static_url=static_url,
+            image_signature=signature,
+            provider="rules",
+            status="fallback" if static_url else "empty",
+            score=45 if static_url else 0,
+            reason="No AI candidate; stored rule fallback.",
+            source_last_checked_at=str(row.get("last_checked_at") or ""),
+        )
+        return {"ok": bool(static_url), "status": "fallback" if static_url else "empty", "source_item_id": sid}
+
+    selected = candidates[0]
+    provider = "rules"
+    status = "rules"
+    score = 60
+    reason = "Rule-based first usable real-estate photo."
+    rejected: list[Any] = []
+    if is_gemini_configured():
+        try:
+            ai = select_representative_listing_image_via_gemini(
+                candidates,
+                title=str(row.get("seo_title") or row.get("title_original") or ""),
+                address=str(row.get("case_jp_region_override") or row.get("body_original") or "")[:180],
+                source_name=str(row.get("source_name") or ""),
+            )
+            selected_index = int(ai.get("selected_index") or 0)
+            picked = next((c for c in candidates if int(c.get("index") or 0) == selected_index), None)
+            category = str(ai.get("category") or "").lower()
+            bad_categories = {"floor_plan", "map", "concept", "ad", "watermark", "placeholder"}
+            if picked and category not in bad_categories and int(ai.get("score") or 0) >= 45:
+                selected = picked
+                provider = "gemini"
+                status = "selected"
+                score = int(ai.get("score") or 0)
+                reason = str(ai.get("reason") or "Gemini selected representative image.")
+                rejected = list(ai.get("rejected") or [])
+            else:
+                rejected = list(ai.get("rejected") or [])
+                rejected_indexes = {
+                    int(x.get("index") or 0)
+                    for x in rejected
+                    if isinstance(x, dict) and int(x.get("index") or 0) > 0
+                }
+                if picked:
+                    rejected_indexes.add(int(picked.get("index") or 0))
+                safer = next(
+                    (
+                        c
+                        for c in candidates
+                        if int(c.get("index") or 0) not in rejected_indexes
+                    ),
+                    None,
+                )
+                if safer:
+                    selected = safer
+                provider = "gemini"
+                status = "fallback"
+                score = max(45, int(ai.get("score") or 0))
+                reason = f"Gemini result rejected ({category}); used rule fallback."
+        except Exception as exc:
+            provider = "gemini"
+            status = "fallback"
+            score = 50
+            reason = f"Gemini failed; used rule fallback: {type(exc).__name__}: {str(exc)[:180]}"
+    else:
+        reason = "Gemini is not configured; used rule fallback."
+
+    static_url = str(selected.get("static_url") or "").strip()
+    original_url = str(selected.get("url") or "").strip()
+    if not static_url:
+        static_url = _case_image_download_to_cache(original_url)
+    if not static_url or _case_image_visual_reject_reason(static_url):
+        status = "empty"
+        score = 0
+        reason = "Selected image failed local cache/visual validation."
+        static_url = ""
+        original_url = ""
+    _case_store_representative_image(
+        source_item_id=sid,
+        representative_url=original_url,
+        representative_static_url=static_url,
+        image_signature=signature,
+        provider=provider,
+        status=status,
+        score=score,
+        reason=reason,
+        rejected=rejected,
+        source_last_checked_at=str(row.get("last_checked_at") or ""),
+    )
+    return {
+        "ok": bool(static_url),
+        "status": status,
+        "source_item_id": sid,
+        "static_url": static_url,
+        "score": score,
+        "provider": provider,
+        "reason": reason,
+    }
+
+
+def _case_representative_gallery_urls(
+    raw_urls: list[Any],
+    *,
+    limit: int = 8,
+    fetch_limit: int = 14,
+    sync_download: bool = False,
+    proxy_fallback: bool = True,
+) -> list[str]:
+    """Select fixed representative static images for cards.
+
+    The returned URLs are local/static cache URLs whenever available. A case card
+    should use the first item as its stable representative image.
+    """
+    lim = max(1, min(int(limit or 8), 24))
+    raw_candidates = [
+        str(u or "").strip()
+        for u in raw_urls
+        if str(u or "").strip() and not _case_representative_url_reject_reason(u)
+    ]
+    candidates = _sort_relevant_real_estate_images(raw_candidates, limit=max(fetch_limit, lim))
+    if candidates:
+        _case_image_prefetch(candidates[: max(lim, min(fetch_limit, 12))], limit=max(lim, min(fetch_limit, 12)), force=True)
+    accepted: list[str] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        cached = _case_image_cached_static_url(raw)
+        if not cached and sync_download:
+            cached = _case_image_download_to_cache(raw)
+        if not cached or cached in seen:
+            continue
+        if not _url_to_local_static_path(cached):
+            continue
+        seen.add(cached)
+        reject_reason = _case_image_visual_reject_reason(cached)
+        if reject_reason:
+            continue
+        accepted.append(cached)
+        if len(accepted) >= lim:
+            break
+    if accepted:
+        return accepted[:lim]
+    if proxy_fallback:
+        proxied: list[str] = []
+        for raw in candidates:
+            s = str(raw or "").strip()
+            if not s.lower().startswith(("http://", "https://")):
+                continue
+            cached = _case_image_cached_static_url(s)
+            if cached and _case_image_visual_reject_reason(cached):
+                continue
+            px = case_static_image_url(s)
+            if px and px not in proxied:
+                proxied.append(px)
+            if len(proxied) >= lim:
+                break
+        return proxied[:lim]
+    return []
+
+
+def _row_primary_image_url_lines(row: dict[str, Any], *, limit: int = 12) -> list[str]:
+    """Original source_items.image_urls, before rebuilt media JSON fallbacks."""
+    out: list[str] = []
+    for line in str(row.get("image_urls") or "").replace("\r", "\n").splitlines():
+        u = _normalize_listing_image_url_for_display(line.strip())
+        if not u.lower().startswith(("http://", "https://")):
+            continue
+        if not _row_image_url_is_usable(u) or not _is_case_property_gallery_image_url(u):
+            continue
+        if u not in out:
+            out.append(u)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _home_intro_script_template() -> str:
     return (
         "歡迎來到日本不動產全球指定搜尋網。這裡把日本主要房產平台、區域條件、交通路線與案件素材集中整理，"
@@ -1883,7 +2360,21 @@ def _home_featured_property_type_hits(row: dict[str, Any]) -> set[str]:
     ).lower()
     layout_text = unicodedata.normalize(
         "NFKC",
-        " ".join(str(x or "") for x in (row.get("layout_text_hant"), row.get("layout_line_jp"))),
+        " ".join(str(x or "") for x in (row.get("layout_text_hant"), row.get("layout_line_jp"), row.get("seo_description"))),
+    ).lower()
+    extended_detail_text = unicodedata.normalize(
+        "NFKC",
+        " ".join(
+            str(x or "")
+            for x in (
+                row.get("layout_text_hant"),
+                row.get("layout_line_jp"),
+                row.get("seo_description"),
+                row.get("body_zh_hant"),
+                row.get("body_zh_hans"),
+                row.get("body_original"),
+            )
+        ),
     ).lower()
     url_text = unicodedata.normalize("NFKC", str(row.get("item_url") or "")).lower()
     focused = f"{structured} {title_text} {layout_text} {url_text}"
@@ -1906,7 +2397,7 @@ def _home_featured_property_type_hits(row: dict[str, Any]) -> set[str]:
         for t in ("別墅", "透天", "一戶建", "一戸建", "戸建", "detached", "villa", "中古一戸建て", "新築一戸建て")
     ):
         return {"別墅/透天"}
-    if any(t in layout_text for t in ("套房", "ワンルーム", "1r", "1k", "studio")):
+    if any(t in extended_detail_text for t in ("套房", "ワンルーム", "1r", "1k", "1dk", "studio", "單身", "单身")):
         return {"套房"}
 
     if "華廈" in focused:
@@ -1930,7 +2421,7 @@ def _home_featured_matches_property_type(row: dict[str, Any], property_type: str
     if not selected:
         return True
     hits = _home_featured_property_type_hits(row)
-    if "其他" in selected and not hits:
+    if "其他" in selected and (not hits or bool(hits & {"單售車位", "廠房", "倉庫"})):
         return True
     return any(t != "其他" and t in hits for t in selected)
 
@@ -1939,8 +2430,10 @@ def _home_featured_property_type_search_terms(property_type: str) -> tuple[str, 
     normalized = _normalize_smart_property_types([property_type])
     if not normalized:
         return ()
+    if any(t in normalized for t in ("公寓", "大樓", "華廈")):
+        return ("公寓", "大樓", "華廈", "マンション", "mansion", "アパート", "apartment", "新築マンション", "中古マンション")
     if "套房" in normalized:
-        return ("套房", "ワンルーム", "1R", "1K", "studio")
+        return ("套房", "ワンルーム", "1R", "1K", "1DK", "studio", "單身", "单身", "1房")
     if "辦公" in normalized:
         return ("辦公", "办公", "事務所", "オフィス", "office")
     if "店面" in normalized:
@@ -1960,17 +2453,19 @@ def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
         fields = {}
     base = _home_intro_case_public_row(row, include_script=False)
     _hero, imgs, _vids = _home_intro_case_media(row)
-    gallery: list[str] = []
-    for raw in imgs:
-        url = str(raw or "").strip()
-        if not url:
-            continue
-        if url.lower().startswith(("http://", "https://")):
-            url = case_static_image_url(url)
-        if url not in gallery:
-            gallery.append(url)
+    primary_imgs = _row_primary_image_url_lines(row, limit=12)
+    raw_gallery_candidates = [
+        str(base.get("thumb_url") or "").strip(),
+        *primary_imgs,
+    ]
+    stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
+    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8)
+    if stored_thumb:
+        gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+    if not gallery:
+        gallery = _case_representative_gallery_urls(imgs, limit=8)
     thumb = str(base.get("thumb_url") or "").strip()
-    if not thumb and gallery:
+    if gallery:
         thumb = gallery[0]
     image_count = max(int(base.get("image_count") or 0), len(gallery))
     price_hint = _home_featured_price_label(base.get("price_hint") or "")
@@ -2047,17 +2542,18 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         fields = {}
     imgs, _vids = extract_media_urls_from_row(row)
-    raw_gallery = _sort_relevant_real_estate_images(
-        [
-            str(row.get("hero_image_url") or "").strip(),
-            str(row.get("thumbnail_url") or "").strip(),
-            *imgs,
-        ],
-        limit=8,
-    )
-    if raw_gallery:
-        _case_image_prefetch(raw_gallery[:6], limit=6, force=True)
-    gallery = [case_static_image_url(u) for u in raw_gallery]
+    primary_imgs = _row_primary_image_url_lines(row, limit=12)
+    raw_gallery_candidates = [
+        str(row.get("hero_image_url") or "").strip(),
+        str(row.get("thumbnail_url") or "").strip(),
+        *primary_imgs,
+    ]
+    stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
+    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8)
+    if stored_thumb:
+        gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+    if not gallery:
+        gallery = _case_representative_gallery_urls(imgs, limit=8)
     hero = gallery[0] if gallery else ""
     sid = int(row.get("source_item_id") or 0)
     slug = str(row.get("seo_slug") or "").strip()
@@ -2128,15 +2624,17 @@ _HOME_FEATURED_CASES_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 def _home_featured_cases_cache_key(
-    *, limit: int, offset: int, category: str, property_type: str = "", region: str = ""
+    *, limit: int, offset: int, category: str, property_type: str = "", region: str = "", q: str = ""
 ) -> str:
     return json.dumps(
         {
+            "media_policy": "representative-v2",
             "limit": int(limit),
             "offset": int(offset),
             "category": str(category or "hot"),
             "property_type": str(property_type or "").strip(),
             "region": str(region or "").strip(),
+            "q": str(q or "").strip(),
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -2171,11 +2669,13 @@ def _home_featured_cases_payload(
     category: str = "hot",
     property_type: str = "",
     region: str = "",
+    q: str = "",
 ) -> dict[str, Any]:
     lim = max(1, min(24, int(limit or 12)))
-    off = max(0, min(5000, int(offset or 0)))
+    off = max(0, min(50000, int(offset or 0)))
     query_region = str(region or "").strip()
     query_property_type = str(property_type or "").strip()
+    query_text = str(q or "").strip()
     query_category = str(category or "hot").strip().lower()
     if query_category not in {"hot", "price", "transit", "image_quality", "investment", "self_use"}:
         query_category = "hot"
@@ -2185,9 +2685,10 @@ def _home_featured_cases_payload(
         category=query_category,
         property_type=query_property_type,
         region=query_region,
+        q=query_text,
     )
     cached = _home_featured_cases_cache_get(cache_key)
-    if cached is not None:
+    if cached is not None and (cached.get("items") or not cached.get("has_more")):
         return cached
     params: list[Any] = []
     region_sql = ""
@@ -2202,10 +2703,27 @@ def _home_featured_cases_payload(
           )
         """
         params.extend([like, like, like, like])
+    query_sql = ""
+    if query_text:
+        like = f"%{query_text}%"
+        query_sql = """
+          AND (
+            c.case_jp_region_override LIKE ?
+            OR c.case_transit_override LIKE ?
+            OR c.seo_title LIKE ?
+            OR c.title_zh_hant LIKE ?
+            OR c.title_zh_hans LIKE ?
+            OR c.seo_description LIKE ?
+            OR s.title_original LIKE ?
+            OR s.body_original LIKE ?
+            OR s.item_url LIKE ?
+          )
+        """
+        params.extend([like, like, like, like, like, like, like, like, like])
     type_terms = _home_featured_property_type_search_terms(query_property_type)
     type_sql = ""
     if type_terms:
-        searchable_cols = (
+        searchable_cols: tuple[str, ...] = (
             "c.case_transaction_override",
             "c.seo_title",
             "c.title_zh_hant",
@@ -2214,6 +2732,13 @@ def _home_featured_cases_payload(
             "s.title_original",
             "s.item_url",
         )
+        if "套房" in _normalize_smart_property_types([query_property_type]):
+            searchable_cols = (
+                *searchable_cols,
+                "c.body_zh_hant",
+                "c.body_zh_hans",
+                "s.body_original",
+            )
         type_clauses: list[str] = []
         for term in type_terms:
             term_like = f"%{term}%"
@@ -2221,7 +2746,7 @@ def _home_featured_cases_payload(
                 type_clauses.append(f"COALESCE({col}, '') LIKE ?")
                 params.append(term_like)
         type_sql = f" AND ({' OR '.join(type_clauses)}) "
-    sql_limit = min(240 if type_terms else 36, max(lim * (12 if type_terms else 3), lim + 12))
+    sql_limit = min(1600 if query_property_type else 900, max(lim * (100 if query_property_type else 80), lim + 360))
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -2265,6 +2790,7 @@ def _home_featured_cases_payload(
                 OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
               )
               {region_sql}
+              {query_sql}
               {type_sql}
             ORDER BY c.updated_at DESC, c.id DESC
             LIMIT ? OFFSET ?
@@ -2274,11 +2800,16 @@ def _home_featured_cases_payload(
     items: list[dict[str, Any]] = []
     for row in rows:
         row_dict = dict(row)
-        raw_title_blob = " ".join(
-            str(row_dict.get(k) or "")
+        title_candidates = [
+            str(row_dict.get(k) or "").strip()
             for k in ("seo_title", "title_zh_hant", "title_zh_hans", "title_original")
+            if str(row_dict.get(k) or "").strip()
+        ]
+        bad_title_re = re.compile(
+            r"^(?:javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持)(?:\s*[｜|-].*)?$",
+            re.I,
         )
-        if re.search(r"javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持", raw_title_blob, re.I):
+        if title_candidates and all(bad_title_re.search(t) for t in title_candidates):
             continue
         if query_property_type and not _home_featured_matches_property_type(row_dict, query_property_type):
             continue
@@ -2310,10 +2841,68 @@ def _home_featured_cases_payload(
         "category": query_category,
         "property_type": query_property_type,
         "region": query_region,
+        "q": query_text,
         "cached": False,
     }
     _home_featured_cases_cache_set(cache_key, payload)
     return payload
+
+
+def _home_featured_cases_payload_merged(
+    *,
+    limit: int = 12,
+    offset: int = 0,
+    category: str = "hot",
+    property_type: str = "",
+    region: str = "",
+    q: str = "",
+    max_rounds: int = 6,
+) -> dict[str, Any]:
+    """Backfill sparse featured batches so homepage sections do not render half-empty."""
+    target = max(1, min(24, int(limit or 12)))
+    next_offset = max(0, int(offset or 0))
+    merged: list[dict[str, Any]] = []
+    seen: set[int | str] = set()
+    last_payload: dict[str, Any] | None = None
+    last_offset = -1
+    for _ in range(max(1, min(12, int(max_rounds or 1)))):
+        if len(merged) >= target or next_offset == last_offset:
+            break
+        last_offset = next_offset
+        payload = _home_featured_cases_payload(
+            limit=target,
+            offset=next_offset,
+            category=category,
+            property_type=property_type,
+            region=region,
+            q=q,
+        )
+        last_payload = payload
+        items = list(payload.get("items") or [])
+        for item in items:
+            key: int | str = int(item.get("source_item_id") or 0) or str(item.get("case_path") or item.get("title") or "")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+            if len(merged) >= target:
+                break
+        candidate_offset = int(payload.get("next_offset") or 0)
+        next_offset = candidate_offset if candidate_offset > next_offset else next_offset + max(target, len(items), 1)
+        if payload.get("has_more") is False:
+            break
+    return {
+        **(last_payload or {}),
+        "ok": True,
+        "items": merged[:target],
+        "limit": target,
+        "offset": max(0, int(offset or 0)),
+        "next_offset": next_offset,
+        "has_more": bool(last_payload and last_payload.get("has_more") is not False),
+        "property_type": property_type,
+        "region": region,
+        "q": q,
+    }
 
 
 _HOME_ROOM_EXPLORE_TYPE_META: tuple[dict[str, str], ...] = (
@@ -2373,6 +2962,18 @@ _HOME_ROOM_EXPLORE_TYPE_META: tuple[dict[str, str], ...] = (
     },
 )
 
+_HOME_ROOM_EXPLORE_STATIC_FALLBACKS: dict[str, str] = {
+    "公寓": "/static/img/property-type-apartment.svg",
+    "大樓": "/static/img/property-type-tower.svg",
+    "華廈": "/static/img/property-type-midrise.svg",
+    "套房": "/static/img/property-type-studio.svg",
+    "別墅/透天": "/static/img/property-type-house.svg",
+    "辦公": "/static/img/property-type-office.svg",
+    "店面": "/static/img/property-type-shop.svg",
+    "土地": "/static/img/property-type-land.svg",
+    "其他": "/static/img/property-type-other.svg",
+}
+
 
 def _home_room_explore_tiles(
     preloaded_payloads: dict[str, dict[str, Any]] | None = None,
@@ -2388,30 +2989,47 @@ def _home_room_explore_tiles(
         items = list(payload.get("items") or [])
         if not items and fetch_missing:
             try:
-                payload = _home_featured_cases_payload(limit=12, offset=0, category="hot", property_type=property_type)
+                payload = _home_featured_cases_payload_merged(
+                    limit=8,
+                    offset=0,
+                    category="hot",
+                    property_type=property_type,
+                    max_rounds=4,
+                )
                 items = list(payload.get("items") or [])
             except Exception:
                 items = []
         selected: dict[str, Any] | None = None
+        selected_thumb = ""
         for item in items:
             sid = int(item.get("source_item_id") or 0)
-            thumb = str(item.get("thumb_url") or item.get("hero_media_url") or "").strip()
+            thumb = _home_featured_static_item_thumb(item, sync_download=False)
             title = str(item.get("title") or item.get("title_zh_hans") or item.get("title_zh_hant") or "").strip()
             if not thumb or not title:
                 continue
             if sid and sid in used_ids:
                 continue
             selected = item
+            selected_thumb = thumb
             if sid:
                 used_ids.add(sid)
             break
         if not selected and items:
-            selected = items[0]
+            for item in items:
+                thumb = _home_featured_static_item_thumb(item, sync_download=False)
+                if thumb:
+                    selected = item
+                    selected_thumb = thumb
+                    break
+        if not selected_thumb:
+            fallback_thumb = _HOME_ROOM_EXPLORE_STATIC_FALLBACKS.get(property_type, "")
+            if fallback_thumb and _url_to_local_static_path(fallback_thumb):
+                selected_thumb = fallback_thumb
         selected = selected or {}
         tiles.append(
             {
                 **meta,
-                "thumb_url": str(selected.get("thumb_url") or selected.get("hero_media_url") or "").strip(),
+                "thumb_url": selected_thumb,
                 "case_path": str(selected.get("case_path") or selected.get("article_path") or "").strip(),
                 "case_title": _social_text(
                     selected.get("title_zh_hans")
@@ -2425,6 +3043,189 @@ def _home_room_explore_tiles(
             }
         )
     return tiles
+
+
+def _home_featured_url_original_image(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if raw.lower().startswith(("http://", "https://")):
+        return raw
+    try:
+        parsed = urlparse(raw)
+        if parsed.path.startswith("/api/case-image-cache"):
+            query = parse_qs(parsed.query)
+            candidate = (query.get("u") or [""])[0]
+            if candidate.lower().startswith(("http://", "https://")):
+                return candidate
+    except Exception:
+        return ""
+    return ""
+
+
+def _home_featured_static_cache_image_url(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if not re.match(r"^/static/cache/case-images/[a-f0-9]{2}/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$", raw, re.I):
+        return ""
+    return raw if _url_to_local_static_path(raw) else ""
+
+
+def _home_featured_item_image_candidates(item: dict[str, Any]) -> list[str]:
+    candidates: list[str] = []
+    for key in ("thumb_url", "hero_media_url"):
+        val = str(item.get(key) or "").strip()
+        if val:
+            candidates.append(val)
+    gallery = item.get("gallery_urls") or []
+    if isinstance(gallery, str):
+        gallery = [gallery]
+    if isinstance(gallery, (list, tuple)):
+        candidates.extend(str(url or "").strip() for url in gallery if str(url or "").strip())
+    return candidates
+
+
+def _home_featured_static_item_thumb(item: dict[str, Any], *, sync_download: bool = False) -> str:
+    candidates = _home_featured_item_image_candidates(item)
+    for candidate in candidates:
+        static_url = _home_featured_static_cache_image_url(candidate)
+        if static_url:
+            return static_url
+    if not sync_download:
+        return ""
+    for candidate in candidates[:8]:
+        original = _home_featured_url_original_image(candidate)
+        if not original:
+            continue
+        static_url = _case_image_download_to_cache(original)
+        static_url = _home_featured_static_cache_image_url(static_url)
+        if static_url and not _case_image_visual_reject_reason(static_url):
+            return static_url
+    return ""
+
+
+def _home_featured_static_payload(payload: dict[str, Any], *, target_static: int = 12, sync_download: bool = True) -> dict[str, Any]:
+    items = list((payload or {}).get("items") or [])
+    if not items:
+        return payload
+    static_count = 0
+    prepared: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        thumb = _home_featured_static_item_thumb(item, sync_download=sync_download and static_count < target_static)
+        fixed = dict(item)
+        if thumb:
+            static_count += 1
+            gallery = [
+                url
+                for url in (_home_featured_item_image_candidates(item))
+                if _home_featured_static_cache_image_url(url)
+            ]
+            fixed["thumb_url"] = thumb
+            fixed["hero_media_url"] = thumb
+            fixed["gallery_urls"] = [thumb, *[url for url in gallery if url != thumb]]
+        else:
+            fixed["thumb_url"] = ""
+            fixed["hero_media_url"] = ""
+            fixed["gallery_urls"] = []
+        prepared.append(fixed)
+    return {**payload, "items": prepared}
+
+
+_HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS = 600.0
+_HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
+_HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
+_HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v12"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 6 * 60 * 60
+
+
+def _home_featured_index_preload_bundle() -> dict[str, Any]:
+    """Prepare homepage featured sections once, then reuse them across refreshes."""
+    global _HOME_FEATURED_INDEX_PRELOAD_CACHE
+    now = time.time()
+    with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
+        if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
+            ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
+            if now - ts <= _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS:
+                return copy.deepcopy(cached)
+        try:
+            if _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file():
+                cached_payload = json.loads(_HOME_FEATURED_INDEX_PRELOAD_FILE.read_text(encoding="utf-8"))
+                ts = float(cached_payload.get("ts") or 0)
+                bundle = cached_payload.get("bundle") or {}
+                if (
+                    cached_payload.get("version") == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
+                    and ts > 0
+                    and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
+                    and isinstance(bundle, dict)
+                ):
+                    _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
+                    return copy.deepcopy(bundle)
+        except Exception:
+            pass
+
+    try:
+        home_featured_preload = _home_featured_cases_payload_merged(limit=6, offset=0, category="hot")
+        home_featured_preload = _home_featured_static_payload(home_featured_preload, target_static=6, sync_download=False)
+    except Exception:
+        home_featured_preload = {"ok": False, "items": []}
+
+    home_featured_type_preloads: dict[str, dict[str, Any]] = {}
+    for type_meta in _HOME_ROOM_EXPLORE_TYPE_META:
+        property_type = str(type_meta.get("property_type") or "").strip()
+        if not property_type:
+            continue
+        try:
+            home_featured_type_preloads[property_type] = _home_featured_cases_payload_merged(
+                limit=12,
+                offset=0,
+                category="hot",
+                property_type=property_type,
+            )
+            home_featured_type_preloads[property_type] = _home_featured_static_payload(
+                home_featured_type_preloads[property_type],
+                target_static=12,
+                sync_download=False,
+            )
+        except Exception:
+            home_featured_type_preloads[property_type] = {"ok": False, "items": [], "property_type": property_type}
+    try:
+        home_featured_type_preloads[""] = _home_featured_cases_payload_merged(limit=12, offset=0, category="hot")
+        home_featured_type_preloads[""] = _home_featured_static_payload(
+            home_featured_type_preloads[""],
+            target_static=12,
+            sync_download=False,
+        )
+    except Exception:
+        home_featured_type_preloads[""] = {"ok": False, "items": []}
+
+    bundle = {
+        "home_featured_preload": home_featured_preload,
+        "home_featured_type_preloads": home_featured_type_preloads,
+        "home_room_explore_tiles": _home_room_explore_tiles(home_featured_type_preloads, fetch_missing=True),
+    }
+    with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
+        _HOME_FEATURED_INDEX_PRELOAD_CACHE = (time.time(), copy.deepcopy(bundle))
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            _HOME_FEATURED_INDEX_PRELOAD_FILE.write_text(
+                json.dumps(
+                    {
+                        "version": _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION,
+                        "ts": time.time(),
+                        "bundle": bundle,
+                    },
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+    return bundle
 
 
 def _home_intro_script_response(payload: Any | None = None) -> dict[str, Any]:
@@ -3791,6 +4592,13 @@ class AdminChangePasswordBody(BaseModel):
     new_password: str = Field(min_length=4, max_length=256)
 
 
+class AdminRepresentativeImageSelectPost(BaseModel):
+    limit: int = Field(default=24, ge=1, le=80)
+    offset: int = Field(default=0, ge=0, le=500000)
+    force: bool = False
+    only_missing: bool = True
+
+
 class KnowledgeBootstrapRequest(BaseModel):
     q: str = ""
     target_count: int = Field(default=18, ge=5, le=50)
@@ -4862,11 +5670,10 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         preferred_kind_label="首頁影片",
         published_items=crawl_settings.get("home_carousel_items"),
     )
-    try:
-        home_featured_preload = _home_featured_cases_payload(limit=6, offset=0, category="hot")
-    except Exception:
-        home_featured_preload = {"ok": False, "items": []}
-    home_featured_type_preloads: dict[str, dict[str, Any]] = {}
+    home_featured_bundle = _home_featured_index_preload_bundle()
+    home_featured_preload = home_featured_bundle.get("home_featured_preload") or {"ok": False, "items": []}
+    home_featured_type_preloads = home_featured_bundle.get("home_featured_type_preloads") or {}
+    home_room_explore_tiles = home_featured_bundle.get("home_room_explore_tiles") or []
     return {
         "request": request,
         "site_name": SITE_NAME,
@@ -4885,7 +5692,7 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         "home_video_carousel": home_video_carousel,
         "home_featured_preload": home_featured_preload,
         "home_featured_type_preloads": home_featured_type_preloads,
-        "home_room_explore_tiles": _home_room_explore_tiles(home_featured_type_preloads, fetch_missing=False),
+        "home_room_explore_tiles": home_room_explore_tiles,
         "home_hero_options": [
             {
                 "key": k,
@@ -5493,6 +6300,10 @@ def _is_non_listing_asset_url(lu: str) -> bool:
     s = str(lu or "").strip().lower()
     if not s:
         return False
+    if _is_yahoo_listing_image_url(s):
+        return False
+    if is_portal_non_property_image_url(s):
+        return True
     try:
         decoded = unquote(s)
     except Exception:
@@ -5508,8 +6319,6 @@ def _is_non_listing_asset_url(lu: str) -> bool:
     hay = f"{s} {decoded}"
     if is_homes_non_property_asset_url(hay):
         return True
-    if _is_yahoo_listing_image_url(s) and not any(t in hay for t in ("no_image", "noimage", "nf_path")):
-        return False
     noisy_tokens = (
         "/tmpl/images/common/",
         "/special/feature/",
@@ -7390,8 +8199,9 @@ def _build_sales_mcp_payload(
     human_intent = _message_wants_human_or_advisor(message)
     direct_buy_intent = _support_has_direct_buying_commitment(message)
     selected_interest = int(knowledge_meta.get("selected_case_count") or 0) > 0
-    # 真正進入人工接手前，先由模擬顧問承接；只有直接表達「要買房 / 準備買房 / 要看屋」時才開真人接手入口。
-    should_notify = bool(direct_buy_intent and outcome != "not_interested")
+    # 客戶明確輸入人工／顧問／留單／聯絡方式時，必須穩定開啟正式留單入口；
+    # 否則 AI 回覆會把關鍵字導流蓋掉，導致前端叫不出表單。
+    should_notify = bool((direct_buy_intent or human_intent) and outcome != "not_interested")
     next_actions = [
         {"id": "confirm_budget", "label": "確認預算與貸款條件"},
         {"id": "ask_one_followup", "label": "一次只補問一個關鍵條件"},
@@ -7399,8 +8209,6 @@ def _build_sales_mcp_payload(
     ]
     if should_notify:
         next_actions.insert(0, {"id": "handoff_human", "label": "轉真人顧問對接"})
-    elif human_intent:
-        next_actions.insert(0, {"id": "clarify_purchase_plan", "label": "先確認是否已進入買房決策"})
     pitch_lines = list(_sales_pitch_for_stage(stage, message, score))
     if matched_scenario:
         label = str(matched_scenario.get("label") or "").strip()
@@ -7414,7 +8222,9 @@ def _build_sales_mcp_payload(
     matched_label = str(matched_scenario.get("label") or "").strip() if matched_scenario else ""
     notify_reason = (
         "客戶已明確表示正在買房／安排看屋，可進入真人顧問接手流程"
-        if should_notify
+        if direct_buy_intent
+        else "客戶已明確要求人工／顧問／留單，需開啟正式問卷並取得聯絡方式"
+        if human_intent and should_notify
         else (
             "客戶目前想找顧問，但尚未明確進入買房決策；先由模擬顧問接待並補一個關鍵條件"
             if human_intent
@@ -7427,7 +8237,7 @@ def _build_sales_mcp_payload(
         session_id=session_id,
         message=message,
         turn_index=turn_index,
-        queue_only=bool(human_intent and not should_notify),
+        queue_only=False,
         human_intent=human_intent,
         real_handoff_ready=should_notify,
     )
@@ -9194,10 +10004,13 @@ def _case_investment_metrics_for_display(metrics: dict[str, Any]) -> dict[str, A
     out = dict(metrics or {})
     clean_rows: list[dict[str, str]] = []
     label_map = {
-        "滿租租售比": "收益率",
-        "現行租售比": "收益率",
-        "年收入（滿租時）": "年收入",
-        "年收入（現行）": "年收入",
+        "滿租租售比": "满租投资回报率",
+        "現行租售比": "满租投资回报率",
+        "收益率": "满租投资回报率",
+        "年收入": "年收入（满租时）",
+        "年收入（滿租時）": "年收入（满租时）",
+        "年收入（現行）": "年收入（满租时）",
+        "回收参考": "回本参考",
     }
     for raw in out.get("rows") or []:
         if not isinstance(raw, dict):
@@ -9227,8 +10040,8 @@ def _case_investment_metrics_for_display(metrics: dict[str, Any]) -> dict[str, A
     rental_rows: list[dict[str, str]] = []
     if out.get("kind") != "rental":
         existing_labels = {r.get("label") for r in clean_rows}
-        annual_man = _num_from_row("年收入")
-        yield_pct = _num_from_row("收益率")
+        annual_man = _num_from_row("年收入（满租时）")
+        yield_pct = _num_from_row("满租投资回报率")
         if annual_man and "月租参考" not in existing_labels:
             monthly_row = {
                 "label": "月租参考",
@@ -9237,20 +10050,20 @@ def _case_investment_metrics_for_display(metrics: dict[str, Any]) -> dict[str, A
             clean_rows.append(monthly_row)
             row_values[monthly_row["label"]] = monthly_row["value"]
             existing_labels.add("月租参考")
-        if yield_pct and yield_pct > 0 and "回收参考" not in existing_labels:
+        if yield_pct and yield_pct > 0 and "回本参考" not in existing_labels:
             payback_row = {
-                "label": "回收参考",
+                "label": "回本参考",
                 "value": f"約 {_fmt_number_zh(100.0 / yield_pct, max_decimals=1)} 年",
             }
             clean_rows.append(payback_row)
             row_values[payback_row["label"]] = payback_row["value"]
-        for label in ("總價（含稅）", "收益率", "年收入", "回收参考"):
+        for label in ("總價（含稅）", "满租投资回报率", "年收入（满租时）", "回本参考"):
             value = row_values.get(label)
             if value and value != "—":
                 sale_rows.append({"label": label, "value": value})
         monthly_value = row_values.get("月租参考")
-        annual_value = row_values.get("年收入")
-        yield_value = row_values.get("收益率")
+        annual_value = row_values.get("年收入（满租时）")
+        yield_value = row_values.get("满租投资回报率")
         if monthly_value and monthly_value != "—":
             rental_rows.append({"label": "月租参考", "value": monthly_value})
         if annual_value and annual_value != "—":
@@ -9416,8 +10229,8 @@ def _case_investment_metrics(
 
     rows = [
         {"label": "總價（含稅）", "value": price_text or "—"},
-        {"label": "收益率", "value": gross_yield or current_yield or "—"},
-        {"label": "年收入", "value": annual_full or annual_current or "—"},
+        {"label": "满租投资回报率", "value": gross_yield or current_yield or "—"},
+        {"label": "年收入（满租时）", "value": annual_full or annual_current or "—"},
     ]
     has_income_data = any(r["value"] != "—" for r in rows[1:])
     if not note and not has_income_data:
@@ -13559,6 +14372,11 @@ def _build_support_simulated_service_meta(
         turn_index=turn_index,
     )
     display_text = handoff_text if real_handoff_ready else (queue_text if mode == "queueing" else service_text)
+    advisor_label = f"工號{advisor.get('code') or ''}{advisor.get('name') or ''}".strip()
+    advisor_title = str(advisor.get("title") or "").strip()
+    title_hint = f"（{advisor_title}）" if advisor_title else ""
+    if advisor_label and advisor_label not in display_text:
+        display_text = f"目前由{advisor_label}{title_hint}先幫您整理。{display_text}"
     return {
         "active": True,
         "mode": mode,
@@ -13581,7 +14399,7 @@ def _build_support_welcome_text(advisor: dict[str, str] | None = None) -> str:
     return (
         "您好，這裡是日本不動產線上客服。"
         "我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。"
-        "先告訴我想看的地區、預算或用途就可以。"
+        "您先告訴我想看的地區、預算或用途，我這邊先幫您收斂。"
     )
 
 
@@ -13657,7 +14475,8 @@ def _support_coaching_with_tone(scenario_coaching: str, matched: dict | None) ->
     tone = (
         "【第一步｜後台場景與語氣】若下列有場景命中，請先順著場景結論方向理解使用者，不要硬套無關話術。"
         "語氣務必口語化、有真人溫度，像熟朋友顧問在 LINE／私訊打字；可用「您」「我這邊先幫您對了一下站內案件」；"
-        "避免公文腔、避免一次丟出過長清單。\n\n"
+        "避免公文腔、避免一次丟出過長清單。除非客戶直接問身份或技術來源，否則不要主動提 AI、模型、系統、自動生成。"
+        "若客戶直接追問是不是 AI／機器人／真人，請簡短回覆自己是網站線上客服，能先協助整理需求，若要顧問接手可安排；不可自稱真人。\n\n"
     )
     body = (scenario_coaching or "").strip()
     if body:
@@ -13837,7 +14656,7 @@ def _support_single_followup_question(
     return "您想先了解稅金、購買流程，還是貸款條件？"
 
 
-def _support_concise_answer_body(text: str, *, max_lines: int = 4, max_chars: int = 520) -> str:
+def _support_concise_answer_body(text: str, *, max_lines: int = 3, max_chars: int = 320) -> str:
     """把訓練答案壓成客服一問一答可讀長度，完整來源仍留在摺疊區/知識庫。"""
     raw = str(text or "").strip()
     if not raw:
@@ -13889,7 +14708,7 @@ def _offline_support_standard_footer(
     if not q:
         q = _support_single_followup_question("", intent_ref=intent_ref)
     lines: list[str] = [q]
-    lines.append("提醒：實際稅費與貸款條件以契約與銀行審核為準。")
+    lines.append("實際稅費與貸款條件仍以契約與銀行審核為準。")
     return "\n".join(lines)
 
 
@@ -21353,6 +22172,86 @@ def api_cases_dashboard_thumb_backfill_remaining_three_alias(
     return api_admin_thumb_backfill_remaining_three(payload, request)
 
 
+@app.post("/api/admin/cases/select-representative-images")
+def api_admin_cases_select_representative_images(payload: AdminRepresentativeImageSelectPost, request: Request):
+    """Use backend Gemini once to persist one stable representative image per listing."""
+    _require_admin_password(request)
+    lim = max(1, min(80, int(payload.limit or 24)))
+    off = max(0, min(500000, int(payload.offset or 0)))
+    sql_extra = ""
+    if bool(payload.only_missing) and not bool(payload.force):
+        sql_extra = "AND r.source_item_id IS NULL"
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                c.id AS content_id,
+                c.source_item_id,
+                c.seo_title,
+                c.title_zh_hant,
+                c.title_zh_hans,
+                c.case_jp_region_override,
+                c.case_transit_override,
+                c.listing_media_json,
+                s.id,
+                s.source_name,
+                s.item_url,
+                s.title_original,
+                substr(COALESCE(s.body_original, ''), 1, 600) AS body_original,
+                s.image_urls,
+                s.thumbnail_url,
+                s.hero_image_url,
+                s.last_checked_at
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            LEFT JOIN case_representative_images r ON r.source_item_id = s.id
+            WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+              AND (
+                TRIM(COALESCE(s.hero_image_url, '')) <> ''
+                OR TRIM(COALESCE(s.thumbnail_url, '')) <> ''
+                OR TRIM(COALESCE(s.image_urls, '')) <> ''
+                OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
+              )
+              {sql_extra}
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (lim, off),
+        ).fetchall()
+    results: list[dict[str, Any]] = []
+    ok_count = 0
+    for row in rows:
+        d = dict(row)
+        try:
+            res = _case_select_representative_image_with_ai(d, force=bool(payload.force))
+        except Exception as exc:
+            _log_backend_error("case-representative-select", exc)
+            res = {
+                "ok": False,
+                "status": "error",
+                "source_item_id": int(d.get("source_item_id") or d.get("id") or 0),
+                "reason": f"{type(exc).__name__}: {str(exc)[:180]}",
+            }
+        if bool(res.get("ok")):
+            ok_count += 1
+        results.append(res)
+    with _HOME_FEATURED_CASES_CACHE_LOCK:
+        _HOME_FEATURED_CASES_CACHE.clear()
+    return JSONResponse(
+        {
+            "ok": True,
+            "gemini_configured": is_gemini_configured(),
+            "processed": len(results),
+            "selected": ok_count,
+            "offset": off,
+            "limit": lim,
+            "force": bool(payload.force),
+            "only_missing": bool(payload.only_missing),
+            "results": results,
+        }
+    )
+
+
 _BLOCKED_SOURCE_SQL = """
 (
   COALESCE(s.title_original,'') LIKE '%認証中%'
@@ -22152,6 +23051,7 @@ def api_home_featured_cases(
     category: str = Query(default="hot"),
     property_type: str = Query(default=""),
     region: str = Query(default=""),
+    q: str = Query(default=""),
 ):
     return JSONResponse(
         _home_featured_cases_payload(
@@ -22160,6 +23060,7 @@ def api_home_featured_cases(
             category=category,
             property_type=property_type,
             region=region,
+            q=q,
         ),
         headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},
     )
@@ -23004,6 +23905,17 @@ _CHAT_LIGHT_SUPPORT_ONLY = re.compile(
     re.I,
 )
 
+_CHAT_IDENTITY_QUESTION = re.compile(
+    r"^[\s，。、,!！?？~～…]*(?:"
+    r"你是誰|你是谁|你是什麼|你是什么|你是真人嗎|你是真人吗|你是真人|"
+    r"是不是ai|是ai嗎|是ai吗|你是ai嗎|你是ai吗|你是不是ai|"
+    r"你是機器人嗎|你是机器人吗|你是不是機器人|你是不是机器人|"
+    r"誰在回我|谁在回我|誰在跟我說話|谁在跟我说话|"
+    r"who are you|are you ai|are you a bot|are you human"
+    r")[\s，。、,!！?？~～…]*$",
+    re.I,
+)
+
 _CHAT_SMALL_TALK_HINT = re.compile(
     r"(天氣|天气|心情|無聊|无聊|累|辛苦|吃飯|吃饭|睡不著|睡不着|開心|开心|難過|难过|"
     r"哈哈|呵呵|笑死|隨便聊|随便聊|聊聊天|閒聊|闲聊|你好吗|你好嗎|最近怎樣|最近怎么样)",
@@ -23124,7 +24036,7 @@ def _is_support_greeting_only(text: str) -> bool:
 
 def _is_support_light_chat_only(text: str) -> bool:
     raw = (text or "").strip()
-    return bool(raw and len(raw) <= 36 and _CHAT_LIGHT_SUPPORT_ONLY.match(raw))
+    return bool(raw and len(raw) <= 36 and (_CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_IDENTITY_QUESTION.match(raw)))
 
 
 def _is_support_project_conversation_bridge(text: str) -> bool:
@@ -23132,6 +24044,8 @@ def _is_support_project_conversation_bridge(text: str) -> bool:
     raw = (text or "").strip()
     if not raw:
         return False
+    if _is_support_identity_question(raw):
+        return True
     if _is_support_greeting_only(raw) or _is_support_light_chat_only(raw):
         return True
     if len(raw) > 80:
@@ -23147,13 +24061,80 @@ def _build_support_greeting_reply(persona_region: str = "tw") -> str:
     return (
         "您好，這裡是日本不動產線上客服。"
         "您可以直接說想看的地區、預算、用途，或貼一個案件給我，我先幫您整理重點。\n\n"
-        "如果只是先了解方向，我會先一步步幫您收斂；需要真人顧問時，再協助整理成可交接的需求。"
+        "如果只是先了解方向，我會一步步陪您收斂；等您需要顧問接手時，我再幫您把需求整理好。"
     )
 
 
-def _build_support_light_chat_reply(message: str, persona_region: str = "tw") -> str:
+def _is_support_identity_question(text: str) -> bool:
+    raw = (text or "").strip()
+    return bool(raw and len(raw) <= 40 and _CHAT_IDENTITY_QUESTION.match(raw))
+
+
+def _build_support_identity_reply(
+    persona_region: str = "tw",
+    *,
+    service_meta: dict[str, Any] | None = None,
+) -> str:
+    _ = persona_region
+    meta = service_meta or {}
+    code = str(meta.get("advisor_code") or "").strip()
+    name = str(meta.get("advisor_name") or "").strip()
+    title = str(meta.get("advisor_title") or "").strip()
+    service_label = f"工號{code}{name}" if code or name else "線上客服"
+    role_hint = f"（{title}）" if title else ""
+    return (
+        f"目前由{service_label}{role_hint}這邊先幫您整理。"
+        "您可以直接把想看的地區、預算或案件貼給我。\n\n"
+        "要不要先從地區或預算開始？"
+    )
+
+
+def _build_support_simulated_service_reply(
+    message: str,
+    *,
+    sales_mcp: dict[str, Any] | None = None,
+    persona_region: str = "tw",
+) -> str:
+    _ = persona_region
+    msg = str(message or "").strip()
+    meta = (sales_mcp or {}).get("simulated_service") if isinstance(sales_mcp, dict) else None
+    if not isinstance(meta, dict) or not meta.get("active"):
+        return _build_support_greeting_reply(persona_region)
+    display = str(meta.get("display_text") or meta.get("service_text") or "").strip()
+    code = str(meta.get("advisor_code") or "").strip()
+    name = str(meta.get("advisor_name") or "").strip()
+    title = str(meta.get("advisor_title") or "").strip()
+    label = f"工號{code}{name}" if code or name else "線上客服"
+    title_hint = f"（{title}）" if title else ""
+    mode = str(meta.get("mode") or "serving").strip()
+    if not display:
+        display = f"目前由{label}{title_hint}這邊先幫您整理。"
+    elif label != "線上客服" and label not in display and (not name or name not in display):
+        display = f"目前由{label}{title_hint}先幫您整理。{display}"
+    if mode == "handoff_ready":
+        next_line = "我先幫您把需求收斂成顧問能接手的重點；請補充預算、地區或想看的案件。"
+    elif mode == "queueing":
+        next_line = "排隊期間我會先用顧問接待的節奏幫您整理，不會直接丟不相關案件。"
+    else:
+        next_line = "您可以直接回地區、預算、用途，或貼案件給我看。"
+    if _is_support_identity_question(msg):
+        return (
+            f"目前由{label}{title_hint}這邊先幫您整理。\n\n"
+            "您可以直接把想看的地區、預算或案件貼給我，我會先幫您收斂。"
+        )
+    return sanitize_support_chat_visible_reply(f"{display}\n\n{next_line}".strip())
+
+
+def _build_support_light_chat_reply(
+    message: str,
+    persona_region: str = "tw",
+    *,
+    service_meta: dict[str, Any] | None = None,
+) -> str:
     _ = persona_region
     raw = (message or "").strip()
+    if _is_support_identity_question(raw):
+        return _build_support_identity_reply(persona_region, service_meta=service_meta)
     if _CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_SMALL_TALK_HINT.search(raw):
         return (
             "可以，我先陪您慢慢聊，不急著丟案件。"
@@ -24449,13 +25430,14 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "query_blend": msg,
             },
         }
-        real_handoff_ready = _support_has_direct_buying_commitment(msg)
+        human_handoff_intent = bool(_message_wants_human_or_advisor(msg))
+        real_handoff_ready = bool(_support_has_direct_buying_commitment(msg) or human_handoff_intent)
         simulated_service = _build_support_simulated_service_meta(
             session_id=session_id,
             message=msg,
             turn_index=support_turn_index,
             queue_only=not real_handoff_ready,
-            human_intent=real_handoff_ready,
+            human_intent=human_handoff_intent,
             real_handoff_ready=real_handoff_ready,
         )
         return JSONResponse(
@@ -24489,6 +25471,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                         {"id": "narrow_region", "label": "下一輪再縮小區域／車站"},
                         {"id": "handoff_human", "label": "轉真人顧問對接"} if real_handoff_ready else {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
                     ],
+                    "lead_capture": _support_lead_capture_blueprint(msg, knowledge_meta, human_intent=human_handoff_intent),
                     "sales_pitch": [],
                     "simulated_service": simulated_service,
                 },
@@ -24502,7 +25485,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         )
     light_chat_only = _is_support_project_conversation_bridge(msg)
     if light_chat_only:
-        reply = _build_support_light_chat_reply(msg, str(payload.persona_region or "tw"))
         skip_reason = "greeting_only" if _is_support_greeting_only(msg) else "light_chat_only"
         knowledge_meta = {
             "query": msg,
@@ -24532,6 +25514,11 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             queue_only=True,
             human_intent=False,
             real_handoff_ready=False,
+        )
+        reply = _build_support_light_chat_reply(
+            msg,
+            str(payload.persona_region or "tw"),
+            service_meta=simulated_service,
         )
         return JSONResponse(
             {
@@ -24891,13 +25878,25 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         turn_index=support_turn_index,
         matched_scenario=matched,
     )
+    if _message_wants_human_or_advisor(msg):
+        reply = _build_support_simulated_service_reply(
+            msg,
+            sales_mcp=sales_mcp,
+            persona_region=str(payload.persona_region or "tw"),
+        )
+        llm_meta["simulated_service_reply_applied"] = True
     sales_mcp["case_intro"] = []
     if purchase_discovery_mode:
+        purchase_human_intent = bool(sales_mcp.get("human_handoff_intent") or _message_wants_human_or_advisor(msg))
         sales_mcp["purchase_discovery_mode"] = True
         sales_mcp["next_actions"] = [
             {"id": "confirm_one_requirement", "label": "本輪只確認一個關鍵條件"},
             {"id": "narrow_region", "label": "下一輪再縮小區域／車站"},
-            {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
+            (
+                {"id": "handoff_human", "label": "轉真人顧問對接"}
+                if purchase_human_intent
+                else {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"}
+            ),
         ]
         sales_mcp["sales_pitch"] = [
             "本輪為購買意向但條件不足：不要推薦案件，先做一問一答需求盤點。",
@@ -26052,6 +27051,71 @@ SMART_QUERY_PORTAL_ALIASES = {
 }
 
 
+def _portal_case_apply_representative_media(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize search card media to the same representative image policy as home cards."""
+    sid_media: dict[int, list[str]] = {}
+    sids = sorted(
+        {
+            int(item.get("source_item_id") or 0)
+            for item in items
+            if isinstance(item, dict) and int(item.get("source_item_id") or 0) > 0
+        }
+    )
+    if sids:
+        try:
+            placeholders = ",".join("?" for _ in sids)
+            with get_conn() as conn:
+                rows = conn.execute(
+                    f"SELECT id, image_urls, hero_image_url, thumbnail_url FROM source_items WHERE id IN ({placeholders})",
+                    sids,
+                ).fetchall()
+            for row in rows:
+                d = dict(row)
+                sid_media[int(d.get("id") or 0)] = [
+                    str(d.get("hero_image_url") or "").strip(),
+                    str(d.get("thumbnail_url") or "").strip(),
+                    *_row_primary_image_url_lines(d, limit=12),
+                ]
+        except Exception:
+            sid_media = {}
+    out: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        nit = dict(item)
+        sid = int(nit.get("source_item_id") or 0)
+        primary_candidates = sid_media.get(sid, [])
+        fallback_candidates = [
+            str(nit.get("thumb_url") or "").strip(),
+            *[str(u or "").strip() for u in (nit.get("gallery_urls") or [])],
+            *[str(u or "").strip() for u in (nit.get("image_urls") or [])],
+        ]
+        raw_candidates = primary_candidates or fallback_candidates
+        stored_thumb = _case_stored_representative_static_url(
+            {"source_item_id": sid, "id": sid},
+            raw_candidates,
+        )
+        gallery = _case_representative_gallery_urls(raw_candidates, limit=8, fetch_limit=12)
+        if stored_thumb:
+            gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+        if not gallery and primary_candidates:
+            gallery = _case_representative_gallery_urls(fallback_candidates, limit=8, fetch_limit=12)
+            if stored_thumb:
+                gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+        if gallery:
+            nit["thumb_url"] = gallery[0]
+            nit["gallery_urls"] = gallery
+            nit["thumb_kind"] = _thumb_kind_label(gallery[0])
+            nit["image_count"] = max(int(nit.get("image_count") or 0), len(gallery))
+        else:
+            nit["thumb_url"] = ""
+            nit["gallery_urls"] = []
+            nit["thumb_kind"] = ""
+            nit["image_count"] = 0
+        out.append(nit)
+    return out
+
+
 def _normalize_smart_query_portals(*raw_values: Any) -> list[str]:
     out: list[str] = []
     for raw in raw_values:
@@ -26183,6 +27247,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
             "offset": page_offset if page_size > 0 else 0,
             "page_size": page_size if page_size > 0 else 0,
             "detail_gate": "openable-v1",
+            "media_policy": "representative-v1",
         }
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
@@ -26245,6 +27310,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
                 item["jp_region_display_zh"] = response_region_hint
     items_bf, detail_gate_meta = _portal_case_filter_openable_detail_items(items_bf)
     items_bf = _portal_case_prioritize_displayable_media(items_bf)
+    items_bf = _portal_case_apply_representative_media(items_bf)
     data["items"] = items_bf
     data["portal_detail_gate"] = detail_gate_meta
     data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
@@ -29219,32 +30285,6 @@ def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:
     fields["address_line_original_jp"] = str(fields.get("address_line_jp") or "")
     fields["access_line_original_jp"] = str(fields.get("access_line_jp") or "")
     fields["building_name_original_jp"] = str(fields.get("building_name_jp") or "")
-    if fields.get("address_line_hant"):
-        fields["address_line_jp"] = fields["address_line_hant"]
-    if fields.get("access_line_hant"):
-        fields["access_line_jp"] = fields["access_line_hant"]
-    if fields.get("building_name_hant"):
-        fields["building_name_jp"] = fields["building_name_hant"]
-    for _display_key in (
-        "layout_line_jp",
-        "built_ym_jp",
-        "floor_structure_jp",
-        "sales_units_jp",
-        "total_units_jp",
-        "structure_jp",
-        "parking_jp",
-        "status_jp",
-        "handover_jp",
-        "info_open_jp",
-        "next_update_jp",
-        "related_links_jp",
-        "company_guide_jp",
-        "staff_message_jp",
-        "inquiry_contact_jp",
-        "homes_site_trail_jp",
-    ):
-        if fields.get(_display_key):
-            fields[_display_key] = _portal_case_text_hant(fields.get(_display_key), max_len=260)
     meta_out["address_line_zh_read"] = fields.get("address_line_hant") or gloss_jp_property_line_for_zh(str(fields.get("address_line_jp") or ""))
     meta_out["access_line_zh_read"] = fields.get("access_line_hant") or gloss_jp_property_line_for_zh(str(fields.get("access_line_jp") or ""))
     meta_out["transit_line_zh_read"] = _portal_case_text_hant(meta.get("transit_line_zh") or "", max_len=180) or gloss_jp_property_line_for_zh(str(meta.get("transit_line_zh") or ""))

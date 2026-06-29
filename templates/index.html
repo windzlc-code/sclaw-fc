@@ -25,22 +25,32 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-mobile-touch-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260629-home-card-crop-a">
+  <script src="/static/portal-feature-rows.js?v=20260629-home-card-crop-a" defer></script>
   <style id="phone-login-ui-overrides">
+    body.site-home .bh-site-titlebar-actions {
+      gap: 8px !important;
+      align-items: center !important;
+    }
+
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
       width: auto !important;
-      min-width: 86px !important;
-      height: 38px !important;
-      min-height: 38px !important;
-      padding: 0 15px !important;
-      border: 1px solid rgba(255, 255, 255, 0.46) !important;
+      min-width: 108px !important;
+      height: 42px !important;
+      min-height: 42px !important;
+      padding: 0 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 8px !important;
+      border: 1px solid rgba(255, 255, 255, 0.42) !important;
       border-radius: 999px !important;
-      background: #526b80 !important;
+      background: rgba(255, 255, 255, 0.12) !important;
       color: #fff !important;
-      box-shadow: 0 12px 28px rgba(5, 17, 30, 0.2) !important;
-      font-size: 13px !important;
+      box-shadow: 0 10px 24px rgba(5, 17, 30, 0.14) !important;
+      font-size: 14px !important;
       font-weight: 900 !important;
       line-height: 1 !important;
       transform: none !important;
@@ -48,8 +58,8 @@
 
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-      background: #3f566a !important;
       border-color: rgba(255, 255, 255, 0.72) !important;
+      background: rgba(255, 255, 255, 0.2) !important;
     }
 
     body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
@@ -80,13 +90,26 @@
       outline-offset: 0 !important;
     }
 
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon {
-      display: none !important;
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon,
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
+      display: block !important;
+      width: 20px !important;
+      height: 20px !important;
+      flex: 0 0 20px !important;
+    }
+
+    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
+      fill: none !important;
+      stroke: currentColor !important;
+      stroke-width: 2.1 !important;
+      stroke-linecap: round !important;
+      stroke-linejoin: round !important;
     }
 
     body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-text {
-      display: inline !important;
+      display: inline-block !important;
       color: inherit !important;
+      line-height: 1 !important;
       white-space: nowrap !important;
     }
 
@@ -268,7 +291,21 @@
         <div class="home-room-explore-shell">
           <button type="button" class="home-room-explore-nav home-room-explore-nav--prev" aria-label="查看前一组物件类型" onclick="scrollRoomExploreRail(-1)">‹</button>
           <div class="home-room-explore-grid" id="home-room-explore-rail" aria-label="按物件类型进入找房工作台">
+            {% set room_type_fallbacks = {
+              '公寓': '/static/img/property-type-apartment.svg',
+              '大樓': '/static/img/property-type-tower.svg',
+              '華廈': '/static/img/property-type-midrise.svg',
+              '套房': '/static/img/property-type-studio.svg',
+              '別墅/透天': '/static/img/property-type-house.svg',
+              '辦公': '/static/img/property-type-office.svg',
+              '店面': '/static/img/property-type-shop.svg',
+              '土地': '/static/img/property-type-land.svg',
+              '其他': '/static/img/property-type-other.svg'
+            } %}
             {% for tile in home_room_explore_tiles %}
+            {% set raw_tile_thumb = tile.thumb_url or '' %}
+            {% set force_type_thumb = tile.property_type in ['土地', '其他'] %}
+            {% set tile_thumb_url = room_type_fallbacks.get(tile.property_type, '') if force_type_thumb else (raw_tile_thumb if raw_tile_thumb.startswith('/static/') else room_type_fallbacks.get(tile.property_type, '')) %}
             <button
               type="button"
               class="home-room-explore-tile"
@@ -276,13 +313,13 @@
               onclick="openRoomExploreWorkbench(event, this)"
             >
               <span class="home-room-explore-media" aria-hidden="true">
-                {% if tile.thumb_url %}
+                {% if tile_thumb_url %}
                 <img
-                  src="{{ tile.thumb_url }}"
+                  src="{{ tile_thumb_url }}"
                   alt=""
-                  loading="{% if loop.index <= 3 %}eager{% else %}lazy{% endif %}"
+                  loading="eager"
                   decoding="async"
-                  fetchpriority="{% if loop.index <= 2 %}high{% else %}low{% endif %}"
+                  fetchpriority="{% if loop.index <= 5 %}high{% else %}auto{% endif %}"
                 >
                 {% else %}
                 <span class="home-room-explore-placeholder">待补入代表图</span>
@@ -293,7 +330,6 @@
                 <strong>{{ tile.title }}</strong>
                 <small>{{ tile.description }}</small>
               </span>
-              <span class="home-room-explore-cta">进入筛选</span>
             </button>
             {% endfor %}
           </div>
@@ -2519,6 +2555,146 @@
       return '關東 不動產';
     }
 
+    const GEO_KEYWORD_SEARCH_PRESETS = Object.freeze({
+      東京不動產: { region: '東京', keyword: '', types: [] },
+      东京不动产: { region: '東京', keyword: '', types: [] },
+      大阪公寓: { region: '大阪', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      福岡收租物件: { region: '福岡', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      福岡收租: { region: '福岡', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      福冈收租: { region: '福岡', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      大阪不動產: { region: '大阪', keyword: '', types: [] },
+      大阪不动产: { region: '大阪', keyword: '', types: [] },
+      京都不動產: { region: '京都市', keyword: '', types: [] },
+      京都不动产: { region: '京都市', keyword: '', types: [] },
+      福岡不動產: { region: '福岡', keyword: '', types: [] },
+      福冈不动产: { region: '福岡', keyword: '', types: [] },
+      北海道不動產: { region: '北海道', keyword: '', types: [] },
+      北海道不动产: { region: '北海道', keyword: '', types: [] },
+      沖繩不動產: { region: '沖縄', keyword: '', types: [] },
+      冲绳不动产: { region: '沖縄', keyword: '', types: [] },
+      名古屋不動產: { region: '名古屋', keyword: '', types: [] },
+      名古屋不动产: { region: '名古屋', keyword: '', types: [] },
+      橫濱不動產: { region: '神奈川', keyword: '横浜', types: [] },
+      横滨不动产: { region: '神奈川', keyword: '横浜', types: [] },
+      札幌不動產: { region: '北海道', keyword: '札幌', types: [] },
+      札幌不动产: { region: '北海道', keyword: '札幌', types: [] },
+      神戶不動產: { region: '關西', keyword: '神戸', types: [] },
+      神户不动产: { region: '關西', keyword: '神戸', types: [] },
+      日本投資房產: { region: '', keyword: '投資', types: [], tx: 'buy' },
+      日本投资房产: { region: '', keyword: '投資', types: [], tx: 'buy' },
+      日本自住房產: { region: '', keyword: '住宅 マンション', types: ['公寓', '大樓', '華廈', '別墅/透天'], tx: 'buy' },
+      日本自住房产: { region: '', keyword: '住宅 マンション', types: ['公寓', '大樓', '華廈', '別墅/透天'], tx: 'buy' },
+      日本收租物件: { region: '', keyword: '収益', types: [], tx: 'buy' },
+      日本遠端看房: { region: '', keyword: '住宅 マンション', types: ['公寓', '大樓', '華廈', '別墅/透天'], tx: 'buy' },
+      日本远端看房: { region: '', keyword: '住宅 マンション', types: ['公寓', '大樓', '華廈', '別墅/透天'], tx: 'buy' },
+      日本中古公寓: { region: '', keyword: '中古マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      中古公寓: { region: '', keyword: '中古マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      日本新建公寓: { region: '', keyword: '新築マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      新建公寓: { region: '', keyword: '新築マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      日本一戶建: { region: '', keyword: '一戸建て', types: ['別墅/透天'], tx: 'buy' },
+      日本一户建: { region: '', keyword: '一戸建て', types: ['別墅/透天'], tx: 'buy' },
+      日本公寓找房: { region: '東京', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      日本房源比較: { region: '東京', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      日本房源比较: { region: '東京', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy' },
+      車站周邊物件: { region: '東京', keyword: '駅 徒歩', types: [], tx: 'buy' },
+      车站周边物件: { region: '東京', keyword: '駅 徒歩', types: [], tx: 'buy' },
+      徒步可達物件: { region: '東京', keyword: '徒歩', types: [], tx: 'buy' },
+      徒步可达物件: { region: '東京', keyword: '徒歩', types: [], tx: 'buy' },
+      價格篩選找房: { region: '東京', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy', pricePreset: '2000-3000' },
+      价格筛选找房: { region: '東京', keyword: 'マンション', types: ['公寓', '大樓', '華廈'], tx: 'buy', pricePreset: '2000-3000' },
+    });
+
+    const GEO_KEYWORD_SEARCH_ALIASES = Object.freeze({
+      東京房產: '東京不動產',
+      东京房产: '東京不動產',
+      大阪房產: '大阪不動產',
+      大阪房产: '大阪不動產',
+      京都房產: '京都不動產',
+      京都房产: '京都不動產',
+      福岡房產: '福岡不動產',
+      福冈房产: '福岡不動產',
+      橫濱房產: '橫濱不動產',
+      横滨房产: '橫濱不動產',
+      收租: '日本收租物件',
+      收租物件: '日本收租物件',
+      投資房: '日本投資房產',
+      投资房: '日本投資房產',
+      自住房: '日本自住房產',
+      新房公寓: '新建公寓',
+      新築公寓: '新建公寓',
+      二手公寓: '中古公寓',
+      中古マンション: '中古公寓',
+      新築マンション: '新建公寓',
+      一戶建: '日本一戶建',
+      一户建: '日本一戶建',
+      透天: '日本一戶建',
+      車站周邊: '車站周邊物件',
+      车站周边: '車站周邊物件',
+      徒步可達: '徒步可達物件',
+      徒步可达: '徒步可達物件',
+      價格篩選: '價格篩選找房',
+      价格筛选: '價格篩選找房',
+    });
+
+    function getGeoKeywordSearchPreset(keyword) {
+      const key = String(keyword || '').trim();
+      if (!key) return null;
+      return GEO_KEYWORD_SEARCH_PRESETS[key] || GEO_KEYWORD_SEARCH_PRESETS[GEO_KEYWORD_SEARCH_ALIASES[key]] || null;
+    }
+
+    function setFigurePropertyTypesForGeoPreset(types) {
+      const selected = new Set((Array.isArray(types) ? types : []).map((x) => normalizeRoomExplorePropertyType(x)).filter(Boolean));
+      document.querySelectorAll('input[name="figure_property_types"]').forEach((node) => {
+        node.checked = selected.size ? selected.has(String(node.value || '').trim()) : false;
+        node.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    function setFigurePricePresetForGeoPreset(value) {
+      const sel = document.getElementById('figure_price_preset');
+      const minEl = document.getElementById('figure_price_min');
+      const maxEl = document.getElementById('figure_price_max');
+      if (!sel || !minEl || !maxEl) return;
+      const v = String(value || '').trim();
+      sel.value = v && Array.from(sel.options || []).some((opt) => opt.value === v) ? v : '';
+      if (typeof applyFigurePricePreset === 'function') applyFigurePricePreset();
+      if (!sel.value) {
+        minEl.value = '';
+        maxEl.value = '';
+      }
+    }
+
+    function applyGeoKeywordSearchPreset(keyword) {
+      const displayKeyword = String(keyword || '').trim();
+      const preset = getGeoKeywordSearchPreset(displayKeyword) || {};
+      const searchKeyword = String(preset.keyword != null ? preset.keyword : displayKeyword).trim();
+      const regionHint = String(preset.region || '').trim();
+      const geoModeSel = document.getElementById('figure_geo_mode');
+      const regionSel = document.getElementById('figure_region');
+      if (geoModeSel) {
+        geoModeSel.value = 'region';
+        if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('region');
+        try { localStorage.setItem('figure_geo_mode', 'region'); } catch (_) {}
+      }
+      if (regionSel) {
+        const hasRegionOption = regionHint && Array.from(regionSel.options || []).some((opt) => String(opt.value || '').trim() === regionHint);
+        regionSel.value = hasRegionOption ? regionHint : '';
+      }
+      window.__sclawGeoKeywordRegionHint = regionHint;
+      window.__sclawGeoKeywordDisplayLabel = displayKeyword;
+      setFigurePropertyTypesForGeoPreset(preset.types || []);
+      setFigurePricePresetForGeoPreset(preset.pricePreset || '');
+      if (preset.tx && typeof setFigureTransaction === 'function') {
+        setFigureTransaction(String(preset.tx || 'buy'));
+      }
+      return {
+        displayKeyword,
+        searchKeyword,
+        regionHint,
+        preset,
+      };
+    }
+
     const FIGURE_PROPERTY_TYPE_LABELS = [
       '公寓',
       '大樓',
@@ -3104,13 +3280,30 @@
     function isHomesGeoPlaceholderLabel(label) {
       const text = String(label || '').trim();
       if (!text) return true;
+      const normalized = text
+        .replace(/[()]/g, '（')
+        .replace(/[.．。]+/g, '…')
+        .replace(/\s+/g, '');
+      if (
+        /^(載入|载入|loading)/i.test(normalized) ||
+        /(載入|载入|先選|先选|可選|可选|不限|全域)/.test(normalized)
+      ) {
+        return true;
+      }
       return (
         text === '（可選）不限' ||
         text === '載入中…' ||
+        text === '載入中...' ||
+        text === '载入中...' ||
         text === '載入都道府縣中…' ||
+        text === '載入都道府縣中...' ||
+        text === '载入都道府县中...' ||
         text === '先選地區' ||
+        text === '先选地区' ||
         text === '先選大區' ||
+        text === '先选大区' ||
         text === '先選都道府縣' ||
+        text === '先选都道府县' ||
         text === '日本全域（不限區域）' ||
         text === '日本全域' ||
         text === '不限區域' ||
@@ -6533,7 +6726,10 @@
       const panel = ensureGeoKeywordFeedbackPanel();
       if (!panel) return;
       const kw = String(keyword || '').trim();
-      syncGeoKeywordInputs(kw);
+      const inputKw = window.__sclawGeoKeywordInputValue != null
+        ? String(window.__sclawGeoKeywordInputValue || '').trim()
+        : String(window.__sclawGeoKeywordOverride || kw).trim();
+      syncGeoKeywordInputs(inputKw);
       panel.hidden = false;
       panel.classList.toggle('is-loading', state === 'loading');
       panel.classList.toggle('is-ready', state !== 'loading');
@@ -6558,8 +6754,11 @@
     }
 
     function runGeoKeywordSearch(keyword, target = null) {
-      const kw = String(keyword || '').trim();
-      if (!kw) return;
+      const requestedKw = String(keyword || '').trim();
+      if (!requestedKw) return;
+      const geoPreset = applyGeoKeywordSearchPreset(requestedKw);
+      const kw = String(geoPreset.searchKeyword || '').trim();
+      const displayKw = String(geoPreset.displayKeyword || requestedKw).trim();
       if (target) {
         target.classList.add('is-geo-keyword-pressed');
         window.setTimeout(() => target.classList.remove('is-geo-keyword-pressed'), 220);
@@ -6571,21 +6770,14 @@
       if (typeof setJpWorkbenchTab === 'function') {
         setJpWorkbenchTab('query', { persist: false, scroll: false, instant: true });
       }
-      showGeoKeywordFeedback(kw, 'loading');
+      showGeoKeywordFeedback(displayKw, 'loading');
       const dialogInput = document.getElementById('dialog_keyword');
       const figureInput = document.getElementById('figure_keyword');
-      const geoModeSel = document.getElementById('figure_geo_mode');
-      const regionSel = document.getElementById('figure_region');
-      if (geoModeSel) {
-        geoModeSel.value = 'region';
-        if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('region');
-        try { localStorage.setItem('figure_geo_mode', 'region'); } catch (_) {}
-      }
-      if (regionSel) regionSel.value = '';
       if (dialogInput) dialogInput.value = kw;
       if (figureInput) figureInput.value = kw;
       window.__sclawGeoKeywordOverride = kw;
-      window.__sclawGeoKeywordLastSelected = kw;
+      window.__sclawGeoKeywordInputValue = kw;
+      window.__sclawGeoKeywordLastSelected = displayKw;
       startGeoKeywordInputRecovery(kw);
       const scrollGeoKeywordTargetIntoView = () => {
         const targetPanel =
@@ -6601,11 +6793,15 @@
         const figureAfter = document.getElementById('figure_keyword');
         const summary = document.getElementById('figure-summary');
         window.__sclawGeoKeywordOverride = kw;
-        window.__sclawGeoKeywordLastSelected = kw;
+        window.__sclawGeoKeywordInputValue = kw;
+        window.__sclawGeoKeywordLastSelected = displayKw;
         if (dialogAfter) dialogAfter.value = kw;
         if (figureAfter) figureAfter.value = kw;
         if (summary) {
-          const keywordHtml = `<p class="geo-keyword-summary-line" data-geo-keyword-summary><strong>關鍵詞</strong>：${esc(kw)}</p>`;
+          const bits = [];
+          if (geoPreset.regionHint) bits.push(`區域：${geoPreset.regionHint}`);
+          if (kw) bits.push(`查詢：${kw}`);
+          const keywordHtml = `<p class="geo-keyword-summary-line" data-geo-keyword-summary><strong>已套用</strong>：${esc(displayKw)}${bits.length ? `（${esc(bits.join(' ｜ '))}）` : ''}</p>`;
           const existing = summary.querySelector('[data-geo-keyword-summary]');
           if (existing) existing.outerHTML = keywordHtml;
           else summary.insertAdjacentHTML('afterbegin', keywordHtml);
@@ -6613,7 +6809,7 @@
       };
       const restoreGeoKeywordStateStable = () => {
         restoreGeoKeywordState();
-        showGeoKeywordFeedback(kw, 'ready');
+        showGeoKeywordFeedback(displayKw, 'ready');
         scrollGeoKeywordTargetIntoView();
         [180, 650, 1400, 2600].forEach((delay) => {
           window.setTimeout(() => {
@@ -6628,7 +6824,7 @@
       [80, 240, 700, 1500, 3000].forEach((delay) => {
         window.setTimeout(() => {
           restoreGeoKeywordState();
-          if (!geoKeywordSettled) showGeoKeywordFeedback(kw, 'loading');
+          if (!geoKeywordSettled) showGeoKeywordFeedback(displayKw, 'loading');
         }, delay);
       });
       const run = searchFigureTab(false);
@@ -6639,6 +6835,7 @@
       if (run && typeof run.finally === 'function') run.finally(finishGeoKeywordRun);
       else window.setTimeout(finishGeoKeywordRun, 0);
     }
+    window.runGeoKeywordSearch = runGeoKeywordSearch;
 
     function installGeoKeywordEntrances() {
       if (window.__sclawGeoKeywordEntrancesBound) return;
@@ -11686,7 +11883,7 @@
       if (!salesMeta || typeof salesMeta !== 'object') return '';
       const sessionId = String(salesMeta.session_id || '');
       // 階段／意願／話術為後台與顧問內部參考；訪客端先走問卷，完成後才通知人工。
-      if (!salesMeta.real_handoff_ready || !sessionId) return '';
+      if (!supportSalesMcpShouldOpenHumanIntake(salesMeta) || !sessionId) return '';
       return (
         '<div class="support-chat-sales-mcp">' +
         '<div class="support-chat-sales-actions"><button type="button" class="secondary" onclick="openSupportHumanIntakeFromSalesMcp()">填問卷轉人工</button></div>' +
@@ -11694,10 +11891,19 @@
       );
     }
 
+    function supportSalesMcpShouldOpenHumanIntake(salesMeta) {
+      if (!salesMeta || typeof salesMeta !== 'object') return false;
+      if (salesMeta.real_handoff_ready) return true;
+      const lead = salesMeta.lead_capture && typeof salesMeta.lead_capture === 'object' ? salesMeta.lead_capture : null;
+      if (salesMeta.human_handoff_intent && lead && lead.ready) return true;
+      const actions = Array.isArray(salesMeta.next_actions) ? salesMeta.next_actions : [];
+      return Boolean(salesMeta.human_handoff_intent && actions.some((a) => String((a && a.id) || '') === 'handoff_human'));
+    }
+
     function supportChatSimulatedServiceHtml(meta) {
       if (!meta || typeof meta !== 'object' || !meta.active) return '';
       const mode = String(meta.mode || 'serving');
-      if (mode !== 'handoff_ready') return '';
+      if (!['queueing', 'handoff_ready'].includes(mode)) return '';
       const label = esc(String(meta.service_label || '值班顧問'));
       const text = esc(String(meta.display_text || '').trim());
       const modeText = mode === 'handoff_ready'
@@ -11714,6 +11920,17 @@
       );
     }
 
+    function supportChatShouldStageServiceReply(salesMeta) {
+      const service = salesMeta && typeof salesMeta === 'object' ? salesMeta.simulated_service : null;
+      if (!service || typeof service !== 'object' || !service.active) return false;
+      const mode = String(service.mode || '');
+      return mode === 'queueing' || mode === 'handoff_ready';
+    }
+
+    function waitSupportChatServiceQueue(ms = 2600) {
+      return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+    }
+
     function supportChatMatchReasonHtml(scene, qa) {
       void scene;
       void qa;
@@ -11722,7 +11939,8 @@
 
     let supportChatBootstrapPromise = null;
     let supportChatBootstrapSid = '';
-    const SUPPORT_CHAT_DEFAULT_WELCOME_TEXT = '您好，這裡是日本不動產線上客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。先告訴我想看的地區、預算或用途就可以。';
+    let supportChatOpenWelcomeRow = null;
+    const SUPPORT_CHAT_DEFAULT_WELCOME_TEXT = '您好，這裡是日本不動產線上客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。您先告訴我想看的地區、預算或用途，我這邊先幫您收斂。';
 
     function sanitizeSupportChatPublicCopy(value) {
       return String(value || '')
@@ -11730,7 +11948,13 @@
         .replace(/線上智能客服/g, '線上客服')
         .replace(/智能客服/g, '線上客服')
         .replace(/智能助理/g, '線上客服')
-        .replace(/\bAI\s*客服\b/gi, '線上客服');
+        .replace(/\bAI\s*客服\b/gi, '線上客服')
+        .replace(/\bAI\s*助理\b/gi, '線上客服')
+        .replace(/\bAI\s*助手\b/gi, '線上客服')
+        .replace(/人工智能/gi, '線上客服')
+        .replace(/機器人/gi, '線上客服')
+        .replace(/机器人/gi, '線上客服')
+        .replace(/自動生成/gi, '整理回覆');
     }
 
     function supportChatWelcomeHtml(serviceMeta, welcomeText) {
@@ -11812,16 +12036,28 @@
     }
 
     function ensureSupportChatWelcomeMessage() {
-      if (!Array.isArray(supportChatHistory) || supportChatHistory.length) return;
-      supportChatHistory.push({
+      if (!supportChatOpenWelcomeRow) {
+        supportChatOpenWelcomeRow = {
+          role: 'assistant',
+          content: SUPPORT_CHAT_DEFAULT_WELCOME_TEXT,
+          contentHtml: supportChatWelcomeHtml(),
+          supportWelcome: true,
+          transientWelcome: true,
+          __supportChatEnterAt: (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now(),
+        };
+      }
+      return supportChatOpenWelcomeRow;
+    }
+
+    function refreshSupportChatWelcomeForOpen() {
+      supportChatOpenWelcomeRow = {
         role: 'assistant',
         content: SUPPORT_CHAT_DEFAULT_WELCOME_TEXT,
         contentHtml: supportChatWelcomeHtml(),
         supportWelcome: true,
-      });
-    }
-
-    function refreshSupportChatWelcomeForOpen() {
+        transientWelcome: true,
+        __supportChatEnterAt: (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now(),
+      };
       if (!Array.isArray(supportChatHistory) || !supportChatHistory.length) return;
       const staleRe = /(排隊|工單|今天值班|顧問接待的方式|人工接待|值班顧問|真人顧問)/;
       for (const row of supportChatHistory) {
@@ -11836,8 +12072,7 @@
     }
 
     async function hydrateSupportChatWelcomeMessage() {
-      if (!Array.isArray(supportChatHistory) || !supportChatHistory.length) return;
-      const row = supportChatHistory.find((item) => item && item.supportWelcome);
+      const row = supportChatOpenWelcomeRow || (Array.isArray(supportChatHistory) ? supportChatHistory.find((item) => item && item.supportWelcome) : null);
       if (!row) return;
       const sid = String(getSupportSalesSessionId() || '').trim();
       if (!sid) return;
@@ -11863,7 +12098,7 @@
       return supportChatBootstrapPromise;
     }
 
-    function supportChatQuickPrompt(text) {
+    function supportChatQuickPrompt(text, options = {}) {
       const input = document.getElementById('support-chat-input');
       const val = String(text || '').trim();
       if (!val) return;
@@ -11871,7 +12106,7 @@
         input.value = val;
         input.focus({ preventScroll: true });
       }
-      if (val === '人工') {
+      if (val === '人工' || options.send) {
         sendSupportChat();
       }
     }
@@ -11882,7 +12117,9 @@
         : null;
       if (!btn) return;
       event.preventDefault();
-      supportChatQuickPrompt(btn.getAttribute('data-support-quick-prompt') || '');
+      supportChatQuickPrompt(btn.getAttribute('data-support-quick-prompt') || '', {
+        send: btn.getAttribute('data-support-quick-send') === '1',
+      });
     });
 
     function getLastAssistantSalesMcp() {
@@ -11916,6 +12153,7 @@
     function getVisibleSupportChatRows(limit) {
       const rows = [];
       for (const row of supportChatHistory) {
+        if (row && row.supportWelcome) continue;
         if (shouldHideSupportChatRow(row)) continue;
         const prev = rows[rows.length - 1];
         if (shouldCollapseSupportDuplicateRow(prev, row)) {
@@ -12652,7 +12890,11 @@
       let html = '';
       const renderedRows = [];
       const now = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
-      for (const row of getVisibleSupportChatRows()) {
+      const visibleRows = getVisibleSupportChatRows();
+      if (supportChatOpenWelcomeRow && !visibleRows.includes(supportChatOpenWelcomeRow)) {
+        visibleRows.unshift(supportChatOpenWelcomeRow);
+      }
+      for (const row of visibleRows) {
         if (row && typeof row === 'object' && !row.__supportChatEnterAt) row.__supportChatEnterAt = now;
         const shouldEnter = row && typeof row === 'object' && (now - Number(row.__supportChatEnterAt || 0)) < 720;
         const enterClass = shouldEnter ? ' support-chat-row--enter' : '';
@@ -12670,7 +12912,7 @@
           const featBlock = row.contentHtml || isStaffReply || purchaseDiscovery ? '' : supportChatFeaturedHtml(row.featured_recommendations);
           const kbBlock = row.contentHtml || isStaffReply ? '' : supportChatKnowledgeHtml(row.knowledge, row.llm);
           const salesBlock = row.contentHtml || isStaffReply ? '' : supportChatSalesMcpHtml(row.sales_mcp, row.llm);
-          const serviceBlock = row.contentHtml || isStaffReply ? '' : supportChatSimulatedServiceHtml(row.sales_mcp && row.sales_mcp.simulated_service);
+          const serviceBlock = row.contentHtml || isStaffReply || row.suppressServiceBanner ? '' : supportChatSimulatedServiceHtml(row.sales_mcp && row.sales_mcp.simulated_service);
           const reasonBlock = row.contentHtml || isStaffReply ? '' : supportChatMatchReasonHtml(row.matched_scene, row.matched_qa);
           const suggestionBlock = row.contentHtml || isStaffReply ? '' : supportChatSuggestedPromptsHtml(row.sales_mcp, row.knowledge);
           const bodyHtml = row.contentHtml
@@ -12680,7 +12922,7 @@
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}</div></div>`;
-          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><span class="support-chat-avatar-slot support-chat-avatar-slot--msg">${SUPPORT_CHAT_AVATAR_HTML}</span><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${suggestionBlock}${salesBlock}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
       wrap.innerHTML = html || '<p class="muted">尚無對話。</p>';
@@ -12793,6 +13035,20 @@
           if (data.advisor_notify || data.telegram_notify || data.line_notify) {
             markLastSupportUserMessageTelegramDelivery(data.advisor_notify || data.telegram_notify || data.line_notify);
           }
+          const stageServiceReply = supportChatShouldStageServiceReply(data.sales_mcp);
+          if (stageServiceReply) {
+            setSupportChatThinking(false);
+            supportChatHistory.push({
+              role: 'assistant',
+              content: '',
+              contentHtml: supportChatSimulatedServiceHtml(data.sales_mcp && data.sales_mcp.simulated_service),
+              supportQueueNotice: true,
+            });
+            renderSupportChatMessages();
+            await waitSupportChatServiceQueue(
+              String(data.sales_mcp?.simulated_service?.mode || '') === 'handoff_ready' ? 3000 : 2400
+            );
+          }
           const reply = data.reply || data.detail || '（無回覆）';
           const cooked = buildSupportConclusionText(typeof reply === 'string' ? reply : String(reply));
           supportChatSpeechScript = cooked.voiceScript || '';
@@ -12802,10 +13058,11 @@
             knowledge: data.knowledge || null,
             llm: data.llm || null,
             sales_mcp: data.sales_mcp || null,
+            suppressServiceBanner: stageServiceReply,
             matched_scene: data.matched_scene || null,
             featured_recommendations: Array.isArray(data.featured_recommendations) ? data.featured_recommendations : [],
           });
-          if (data.sales_mcp && data.sales_mcp.real_handoff_ready && supportHumanHandoffStep !== 'form') {
+          if (supportSalesMcpShouldOpenHumanIntake(data.sales_mcp) && supportHumanHandoffStep !== 'form') {
             supportHumanHandoffStep = 'form';
             appendedHumanForm = true;
             openSupportHumanIntakeFromSalesMcp({ silent: true });
@@ -21203,6 +21460,7 @@
 
     function bindPortalCaseInlineDetailBehaviors(shell) {
       if (!(shell instanceof Element)) return;
+      bindPortalCaseInlineGalleryCrop(shell);
       shell.querySelectorAll('[data-case-content-tab]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const root = btn.closest('.case-content-switcher');
@@ -21231,6 +21489,97 @@
           if (typeof renderRichMediaFromText === 'function') renderRichMediaFromText(el);
         } catch (_) {}
       });
+    }
+
+    function bindPortalCaseInlineGalleryCrop(shell) {
+      const mainImg = shell.querySelector('.portal-suumo-gallery-main .portal-suumo-heroimg');
+      if (!mainImg) return;
+      const mainFigure = mainImg.closest('.portal-suumo-gallery-main');
+      const resetGalleryMainContentCrop = () => {
+        mainImg.classList.remove('is-small-content-crop', 'is-portrait-fit');
+        mainImg.style.removeProperty('--gallery-content-zoom');
+        mainImg.style.removeProperty('--gallery-content-origin-x');
+        mainImg.style.removeProperty('--gallery-content-origin-y');
+      };
+      const applyGalleryMainContentCrop = () => {
+        if (!mainFigure || mainFigure.classList.contains('portal-suumo-herofig--floorplan')) {
+          resetGalleryMainContentCrop();
+          return;
+        }
+        const nw = Number(mainImg.naturalWidth || 0);
+        const nh = Number(mainImg.naturalHeight || 0);
+        if (!mainImg.complete || nw < 24 || nh < 24) {
+          resetGalleryMainContentCrop();
+          return;
+        }
+        if (nh / Math.max(nw, 1) >= 1.18) {
+          resetGalleryMainContentCrop();
+          mainImg.classList.add('is-portrait-fit');
+          return;
+        }
+        try {
+          const maxSide = 120;
+          const ratio = Math.min(1, maxSide / Math.max(nw, nh));
+          const w = Math.max(1, Math.round(nw * ratio));
+          const h = Math.max(1, Math.round(nh * ratio));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          if (!ctx) {
+            resetGalleryMainContentCrop();
+            return;
+          }
+          ctx.drawImage(mainImg, 0, 0, w, h);
+          const pixels = ctx.getImageData(0, 0, w, h).data;
+          let minX = w;
+          let minY = h;
+          let maxX = -1;
+          let maxY = -1;
+          let hits = 0;
+          for (let y = 0; y < h; y += 1) {
+            for (let x = 0; x < w; x += 1) {
+              const i = (y * w + x) * 4;
+              const a = pixels[i + 3];
+              if (a < 24) continue;
+              const r = pixels[i];
+              const g = pixels[i + 1];
+              const b = pixels[i + 2];
+              const spread = Math.max(r, g, b) - Math.min(r, g, b);
+              const isWhiteMargin = r >= 232 && g >= 232 && b >= 232 && spread <= 24;
+              const isNearBlank = r >= 204 && g >= 204 && b >= 204 && spread <= 34;
+              if (isWhiteMargin || isNearBlank) continue;
+              hits += 1;
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+          if (hits < Math.max(18, w * h * 0.006) || maxX < minX || maxY < minY) {
+            resetGalleryMainContentCrop();
+            return;
+          }
+          const boxW = (maxX - minX + 1) / w;
+          const boxH = (maxY - minY + 1) / h;
+          const boxArea = boxW * boxH;
+          if (boxArea >= 0.74 || Math.max(boxW, boxH) >= 0.94) {
+            resetGalleryMainContentCrop();
+            return;
+          }
+          const zoom = Math.min(3.4, Math.max(1.35, Math.min(0.82 / Math.max(boxW, 0.01), 0.82 / Math.max(boxH, 0.01))));
+          const originX = ((minX + maxX + 1) / 2 / w) * 100;
+          const originY = ((minY + maxY + 1) / 2 / h) * 100;
+          mainImg.style.setProperty('--gallery-content-zoom', zoom.toFixed(2));
+          mainImg.style.setProperty('--gallery-content-origin-x', `${originX.toFixed(1)}%`);
+          mainImg.style.setProperty('--gallery-content-origin-y', `${originY.toFixed(1)}%`);
+          mainImg.classList.add('is-small-content-crop');
+        } catch (_) {
+          resetGalleryMainContentCrop();
+        }
+      };
+      mainImg.addEventListener('load', applyGalleryMainContentCrop);
+      if (mainImg.complete) window.setTimeout(applyGalleryMainContentCrop, 60);
     }
 
     function markPortalCaseCardActive(sourceEl, activeUrl) {
@@ -21370,7 +21719,7 @@
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
     const HOME_FEATURED_TYPE_PRELOADS = {{ home_featured_type_preloads|default({})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v12.';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v17.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
@@ -21433,7 +21782,6 @@
       if (!priceText || /(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認/i.test(priceText)) return null;
       const gallery = (Array.isArray(raw.gallery_urls) ? raw.gallery_urls : []).map(homeFeaturedTrustedImageUrl).filter(Boolean);
       const thumb = homeFeaturedTrustedImageUrl(raw.thumb_url || raw.hero_media_url || gallery[0] || '');
-      if (!thumb) return null;
       const areaHint = homeFeaturedAreaLabel(raw);
       return {
         ...raw,
@@ -21464,7 +21812,7 @@
         building_type_zh: String(raw.building_type_zh || ''),
         thumb_url: thumb,
         hero_media_url: thumb,
-        gallery_urls: gallery.length ? gallery : [thumb],
+        gallery_urls: gallery.length ? gallery : (thumb ? [thumb] : []),
         image_count: Number(raw.image_count || gallery.length || 0),
         area_hint: areaHint,
       };
@@ -21606,8 +21954,9 @@
       const storedPayload = homeFeaturedStorageGet(type, 0);
       if (!storedPayload || !Array.isArray(storedPayload.items)) return null;
       const storedItems = homeFeaturedPayloadItems(storedPayload);
+      const firstPageItems = storedItems.slice(0, HOME_FEATURED_PAGE_SIZE);
       const normalized = {
-        items: storedItems,
+        items: firstPageItems,
         offset: Number(storedPayload.next_offset || storedItems.length || 0),
         hasMore: storedPayload.has_more !== false && storedItems.length > 0,
       };
@@ -21624,9 +21973,9 @@
       return raw;
     }
 
-    function homeFeaturedWarmImages(items) {
+    function homeFeaturedWarmImages(items, count = 4) {
       try {
-        (items || []).slice(0, 4).forEach((item) => {
+        (items || []).slice(0, Math.max(0, Number(count || 0))).forEach((item) => {
           const src = homeFeaturedDisplayImageUrl(item?.thumb_url || item?.hero_media_url || '', false);
           if (!src) return;
           const img = new Image();
@@ -21636,6 +21985,50 @@
       } catch (_) {}
     }
 
+    async function homeFeaturedFetchMergedBatch({ limit, offset = 0, propertyType = '', maxRounds = 4 } = {}) {
+      const target = Math.max(1, Number(limit || HOME_FEATURED_PAGE_SIZE));
+      let nextOffset = Math.max(0, Number(offset || 0));
+      let lastOffset = -1;
+      let lastPayload = null;
+      const merged = [];
+      const seen = new Set();
+      for (let round = 0; round < Math.max(1, Number(maxRounds || 1)) && merged.length < target; round += 1) {
+        if (nextOffset === lastOffset) break;
+        lastOffset = nextOffset;
+        const params = new URLSearchParams({
+          limit: String(target),
+          offset: String(nextOffset),
+          category: 'hot',
+        });
+        const type = String(propertyType || '').trim();
+        if (type) params.set('property_type', type);
+        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data || data.ok === false) throw new Error('featured cases unavailable');
+        lastPayload = data;
+        const items = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
+        for (const item of items) {
+          const key = supportCaseKeyFromItem(item);
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          merged.push(item);
+          if (merged.length >= target) break;
+        }
+        const candidateOffset = Number(data.next_offset || 0);
+        if (candidateOffset > nextOffset) nextOffset = candidateOffset;
+        else nextOffset += Math.max(1, items.length || target);
+        if (data.has_more === false) break;
+        if (!items.length && candidateOffset <= lastOffset) break;
+      }
+      return {
+        ...(lastPayload || {}),
+        ok: true,
+        items: merged,
+        next_offset: nextOffset,
+        has_more: lastPayload ? lastPayload.has_more !== false : false,
+      };
+    }
+
     async function prefetchHomeFeaturedType(propertyType) {
       const type = String(propertyType || '').trim();
       const cacheKey = homeFeaturedCacheKey(type);
@@ -21643,15 +22036,12 @@
       if (homeFeaturedFirstPageCache(type)) return;
       homeFeaturedTypePrefetching.add(cacheKey);
       try {
-        const params = new URLSearchParams({
-          limit: String(HOME_FEATURED_PAGE_SIZE),
-          offset: '0',
-          category: 'hot',
+        const data = await homeFeaturedFetchMergedBatch({
+          limit: HOME_FEATURED_PAGE_SIZE,
+          offset: 0,
+          propertyType: type,
+          maxRounds: 5,
         });
-        if (type) params.set('property_type', type);
-        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data || data.ok === false) return;
         const next = homeFeaturedPayloadItems(data);
         homeFeaturedStorageSet(type, 0, data);
         homeFeaturedTypeCache.set(cacheKey, {
@@ -21659,7 +22049,7 @@
           offset: Number(data.next_offset || next.length || 0),
           hasMore: data.has_more !== false && next.length > 0,
         });
-        homeFeaturedWarmImages(next);
+        homeFeaturedWarmImages(next, homeFeaturedType === type ? 4 : 1);
         if (homeFeaturedType === type && !homeFeaturedTypeLoading) {
           homeFeaturedTypeCases = next.slice();
           homeFeaturedTypeOffset = Number(data.next_offset || next.length || 0);
@@ -21774,6 +22164,102 @@
       return `<img class="${cls}" src="${esc(src)}" alt="${esc(item.title || '日本房源图片')}" width="${eager ? 960 : 520}" height="${eager ? 600 : 360}" loading="${eager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${eager ? 'high' : 'low'}" referrerpolicy="no-referrer">`;
     }
 
+    function resetHomeFeaturedImageContentCrop(img) {
+      if (!(img instanceof HTMLImageElement)) return;
+      img.classList.remove('is-content-crop');
+      img.style.removeProperty('--home-featured-image-zoom');
+      img.style.removeProperty('--home-featured-image-origin-x');
+      img.style.removeProperty('--home-featured-image-origin-y');
+    }
+
+    function applyHomeFeaturedImageContentCrop(img) {
+      if (!(img instanceof HTMLImageElement)) return;
+      const nw = Number(img.naturalWidth || 0);
+      const nh = Number(img.naturalHeight || 0);
+      if (!img.complete || nw < 28 || nh < 28) {
+        resetHomeFeaturedImageContentCrop(img);
+        return;
+      }
+      try {
+        const maxSide = 120;
+        const ratio = Math.min(1, maxSide / Math.max(nw, nh));
+        const w = Math.max(1, Math.round(nw * ratio));
+        const h = Math.max(1, Math.round(nh * ratio));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) {
+          resetHomeFeaturedImageContentCrop(img);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const pixels = ctx.getImageData(0, 0, w, h).data;
+        let minX = w;
+        let minY = h;
+        let maxX = -1;
+        let maxY = -1;
+        let hits = 0;
+        for (let y = 0; y < h; y += 1) {
+          for (let x = 0; x < w; x += 1) {
+            const i = (y * w + x) * 4;
+            const a = pixels[i + 3];
+            if (a < 24) continue;
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const spread = Math.max(r, g, b) - Math.min(r, g, b);
+            const isWhiteMargin = r >= 232 && g >= 232 && b >= 232 && spread <= 24;
+            const isNearBlank = r >= 206 && g >= 206 && b >= 206 && spread <= 34;
+            if (isWhiteMargin || isNearBlank) continue;
+            hits += 1;
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+        if (hits < Math.max(18, w * h * 0.006) || maxX < minX || maxY < minY) {
+          resetHomeFeaturedImageContentCrop(img);
+          return;
+        }
+        const boxW = (maxX - minX + 1) / w;
+        const boxH = (maxY - minY + 1) / h;
+        const boxArea = boxW * boxH;
+        if (boxArea >= 0.82 || Math.max(boxW, boxH) >= 0.97) {
+          resetHomeFeaturedImageContentCrop(img);
+          return;
+        }
+        const portrait = nh / Math.max(nw, 1) >= 1.18;
+        const targetFill = portrait ? 0.9 : 0.96;
+        const maxZoom = portrait ? 1.55 : 2.8;
+        const zoom = Math.min(maxZoom, Math.max(1.08, Math.min(targetFill / Math.max(boxW, 0.01), targetFill / Math.max(boxH, 0.01))));
+        if (zoom <= 1.06) {
+          resetHomeFeaturedImageContentCrop(img);
+          return;
+        }
+        const originX = ((minX + maxX + 1) / 2 / w) * 100;
+        const originY = ((minY + maxY + 1) / 2 / h) * 100;
+        img.style.setProperty('--home-featured-image-zoom', zoom.toFixed(2));
+        img.style.setProperty('--home-featured-image-origin-x', `${originX.toFixed(1)}%`);
+        img.style.setProperty('--home-featured-image-origin-y', `${originY.toFixed(1)}%`);
+        img.classList.add('is-content-crop');
+      } catch (_) {
+        resetHomeFeaturedImageContentCrop(img);
+      }
+    }
+
+    function bindHomeFeaturedImageContentCrop(root = document) {
+      const scope = root instanceof Element || root === document ? root : document;
+      scope.querySelectorAll('.home-featured-card-img, .home-featured-hero-img').forEach((img) => {
+        if (!(img instanceof HTMLImageElement) || img.dataset.homeFeaturedCropBound === '1') return;
+        img.dataset.homeFeaturedCropBound = '1';
+        img.addEventListener('load', () => applyHomeFeaturedImageContentCrop(img));
+        img.addEventListener('error', () => resetHomeFeaturedImageContentCrop(img));
+        if (img.complete) window.setTimeout(() => applyHomeFeaturedImageContentCrop(img), 60);
+      });
+    }
+
     function homeFeaturedMediaSpecHtml(item) {
       const price = String(item?.price_hint || item?.price_text_hant || '价格待确认').trim();
       const specs = homeFeaturedSpecLabels(item);
@@ -21853,7 +22339,7 @@
     }
 
     function homeFeaturedHeroPromoTitle(item) {
-      const location = homeFeaturedCardLocation(item);
+      const location = homeFeaturedCardLocation(item).replace(/県/g, '县').replace(/區/g, '区').replace(/間/g, '间');
       const type = String(item?.building_type_zh || '').trim().replace(/公寓大樓/g, '公寓');
       const suffix = type && !/日本房源|位置/.test(type) ? type : '优选房源';
       return `${location && location !== '日本房源位置' ? location : '日本'}${suffix}推荐`;
@@ -21998,10 +22484,13 @@
         heroEl.hidden = false;
         heroEl.innerHTML = `
           <article class="home-featured-hero-card" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
-            <a class="home-featured-hero-media" href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">
-              ${homeFeaturedImage(hero, 'home-featured-hero-img', true)}
-              ${homeFeaturedMediaSpecHtml(hero)}
-            </a>
+            <div class="home-featured-hero-media">
+              <a class="home-featured-hero-media-link" href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)" aria-label="查看本周推荐房源明细">
+                ${homeFeaturedImage(hero, 'home-featured-hero-img', true)}
+                ${homeFeaturedMediaSpecHtml(hero)}
+              </a>
+              ${homeFeaturedActionButtons(hero)}
+            </div>
             <div class="home-featured-hero-copy">
               <span class="home-featured-hero-label">本周推荐</span>
               <h3><a href="${esc(url)}" onclick="return portalCaseInlineLinkClick(event, this)">${esc(heroTitle)}</a></h3>
@@ -22012,7 +22501,6 @@
                 ${heroArea ? `<span>${esc(heroArea)}</span>` : ''}
                 <span>${esc(homeFeaturedCardLocation(hero))}</span>
               </div>
-              ${homeFeaturedActionButtons(hero)}
             </div>
           </article>`;
       } else {
@@ -22020,6 +22508,8 @@
         heroEl.innerHTML = '';
       }
       gridEl.innerHTML = items.slice(1).map((item, ix) => homeFeaturedCardHtml(item, ix + 1)).join('');
+      bindHomeFeaturedImageContentCrop(heroEl);
+      bindHomeFeaturedImageContentCrop(gridEl);
       syncFigureCaseFavoriteButtons();
       syncFigureCaseSavedButtons();
     }
@@ -22030,6 +22520,7 @@
       const items = homeFeaturedTypeCases.map(homeFeaturedNormalizeCase).filter(Boolean);
       homeFeaturedTypeCases = items;
       gridEl.innerHTML = items.map((item, ix) => homeFeaturedCardHtml(item, ix)).join('');
+      bindHomeFeaturedImageContentCrop(gridEl);
       syncFigureCaseFavoriteButtons();
       syncFigureCaseSavedButtons();
     }
@@ -22062,21 +22553,22 @@
         const payload = Object.prototype.hasOwnProperty.call(payloadMap, type) ? payloadMap[type] : null;
         if (!payload || !Array.isArray(payload.items)) return;
         const items = homeFeaturedPayloadItems(payload);
+        const firstPageItems = items.slice(0, HOME_FEATURED_PAGE_SIZE);
         const normalized = {
-          items: items.slice(),
+          items: firstPageItems.slice(),
           offset: Number(payload.next_offset || items.length || 0),
           hasMore: payload.has_more !== false && items.length > 0,
         };
         homeFeaturedTypeCache.set(homeFeaturedCacheKey(type), normalized);
-        homeFeaturedStorageSet(type, 0, payload);
-        homeFeaturedWarmImages(items);
+        homeFeaturedStorageSet(type, 0, { ...payload, items: firstPageItems });
         if (String(type || '') === String(homeFeaturedType || '') && !renderedActive) {
-          homeFeaturedTypeCases = items.slice();
+          homeFeaturedTypeCases = firstPageItems.slice();
           homeFeaturedTypeOffset = normalized.offset;
           renderHomeFeaturedTypeCases();
+          homeFeaturedWarmImages(firstPageItems, 4);
           const moreBtn = document.getElementById('home-featured-type-more');
           if (moreBtn) moreBtn.hidden = normalized.hasMore === false;
-          homeFeaturedSetTypeStatus(items.length ? `已载入 ${items.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(type)}」的房源。`);
+          homeFeaturedSetTypeStatus(firstPageItems.length ? `已载入 ${firstPageItems.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(type)}」的房源。`);
           renderedActive = true;
         }
       });
@@ -22116,14 +22608,11 @@
       const refreshBtn = document.getElementById('home-featured-refresh');
       if (refreshBtn) refreshBtn.disabled = true;
       try {
-        const params = new URLSearchParams({
-          limit: String(HOME_FEATURED_RECOMMEND_SIZE),
-          offset: String(homeFeaturedOffset),
-          category: 'hot',
+        const data = await homeFeaturedFetchMergedBatch({
+          limit: HOME_FEATURED_RECOMMEND_SIZE,
+          offset: homeFeaturedOffset,
+          maxRounds: 5,
         });
-        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data || data.ok === false) throw new Error('featured cases unavailable');
         const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
         if (next.length || !homeFeaturedCases.length) {
           homeFeaturedCases = next.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
@@ -22181,15 +22670,12 @@
       if (moreBtn) moreBtn.disabled = true;
       try {
         const fetchOffset = append ? homeFeaturedTypeOffset : 0;
-        const params = new URLSearchParams({
-          limit: String(HOME_FEATURED_PAGE_SIZE),
-          offset: String(fetchOffset),
-          category: 'hot',
+        const data = await homeFeaturedFetchMergedBatch({
+          limit: HOME_FEATURED_PAGE_SIZE,
+          offset: fetchOffset,
+          propertyType,
+          maxRounds: 5,
         });
-        if (propertyType) params.set('property_type', propertyType);
-        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data || data.ok === false) throw new Error('featured type cases unavailable');
         const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
         if (!append && requestSeq !== homeFeaturedTypeRequestSeq) {
           if (next.length) {
@@ -25260,11 +25746,13 @@
       let jptSta = 0;
       let jptWalk = 0;
       if (effectiveGeoMode === 'region') {
-        const homesKw = typeof homesGeoKeywordForSearch === 'function' ? homesGeoKeywordForSearch() : '';
+        const rawHomesKw = typeof homesGeoKeywordForSearch === 'function' ? homesGeoKeywordForSearch() : '';
+        const homesKw = typeof isHomesGeoPlaceholderLabel === 'function' && isHomesGeoPlaceholderLabel(rawHomesKw) ? '' : rawHomesKw;
         const presetKeyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim() || String(window.__sclawGeoKeywordOverride || '').trim();
         if (hiddenKeyword) hiddenKeyword.value = homesKw || presetKeyword;
         keyword = homesKw || presetKeyword;
-        homesLocLabel = typeof homesGeoLabelForUi === 'function' ? homesGeoLabelForUi() : '';
+        const rawHomesLocLabel = typeof homesGeoLabelForUi === 'function' ? homesGeoLabelForUi() : '';
+        homesLocLabel = typeof isHomesGeoPlaceholderLabel === 'function' && isHomesGeoPlaceholderLabel(rawHomesLocLabel) ? '' : rawHomesLocLabel;
       } else if (effectiveGeoMode === 'commute') {
         if (typeof syncFigureKeywordFromJpTransit === 'function') syncFigureKeywordFromJpTransit();
         keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim();
@@ -25304,7 +25792,9 @@
         if (hiddenKeyword && keyword) hiddenKeyword.value = keyword;
       }
       if (resetKeyword && regionSel) regionSel.value = regionSel.value || '';
-      const rawRegionHint = regionSel && regionSel.value ? String(regionSel.value).trim() : '';
+      const rawRegionHint = regionSel && regionSel.value
+        ? String(regionSel.value).trim()
+        : String(window.__sclawGeoKeywordRegionHint || '').trim();
       const regionHint =
         effectiveGeoMode === 'commute'
           ? (commuteRegionHint || '')
@@ -25668,6 +26158,8 @@
     window.submitSupportPhoneLogin = submitSupportPhoneLogin;
     window.refreshSupportPhoneLoginHint = refreshSupportPhoneLoginHint;
     window.logoutSupportPhoneLogin = logoutSupportPhoneLogin;
+    window.toggleSupportChat = toggleSupportChat;
+    window.sendSupportChat = sendSupportChat;
     window.toggleSupportChatMenu = toggleSupportChatMenu;
     window.openSupportChatMenuCases = openSupportChatMenuCases;
     window.openSupportChatForCaseFromCard = openSupportChatForCaseFromCard;
@@ -27625,7 +28117,6 @@
       installMobileHeaderMetrics();
       const homeFeaturedHydrated = hydrateHomeFeaturedInitial();
       const homeFeaturedTypesHydrated = hydrateHomeFeaturedTypePreloads();
-      prefetchHomeFeaturedTypes();
       const homeFeaturedStartupLoads = [];
       if (!homeFeaturedHydrated) {
         homeFeaturedStartupLoads.push(loadHomeFeaturedCases({ append: false }));

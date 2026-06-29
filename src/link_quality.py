@@ -69,6 +69,8 @@ def title_looks_like_crawl_placeholder(title: str) -> bool:
         return True
     if re.search(r"javascript.{0,8}(被禁|禁用|停用|無法|无法)", t, re.IGNORECASE):
         return True
+    if re.search(r"javascript.{0,8}is.{0,4}disabled", tl, re.IGNORECASE):
+        return True
     if re.search(r"(被禁|禁用|停用).{0,8}javascript", t, re.IGNORECASE):
         return True
     if re.search(r"請.*啟用.*javascript|请.*启用.*javascript|javascript.*啟用|javascript.*启用", t, re.IGNORECASE):

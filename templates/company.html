@@ -6,7 +6,7 @@
   <title>{{ company_profile.name }}｜{{ site_name }}</title>
   <meta name="description" content="公司背景、服務流程、資訊來源與查詢導引。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260628-company-luxe-b">
+  <link rel="stylesheet" href="/static/site.css?v=20260629-footer-ikea-a">
 </head>
 <body class="site-home site-case-standalone site-buy-guide site-company-profile site-company-luxe site-lang-hant">
   {% include 'partials/site_header.html' %}
@@ -114,7 +114,8 @@
         <p>跨境不動產諮詢需要清楚的窗口。以下保留公司公開地址、信箱與官方參考頁，方便使用者直接核對與聯絡。</p>
       </div>
       <div class="company-luxe-contact-grid">
-        <article class="company-luxe-contact-card">
+        <article class="company-luxe-contact-card company-luxe-contact-card--primary">
+          <span class="company-luxe-contact-kicker">Main Window</span>
           <h3>{{ company_profile.name }}</h3>
           <div class="company-luxe-contact-lines">
             <section><strong>所在地</strong><span>{{ company_profile.address }}</span></section>
@@ -123,13 +124,9 @@
             <section><strong>官方參考</strong><a href="{{ company_profile.reference_url }}" target="_blank" rel="nofollow noopener">查看公司服務頁</a></section>
             {% endif %}
           </div>
-          <p>{{ company_profile.address }}</p>
-          <a href="mailto:{{ company_profile.contact }}">{{ company_profile.contact }}</a>
-          {% if company_profile.reference_url %}
-          <a href="{{ company_profile.reference_url }}" target="_blank" rel="nofollow noopener">官方參考頁</a>
-          {% endif %}
         </article>
         <article class="company-luxe-contact-card company-luxe-contact-card--summary">
+          <span class="company-luxe-contact-kicker">Consultation</span>
           <h3>可洽詢內容</h3>
           <ul>
             <li>海外買家日本不動產需求整理</li>
@@ -139,6 +136,7 @@
           </ul>
         </article>
         <article class="company-luxe-source-card">
+          <span class="company-luxe-contact-kicker">Reference</span>
           <h3>站內交叉來源</h3>
           <div>
             {% for category, items in knowledge_sources.items() %}
@@ -176,5 +174,6 @@
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
   {% include 'partials/site_footer.html' %}
+  {% include 'partials/support_chat_public_fab.html' %}
 </body>
 </html>

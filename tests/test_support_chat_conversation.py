@@ -31,7 +31,7 @@ class SupportChatConversationTests(unittest.TestCase):
         data = resp.json()
 
         self.assertTrue(data["ok"])
-        self.assertIn("日本不動產智能客服", data["reply"])
+        self.assertIn("日本不動產線上客服", data["reply"])
         self.assertIn("站內案件", data["reply"])
         self.assertNotIn("工單", data["reply"])
         self.assertNotIn("排隊", data["reply"])
@@ -47,10 +47,41 @@ class SupportChatConversationTests(unittest.TestCase):
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertIn("智能客服", data["reply"])
+        self.assertIn("線上客服", data["reply"])
         self.assertIn("日本不動產", data["reply"])
         self.assertNotIn("顧問接待", data["reply"])
         self.assertTrue(data["llm"]["knowledge_skipped"])
+
+    def test_identity_question_stays_in_service_tone_without_ai_jargon(self):
+        resp = app_module.api_ai_chat_support(
+            app_module.ChatSupportRequest(message="你是真人嗎", sales_session_id="sess-test-identity")
+        )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertIn("工號", data["reply"])
+        self.assertTrue(any(name in data["reply"] for name in ("小美", "小帥", "安琪", "阿哲")))
+        self.assertTrue("地區" in data["reply"] or "預算" in data["reply"])
+        self.assertNotIn("AI", data["reply"])
+        self.assertNotIn("機器人", data["reply"])
+        self.assertNotIn("机器人", data["reply"])
+        self.assertTrue(data["llm"]["light_chat_only"])
+        service = data["sales_mcp"]["simulated_service"]
+        self.assertTrue(service["active"])
+        self.assertEqual(service["mode"], "queueing")
+        self.assertIn("工號", service["display_text"])
+
+    def test_simplified_identity_question_returns_current_service_code(self):
+        resp = app_module.api_ai_chat_support(
+            app_module.ChatSupportRequest(message="你是谁", sales_session_id="sess-test-identity-simplified")
+        )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertIn("工號", data["reply"])
+        self.assertTrue(any(name in data["reply"] for name in ("小美", "小帥", "安琪", "阿哲")))
+        self.assertNotIn("AI", data["reply"])
+        self.assertEqual(data["sales_mcp"]["simulated_service"]["mode"], "queueing")
 
     def test_small_talk_is_natural_but_guides_back_to_site_journey(self):
         resp = app_module.api_ai_chat_support(
@@ -105,6 +136,26 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertTrue(explicit_data["sales_mcp"]["real_handoff_ready"])
         self.assertTrue(explicit_data["sales_mcp"]["should_notify_human"])
 
+    def test_human_keywords_open_lead_capture_even_when_ai_is_enabled(self):
+        resp = app_module.api_ai_chat_support(
+            app_module.ChatSupportRequest(
+                message="我想留单，请联系真人顾问",
+                sales_session_id="sess-human-keyword-lead-form",
+            )
+        )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        sales = data["sales_mcp"]
+        self.assertTrue(sales["human_handoff_intent"])
+        self.assertTrue(sales["real_handoff_ready"])
+        self.assertTrue(sales["should_notify_human"])
+        self.assertTrue(sales["lead_capture"]["ready"])
+        action_ids = [str(x.get("id") or "") for x in sales["next_actions"]]
+        self.assertIn("handoff_human", action_ids)
+        self.assertIn("工號", data["reply"])
+        self.assertTrue(data["llm"].get("simulated_service_reply_applied"))
+
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"
         self._cleanup_session(session_id)
@@ -118,7 +169,7 @@ class SupportChatConversationTests(unittest.TestCase):
                 "context_message": "客户明确表示想买房，并希望有人接手。",
                 "note": "请人工尽快接手",
                 "conversation": [
-                    {"role": "assistant", "content": "欢迎来到日本不动产智能客服。"},
+                    {"role": "assistant", "content": "欢迎来到日本不动产线上客服。"},
                     {"role": "user", "content": "我想买房，想找顾问接手。"},
                 ],
             }
@@ -134,7 +185,7 @@ class SupportChatConversationTests(unittest.TestCase):
                     "handoff_id": handoff_id,
                     "session_id": session_id,
                     "conversation": [
-                        {"role": "assistant", "content": "欢迎来到日本不动产智能客服。"},
+                        {"role": "assistant", "content": "欢迎来到日本不动产线上客服。"},
                         {"role": "user", "content": "我想买房，想找顾问接手。"},
                         {"role": "assistant", "content": "好的，我先帮您整理需求。"},
                         {"role": "user", "content": "希望东京 2LDK，近期看房。"},
