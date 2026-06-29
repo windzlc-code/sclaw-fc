@@ -234,7 +234,7 @@
         <div class="hero-media-overlay">
           <div class="hero-video-chrome" aria-hidden="true"></div>
           <div class="hero-media-overlay-copy">
-            <p class="hero-english-title">Japan Real Estate Global Smart Search</p>
+            <p id="home-hero-heading" class="hero-english-title">Japan Real Estate Global Smart Search</p>
             <p class="hero-kicker">{{ seo_phrase_hero_kicker }}</p>
             <div class="bh-hero-proof-row" aria-label="核心功能快速入口">
               <a href="#jp-map-hub">日本地圖選點</a>
@@ -4187,6 +4187,7 @@
     let figureResultsHidden = false;
     let activeQueryCount = 0;
     let activeFigureSearchController = null;
+    let smartQueryNavigationSeq = 0;
     let supportChatHistory = [];
     let supportTgPollTimer = null;
     let supportHandoffSyncTimer = null;
@@ -6040,6 +6041,7 @@
 
     function cleanupSmartQueryUiBeforeNavigation(options = {}) {
       const abortRequests = options.abortRequests !== false;
+      smartQueryNavigationSeq += 1;
       const wrap = document.getElementById('query-progress');
       const marquee = document.getElementById('query-progress-marquee');
       activeQueryCount = 0;
@@ -6053,6 +6055,14 @@
       }
       const dialog = document.getElementById('query-dialog');
       if (dialog) dialog.setAttribute('aria-busy', 'false');
+      const resultWrap = document.getElementById('figure-results');
+      if (resultWrap && /查詢站內案件資料中/.test(resultWrap.textContent || '')) {
+        resultWrap.innerHTML = '<div class="panel muted">尚未查詢。請設定區域、類型、總價後按<strong>查詢日本不動產案件</strong>。</div>';
+      }
+      const summary = document.getElementById('figure-summary');
+      if (summary && /智慧查詢中|查詢站內案件資料中/.test(summary.textContent || '')) {
+        summary.innerHTML = '<p class="muted" style="margin:0"><strong>等待查詢</strong>：依區域、物件類型、總價篩選；按<strong>查詢日本不動產案件</strong>即查。</p>';
+      }
       document.querySelectorAll('[data-geo-keyword].is-geo-keyword-active').forEach((node) => {
         node.classList.remove('is-geo-keyword-active', 'is-geo-keyword-pressed');
         node.removeAttribute('aria-current');
@@ -6065,6 +6075,9 @@
         if (activeFigureSearchController) {
           try { activeFigureSearchController.abort(); } catch (_) {}
           activeFigureSearchController = null;
+        }
+        if (typeof disposeFigureResultsPagedStateForNavigation === 'function') {
+          try { disposeFigureResultsPagedStateForNavigation(); } catch (_) {}
         }
       }
     }
@@ -6889,6 +6902,7 @@
     function runGeoKeywordSearch(keyword, target = null) {
       const requestedKw = String(keyword || '').trim();
       if (!requestedKw) return;
+      const geoKeywordRunSeq = smartQueryNavigationSeq;
       const geoPreset = applyGeoKeywordSearchPreset(requestedKw);
       const kw = String(geoPreset.searchKeyword || '').trim();
       const displayKw = String(geoPreset.displayKeyword || requestedKw).trim();
@@ -6941,11 +6955,13 @@
         }
       };
       const restoreGeoKeywordStateStable = () => {
+        if (geoKeywordRunSeq !== smartQueryNavigationSeq) return;
         restoreGeoKeywordState();
         showGeoKeywordFeedback(displayKw, 'ready');
         scrollGeoKeywordTargetIntoView();
         [180, 650, 1400, 2600].forEach((delay) => {
           window.setTimeout(() => {
+            if (geoKeywordRunSeq !== smartQueryNavigationSeq) return;
             restoreGeoKeywordState();
             if (delay <= 650) scrollGeoKeywordTargetIntoView();
           }, delay);
@@ -6956,12 +6972,14 @@
       let geoKeywordSettled = false;
       [80, 240, 700, 1500, 3000].forEach((delay) => {
         window.setTimeout(() => {
+          if (geoKeywordRunSeq !== smartQueryNavigationSeq) return;
           restoreGeoKeywordState();
           if (!geoKeywordSettled) showGeoKeywordFeedback(displayKw, 'loading');
         }, delay);
       });
       const run = searchFigureTab(false);
       const finishGeoKeywordRun = () => {
+        if (geoKeywordRunSeq !== smartQueryNavigationSeq) return;
         geoKeywordSettled = true;
         restoreGeoKeywordStateStable();
       };
@@ -8074,6 +8092,16 @@
     const figureCasePreloadKeepAlive = [];
     let figureCasePreloadActive = 0;
     let figureResultsPagedState = null;
+    function disposeFigureResultsPagedStateForNavigation() {
+      if (!figureResultsPagedState) return;
+      figureResultsPagedState.disposed = true;
+      if (figureResultsPagedState.activeFetchController) {
+        try {
+          figureResultsPagedState.activeFetchController.abort();
+        } catch (_) {}
+      }
+      figureResultsPagedState = null;
+    }
 
     function parseFigureCaseMediaUrls(raw) {
       const text = String(raw || '').trim();
@@ -26736,6 +26764,7 @@
       }
       activeFigureSearchController = new AbortController();
       const figureSearchController = activeFigureSearchController;
+      const figureSearchRunSeq = smartQueryNavigationSeq;
       startQueryProgress(`智慧查詢中：${conditionLine}`);
       resultWrap.innerHTML = '<div class="panel muted">查詢站內案件資料中...</div>';
       figureResultsHidden = false;
@@ -26898,6 +26927,7 @@
         if (activeFigureSearchController === figureSearchController) activeFigureSearchController = null;
         stopQueryProgress();
       }
+      if (figureSearchRunSeq !== smartQueryNavigationSeq) return;
 
       const allItems = Array.isArray(data.items) ? data.items : [];
       const items = aggregateSplitBroad ? allItems.slice(0, FIGURE_RESULTS_PAGE_SIZE) : allItems;
@@ -26972,6 +27002,7 @@
           countSyncOptions: { appliedLimit, truncNote },
         }
       );
+      if (figureSearchRunSeq !== smartQueryNavigationSeq) return;
       const toggleBtn = document.getElementById('figure-toggle-btn');
       if (toggleBtn) toggleBtn.textContent = '隱藏結果';
       resultWrap.style.display = 'block';
