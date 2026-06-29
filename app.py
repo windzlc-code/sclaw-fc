@@ -2454,7 +2454,115 @@ def _home_featured_property_type_search_terms(property_type: str) -> tuple[str, 
     return ()
 
 
-def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
+def _home_featured_fast_cached_gallery_urls(raw_urls: list[Any], *, limit: int = 8) -> list[str]:
+    """Return already cached static images without remote IO or visual scanning."""
+    lim = max(1, min(int(limit or 8), 24))
+    raw_candidates = [
+        str(u or "").strip()
+        for u in raw_urls
+        if str(u or "").strip() and not _case_representative_url_reject_reason(u)
+    ]
+    candidates = _sort_relevant_real_estate_images(raw_candidates, limit=max(lim * 2, 12))
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        cached = _case_image_cached_static_url(raw)
+        if not cached or cached in seen:
+            continue
+        if not _url_to_local_static_path(cached):
+            continue
+        seen.add(cached)
+        out.append(cached)
+        if len(out) >= lim:
+            break
+    return out
+
+
+_HOME_FEATURED_REGION_KEYWORD_ALIASES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("東京", "东京"), ("東京都", "东京都")),
+    (("大阪",), ("大阪", "大阪府")),
+    (("京都",), ("京都", "京都府")),
+    (("福岡", "福冈"), ("福岡", "福冈", "福岡県")),
+    (("北海道",), ("北海道", "札幌")),
+    (("沖縄", "沖繩", "冲绳"), ("沖縄", "沖繩", "冲绳", "沖縄県")),
+    (("名古屋",), ("名古屋", "愛知", "爱知", "愛知県")),
+    (("橫濱", "横滨"), ("横浜", "橫濱", "横滨", "神奈川")),
+    (("札幌",), ("札幌", "北海道")),
+    (("神戶", "神户"), ("神戸", "神戶", "神户", "兵庫", "兵库")),
+)
+
+
+def _home_featured_keyword_region_terms(value: str) -> tuple[str, ...]:
+    raw = _home_featured_to_hans(str(value or "").strip())
+    compact = re.sub(r"\s+", "", raw).lower()
+    out: list[str] = []
+    seen: set[str] = set()
+    for needles, terms in _HOME_FEATURED_REGION_KEYWORD_ALIASES:
+        if not any(n.lower() in compact for n in needles):
+            continue
+        for term in terms:
+            if term and term not in seen:
+                seen.add(term)
+                out.append(term)
+    return tuple(out)
+
+
+def _home_featured_keyword_search_terms(value: str) -> tuple[str, ...]:
+    """Expand title-bar human keywords into terms that exist in listing rows."""
+    raw = _home_featured_to_hans(str(value or "").strip())
+    if not raw:
+        return ()
+    compact = re.sub(r"\s+", "", raw).lower()
+    compact = (
+        compact.replace("不动产", "")
+        .replace("房地产", "")
+        .replace("房产", "")
+        .replace("房源", "")
+        .replace("物件", "")
+        .replace("找房", "")
+        .replace("查询", "")
+        .replace("搜尋", "")
+        .replace("搜索", "")
+        .replace("日本", "")
+    )
+    groups: list[tuple[str, ...]] = []
+    for needles, terms in _HOME_FEATURED_REGION_KEYWORD_ALIASES:
+        if any(n.lower() in compact for n in needles):
+            groups.append(terms)
+    if any(x in compact for x in ("投资", "投資", "收租", "出租", "租")):
+        groups.append(("投資", "投资", "収益", "收租", "賃貸", "出租"))
+    if any(x in compact for x in ("自住", "自用", "生活")):
+        groups.append(("住宅", "住居", "マンション", "一戸建"))
+    if any(x in compact for x in ("新建", "新築", "新房")):
+        groups.append(("新築", "新建", "新築マンション", "新築一戸建て"))
+    if any(x in compact for x in ("中古", "二手")):
+        groups.append(("中古", "中古マンション", "中古一戸建て"))
+    if any(x in compact for x in ("一户建", "一戶建", "透天", "别墅", "別墅")):
+        groups.append(("一戸建", "戸建", "一戶建", "一户建", "透天", "別墅", "别墅"))
+    if any(x in compact for x in ("公寓", "大楼", "大樓", "华厦", "華廈")):
+        groups.append(("マンション", "公寓", "アパート", "mansion"))
+    if any(x in compact for x in ("车站", "車站", "站", "徒步", "步行", "周边", "周邊")):
+        groups.append(("駅", "站", "徒歩", "步行", "交通"))
+    if any(x in compact for x in ("价格", "價格", "预算", "預算", "筛选", "篩選")):
+        groups.append(("万円", "万日圆", "価格", "价格", "價格"))
+    if any(x in compact for x in ("远端", "遠端", "看房", "比较", "比較")):
+        groups.append(("マンション", "一戸建", "住宅", "公寓"))
+    cleaned = compact.strip()
+    if cleaned and len(cleaned) >= 2:
+        groups.append((cleaned,))
+    seen: set[str] = set()
+    out: list[str] = []
+    for group in groups:
+        for term in group:
+            t = str(term or "").strip()
+            if not t or t in seen:
+                continue
+            seen.add(t)
+            out.append(t)
+    return tuple(out[:18])
+
+
+def _home_featured_case_public_row(row: dict[str, Any], *, sync_static: bool = True) -> dict[str, Any]:
     meta = infer_case_metadata(row)
     try:
         fields = _extract_listing_fields(row, meta=meta)
@@ -2467,12 +2575,15 @@ def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
         str(base.get("thumb_url") or "").strip(),
         *primary_imgs,
     ]
-    stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
-    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
-    if stored_thumb:
-        gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
-    if not gallery:
-        gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
+    if sync_static:
+        stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
+        gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
+        if stored_thumb:
+            gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+        if not gallery:
+            gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
+    else:
+        gallery = _home_featured_fast_cached_gallery_urls([*raw_gallery_candidates, *imgs], limit=8)
     thumb = str(base.get("thumb_url") or "").strip()
     if gallery:
         thumb = gallery[0]
@@ -2541,7 +2652,12 @@ def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
+def _home_featured_case_public_row_fast(
+    row: dict[str, Any],
+    *,
+    sync_static: bool = True,
+    fast_cached_media: bool = True,
+) -> dict[str, Any]:
     try:
         meta = infer_case_metadata(row)
     except Exception:
@@ -2557,12 +2673,17 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
         str(row.get("thumbnail_url") or "").strip(),
         *primary_imgs,
     ]
-    stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
-    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
-    if stored_thumb:
-        gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
-    if not gallery:
-        gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
+    if sync_static:
+        stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
+        gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
+        if stored_thumb:
+            gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
+        if not gallery:
+            gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
+    elif fast_cached_media:
+        gallery = _home_featured_fast_cached_gallery_urls([*raw_gallery_candidates, *imgs], limit=8)
+    else:
+        gallery = []
     hero = gallery[0] if gallery else ""
     sid = int(row.get("source_item_id") or 0)
     slug = str(row.get("seo_slug") or "").strip()
@@ -2630,6 +2751,34 @@ _HOME_FEATURED_CASES_CACHE_TTL_SECONDS = 300.0
 _HOME_FEATURED_CASES_CACHE_MAX = 80
 _HOME_FEATURED_CASES_CACHE_LOCK = threading.RLock()
 _HOME_FEATURED_CASES_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_HOME_TITLEBAR_CASE_KEYWORDS: tuple[str, ...] = (
+    "東京不動產",
+    "大阪公寓",
+    "福岡收租物件",
+    "新建公寓",
+    "中古公寓",
+    "大阪不動產",
+    "京都不動產",
+    "福岡不動產",
+    "北海道不動產",
+    "沖繩不動產",
+    "名古屋不動產",
+    "橫濱不動產",
+    "札幌不動產",
+    "神戶不動產",
+    "日本投資房產",
+    "日本自住房產",
+    "日本收租物件",
+    "日本遠端看房",
+    "日本中古公寓",
+    "日本新建公寓",
+    "日本一戶建",
+    "日本公寓找房",
+    "日本房源比較",
+    "車站周邊物件",
+    "徒步可達物件",
+    "價格篩選找房",
+)
 
 
 def _home_featured_cases_cache_key(
@@ -2637,7 +2786,7 @@ def _home_featured_cases_cache_key(
 ) -> str:
     return json.dumps(
         {
-            "media_policy": "representative-v2",
+            "media_policy": "representative-v3",
             "limit": int(limit),
             "offset": int(offset),
             "category": str(category or "hot"),
@@ -2669,6 +2818,14 @@ def _home_featured_cases_cache_set(key: str, payload: dict[str, Any]) -> None:
             oldest_key = min(_HOME_FEATURED_CASES_CACHE.items(), key=lambda item: item[1][0])[0]
             _HOME_FEATURED_CASES_CACHE.pop(oldest_key, None)
         _HOME_FEATURED_CASES_CACHE[key] = (time.time(), dict(payload, cached=False))
+
+
+def _prewarm_home_titlebar_case_search_cache() -> None:
+    for kw in _HOME_TITLEBAR_CASE_KEYWORDS:
+        try:
+            _home_featured_cases_payload(limit=6, offset=0, category="hot", q=kw)
+        except Exception as exc:
+            print(f"SCLAW: titlebar keyword prewarm failed kw={kw}: {type(exc).__name__}: {exc}", flush=True)
 
 
 def _home_featured_cases_payload(
@@ -2714,21 +2871,22 @@ def _home_featured_cases_payload(
         params.extend([like, like, like, like])
     query_sql = ""
     if query_text:
-        like = f"%{query_text}%"
-        query_sql = """
-          AND (
-            c.case_jp_region_override LIKE ?
-            OR c.case_transit_override LIKE ?
-            OR c.seo_title LIKE ?
-            OR c.title_zh_hant LIKE ?
-            OR c.title_zh_hans LIKE ?
-            OR c.seo_description LIKE ?
-            OR s.title_original LIKE ?
-            OR s.body_original LIKE ?
-            OR s.item_url LIKE ?
-          )
-        """
-        params.extend([like, like, like, like, like, like, like, like, like])
+        query_terms = _home_featured_keyword_region_terms(query_text) or _home_featured_keyword_search_terms(query_text) or (query_text,)
+        searchable_cols = (
+            "c.case_jp_region_override",
+            "c.case_transit_override",
+            "c.title_zh_hant",
+            "c.title_zh_hans",
+            "c.seo_description",
+        )
+        query_clauses: list[str] = []
+        for term in query_terms:
+            like = f"%{term}%"
+            for col in searchable_cols:
+                query_clauses.append(f"COALESCE({col}, '') LIKE ?")
+                params.append(like)
+        if query_clauses:
+            query_sql = f" AND ({' OR '.join(query_clauses)}) "
     type_terms = _home_featured_property_type_search_terms(query_property_type)
     type_sql = ""
     if type_terms:
@@ -2755,7 +2913,10 @@ def _home_featured_cases_payload(
                 type_clauses.append(f"COALESCE({col}, '') LIKE ?")
                 params.append(term_like)
         type_sql = f" AND ({' OR '.join(type_clauses)}) "
-    sql_limit = min(1600 if query_property_type else 900, max(lim * (100 if query_property_type else 80), lim + 360))
+    if query_text:
+        sql_limit = min(220, max(lim * 24, lim + 72))
+    else:
+        sql_limit = min(1600 if query_property_type else 900, max(lim * (100 if query_property_type else 80), lim + 360))
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -2822,7 +2983,12 @@ def _home_featured_cases_payload(
             continue
         if query_property_type and not _home_featured_matches_property_type(row_dict, query_property_type):
             continue
-        item = _home_featured_case_public_row_fast(row_dict)
+        fast_keyword_search = bool(query_text)
+        item = _home_featured_case_public_row_fast(
+            row_dict,
+            sync_static=not fast_keyword_search,
+            fast_cached_media=not fast_keyword_search,
+        )
         item_title = str(item.get("title") or item.get("title_original") or "").strip()
         if not item_title or re.search(
             r"(?:認證|认证|整理|更新).{0,8}(?:進行中|进行中|待確認|待确认)|javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持",
@@ -2833,9 +2999,9 @@ def _home_featured_cases_payload(
         item_price = str(item.get("price_hint") or item.get("price_text_hant") or "").strip()
         if not item_price or re.search(r"(?:价格|價格|価格).{0,4}(?:未定|待确认|待確認|未公布|未公开|未公開|未披露)|待确认|待確認", item_price, re.I):
             continue
-        if not str(item.get("thumb_url") or "").strip():
+        if not fast_keyword_search and not str(item.get("thumb_url") or "").strip():
             continue
-        if int(item.get("image_count") or 0) <= 0:
+        if not fast_keyword_search and int(item.get("image_count") or 0) <= 0:
             continue
         items.append(item)
         if len(items) >= lim:
@@ -5134,6 +5300,7 @@ def startup_event() -> None:
                 "off",
             ):
                 threading.Thread(target=_portal_case_search_cache_prewarm_loop, daemon=True).start()
+        threading.Thread(target=_prewarm_home_titlebar_case_search_cache, daemon=True, name="titlebar-case-prewarm").start()
     except Exception:
         pass
 
