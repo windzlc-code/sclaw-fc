@@ -443,6 +443,81 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
     try:
         settings = load_crawl_settings()
         allowed_tx = _allowed_portal_transactions(settings)
+        common_keyword_payloads = [
+            {"region": "", "keyword": "中古", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "", "keyword": "新築", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "", "keyword": "戸建", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "", "keyword": "投資", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "東京", "keyword": "駅 徒歩", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "東京", "keyword": "マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 2000, "price_max_man": 3000},
+            {"region": "大阪", "keyword": "", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "福岡", "keyword": "マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 0, "price_max_man": 0},
+        ]
+        for spec in common_keyword_payloads:
+            for age in prewarm_ages:
+                cache_payload = {
+                    "tx": "buy",
+                    "portal": "all",
+                    "region": str(spec.get("region") or ""),
+                    "keyword": str(spec.get("keyword") or ""),
+                    "property_types": list(spec.get("property_types") or []),
+                    "price_min_man": int(spec.get("price_min_man") or 0),
+                    "price_max_man": int(spec.get("price_max_man") or 0),
+                    "layout_min_rooms": 0,
+                    "layout_max_rooms": 0,
+                    "layout_exact_zero": False,
+                    "max_age_days": age,
+                    "limit": limit,
+                    "jp_line_id": 0,
+                    "jp_station_id": 0,
+                    "walk_max": 0,
+                    "coverage_matrix_aligned": False,
+                    "offset": 0,
+                    "page_size": page_size,
+                    "detail_gate": "openable-v1",
+                    "media_policy": "detail-panel-gallery-v7",
+                }
+                cache_key = _portal_case_search_cache_key(cache_payload)
+                if not force and _portal_case_search_cache_get(cache_key) is not None:
+                    continue
+                data = search_portal_cases(
+                    transaction="buy",
+                    portal="all",
+                    region_hint=str(spec.get("region") or ""),
+                    keyword=str(spec.get("keyword") or ""),
+                    property_types=list(spec.get("property_types") or []),
+                    price_min_man=int(spec.get("price_min_man") or 0),
+                    price_max_man=int(spec.get("price_max_man") or 0),
+                    layout_min_rooms=0,
+                    layout_max_rooms=0,
+                    layout_exact_zero=False,
+                    max_age_days=age,
+                    limit=limit,
+                    offset=0,
+                    page_size=page_size,
+                    jp_line_id=0,
+                    jp_station_id=0,
+                    walk_max=0,
+                    coverage_matrix_aligned=False,
+                )
+                items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
+                    list(data.get("items") or []),
+                    allow_live_fetch=False,
+                )
+                bf_meta["skipped_reason"] = "prewarm_fast_mode"
+                items_bf, detail_gate_meta = _portal_case_filter_openable_detail_items(items_bf)
+                data["items"] = items_bf
+                data["portal_thumb_backfill"] = bf_meta
+                data["portal_detail_gate"] = detail_gate_meta
+                data["portal_detail_enrich"] = {"enabled": False, "scheduled": 0, "reason": "prewarm_fast_mode"}
+                data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
+                data["allowed_transactions"] = allowed_tx
+                data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
+                data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
+                _portal_case_search_cache_set(
+                    cache_key,
+                    json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+                )
         for region in regions:
             for age in prewarm_ages:
                 for matrix_aligned in (False, True):
@@ -513,8 +588,8 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                         json.dumps(data, ensure_ascii=False, separators=(",", ":")),
                     )
         common_keyword_payloads = [
-            {"region": "", "keyword": "中古マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 0, "price_max_man": 0},
-            {"region": "", "keyword": "新築マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 0, "price_max_man": 0},
+            {"region": "", "keyword": "中古", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "", "keyword": "新築", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "", "keyword": "戸建", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "", "keyword": "投資", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "東京", "keyword": "駅 徒歩", "property_types": [], "price_min_man": 0, "price_max_man": 0},
