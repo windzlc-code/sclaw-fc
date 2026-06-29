@@ -41594,3 +41594,38 @@ body.site-home #support-chat-widget.support-chat-widget:not(.is-expanded) #suppo
   font-weight: 700;
   color: #555;
 }
+
+/* 2026-06-29: keep the shared phone login dialog viewport-centered on every inner page. */
+body .support-phone-login-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10080 !important;
+  pointer-events: auto !important;
+}
+
+body .support-phone-login-modal {
+  position: fixed !important;
+  left: 50vw !important;
+  top: 50dvh !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(390px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100dvh - max(28px, env(safe-area-inset-top)) - max(28px, env(safe-area-inset-bottom))) !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  z-index: 10090 !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+@media (max-width: 640px) {
+  body .support-phone-login-modal {
+    width: min(390px, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 14px !important;
+    border-radius: 20px !important;
+  }
+}

@@ -2468,11 +2468,11 @@ def _home_featured_case_public_row(row: dict[str, Any]) -> dict[str, Any]:
         *primary_imgs,
     ]
     stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
-    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8)
+    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
     if stored_thumb:
         gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
     if not gallery:
-        gallery = _case_representative_gallery_urls(imgs, limit=8)
+        gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
     thumb = str(base.get("thumb_url") or "").strip()
     if gallery:
         thumb = gallery[0]
@@ -2558,11 +2558,11 @@ def _home_featured_case_public_row_fast(row: dict[str, Any]) -> dict[str, Any]:
         *primary_imgs,
     ]
     stored_thumb = _case_stored_representative_static_url(row, raw_gallery_candidates)
-    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8)
+    gallery = _case_representative_gallery_urls(raw_gallery_candidates, limit=8, sync_download=True, proxy_fallback=False)
     if stored_thumb:
         gallery = [stored_thumb, *[u for u in gallery if u != stored_thumb]][:8]
     if not gallery:
-        gallery = _case_representative_gallery_urls(imgs, limit=8)
+        gallery = _case_representative_gallery_urls(imgs, limit=8, sync_download=True, proxy_fallback=False)
     hero = gallery[0] if gallery else ""
     sid = int(row.get("source_item_id") or 0)
     slug = str(row.get("seo_slug") or "").strip()
@@ -3147,7 +3147,7 @@ _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS = 600.0
 _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v12"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v13"
 _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 6 * 60 * 60
 
 

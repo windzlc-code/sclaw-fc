@@ -462,8 +462,15 @@
     if (typeof window.toggleSupportPhoneLoginModal !== 'function') {
       window.toggleSupportPhoneLoginModal = function (force) {
         var modal = document.getElementById('support-phone-login-modal');
+        var backdrop = document.getElementById('support-phone-login-backdrop');
         var open = typeof force === 'boolean' ? force : !(modal && modal.style.display !== 'none' && modal.style.display !== '');
         if (open) closeSupportFallbackPanels('phone');
+        if (modal && modal.parentElement !== document.body) {
+          document.body.appendChild(modal);
+        }
+        if (backdrop && backdrop.parentElement !== document.body) {
+          document.body.appendChild(backdrop);
+        }
         setDisplay('support-phone-login-modal', open, 'block');
         setDisplay('support-phone-login-backdrop', open, 'block');
         if (modal) {
