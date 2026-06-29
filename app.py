@@ -3146,6 +3146,11 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
     """Prepare homepage featured sections once, then reuse them across refreshes."""
     global _HOME_FEATURED_INDEX_PRELOAD_CACHE
     now = time.time()
+    empty_bundle = {
+        "home_featured_preload": {"ok": False, "items": []},
+        "home_featured_type_preloads": {},
+        "home_room_explore_tiles": _home_room_explore_tiles({}, fetch_missing=False),
+    }
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
             ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
@@ -3167,65 +3172,12 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
         except Exception:
             pass
 
-    try:
-        home_featured_preload = _home_featured_cases_payload_merged(limit=6, offset=0, category="hot")
-        home_featured_preload = _home_featured_static_payload(home_featured_preload, target_static=6, sync_download=False)
-    except Exception:
-        home_featured_preload = {"ok": False, "items": []}
-
-    home_featured_type_preloads: dict[str, dict[str, Any]] = {}
-    for type_meta in _HOME_ROOM_EXPLORE_TYPE_META:
-        property_type = str(type_meta.get("property_type") or "").strip()
-        if not property_type:
-            continue
-        try:
-            home_featured_type_preloads[property_type] = _home_featured_cases_payload_merged(
-                limit=12,
-                offset=0,
-                category="hot",
-                property_type=property_type,
-            )
-            home_featured_type_preloads[property_type] = _home_featured_static_payload(
-                home_featured_type_preloads[property_type],
-                target_static=12,
-                sync_download=False,
-            )
-        except Exception:
-            home_featured_type_preloads[property_type] = {"ok": False, "items": [], "property_type": property_type}
-    try:
-        home_featured_type_preloads[""] = _home_featured_cases_payload_merged(limit=12, offset=0, category="hot")
-        home_featured_type_preloads[""] = _home_featured_static_payload(
-            home_featured_type_preloads[""],
-            target_static=12,
-            sync_download=False,
-        )
-    except Exception:
-        home_featured_type_preloads[""] = {"ok": False, "items": []}
-
-    bundle = {
-        "home_featured_preload": home_featured_preload,
-        "home_featured_type_preloads": home_featured_type_preloads,
-        "home_room_explore_tiles": _home_room_explore_tiles(home_featured_type_preloads, fetch_missing=True),
-    }
+    # Keep the public homepage render path fast. Building this bundle can touch
+    # many listing/media rows; when the file cache is cold, let the browser load
+    # featured cases through the lightweight API instead of blocking `/`.
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
-        _HOME_FEATURED_INDEX_PRELOAD_CACHE = (time.time(), copy.deepcopy(bundle))
-        try:
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            _HOME_FEATURED_INDEX_PRELOAD_FILE.write_text(
-                json.dumps(
-                    {
-                        "version": _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION,
-                        "ts": time.time(),
-                        "bundle": bundle,
-                    },
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                ),
-                encoding="utf-8",
-            )
-        except Exception:
-            pass
-    return bundle
+        _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(empty_bundle))
+    return copy.deepcopy(empty_bundle)
 
 
 def _home_intro_script_response(payload: Any | None = None) -> dict[str, Any]:
