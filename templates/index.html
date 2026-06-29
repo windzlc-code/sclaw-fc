@@ -22518,7 +22518,7 @@
       const extraClass = options && options.hero ? ' home-featured-card--hero' : '';
       return `<article class="home-featured-card${extraClass}" data-case-detail-url="${esc(url)}" onclick="homeFeaturedOpenCase(event, this)">
         <div class="home-featured-card-media" role="presentation">
-          ${homeFeaturedImage(item, 'home-featured-card-img', index < 2)}
+          ${homeFeaturedImage(item, 'home-featured-card-img', true)}
           ${homeFeaturedMediaSpecHtml(item)}
           <span class="home-featured-source">${esc(item.source_name || '原站')}</span>
           ${homeFeaturedActionButtons(item)}
