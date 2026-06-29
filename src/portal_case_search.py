@@ -5426,6 +5426,9 @@ def search_portal_cases(
             fetch_lim = min(6000, max(lim, lim * 4, 1000))
         else:
             fetch_lim = lim
+    if requested_page_size > 0 and has_smart_structured_filters:
+        visible_target = max(1, page_offset + requested_page_size)
+        fetch_lim = min(fetch_lim, max(360, visible_target * 80))
     if fine_grained_region_index_probe and requested_page_size > 0 and not has_smart_structured_filters:
         fetch_lim = max(fetch_lim, min(480, max(int(lim) * 3, 240)))
     if requested_page_size > 0 and not has_smart_structured_filters:
@@ -5980,7 +5983,7 @@ def search_portal_cases(
                 sql, params = _select_sql(kw_sql, kw_params)
         else:
             sql, params = _select_sql(kw_sql, kw_params)
-        if has_smart_structured_filters and not kw:
+        if has_smart_structured_filters:
             cur = conn.execute(sql, params)
             cur.arraysize = 200
             scanned_rows = 0
@@ -6179,7 +6182,12 @@ def search_portal_cases(
         else:
             items = _row_dicts_to_portal_case_items(rows)
     else:
-        items = streamed_items
+        if requested_page_size > 0:
+            total_count_override = len(streamed_items)
+            items = streamed_items[page_offset : page_offset + requested_page_size]
+            used_paged_fast_path = True
+        else:
+            items = streamed_items
     items = _prefer_complete_items_for_display(items, lim=lim)
 
     # 區域總覽詞（首都圏/關東等）仍走同一套物件詳情保護，避免入口頁／搜尋頁被套成單一物件卡。

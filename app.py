@@ -413,12 +413,12 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
     if not regions:
         return
     try:
-        # Keep this aligned with the frontend's default query cap. The response is
-        # still paged by `page_size`, but the cache key includes `limit`; using a
-        # smaller warmup limit creates a warm cache entry that real searches miss.
-        limit = max(10, min(100000, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_LIMIT", "100000") or 100000)))
+        # Keep this aligned with paged smart-query first screens. Full exact
+        # totals are computed separately; warming a small candidate window keeps
+        # startup and first user searches responsive.
+        limit = max(10, min(100000, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_LIMIT", "60") or 60)))
     except Exception:
-        limit = 100000
+        limit = 60
     try:
         page_size = max(1, min(24, int(os.getenv("SCLAW_PORTAL_SEARCH_PREWARM_PAGE_SIZE", "6") or 6)))
     except Exception:
@@ -466,6 +466,7 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                         "offset": 0,
                         "page_size": page_size,
                         "detail_gate": "openable-v1",
+                        "media_policy": "detail-panel-gallery-v7",
                     }
                     cache_key = _portal_case_search_cache_key(cache_payload)
                     if not force and _portal_case_search_cache_get(cache_key) is not None:
@@ -502,7 +503,7 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                     data["items"] = items_bf
                     data["portal_thumb_backfill"] = bf_meta
                     data["portal_detail_gate"] = detail_gate_meta
-                    data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
+                    data["portal_detail_enrich"] = {"enabled": False, "scheduled": 0, "reason": "prewarm_fast_mode"}
                     data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
                     data["allowed_transactions"] = allowed_tx
                     data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
@@ -29698,12 +29699,15 @@ def _normalize_smart_query_portals(*raw_values: Any) -> list[str]:
 def api_portal_case_search(payload: PortalCaseSearchRequest):
     settings = load_crawl_settings()
     cap = max(1000, min(100000, int(settings.get("portal_query_max_records", 100000))))
-    req_lim = int(payload.limit) if payload.limit is not None else cap
-    if req_lim <= 0:
-        req_lim = cap
-    lim = max(10, min(req_lim, cap))
     page_offset = max(0, int(payload.offset or 0))
     page_size = max(0, min(240, int(payload.page_size or 0)))
+    req_lim = int(payload.limit) if payload.limit is not None else cap
+    if req_lim <= 0:
+        # Frontend smart-query cards are paged. A zero limit means "use the
+        # default", but for a first page we only need a small candidate window;
+        # scanning the full portal cap makes common keywords feel frozen.
+        req_lim = max(60, page_size * 10) if page_size > 0 else cap
+    lim = max(10, min(req_lim, cap))
     allowed_tx = _allowed_portal_transactions(settings)
 
     tx = (payload.transaction or "").strip().lower()
@@ -29846,10 +29850,13 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
         or int(payload.jp_station_id or 0) > 0
         or int(payload.walk_max or 0) > 0
     )
-    allow_search_live_backfill, live_backfill_reason = _portal_search_live_backfill_allowed(
-        has_transit_filter=has_transit_filter,
-        request_limit=page_size if page_size > 0 else lim,
-    )
+    if page_size > 0:
+        allow_search_live_backfill, live_backfill_reason = False, "paged_fast_mode"
+    else:
+        allow_search_live_backfill, live_backfill_reason = _portal_search_live_backfill_allowed(
+            has_transit_filter=has_transit_filter,
+            request_limit=lim,
+        )
     items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
         list(data.get("items") or []),
         allow_live_fetch=allow_search_live_backfill,
@@ -29867,7 +29874,10 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     _case_schedule_representative_selection(items_bf[: min(len(items_bf), 4)], limit=4)
     data["items"] = items_bf
     data["portal_detail_gate"] = detail_gate_meta
-    data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
+    if page_size > 0:
+        data["portal_detail_enrich"] = {"enabled": False, "scheduled": 0, "reason": "paged_fast_mode"}
+    else:
+        data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
     # Keep search responses CPU/IO-light: cards can lazy-load through the image
     # proxy/cache after the first page is rendered. Forced prefetch here competes
     # with SQLite on cold region searches and is the main reason area clicks feel
