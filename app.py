@@ -32472,6 +32472,14 @@ def _portal_case_filter_openable_detail_items(items: list[dict[str, Any]]) -> tu
         display_row = _ensure_case_listing_media_json_for_display(dict(row), persist_if_empty=False)
         if not _portal_case_has_displayable_property_media(item):
             panel_gallery = _case_verified_property_gallery_urls(display_row, limit=8)
+            if not panel_gallery:
+                panel_gallery = ordered_listing_image_urls(
+                    str(display_row.get("image_urls") or ""),
+                    str(display_row.get("body_original") or ""),
+                    str(display_row.get("listing_media_json") or "[]"),
+                    item_url=str(display_row.get("item_url") or ""),
+                    limit=8,
+                )
             panel_gallery = _dedupe_case_gallery_urls(
                 [
                     _normalize_listing_image_url_for_display(
