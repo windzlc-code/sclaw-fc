@@ -11,3 +11,4 @@ opencc-python-reimplemented
 deep-translator
 python-dotenv
 playwright>=1.40.0
+Pillow

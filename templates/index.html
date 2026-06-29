@@ -21766,8 +21766,26 @@
     function homeFeaturedTrustedImageUrl(value) {
       const raw = String(value || '').trim();
       if (!raw) return '';
-      if (/\/api\/case-image-cache\b|https?:\/\/|file:|localhost|127\.0\.0\.1|no[_-]?image|placeholder|dummy|準備中|准备中|bnr|banner|map_pin|mogecheck/i.test(raw)) return '';
-      return /^\/static\/cache\/case-images\/[a-f0-9]{2}\/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$/i.test(raw) ? raw : '';
+      if (/^\/static\/cache\/case-images\/[a-f0-9]{2}\/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp|gif)$/i.test(raw)) return raw;
+      if (/^\/api\/case-image-cache\/[a-f0-9]{40}\?u=/i.test(raw)) {
+        try {
+          const parsed = new URL(raw, window.location.origin);
+          const target = decodeURIComponent(String(parsed.searchParams.get('u') || ''));
+          if (!/^https?:\/\//i.test(target)) return '';
+          const targetUrl = new URL(target);
+          const host = String(targetUrl.hostname || '').toLowerCase();
+          if (host === 'localhost' || host === '127.0.0.1') return '';
+          let realImagePath = `${targetUrl.pathname || ''} ${targetUrl.searchParams.get('file') || ''}`;
+          try {
+            realImagePath = decodeURIComponent(realImagePath);
+          } catch (_) {}
+          if (/no[_-]?image|placeholder|dummy|準備中|准备中|bnr|banner|map_pin|mogecheck/i.test(realImagePath)) return '';
+          return raw;
+        } catch (_) {
+          return '';
+        }
+      }
+      return '';
     }
 
     function homeFeaturedNormalizeCase(raw) {
@@ -22163,6 +22181,16 @@
       return `<img class="${cls}" src="${esc(src)}" alt="${esc(item.title || '日本房源图片')}" width="${eager ? 960 : 520}" height="${eager ? 600 : 360}" loading="${eager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${eager ? 'high' : 'low'}" referrerpolicy="no-referrer">`;
     }
 
+    function replaceHomeFeaturedBrokenImage(img) {
+      if (!(img instanceof HTMLImageElement) || img.dataset.homeFeaturedFailed === '1') return;
+      img.dataset.homeFeaturedFailed = '1';
+      const cls = img.classList.contains('home-featured-hero-img') ? 'home-featured-hero-img' : 'home-featured-card-img';
+      const placeholder = document.createElement('div');
+      placeholder.className = `${cls} home-featured-img-placeholder`;
+      placeholder.innerHTML = '<strong>暂无图片</strong><span>可进站内明细查看</span>';
+      img.replaceWith(placeholder);
+    }
+
     function resetHomeFeaturedImageContentCrop(img) {
       if (!(img instanceof HTMLImageElement)) return;
       img.classList.remove('is-content-crop');
@@ -22254,7 +22282,7 @@
         if (!(img instanceof HTMLImageElement) || img.dataset.homeFeaturedCropBound === '1') return;
         img.dataset.homeFeaturedCropBound = '1';
         img.addEventListener('load', () => applyHomeFeaturedImageContentCrop(img));
-        img.addEventListener('error', () => resetHomeFeaturedImageContentCrop(img));
+        img.addEventListener('error', () => replaceHomeFeaturedBrokenImage(img));
         if (img.complete) window.setTimeout(() => applyHomeFeaturedImageContentCrop(img), 60);
       });
     }

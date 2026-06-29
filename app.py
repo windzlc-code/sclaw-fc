@@ -1411,13 +1411,22 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                     total = max(1, len(px))
                     light_ratio = sum(1 for v in px if v >= 232) / total
                     dark_ratio = sum(1 for v in px if v <= 28) / total
+                    mid_gray_ratio = sum(1 for v in px if 88 <= v <= 214) / total
                     edge = gray.filter(ImageFilter.FIND_EDGES)
                     edge_mean = float(ImageStat.Stat(edge).mean[0]) / 255.0
                     reason = ""
                     # Floor plans and structure diagrams are usually bright, low-saturation
                     # line drawings with many hard edges. Keep the thresholds conservative
                     # so normal room photos with bright walls are not rejected.
-                    if light_ratio >= 0.38 and edge_mean >= 0.105 and sat_mean <= 0.38:
+                    if (
+                        sat_mean <= 0.04
+                        and light_ratio >= 0.82
+                        and 0.035 <= mid_gray_ratio <= 0.22
+                        and 0.035 <= edge_mean <= 0.12
+                        and dark_ratio <= 0.02
+                    ):
+                        reason = "blank-placeholder"
+                    elif light_ratio >= 0.38 and edge_mean >= 0.105 and sat_mean <= 0.38:
                         reason = "floor-plan"
                     elif light_ratio >= 0.58 and edge_mean >= 0.075 and sat_mean <= 0.28:
                         reason = "line-diagram"
@@ -4229,22 +4238,29 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     cached_url = _case_image_cached_static_url(raw)
     path = _url_to_local_static_path(cached_url)
     if path:
+        reject_reason = _case_image_visual_reject_reason(cached_url)
+        if reject_reason:
+            return Response(
+                status_code=404,
+                content=f"image rejected: {reject_reason}",
+                headers={"Cache-Control": "public, max-age=300"},
+            )
         return RedirectResponse(
             cached_url,
             status_code=302,
             headers={"Cache-Control": "public, max-age=31536000, immutable"},
         )
-    if not _case_image_sync_fetch_enabled():
-        _case_image_prefetch([raw], limit=1, force=True)
-        return RedirectResponse(
-            raw,
-            status_code=302,
-            headers={"Cache-Control": "public, max-age=300, stale-while-revalidate=3600"},
-        )
     cached_url = _case_image_download_to_cache(raw)
     path = _url_to_local_static_path(cached_url)
     if not path:
         return Response(status_code=404, content="image unavailable")
+    reject_reason = _case_image_visual_reject_reason(cached_url)
+    if reject_reason:
+        return Response(
+            status_code=404,
+            content=f"image rejected: {reject_reason}",
+            headers={"Cache-Control": "public, max-age=300"},
+        )
     media_type = mimetypes.guess_type(str(path))[0] or "image/jpeg"
     return FileResponse(
         path,

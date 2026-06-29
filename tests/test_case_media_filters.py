@@ -12,6 +12,8 @@ from app import (
     _case_lightbox_gallery_urls_from_row,
     _case_missing_verified_gallery_unavailable_reason,
     _case_image_cache_hash,
+    _case_image_cache_response,
+    _case_image_visual_reject_reason,
     _normalize_listing_image_url_for_display,
     case_static_image_url,
     _listing_media_entries_from_case_row,
@@ -288,6 +290,54 @@ class CaseMediaFilterTests(unittest.TestCase):
         self.assertTrue(rendered.startswith(f"/api/case-image-cache/{_case_image_cache_hash(url)}?u="))
         self.assertIn("unit-case-image-uncached.jpg", rendered)
         self.assertNotEqual(rendered, url)
+
+    def test_representative_visual_filter_rejects_japanese_image_preparing_placeholder(self):
+        try:
+            from PIL import Image, ImageDraw
+        except Exception as exc:  # pragma: no cover - dependency guard for minimal local envs
+            self.skipTest(f"Pillow unavailable: {exc}")
+
+        rel = Path("static/cache/case-images/unit/unit-placeholder.jpg")
+        rel.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            image = Image.new("RGB", (640, 640), (244, 247, 247))
+            draw = ImageDraw.Draw(image)
+            for x, y, text in ((132, 120, "画像"), (54, 370, "準備中")):
+                draw.text((x, y), text, fill=(142, 146, 148), font_size=150)
+            image.save(rel, quality=86)
+            self.assertEqual(_case_image_visual_reject_reason("/static/cache/case-images/unit/unit-placeholder.jpg"), "blank-placeholder")
+        finally:
+            try:
+                rel.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def test_case_image_cache_response_does_not_serve_cached_placeholder(self):
+        try:
+            from PIL import Image, ImageDraw
+        except Exception as exc:  # pragma: no cover - dependency guard for minimal local envs
+            self.skipTest(f"Pillow unavailable: {exc}")
+
+        raw = "https://example.test/images/unit-placeholder-remote.jpg"
+        h = _case_image_cache_hash(raw)
+        rel = Path("static/cache/case-images") / h[:2] / f"{h}.jpg"
+        rel.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            image = Image.new("RGB", (640, 640), (244, 247, 247))
+            draw = ImageDraw.Draw(image)
+            for x, y, text in ((132, 120, "画像"), (54, 370, "準備中")):
+                draw.text((x, y), text, fill=(142, 146, 148), font_size=150)
+            image.save(rel, quality=86)
+
+            response = _case_image_cache_response(raw, expected_hash=h)
+
+            self.assertEqual(response.status_code, 404)
+            self.assertIn("image rejected", response.body.decode("utf-8"))
+        finally:
+            try:
+                rel.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     def test_failed_top_hero_collapses_empty_image_area(self):
         css = Path("static/site.css").read_text(encoding="utf-8")
