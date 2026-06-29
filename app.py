@@ -2963,15 +2963,15 @@ _HOME_ROOM_EXPLORE_TYPE_META: tuple[dict[str, str], ...] = (
 )
 
 _HOME_ROOM_EXPLORE_STATIC_FALLBACKS: dict[str, str] = {
-    "公寓": "/static/img/property-type-apartment.svg",
-    "大樓": "/static/img/property-type-tower.svg",
-    "華廈": "/static/img/property-type-midrise.svg",
-    "套房": "/static/img/property-type-studio.svg",
-    "別墅/透天": "/static/img/property-type-house.svg",
-    "辦公": "/static/img/property-type-office.svg",
-    "店面": "/static/img/property-type-shop.svg",
-    "土地": "/static/img/property-type-land.svg",
-    "其他": "/static/img/property-type-other.svg",
+    "公寓": "/static/img/property-types/apartment.jpg",
+    "大樓": "/static/img/property-types/tower.jpg",
+    "華廈": "/static/img/property-types/midrise.jpg",
+    "套房": "/static/img/property-types/studio.jpg",
+    "別墅/透天": "/static/img/property-types/house.jpg",
+    "辦公": "/static/img/property-types/office.jpg",
+    "店面": "/static/img/property-types/shop.jpg",
+    "土地": "/static/img/property-types/land.jpg",
+    "其他": "/static/img/property-types/other.jpg",
 }
 
 

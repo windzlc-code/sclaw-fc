@@ -292,20 +292,19 @@
           <button type="button" class="home-room-explore-nav home-room-explore-nav--prev" aria-label="查看前一组物件类型" onclick="scrollRoomExploreRail(-1)">‹</button>
           <div class="home-room-explore-grid" id="home-room-explore-rail" aria-label="按物件类型进入找房工作台">
             {% set room_type_fallbacks = {
-              '公寓': '/static/img/property-type-apartment.svg',
-              '大樓': '/static/img/property-type-tower.svg',
-              '華廈': '/static/img/property-type-midrise.svg',
-              '套房': '/static/img/property-type-studio.svg',
-              '別墅/透天': '/static/img/property-type-house.svg',
-              '辦公': '/static/img/property-type-office.svg',
-              '店面': '/static/img/property-type-shop.svg',
-              '土地': '/static/img/property-type-land.svg',
-              '其他': '/static/img/property-type-other.svg'
+              '公寓': '/static/img/property-types/apartment.jpg',
+              '大樓': '/static/img/property-types/tower.jpg',
+              '華廈': '/static/img/property-types/midrise.jpg',
+              '套房': '/static/img/property-types/studio.jpg',
+              '別墅/透天': '/static/img/property-types/house.jpg',
+              '辦公': '/static/img/property-types/office.jpg',
+              '店面': '/static/img/property-types/shop.jpg',
+              '土地': '/static/img/property-types/land.jpg',
+              '其他': '/static/img/property-types/other.jpg'
             } %}
             {% for tile in home_room_explore_tiles %}
             {% set raw_tile_thumb = tile.thumb_url or '' %}
-            {% set force_type_thumb = tile.property_type in ['土地', '其他'] %}
-            {% set tile_thumb_url = room_type_fallbacks.get(tile.property_type, '') if force_type_thumb else (raw_tile_thumb if raw_tile_thumb.startswith('/static/') else room_type_fallbacks.get(tile.property_type, '')) %}
+            {% set tile_thumb_url = room_type_fallbacks.get(tile.property_type, raw_tile_thumb if raw_tile_thumb.startswith('/static/') else '') %}
             <button
               type="button"
               class="home-room-explore-tile"
