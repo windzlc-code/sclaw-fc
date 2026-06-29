@@ -448,8 +448,8 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
             {"region": "", "keyword": "新築", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "", "keyword": "戸建", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "", "keyword": "投資", "property_types": [], "price_min_man": 0, "price_max_man": 0},
-            {"region": "東京", "keyword": "駅 徒歩", "property_types": [], "price_min_man": 0, "price_max_man": 0},
-            {"region": "東京", "keyword": "マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 2000, "price_max_man": 3000},
+            {"region": "東京", "keyword": "", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "東京", "keyword": "", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "大阪", "keyword": "", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "福岡", "keyword": "マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 0, "price_max_man": 0},
         ]
@@ -592,8 +592,8 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
             {"region": "", "keyword": "新築", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "", "keyword": "戸建", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "", "keyword": "投資", "property_types": [], "price_min_man": 0, "price_max_man": 0},
-            {"region": "東京", "keyword": "駅 徒歩", "property_types": [], "price_min_man": 0, "price_max_man": 0},
-            {"region": "東京", "keyword": "マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 2000, "price_max_man": 3000},
+            {"region": "東京", "keyword": "", "property_types": [], "price_min_man": 0, "price_max_man": 0},
+            {"region": "東京", "keyword": "", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "大阪", "keyword": "", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "福岡", "keyword": "マンション", "property_types": ["公寓", "大樓", "華廈"], "price_min_man": 0, "price_max_man": 0},
         ]
