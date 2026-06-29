@@ -173,6 +173,13 @@
         window.setTimeout(syncSharedPhoneLoginState, 120);
       }
 
+      function cleanupSharedSmartQueryUi(reason) {
+        if (typeof window.cleanupSmartQueryUiBeforeNavigation !== 'function') return;
+        try {
+          window.cleanupSmartQueryUiBeforeNavigation({ reason: reason || 'shared-header' });
+        } catch (_) {}
+      }
+
       function initSharedHeaderCaseSearch() {
         const form = document.querySelector('.bh-title-search');
         if (!form || form.dataset.bound === '1') return;
@@ -355,6 +362,7 @@
             if (document.getElementById('jp-map-hub')) {
               evt.preventDefault();
               evt.stopPropagation();
+              cleanupSharedSmartQueryUi('title-search-map');
               if (typeof window.setHomeInternalView === 'function') {
                 window.setHomeInternalView('workbench', { targetId: 'jp-map-hub', persist: true, scroll: true, instant: false });
               }
@@ -371,6 +379,7 @@
             if (href) {
               evt.preventDefault();
               evt.stopPropagation();
+              cleanupSharedSmartQueryUi('title-search-page');
               window.location.href = href;
             }
             return;
@@ -550,6 +559,7 @@
           if (!target) return;
           if (target.matches('.bh-site-brand')) {
             const href = target.getAttribute('href') || '#home-hero-heading';
+            cleanupSharedSmartQueryUi('brand-home');
             if (href.charAt(0) === '#' && !document.querySelector(href)) {
               event.preventDefault();
               window.location.href = '/' + href;
@@ -559,6 +569,7 @@
           if (target.getAttribute('data-home-view-switch') === 'workbench') {
             if (!document.getElementById('jp-map-hub')) {
               event.preventDefault();
+              cleanupSharedSmartQueryUi('workbench-page');
               window.location.href = '/';
             }
             return;
@@ -566,12 +577,14 @@
           const geoKeyword = String(target.getAttribute('data-geo-keyword') || '').trim();
           if (geoKeyword && !document.getElementById('query-dialog')) {
             event.preventDefault();
+            cleanupSharedSmartQueryUi('geo-keyword-page');
             window.location.href = `/?geo_keyword=${encodeURIComponent(geoKeyword)}#query-dialog`;
             return;
           }
           const hashHref = target.getAttribute('href') || '';
           if (hashHref.charAt(0) === '#' && !document.querySelector(hashHref)) {
             event.preventDefault();
+            cleanupSharedSmartQueryUi('hash-page');
             window.location.href = '/' + hashHref;
           }
         });
