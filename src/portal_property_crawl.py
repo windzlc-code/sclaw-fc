@@ -3344,6 +3344,43 @@ def _suumo_bukkengaiyo_url_from_soup(soup: BeautifulSoup, page_url: str) -> str:
     return best
 
 
+def _athome_shinchiku_cimage_group(url: str) -> str:
+    try:
+        s = unquote(str(url or "")).lower()
+    except Exception:
+        s = str(url or "").lower()
+    if "athome.co.jp" not in s or "/mansion/shinchiku/" not in s:
+        return ""
+    m = re.search(r"/mansion/shinchiku/(?:cimages|images)/([^/?#]+)/", s)
+    return str(m.group(1) or "").strip() if m else ""
+
+
+def _limit_athome_shinchiku_gallery_images(page_url: str, urls: list[str]) -> list[str]:
+    """Keep AtHome new-mansion crawls focused on real listing gallery groups."""
+    if "athome.co.jp" not in str(page_url or "").lower() or "/mansion/shinchiku/" not in str(page_url or "").lower():
+        return urls
+    caps = {
+        "model": 24,
+        "gaikan": 10,
+        "madori": 6,
+        "outskirts": 4,
+    }
+    counts: dict[str, int] = {}
+    out: list[str] = []
+    for raw in urls:
+        group = _athome_shinchiku_cimage_group(raw)
+        if not group:
+            continue
+        cap = caps.get(group)
+        if cap is None:
+            continue
+        if counts.get(group, 0) >= cap:
+            continue
+        counts[group] = counts.get(group, 0) + 1
+        out.append(raw)
+    return out or urls
+
+
 def _suumo_sonota_url(item_url: str) -> str:
     u = str(item_url or "")
     m = re.search(r"/nc_(\d{6,})/?", u)
@@ -3565,6 +3602,7 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
     if homes_tokens:
         imgs = homes_matched if homes_matched else []
     imgs = clean_portal_image_urls(page_url, imgs, max_urls=120)
+    imgs = _limit_athome_shinchiku_gallery_images(page_url, imgs)
 
     main = soup.find("main") or soup.find("article") or soup.find("body")
     text = ""

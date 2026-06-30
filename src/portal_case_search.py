@@ -2064,7 +2064,19 @@ def _is_yahoo_listing_image_url(text: str) -> bool:
         return False
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
-    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path
+    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" in path
+
+
+def _yahoo_listing_image_path_token(item_url: str) -> str:
+    """Yahoo detail ids map to image paths: b0022522314 -> /00/2252/2314/."""
+    raw = str(item_url or "").strip()
+    if "realestate.yahoo.co.jp" not in raw.lower():
+        return ""
+    m = re.search(r"/detail[^/]*/b(\d{10})(?:/|$)", raw, re.I)
+    if not m:
+        return ""
+    digits = m.group(1)
+    return f"/{digits[:2]}/{digits[2:6]}/{digits[6:10]}/".lower()
 
 
 def _is_truncated_listing_image_url(text: str) -> bool:
@@ -2286,6 +2298,7 @@ def _listing_image_candidates_scored(
     homes_matched: set[str] = set()
     homes_canonical_candidates: set[str] = set()
     homes_canonical_primary_candidates: set[str] = set()
+    yahoo_path_token = _yahoo_listing_image_path_token(item_url)
     max_c = max(0, int(max_candidates or 0))
     # HOMES token 過濾需要看見「本物件」圖片才能生效；給更高上限避免太早截斷導致空縮圖。
     if homes_tokens and max_c > 0:
@@ -2310,6 +2323,13 @@ def _listing_image_candidates_scored(
             return
         if is_non_image_portal_page_url(s):
             return
+        if yahoo_path_token and _is_yahoo_listing_image_url(s):
+            try:
+                y_path = urlparse(s).path.lower()
+            except Exception:
+                y_path = s.lower()
+            if yahoo_path_token not in unquote(y_path):
+                return
         cid = _canonical_listing_image_identity(s)
         if not cid or cid in seen_id:
             return

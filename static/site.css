@@ -36730,6 +36730,49 @@ body.site-home .jp-workbench-suite .figure-smart-filter-stack > .figure-smart-su
   box-shadow: 0 12px 24px rgba(31, 47, 62, 0.12) !important;
 }
 
+body.site-home .jp-workbench-suite .figure-geo-combo-row {
+  grid-column: 1 / -1;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.site-home .jp-workbench-suite .figure-geo-combo-row .figure-smart-row {
+  grid-column: auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(72px, 0.32fr) minmax(0, 1fr) !important;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 8px 10px !important;
+}
+
+body.site-home .jp-workbench-suite .figure-geo-combo-row .figure-smart-label {
+  white-space: nowrap;
+}
+
+body.site-home .jp-workbench-suite .figure-geo-combo-row select {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  body.site-home .jp-workbench-suite .figure-geo-combo-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.site-home .jp-workbench-suite .figure-geo-combo-row .figure-smart-row {
+    grid-template-columns: minmax(78px, 0.34fr) minmax(0, 1fr) !important;
+  }
+}
+
 body.site-home .jp-workbench-suite #figure-summary {
   margin: 0 !important;
   padding: 10px 12px !important;

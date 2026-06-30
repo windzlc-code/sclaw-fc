@@ -20,7 +20,7 @@ from io import StringIO
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse
 from uuid import uuid4
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 import httpx
 from opencc import OpenCC
@@ -2049,6 +2049,28 @@ _CASE_GALLERY_POLLUTION_CATEGORIES = {
 }
 
 
+def _case_athome_cimage_group(url: Any) -> str:
+    """Return AtHome new-mansion cimages group such as gaikan/model/setsubi."""
+    try:
+        s = unquote(str(url or "")).lower()
+    except Exception:
+        s = str(url or "").lower()
+    if "athome.co.jp" not in s or (
+        "/mansion/shinchiku/cimages/" not in s
+        and "/mansion/shinchiku/images/" not in s
+    ):
+        return ""
+    try:
+        if "/mansion/shinchiku/cimages/" in s:
+            tail = s.split("/mansion/shinchiku/cimages/", 1)[1]
+        else:
+            tail = s.split("/mansion/shinchiku/images/", 1)[1]
+    except Exception:
+        return ""
+    group = tail.split("/", 1)[0].strip()
+    return re.sub(r"[^a-z0-9_-]", "", group)[:80]
+
+
 def _case_representative_context_text(row: dict[str, Any] | None) -> str:
     if not isinstance(row, dict):
         return ""
@@ -2277,6 +2299,47 @@ def _case_representative_raw_url_candidates(row: dict[str, Any], *, limit: int =
         seen.add(s)
         out.append(s)
         if len(out) >= max(1, int(limit or 1)):
+            break
+    return out
+
+
+def _case_gallery_raw_url_candidates(row: dict[str, Any], *, limit: int = 160) -> list[str]:
+    """Build broad gallery candidates for classification/cleanup, not only representative selection."""
+    max_items = max(1, min(500, int(limit or 160)))
+    raw: list[Any] = [
+        (row or {}).get("hero_image_url"),
+        (row or {}).get("thumbnail_url"),
+    ]
+    raw.extend(str((row or {}).get("image_urls") or "").replace("\r", "\n").splitlines())
+    for entry in _parse_listing_media_field((row or {}).get("listing_media_json")):
+        if isinstance(entry, str):
+            raw.append(entry)
+        elif isinstance(entry, dict):
+            cand, _context = media_entry_url_context(entry)
+            if cand:
+                raw.append(cand)
+    blob_limit = max(80, max_items)
+    for key in ("body_original", "body_zh_hant", "body_zh_hans", "seo_description"):
+        raw.extend(_extract_image_urls_from_plain_blob(str((row or {}).get(key) or ""), limit=blob_limit))
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for u in raw:
+        s = _normalize_listing_image_url_for_display(
+            str(u or "").strip(),
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+        if not s.lower().startswith(("http://", "https://")):
+            continue
+        if not _row_image_url_is_usable(s):
+            continue
+        key = _case_gallery_audit_image_key(s)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+        if len(out) >= max_items:
             break
     return out
 
@@ -2753,7 +2816,7 @@ def _case_gallery_audit_image_key(url: Any) -> str:
 def _case_current_gallery_audit_keys(row: dict[str, Any], *, limit: int = 96) -> set[str]:
     keys: set[str] = set()
     try:
-        raw_urls = _case_representative_raw_url_candidates(row, limit=max(32, int(limit or 96)))
+        raw_urls = _case_gallery_raw_url_candidates(row, limit=max(96, int(limit or 96)))
     except Exception:
         raw_urls = []
     for raw in raw_urls:
@@ -2991,7 +3054,7 @@ def _case_gallery_audit_candidate_pack(
     limit: int = 16,
     ensure_local: bool = False,
 ) -> tuple[list[dict[str, Any]], list[str], str]:
-    raw_urls = _case_representative_raw_url_candidates(row, limit=max(32, int(limit or 16) * 3))
+    raw_urls = _case_gallery_raw_url_candidates(row, limit=max(96, int(limit or 16) * 4))
     signature = _case_representative_image_signature(raw_urls)
     context_by_key = _case_gallery_context_by_url(row)
     candidates: list[dict[str, Any]] = []
@@ -4512,7 +4575,14 @@ _HOME_TITLEBAR_CASE_KEYWORDS: tuple[str, ...] = (
 
 
 def _home_featured_cases_cache_key(
-    *, limit: int, offset: int, category: str, property_type: str = "", region: str = "", q: str = ""
+    *,
+    limit: int,
+    offset: int,
+    category: str,
+    property_type: str = "",
+    region: str = "",
+    q: str = "",
+    exclude_source_item_ids: tuple[int, ...] = (),
 ) -> str:
     return json.dumps(
         {
@@ -4524,6 +4594,7 @@ def _home_featured_cases_cache_key(
             "property_type": str(property_type or "").strip(),
             "region": str(region or "").strip(),
             "q": str(q or "").strip(),
+            "exclude_source_item_ids": list(exclude_source_item_ids or ()),
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -4567,6 +4638,7 @@ def _home_featured_cases_payload(
     property_type: str = "",
     region: str = "",
     q: str = "",
+    exclude_source_item_ids: Iterable[int] | None = None,
 ) -> dict[str, Any]:
     lim = max(1, min(24, int(limit or 12)))
     off = max(0, min(50000, int(offset or 0)))
@@ -4574,6 +4646,9 @@ def _home_featured_cases_payload(
     query_property_type = str(property_type or "").strip()
     query_text = str(q or "").strip()
     query_category = str(category or "hot").strip().lower()
+    excluded_source_item_ids = tuple(
+        sorted({int(sid) for sid in (exclude_source_item_ids or []) if int(sid or 0) > 0})
+    )[:96]
     if query_category not in {"hot", "price", "transit", "image_quality", "investment", "self_use"}:
         query_category = "hot"
     cache_key = _home_featured_cases_cache_key(
@@ -4583,6 +4658,7 @@ def _home_featured_cases_payload(
         property_type=query_property_type,
         region=query_region,
         q=query_text,
+        exclude_source_item_ids=excluded_source_item_ids,
     )
     cached = _home_featured_cases_cache_get(cache_key)
     if cached is not None and (cached.get("items") or not cached.get("has_more")):
@@ -4644,6 +4720,10 @@ def _home_featured_cases_payload(
                 type_clauses.append(f"COALESCE({col}, '') LIKE ?")
                 params.append(term_like)
         type_sql = f" AND ({' OR '.join(type_clauses)}) "
+    exclude_sql = ""
+    if excluded_source_item_ids:
+        exclude_sql = " AND c.source_item_id NOT IN ({}) ".format(",".join("?" for _ in excluded_source_item_ids))
+        params.extend(excluded_source_item_ids)
     if query_text:
         sql_limit = min(220, max(lim * 24, lim + 72))
     else:
@@ -4693,6 +4773,7 @@ def _home_featured_cases_payload(
               {region_sql}
               {query_sql}
               {type_sql}
+              {exclude_sql}
             ORDER BY c.updated_at DESC, c.id DESC
             LIMIT ? OFFSET ?
             """,
@@ -4744,6 +4825,7 @@ def _home_featured_cases_payload(
         "property_type": query_property_type,
         "region": query_region,
         "q": query_text,
+        "excluded_source_item_ids": list(excluded_source_item_ids),
         "cached": False,
     }
     _home_featured_cases_cache_set(cache_key, payload)
@@ -6151,7 +6233,7 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     path = _url_to_local_static_path(cached_url)
     if path:
         reject_reason = _case_image_visual_reject_reason(cached_url)
-        if reject_reason:
+        if reject_reason and not (reject_reason == "access-map" and _is_yahoo_listing_image_url(raw)):
             return Response(
                 status_code=404,
                 content=f"image rejected: {reject_reason}",
@@ -6167,7 +6249,7 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     if not path:
         return Response(status_code=404, content="image unavailable")
     reject_reason = _case_image_visual_reject_reason(cached_url)
-    if reject_reason:
+    if reject_reason and not (reject_reason == "access-map" and _is_yahoo_listing_image_url(raw)):
         return Response(
             status_code=404,
             content=f"image rejected: {reject_reason}",
@@ -8216,6 +8298,37 @@ def _row_image_url_is_usable(u: str) -> bool:
     if _is_non_listing_asset_url(lu):
         return False
     path_before_q = lu.split("?", 1)[0]
+    try:
+        parsed = urlparse(u)
+        host = (parsed.netloc or "").lower()
+        path = (parsed.path or "").lower()
+    except Exception:
+        host = ""
+        path = ""
+    if host.endswith("realestate-pctr.c.yimg.jp") and path:
+        # Yahoo also serves genuine listing photos through opaque signed paths
+        # such as /mREG... without a file extension. They are same-source media
+        # and should not be rejected only because the URL lacks ".jpg".
+        if path.startswith("/ds/realestate-buy-image/no_image/"):
+            return False
+        if "/realestate-buy-image/" in path:
+            return any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))
+        if len(path.strip("/")) >= 32 and not any(
+            tok in path
+            for tok in (
+                "/common/",
+                "/assets/",
+                "/logo",
+                "/icon",
+                "/banner",
+                "/btn",
+                "/button",
+                "/shop_image/",
+                "/staff/",
+                "/no_image/",
+            )
+        ):
+            return True
     if any(path_before_q.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")):
         return True
     if "suumo." in lu and "resize" in lu and "?" in u:
@@ -8383,7 +8496,7 @@ def _is_yahoo_listing_image_url(text: str) -> bool:
         return False
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
-    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path
+    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" in path
 
 
 def _is_truncated_listing_image_url(text: str) -> bool:
@@ -8412,6 +8525,15 @@ def _is_case_property_gallery_image_url(u: str) -> bool:
         lu = unquote(s).lower()
     except Exception:
         lu = s.lower()
+    try:
+        parsed = urlparse(s)
+        host = (parsed.netloc or "").lower()
+        path = (parsed.path or "").lower()
+    except Exception:
+        host = ""
+        path = ""
+    if host.endswith("realestate-pctr.c.yimg.jp") and path and not path.startswith("/ds/realestate-buy-image/no_image/"):
+        return True
     reject_tokens = (
         "map",
         "chizu",
@@ -8432,6 +8554,9 @@ def _is_case_property_gallery_image_url(u: str) -> bool:
         "layout",
         "間取",
     )
+    athome_group = _case_athome_cimage_group(s)
+    if athome_group in {"project_detail_slide", "project_free", "setsubi", "guidance", "energy_saving"}:
+        return False
     return not any(t in lu for t in reject_tokens)
 
 
@@ -8454,17 +8579,15 @@ def _normalize_listing_image_url_for_display(
     if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path and any(
         path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")
     ):
+        # Yahoo's image service returns the real JPEG for the original query,
+        # but can switch to the nf_path noimage PNG when width/height are added.
         try:
-            q_pairs = parse_qsl(parsed.query, keep_blank_values=True)
-        except Exception:
-            return raw
-        q_map: dict[str, str] = {str(k): str(v) for k, v in q_pairs}
-        yahoo_w = max(160, min(1600, int(suumo_w or 0) or 360))
-        yahoo_h = max(120, min(1600, int(suumo_h or 0) or 240))
-        q_map["w"] = str(yahoo_w)
-        q_map["h"] = str(yahoo_h)
-        try:
-            return parsed._replace(query=urlencode(list(q_map.items()), doseq=True)).geturl()
+            q_pairs = [
+                (str(k), str(v))
+                for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+                if str(k).lower() not in {"w", "h", "width", "height"}
+            ]
+            return parsed._replace(query=urlencode(q_pairs, doseq=True)).geturl()
         except Exception:
             return raw
     if ("homes.jp" in host or "homes.co.jp" in host) and ("image.php" in path or "/smallimg/" in path):
@@ -11417,6 +11540,9 @@ def _case_gallery_context_is_non_property_media(url: str, context: str = "") -> 
         or ("suumo." in compact and "k3tsl" in compact)
     ):
         return True
+    athome_group = _case_athome_cimage_group(url)
+    if athome_group in {"project_detail_slide", "project_free", "setsubi", "guidance", "energy_saving"}:
+        return True
     bad_tokens = (
         "/gyousha/",
         "/gyousha/image/",
@@ -11520,6 +11646,21 @@ def _case_gallery_category_for_url(url: str, context: str = "") -> str:
         bag = unquote(f"{url} {context}").lower()
     except Exception:
         bag = f"{url} {context}".lower()
+    athome_group = _case_athome_cimage_group(url)
+    if athome_group == "madori":
+        return "floorplan"
+    if athome_group == "gaikan":
+        return "exterior"
+    if athome_group == "model":
+        return "interior"
+    if athome_group == "outskirts":
+        return "environment"
+    if athome_group == "setsubi":
+        return "facility_detail"
+    if athome_group == "guidance":
+        return "map"
+    if athome_group in {"project_detail_slide", "project_free", "energy_saving"}:
+        return "ad"
     if any(t in bag for t in ("madori", "floorplan", "floor_plan", "layout", "間取", "間取り", "平面", "図面", "圖面", "户型", "戶型")):
         return "floorplan"
     if any(t in bag for t in ("toilet", "toire", "トイレ", "便所", "wc", "廁", "厕")):
@@ -26205,7 +26346,18 @@ def api_home_featured_cases(
     property_type: str = Query(default=""),
     region: str = Query(default=""),
     q: str = Query(default=""),
+    exclude_source_item_ids: str = Query(default=""),
 ):
+    excluded_ids: list[int] = []
+    for part in re.split(r"[\s,，;；]+", str(exclude_source_item_ids or "")):
+        if not part:
+            continue
+        try:
+            sid = int(part)
+        except (TypeError, ValueError):
+            continue
+        if sid > 0:
+            excluded_ids.append(sid)
     return JSONResponse(
         _home_featured_cases_payload(
             limit=limit,
@@ -26214,6 +26366,7 @@ def api_home_featured_cases(
             property_type=property_type,
             region=region,
             q=q,
+            exclude_source_item_ids=excluded_ids,
         ),
         headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},
     )

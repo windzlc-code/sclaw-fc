@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260630-mobile-c">
+  <link rel="stylesheet" href="/static/site.css?v=20260630-smart-geo-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions {
@@ -561,49 +561,29 @@
       <div id="figure-query-body">
       <h3 class="config-subhead" style="margin-top:0;">智慧查詢</h3>
       <div class="figure-smart-filter-stack">
-        <div class="figure-smart-row figure-smart-row--geo-mode">
-          <label class="figure-smart-label" for="figure_geo_mode">查詢方式</label>
-          <select id="figure_geo_mode" title="區域／通勤／地圖">
-            <option value="region" selected>地域／地區（下拉）</option>
-            <option value="commute">通勤路線（沿線・駅）</option>
-            <option value="map">地圖點選（上方工作台）</option>
-          </select>
-        </div>
-        <div class="figure-smart-row figure-smart-row--commute" id="figure-geo-commute-row" style="display:none;">
-          <label class="figure-smart-label">通勤路線</label>
-          <div id="figure-jp-transit-host" style="width:100%;"></div>
-        </div>
-        <div class="figure-smart-row figure-smart-row--map" id="figure-geo-map-row" style="display:none;">
-          <label class="figure-smart-label">地圖點選</label>
-          <div style="display:flex;flex-direction:column;gap:0.35rem;">
-            <p class="muted" style="margin:0;font-size:12px;line-height:1.5;">請先在上方「日本找房工作台」點選大區／都道府縣，條件會帶入；再按下方<strong>查詢日本不動產案件</strong>。</p>
-            <p id="figure-map-selection-summary" class="figure-map-selection-summary" hidden aria-live="polite"></p>
-            <div style="display:flex;flex-wrap:wrap;gap:0.45rem;">
-              <button type="button" class="secondary" onclick="scrollToJpMapHub()">捲動到地圖工作台</button>
-              <button type="button" class="secondary" id="figure-map-clear-btn" onclick="clearFigureMapSelection()" hidden>清除地圖選擇</button>
-            </div>
+        <input type="hidden" id="figure_geo_mode" value="region">
+        <div class="figure-geo-combo-row">
+          <div class="figure-smart-row figure-smart-row--region">
+            <label class="figure-smart-label" for="figure_region">下拉區域</label>
+            <select id="figure_region" title="日本區域">
+              <option value="">日本全域（不限區域）</option>
+              {% for area in jp_area_labels %}
+              <option value="{{ area }}">{{ area }}</option>
+              {% endfor %}
+            </select>
           </div>
-        </div>
-        <div class="figure-smart-row figure-smart-row--region">
-          <label class="figure-smart-label" for="figure_region">下拉區域</label>
-          <select id="figure_region" title="日本區域">
-            <option value="">日本全域（不限區域）</option>
-            {% for area in jp_area_labels %}
-            <option value="{{ area }}">{{ area }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="figure-smart-row figure-smart-row--pref">
-          <label class="figure-smart-label" for="figure_homes_pref">都道府縣</label>
-          <select id="figure_homes_pref" title="都道府縣（HOMES 架構）" disabled>
-            <option value="">先選區域</option>
-          </select>
-        </div>
-        <div class="figure-smart-row figure-smart-row--city">
-          <label class="figure-smart-label" for="figure_homes_city">地區</label>
-          <select id="figure_homes_city" title="市區町村（HOMES 架構）" disabled>
-            <option value="">先選都道府縣</option>
-          </select>
+          <div class="figure-smart-row figure-smart-row--pref">
+            <label class="figure-smart-label" for="figure_homes_pref">都道府縣</label>
+            <select id="figure_homes_pref" title="都道府縣（HOMES 架構）" disabled>
+              <option value="">先選區域</option>
+            </select>
+          </div>
+          <div class="figure-smart-row figure-smart-row--city">
+            <label class="figure-smart-label" for="figure_homes_city">地區</label>
+            <select id="figure_homes_city" title="市區町村（HOMES 架構）" disabled>
+              <option value="">先選都道府縣</option>
+            </select>
+          </div>
         </div>
         <input id="figure_keyword" type="hidden" value="">
         <div class="figure-type-picks">
@@ -2773,7 +2753,7 @@
       if (geoModeSel) {
         geoModeSel.value = 'region';
         if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('region');
-        try { localStorage.setItem('figure_geo_mode', 'region'); } catch (_) {}
+        try { localStorage.removeItem('figure_geo_mode'); } catch (_) {}
       }
       if (regionSel) {
         const hasRegionOption = regionHint && Array.from(regionSel.options || []).some((opt) => String(opt.value || '').trim() === regionHint);
@@ -3491,7 +3471,7 @@
           const transType = opt ? String(opt.getAttribute('data-line-trans-type') || '').trim() : '';
           const lineId = Math.max(0, parseInt(String(opt ? (opt.getAttribute('data-line-id') || '') : ''), 10) || 0);
           if (!prefLabelJp || !transType || !lineId) return;
-          if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('commute');
+          if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('region');
           applyJpTransitPrefLineSelection(prefLabelJp, transType, lineId).catch(() => {});
           if (ev && typeof ev.preventDefault === 'function') {
             try { ev.preventDefault(); } catch (_) {}
@@ -3893,8 +3873,8 @@
 
     function applyFigureGeoMode(nextMode) {
       const sel = document.getElementById('figure_geo_mode');
-      const modeRaw = String(nextMode || (sel ? sel.value : '') || '').trim().toLowerCase();
-      const mode = modeRaw === 'commute' || modeRaw === 'map' ? modeRaw : 'region';
+      const raw = String(nextMode || (sel ? sel.value : '') || '').trim().toLowerCase();
+      const mode = raw === 'map' ? 'map' : 'region';
       if (sel && sel.value !== mode) sel.value = mode;
 
       const commuteRow = document.getElementById('figure-geo-commute-row');
@@ -3907,20 +3887,15 @@
         el.style.display = on ? '' : 'none';
       };
 
-      show(commuteRow, mode === 'commute');
-      show(mapRow, mode === 'map');
-      show(regionRow, mode === 'region');
-      show(prefRow, mode === 'region');
-      show(cityRow, mode === 'region');
+      show(commuteRow, false);
+      show(mapRow, false);
+      show(regionRow, true);
+      show(prefRow, true);
+      show(cityRow, true);
 
       const wrap = document.getElementById('jp-transit-smart-wrapper');
       const commuteHost = document.getElementById('figure-jp-transit-host');
-      if (mode === 'commute' && wrap && commuteHost) {
-        try { commuteHost.appendChild(wrap); } catch (_) {}
-        if (typeof initJpTransitSmartFilter === 'function') initJpTransitSmartFilter();
-      } else {
-        restoreJpTransitSmartWrapperHome();
-      }
+      restoreJpTransitSmartWrapperHome();
     }
 
     function initFigureGeoModeSelect() {
@@ -3928,17 +3903,22 @@
       if (!sel || sel.dataset.bound === '1') return;
       sel.dataset.bound = '1';
       let initial = 'region';
-      try {
-        const saved = String(localStorage.getItem('figure_geo_mode') || '').trim().toLowerCase();
-        if (saved === 'commute' || saved === 'map' || saved === 'region') initial = saved;
-      } catch (_) {
-        /* ignore */
-      }
+      try { localStorage.removeItem('figure_geo_mode'); } catch (_) {}
       sel.value = initial;
       applyFigureGeoMode(initial);
       sel.addEventListener('change', () => {
-        applyFigureGeoMode(sel.value);
-        try { localStorage.setItem('figure_geo_mode', String(sel.value || 'region')); } catch (_) {}
+        sel.value = 'region';
+        applyFigureGeoMode('region');
+        try { localStorage.removeItem('figure_geo_mode'); } catch (_) {}
+      });
+      ['figure_region', 'figure_homes_pref', 'figure_homes_city'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.figureGeoModeResetBound === '1') return;
+        el.dataset.figureGeoModeResetBound = '1';
+        el.addEventListener('change', () => {
+          const modeEl = document.getElementById('figure_geo_mode');
+          if (modeEl) modeEl.value = 'region';
+        });
       });
     }
 
@@ -16076,6 +16056,9 @@
           return s.includes('?') && s.length > 42;
         }
       }
+      if (/realestate-pctr\.c\.yimg\.jp\//i.test(lu) && /\/realestate-buy-image\/bld_image\//i.test(noq)) {
+        return noq.length >= 56;
+      }
       if (/img\d*\.(?:suumo\.jp|suumo\.com|athome\.co\.jp|homes\.co\.jp|rehouse\.co\.jp)/i.test(lu)) {
         return noq.length >= 48;
       }
@@ -16086,7 +16069,7 @@
       const raw = String(blob || '');
       const reExt = /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/gi;
       const reHost =
-        /https?:\/\/img\d*\.(?:suumo\.jp|suumo\.com|athome\.co\.jp|homes\.co\.jp|rehouse\.co\.jp)[^\s"'<>]+/gi;
+        /https?:\/\/(?:img\d*\.(?:suumo\.jp|suumo\.com|athome\.co\.jp|homes\.co\.jp|rehouse\.co\.jp)|realestate-pctr\.c\.yimg\.jp)[^\s"'<>]+/gi;
       const found = [];
       for (const re of [reExt, reHost]) {
         let m;
@@ -22710,6 +22693,41 @@
         : [];
     }
 
+    function homeFeaturedStableKey(item) {
+      const sid = Number(item && item.source_item_id || 0);
+      if (sid > 0) return `sid:${sid}`;
+      const supportKey = supportCaseKeyFromItem(item);
+      if (supportKey) return `key:${supportKey}`;
+      const path = String(item?.case_path || item?.article_path || item?.article_url || '').trim();
+      if (path) return `path:${path}`;
+      const title = String(item?.title || item?.title_zh_hans || item?.title_zh_hant || '').trim();
+      return title ? `title:${title}` : '';
+    }
+
+    function homeFeaturedSpotlightKeySet() {
+      const out = new Set();
+      (homeFeaturedCases || []).forEach((item) => {
+        const key = homeFeaturedStableKey(item);
+        if (key) out.add(key);
+      });
+      return out;
+    }
+
+    function homeFeaturedTypeShouldExcludeSpotlight(propertyType) {
+      return !String(propertyType || '').trim();
+    }
+
+    function homeFeaturedFilterTypeItems(items, propertyType = homeFeaturedType) {
+      const list = (Array.isArray(items) ? items : []).map(homeFeaturedNormalizeCase).filter(Boolean);
+      if (!homeFeaturedTypeShouldExcludeSpotlight(propertyType)) return list;
+      const excluded = homeFeaturedSpotlightKeySet();
+      if (!excluded.size) return list;
+      return list.filter((item) => {
+        const key = homeFeaturedStableKey(item);
+        return !key || !excluded.has(key);
+      });
+    }
+
     function homeFeaturedTrustedImageUrl(value) {
       const raw = String(value || '').trim();
       if (!raw) return '';
@@ -22914,16 +22932,25 @@
     function homeFeaturedFirstPageCache(type) {
       const cacheKey = homeFeaturedCacheKey(type);
       const cached = homeFeaturedTypeCache.get(cacheKey);
-      if (cached && Array.isArray(cached.items)) return cached;
+      if (cached && Array.isArray(cached.items)) {
+        if (!homeFeaturedTypeShouldExcludeSpotlight(type)) return cached;
+        const filteredItems = homeFeaturedFilterTypeItems(cached.items, type);
+        if (filteredItems.length < HOME_FEATURED_PAGE_SIZE && cached.hasMore !== false) return null;
+        return {
+          ...cached,
+          items: filteredItems,
+        };
+      }
       const storedPayload = homeFeaturedStorageGet(type, 0);
       if (!storedPayload || !Array.isArray(storedPayload.items)) return null;
-      const storedItems = homeFeaturedPayloadItems(storedPayload);
+      const storedItems = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(storedPayload), type);
       const firstPageItems = storedItems.slice(0, HOME_FEATURED_PAGE_SIZE);
       const normalized = {
         items: firstPageItems,
         offset: Number(storedPayload.next_offset || storedItems.length || 0),
         hasMore: storedPayload.has_more !== false && storedItems.length > 0,
       };
+      if (homeFeaturedTypeShouldExcludeSpotlight(type) && normalized.items.length < HOME_FEATURED_PAGE_SIZE && normalized.hasMore) return null;
       homeFeaturedTypeCache.set(cacheKey, normalized);
       return normalized;
     }
@@ -22949,13 +22976,14 @@
       } catch (_) {}
     }
 
-    async function homeFeaturedFetchMergedBatch({ limit, offset = 0, propertyType = '', maxRounds = 4 } = {}) {
+    async function homeFeaturedFetchMergedBatch({ limit, offset = 0, propertyType = '', maxRounds = 4, excludeKeys = null } = {}) {
       const target = Math.max(1, Number(limit || HOME_FEATURED_PAGE_SIZE));
       let nextOffset = Math.max(0, Number(offset || 0));
       let lastOffset = -1;
       let lastPayload = null;
       const merged = [];
       const seen = new Set();
+      const excluded = excludeKeys instanceof Set ? excludeKeys : new Set(Array.isArray(excludeKeys) ? excludeKeys : []);
       for (let round = 0; round < Math.max(1, Number(maxRounds || 1)) && merged.length < target; round += 1) {
         if (nextOffset === lastOffset) break;
         lastOffset = nextOffset;
@@ -22966,14 +22994,21 @@
         });
         const type = String(propertyType || '').trim();
         if (type) params.set('property_type', type);
+        const excludedSourceIds = Array.from(excluded)
+          .map((key) => {
+            const match = /^sid:(\d+)$/.exec(String(key || ''));
+            return match ? match[1] : '';
+          })
+          .filter(Boolean);
+        if (excludedSourceIds.length) params.set('exclude_source_item_ids', excludedSourceIds.slice(0, 48).join(','));
         const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data || data.ok === false) throw new Error('featured cases unavailable');
         lastPayload = data;
         const items = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
         for (const item of items) {
-          const key = supportCaseKeyFromItem(item);
-          if (!key || seen.has(key)) continue;
+          const key = homeFeaturedStableKey(item) || supportCaseKeyFromItem(item);
+          if (!key || seen.has(key) || excluded.has(key)) continue;
           seen.add(key);
           merged.push(item);
           if (merged.length >= target) break;
@@ -23004,9 +23039,10 @@
           limit: HOME_FEATURED_PAGE_SIZE,
           offset: 0,
           propertyType: type,
-          maxRounds: 5,
+          maxRounds: homeFeaturedTypeShouldExcludeSpotlight(type) ? 10 : 5,
+          excludeKeys: homeFeaturedTypeShouldExcludeSpotlight(type) ? homeFeaturedSpotlightKeySet() : null,
         });
-        const next = homeFeaturedPayloadItems(data);
+        const next = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(data), type);
         homeFeaturedStorageSet(type, 0, data);
         homeFeaturedTypeCache.set(cacheKey, {
           items: next.slice(),
@@ -23454,12 +23490,17 @@
       bindHomeFeaturedImageContentCrop(gridEl);
       syncFigureCaseFavoriteButtons();
       syncFigureCaseSavedButtons();
+      if (homeFeaturedTypeShouldExcludeSpotlight(homeFeaturedType) && homeFeaturedTypeCases.length) {
+        const before = homeFeaturedTypeCases.length;
+        homeFeaturedTypeCases = homeFeaturedFilterTypeItems(homeFeaturedTypeCases, homeFeaturedType);
+        if (homeFeaturedTypeCases.length !== before) renderHomeFeaturedTypeCases();
+      }
     }
 
     function renderHomeFeaturedTypeCases() {
       const gridEl = document.getElementById('home-featured-type-grid');
       if (!gridEl) return;
-      const items = homeFeaturedTypeCases.map(homeFeaturedNormalizeCase).filter(Boolean);
+      const items = homeFeaturedFilterTypeItems(homeFeaturedTypeCases, homeFeaturedType);
       homeFeaturedTypeCases = items;
       gridEl.innerHTML = items.map((item, ix) => homeFeaturedCardHtml(item, ix)).join('');
       bindHomeFeaturedImageContentCrop(gridEl);
@@ -23494,8 +23535,11 @@
       HOME_FEATURED_TYPES.forEach((type) => {
         const payload = Object.prototype.hasOwnProperty.call(payloadMap, type) ? payloadMap[type] : null;
         if (!payload || !Array.isArray(payload.items)) return;
-        const items = homeFeaturedPayloadItems(payload);
+        const items = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(payload), type);
         const firstPageItems = items.slice(0, HOME_FEATURED_PAGE_SIZE);
+        if (homeFeaturedTypeShouldExcludeSpotlight(type) && firstPageItems.length < HOME_FEATURED_PAGE_SIZE && payload.has_more !== false) {
+          return;
+        }
         const normalized = {
           items: firstPageItems.slice(),
           offset: Number(payload.next_offset || items.length || 0),
@@ -23616,12 +23660,14 @@
           limit: HOME_FEATURED_PAGE_SIZE,
           offset: fetchOffset,
           propertyType,
-          maxRounds: 5,
+          maxRounds: homeFeaturedTypeShouldExcludeSpotlight(propertyType) ? 10 : 5,
+          excludeKeys: homeFeaturedTypeShouldExcludeSpotlight(propertyType) ? homeFeaturedSpotlightKeySet() : null,
         });
-        const next = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
+        const nextRaw = Array.isArray(data.items) ? data.items.map(homeFeaturedNormalizeCase).filter(Boolean) : [];
+        const next = homeFeaturedFilterTypeItems(nextRaw, propertyType);
         if (!append && requestSeq !== homeFeaturedTypeRequestSeq) {
           if (next.length) {
-            homeFeaturedStorageSet(propertyType, 0, data);
+            homeFeaturedStorageSet(propertyType, 0, { ...data, items: nextRaw });
             homeFeaturedTypeCache.set(cacheKey, {
               items: next.slice(),
               offset: Number(data.next_offset || next.length || 0),
@@ -23644,7 +23690,7 @@
         }
         homeFeaturedTypeOffset = Number(data.next_offset || (fetchOffset + next.length) || fetchOffset);
         renderHomeFeaturedTypeCases();
-        homeFeaturedStorageSet(propertyType, fetchOffset, data);
+        homeFeaturedStorageSet(propertyType, fetchOffset, { ...data, items: nextRaw });
         homeFeaturedTypeCache.set(cacheKey, {
           items: homeFeaturedTypeCases.slice(),
           offset: homeFeaturedTypeOffset,
@@ -26665,7 +26711,7 @@
       }
       const geoModeSel = document.getElementById('figure_geo_mode');
       const geoModeRaw = String(geoModeSel ? geoModeSel.value : 'region').trim().toLowerCase();
-      const geoMode = geoModeRaw === 'commute' || geoModeRaw === 'map' ? geoModeRaw : 'region';
+      const geoMode = geoModeRaw === 'map' ? 'map' : 'region';
       const pendingMapSelection =
         typeof getFigureMapSelectionState === 'function'
           ? getFigureMapSelectionState({ includePending: true, persistPending: false })
@@ -26695,7 +26741,7 @@
         keyword = homesKw || presetKeyword;
         const rawHomesLocLabel = typeof homesGeoLabelForUi === 'function' ? homesGeoLabelForUi() : '';
         homesLocLabel = typeof isHomesGeoPlaceholderLabel === 'function' && isHomesGeoPlaceholderLabel(rawHomesLocLabel) ? '' : rawHomesLocLabel;
-      } else if (effectiveGeoMode === 'commute') {
+      } else if (false && effectiveGeoMode === 'commute') {
         if (typeof syncFigureKeywordFromJpTransit === 'function') syncFigureKeywordFromJpTransit();
         keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim();
         const jpt = typeof getJpTransitSmartFilterPayload === 'function' ? getJpTransitSmartFilterPayload() : { jp_line_id: 0, jp_station_id: 0, walk_max: 0 };
@@ -26728,7 +26774,7 @@
             : (pendingMapSelection || null);
         if (shouldPromotePendingMapSelection) {
           if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('map');
-          try { localStorage.setItem('figure_geo_mode', 'map'); } catch (_) {}
+          try { localStorage.removeItem('figure_geo_mode'); } catch (_) {}
         }
         keyword = String(hiddenKeyword ? hiddenKeyword.value : '').trim() || String(mapSelectionState?.keyword || '').trim();
         if (hiddenKeyword && keyword) hiddenKeyword.value = keyword;
@@ -26750,7 +26796,7 @@
         return;
       }
       if (effectiveGeoMode === 'map' && !regionHint) {
-        const msg = '地圖點選模式：請先在上方地圖選擇大區／都道府縣後再查詢。';
+        const msg = '請先選擇下拉區域、都道府縣或地區後再查詢。';
         summary.innerHTML = `<p class="muted">${esc(msg)}</p>`;
         resultWrap.innerHTML = `<div class="panel muted">${esc(msg)}</div>`;
         return;
@@ -28349,7 +28395,7 @@
       if (geoModeSel) {
         geoModeSel.value = 'map';
         if (typeof applyFigureGeoMode === 'function') applyFigureGeoMode('map');
-        try { localStorage.setItem('figure_geo_mode', 'map'); } catch (_) {}
+        try { localStorage.removeItem('figure_geo_mode'); } catch (_) {}
       }
       if (typeof setFigureMapSelectionSummary === 'function') {
         setFigureMapSelectionSummary({

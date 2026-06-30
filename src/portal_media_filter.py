@@ -68,6 +68,14 @@ def is_athome_non_property_image_url(text: str) -> bool:
         return False
     if "/image_files/path/" in hay:
         return False
+    # AtHome new-mansion pages expose many project-marketing panels in the same
+    # cimages/images namespace as listing photos. These are useful page content,
+    # but they should not be persisted as property gallery photos.
+    if re.search(
+        r"/mansion/shinchiku/(?:cimages|images)/(?:project_detail_slide|project_free|setsubi|guidance|energy_saving)/",
+        hay,
+    ):
+        return True
     if any(
         tok in hay
         for tok in (
@@ -112,7 +120,7 @@ def is_yahoo_non_property_image_url(text: str) -> bool:
     except Exception:
         host = ""
         path = ""
-    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path:
+    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" in path:
         return False
     if any(
         tok in hay
@@ -227,6 +235,9 @@ def portal_image_identity(url: str) -> str:
             inner = deep_unquote(str(q.get("file") or q.get("src") or "")).lower()
             if inner:
                 return f"homes:{inner}"
+        if "athome.co.jp" in host and "/mansion/shinchiku/" in path:
+            norm_path = re.sub(r"/mansion/shinchiku/(?:cimages|images)/", "/mansion/shinchiku/cimages/", path)
+            return f"athome:{norm_path}"
         return f"{host}{path}"
     except Exception:
         return raw.lower()

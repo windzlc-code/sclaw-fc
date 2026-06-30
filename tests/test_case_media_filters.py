@@ -9,6 +9,7 @@ from unittest.mock import patch
 from app import (
     _build_portal_listing_panel,
     _case_detail_unavailable_reason,
+    _case_verified_property_gallery_urls,
     _case_lightbox_gallery_urls_from_row,
     _case_missing_verified_gallery_unavailable_reason,
     _case_image_cache_hash,
@@ -22,13 +23,14 @@ from app import (
 )
 from src.live_enrich_urls import live_enrich_eligible_url
 from src.portal_property_crawl import (
+    _limit_athome_shinchiku_gallery_images,
     _suumo_direct_resize_from_goo_proxy,
     _suumo_goo_mirror_detail_from_html,
     _suumo_goo_mirror_url_candidates,
 )
 from src.portal_case_search import _fast_first_image_url, _fast_first_media_url, _is_probably_listing_detail_result
 from src.portal_case_search import is_suumo_non_property_image_url, ordered_listing_image_urls as ordered_src_listing_image_urls
-from src.portal_media_filter import is_portal_non_property_image_url
+from src.portal_media_filter import clean_portal_image_urls, is_portal_non_property_image_url
 
 
 class CaseMediaFilterTests(unittest.TestCase):
@@ -107,7 +109,59 @@ class CaseMediaFilterTests(unittest.TestCase):
 
         self.assertEqual(gallery, [good])
 
-    def test_yahoo_display_normalization_rewrites_to_requested_thumb_size(self):
+    def test_yahoo_signed_realtor_image_without_extension_is_displayable(self):
+        signed = (
+            "https://realestate-pctr.c.yimg.jp/"
+            "mREGDukoFr8i44YuELjED-Bl7bjU_0PTrbizfFnqAhqCPtpt5HOBYNyn1dPTVJ_9"
+            "KbKkYaXAxBDR9zL0NU46oQuJK6dLDZ1kAOVhlLllOv1d_z48WYxC9LmfPyrHmn"
+        )
+
+        self.assertTrue(_row_image_url_is_usable(signed))
+
+        gallery = _case_verified_property_gallery_urls(
+            {
+                "item_url": "https://realestate.yahoo.co.jp/used/mansion/detail_corp/b0020315258/",
+                "image_urls": signed,
+                "body_original": "",
+                "listing_media_json": "[]",
+            },
+            limit=2,
+        )
+
+        self.assertEqual(gallery, [signed])
+
+    def test_yahoo_body_gallery_keeps_only_current_listing_images(self):
+        current = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2252/2314/0001/e904479044cf21f0a9c8c21b2ac3574c_01_01.jpg"
+            "?pri=l&up=0&nf_src=ds&nf_st=200"
+            "&nf_path=/realestate-buy-image/no_image/noimage_640x640.png&w=1080&h=1080"
+        )
+        related = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2494/7779/0001/37547dcc04be42c9fe8ad5d627bd2737_01_01.jpg"
+            "?pri=l&up=0&nf_src=ds&nf_st=200"
+            "&nf_path=/realestate-buy-image/no_image/noimage_640x640.png&w=1080&h=1080"
+        )
+        agent = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/shop_image/"
+            "99/0001/8857/0003/ab6adfbc0c0bef07b65c51d6c14deabd_00_01.jpg"
+        )
+
+        gallery = ordered_src_listing_image_urls(
+            "",
+            f"[物件參考圖像 URL]\n{current}\n{agent}\n{related}",
+            "[]",
+            item_url="https://realestate.yahoo.co.jp/used/mansion/detail_corp/b0022522314/",
+            limit=4,
+        )
+
+        self.assertEqual(len(gallery), 1)
+        self.assertIn("/00/2252/2314/", gallery[0])
+        self.assertNotIn("/00/2494/7779/", gallery[0])
+        self.assertNotIn("/shop_image/", gallery[0])
+
+    def test_yahoo_display_normalization_keeps_original_query_for_thumb(self):
         url = (
             "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
             "00/2489/3214/0001/8d9cd7377a87728405785ab6d0de2cf4_01_01.jpg"
@@ -117,11 +171,12 @@ class CaseMediaFilterTests(unittest.TestCase):
 
         rendered = _normalize_listing_image_url_for_display(url, suumo_w=240, suumo_h=160)
 
-        self.assertIn("w=240", rendered)
-        self.assertIn("h=160", rendered)
+        self.assertNotIn("w=1080", rendered)
+        self.assertNotIn("h=1080", rendered)
+        self.assertIn("nf_path=", rendered)
         self.assertIn("realestate-buy-image", rendered)
 
-    def test_yahoo_display_normalization_rewrites_to_requested_lightbox_size(self):
+    def test_yahoo_display_normalization_keeps_original_query_for_lightbox(self):
         url = (
             "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
             "00/2489/3214/0001/8d9cd7377a87728405785ab6d0de2cf4_01_01.jpg"
@@ -131,8 +186,9 @@ class CaseMediaFilterTests(unittest.TestCase):
 
         rendered = _normalize_listing_image_url_for_display(url, suumo_w=1280, suumo_h=960)
 
-        self.assertIn("w=1280", rendered)
-        self.assertIn("h=960", rendered)
+        self.assertNotIn("w=320", rendered)
+        self.assertNotIn("h=240", rendered)
+        self.assertIn("nf_path=", rendered)
         self.assertIn("realestate-buy-image", rendered)
 
     def test_suumo_template_assets_are_skipped_by_fast_search_thumbs(self):
@@ -191,6 +247,50 @@ class CaseMediaFilterTests(unittest.TestCase):
         self.assertTrue(is_portal_non_property_image_url(yahoo_asset, item_url="https://realestate.yahoo.co.jp/used/mansion/detail_corp/b0024893214/"))
         self.assertFalse(is_portal_non_property_image_url(homes_real, item_url="https://www.homes.co.jp/kodate/b-93810001007/"))
         self.assertTrue(is_portal_non_property_image_url(homes_asset, item_url="https://www.homes.co.jp/kodate/b-93810001007/"))
+
+    def test_athome_shinchiku_gallery_keeps_property_groups_and_rejects_marketing_groups(self):
+        item_url = "https://www.athome.co.jp/mansion/shinchiku/124210/"
+        keep = [
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/model/2484/thm/124210_90001_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/gaikan/2484/thm/124210_90002_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/madori/2484/thm/124210_90003_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/outskirts/2484/thm/124210_90004_L.jpg",
+        ]
+        reject = [
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/project_detail_slide/2484/thm/124210_90909_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/images/project_detail_slide/2484/thm/124210_90909_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/project_free/2484/thm/124210_95685_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/setsubi/2484/thm/124210_90222_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/guidance/2484/thm/124210_90333_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/energy_saving/2484/thm/124210_90444_L.jpg",
+        ]
+
+        for url in keep:
+            self.assertFalse(is_portal_non_property_image_url(url, item_url=item_url), url)
+        for url in reject:
+            self.assertTrue(is_portal_non_property_image_url(url, item_url=item_url), url)
+
+    def test_athome_shinchiku_crawl_dedupes_equivalent_image_hosts_and_caps_environment(self):
+        item_url = "https://www.athome.co.jp/mansion/shinchiku/124210/"
+        urls = [
+            "http://www.athome.co.jp/mansion/shinchiku/cimages/model/2484/thm/124210_90001_L.jpg?ts=1",
+            "https://www.athome.co.jp/mansion/shinchiku/images/model/2484/thm/124210_90001_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/gaikan/2484/thm/124210_90002_L.jpg",
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/madori/2484/thm/124210_90003_L.jpg",
+            *[
+                f"https://www.athome.co.jp/mansion/shinchiku/cimages/outskirts/2484/thm/124210_90{i:03d}_L.jpg"
+                for i in range(10)
+            ],
+            "https://www.athome.co.jp/mansion/shinchiku/cimages/project_free/2484/thm/124210_95685_L.jpg",
+        ]
+
+        cleaned = clean_portal_image_urls(item_url, urls, max_urls=40)
+        limited = _limit_athome_shinchiku_gallery_images(item_url, cleaned)
+
+        self.assertEqual(len([u for u in cleaned if "/model/" in u]), 1)
+        self.assertFalse(any("/project_free/" in u for u in cleaned))
+        self.assertEqual(len([u for u in limited if "/outskirts/" in u]), 4)
+        self.assertEqual(len(limited), 7)
 
     def test_blocked_official_detail_snapshot_is_not_displayable_listing(self):
         self.assertFalse(
