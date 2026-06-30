@@ -9,6 +9,7 @@ __pycache__/
 .playwright-mcp/
 .tmp/
 .tmp2/
+.deploy_backups/
 logs/
 exports/
 data/
