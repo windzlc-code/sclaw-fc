@@ -25,8 +25,8 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260630-deploy-a">
-  <script src="/static/portal-feature-rows.js?v=20260630-deploy-a" defer></script>
+  <link rel="stylesheet" href="/static/site.css?v=20260630-mobile-c">
+  <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions {
       gap: 8px !important;
@@ -487,7 +487,7 @@
       </div>
 
       <div class="query-tab-nav smart-query-main-nav" role="tablist" aria-label="日本不動產案件查詢分區">
-        <button type="button" role="tab" class="query-tab-btn active" data-smart-query-tab="ai" aria-selected="true" aria-controls="smart-query-tab-panel-ai" id="smart-query-tab-btn-ai">① AI 摘要</button>
+        <button type="button" role="tab" class="query-tab-btn active" data-smart-query-tab="ai" aria-selected="true" aria-controls="smart-query-tab-panel-ai" id="smart-query-tab-btn-ai">① 智慧摘要</button>
         <button type="button" role="tab" class="query-tab-btn" data-smart-query-tab="kb" aria-selected="false" aria-controls="smart-query-tab-panel-kb" id="smart-query-tab-btn-kb" style="display:none;">② 知識庫</button>
         <button type="button" role="tab" class="query-tab-btn smart-query-tab-btn--cases" data-smart-query-tab="cases" aria-selected="false" aria-controls="smart-query-tab-panel-cases" id="smart-query-tab-btn-cases">② 買屋案件</button>
       </div>
@@ -495,7 +495,7 @@
       <div id="smart-query-tab-panel-ai" class="smart-query-tab-panel" data-smart-query-panel="ai">
       <div id="dialog-summary" class="panel muted">尚未執行查詢。請先選區域、類型、總價、格局，系統會依條件整理案件方向。</div>
       <section id="dialog-keyword-hub-panel" class="panel dialog-keyword-hub" style="display:none;">
-        <h3>① AI 摘要關鍵字</h3>
+        <h3>① 智慧摘要關鍵字</h3>
       </section>
       </div>
 
@@ -696,13 +696,13 @@
       <summary>顧問工作台（點我展開）</summary>
       <div class="advisor-workbench-body">
       <h2>顧問工作台</h2>
-      <p class="muted">AI 解讀房源、市場分析、風險說明、成交決策支援（維持原模組，僅新增快捷操作）。</p>
+      <p class="muted">智能解讀房源、市場分析、風險說明、成交決策支援。</p>
       <div class="advisor-workbench-lead-banner">
         <button type="button" class="chip advisor-workbench-lead-main" onclick="advisorOpenHumanIntakeForm('顧問工作台')">真人留單（預算／案件／聯絡）</button>
         <span class="muted advisor-workbench-lead-hint">免打字「人工」，直接開啟與智能客服相同的留單；會註記來源以利銷售／Telegram 跟進。</span>
       </div>
       <div class="advisor-ai-chip-row">
-        <button type="button" class="chip" onclick="advisorRunAiScenario('listing')">AI 解讀房源</button>
+        <button type="button" class="chip" onclick="advisorRunAiScenario('listing')">智能解讀房源</button>
         <button type="button" class="chip" onclick="advisorRunAiScenario('market')">市場分析</button>
         <button type="button" class="chip" onclick="advisorRunAiScenario('risk')">風險說明</button>
         <button type="button" class="chip" onclick="advisorRunAiScenario('decision')">成交決策支援</button>
@@ -778,7 +778,7 @@
           </div>
         </article>
       </div>
-      <p class="muted advisor-goal-inline">最終目標：1) SEO 文章創作　2) 精準找物件促成成交　3) AI 智能客服知識庫</p>
+      <p class="muted advisor-goal-inline">最終目標：1) 站內文章整理　2) 精準找物件促成成交　3) 智能客服知識庫</p>
       </div>
     </details>
 
@@ -1681,6 +1681,7 @@
                 <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="local-representative" onclick="selectAdminCaseRepresentativeImages(false)">AI 筛选展示图</button>
                 <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="local-prewarm" onclick="prewarmAdminCaseRepresentativeImages()">AI 批量预选</button>
                 <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="local-gallery" onclick="auditAdminCaseGalleryImages()">相册分类/污染审计</button>
+                <button type="button" class="secondary admin-ai-action-btn" data-admin-ai-action="local-gallery-force" onclick="auditAdminCaseGalleryImages({ forceReaudit: true, actionKey: 'local-gallery-force' })">强制复审低清图</button>
               </div>
               <p class="admin-ai-manual-hint">人工筛选：在下方案件列表点「查看」，打开相册后点击图片下方「设为展示图」。人工固定图不会被普通 AI 筛选覆盖。</p>
             </section>
@@ -6139,7 +6140,7 @@
       const title = String(digest.summary_title || '近半個月日本購房知識摘要').trim();
       const freshness = String(digest.freshness_label || '近 15 天最新資料').trim();
       const policy = String(digest.source_policy || '社媒影片/圖文優先，其次七大來源翻譯與物件資料').trim();
-      let html = '<section class="dialog-knowledge-digest" aria-label="AI 摘要知識來源總覽">';
+      let html = '<section class="dialog-knowledge-digest" aria-label="智慧摘要知識來源總覽">';
       html += '<div class="dialog-knowledge-digest-head">';
       html += '<div>';
       html += `<h4>${esc(title)}</h4>`;
@@ -6231,7 +6232,7 @@
       const knowledgeDigest = readingPack?.knowledge?.digest || readingPack?.digest || null;
       let html = '<div class="dialog-summary-shell">';
       html += '<div class="dialog-summary-head">';
-      html += '<span class="dialog-summary-tag">AI 摘要</span>';
+      html += '<span class="dialog-summary-tag">智慧摘要</span>';
       html += `<h3>${esc(title || '查詢結果')}</h3>`;
       html += '</div>';
       if (textLines.length) {
@@ -10798,7 +10799,7 @@
           note: `【號碼登入】來源：${validation.label}；原始輸入：${String(input?.value || '').trim()}。`,
           action_id: 'phone_login',
           session_id: getSupportSalesSessionId(),
-          conversation: typeof supportChatHandoffConversationPayload === 'function' ? supportChatHandoffConversationPayload() : [],
+          conversation: [],
         };
         const res = await postSupportHumanIntake(payload);
         const data = await parseApiResponseSafe(res);
@@ -10815,6 +10816,8 @@
         const adminQ = document.getElementById('admin-handoff-q');
         if (adminQ && !adminQ.value) adminQ.value = phone;
         const shouldOpenChat = true;
+        markSupportHandoffSyncActive();
+        scheduleSyncHandoffConversationToBackend();
         supportPhoneLoginReturnToChat = false;
         window.setTimeout(() => {
           setSupportPhoneLoginModalOpen(false, { skipExclusive: true, restoreFocus: false, clearReturnToChat: true });
@@ -16374,15 +16377,18 @@
       const msg = document.getElementById('admin-cases-msg');
       const ps = Math.max(5, Math.min(80, parseInt(String(document.getElementById('admin-cases-page-size')?.value || '20'), 10) || 20));
       const offset = Math.max(0, ((Number(adminCasesPage || 1) - 1) * ps));
+      const forceReaudit = Boolean(opts.forceReaudit);
+      const removeLowQuality = opts.removeLowQuality !== false;
+      const modeText = forceReaudit ? '强制复审当前页已审计/未审计案件' : '只处理当前页未审计案件';
       if (!opts.skipConfirm) {
-        setAdminAiToolStatus('warn', '等待确认相册审计', `点击确认后会审计最多 ${ps} 笔案件，并清理识别出的垃圾图。`, actionKey, { quietMessage: opts.quiet });
+        setAdminAiToolStatus('warn', '等待确认相册审计', `点击确认后会审计最多 ${ps} 笔案件，${modeText}，并清理污染/低清垃圾图。`, actionKey, { quietMessage: opts.quiet });
         await waitForAdminAiStatusPaint();
-        if (!window.confirm(`將對案件相冊進行分類歸檔並標記污染圖片（本批最多 ${ps} 筆，只處理未分類案件）。確定？`)) {
+        if (!window.confirm(`將對案件相冊進行分類歸檔並標記污染圖片（本批最多 ${ps} 筆，${modeText}，低清垃圾圖會被刪除）。確定？`)) {
           setAdminAiToolStatus('warn', '已取消相册审计', '没有执行任何相册分类或污染图清理。', actionKey, { quietMessage: opts.quiet });
           return;
         }
       }
-      setAdminAiToolStatus('running', '相册分类/污染审计运行中', `正在审计当前范围最多 ${ps} 笔案件，识别分类、污染图并执行清理。`, actionKey, { quietMessage: opts.quiet });
+      setAdminAiToolStatus('running', '相册分类/污染审计运行中', `正在审计当前范围最多 ${ps} 笔案件，${modeText}，识别分类、污染图和低清图并执行清理。`, actionKey, { quietMessage: opts.quiet });
       if (msg && !opts.quiet) msg.textContent = '正在進行相冊分類／污染審計…';
       try {
         const res = await fetchSclawApiFirstOk([
@@ -16392,18 +16398,25 @@
         ], {
           method: 'POST',
           headers: adminApiHeaders(true),
-          body: JSON.stringify({ limit: ps, offset, only_missing: true }),
+          body: JSON.stringify({
+            limit: ps,
+            offset,
+            only_missing: !forceReaudit,
+            force_reaudit: forceReaudit,
+            remove_low_quality: removeLowQuality,
+          }),
         });
         const data = await parseApiResponseSafe(res);
+        const lowQuality = Number(data.low_quality_images || 0);
         setAdminAiToolStatus(
           'success',
           '相册审计完成',
-          `处理 ${Number(data.processed || 0)} 笔，分类 ${Number(data.classified_cases || 0)} 笔，污染 ${Number(data.polluted_images || 0)} 张，删除 ${Number(data.removed_images || 0)} 张。`,
+          `处理 ${Number(data.processed || 0)} 笔，分类 ${Number(data.classified_cases || 0)} 笔，污染 ${Number(data.polluted_images || 0)} 张，其中低清 ${lowQuality} 张，删除 ${Number(data.removed_images || 0)} 张。`,
           actionKey,
           { aiConfigured: Boolean(data.gemini_configured), quietMessage: opts.quiet }
         );
         if (msg && !opts.quiet) {
-          msg.textContent = `相冊審計完成：處理 ${Number(data.processed || 0)} 筆，完成分類 ${Number(data.classified_cases || 0)} 筆，識別污染圖片 ${Number(data.polluted_images || 0)} 張，已從相冊刪除 ${Number(data.removed_images || 0)} 張垃圾圖。${data.gemini_configured ? '已使用 AI。' : 'Gemini 未設定，使用規則分類。'}`;
+          msg.textContent = `相冊審計完成：處理 ${Number(data.processed || 0)} 筆，完成分類 ${Number(data.classified_cases || 0)} 筆，識別污染圖片 ${Number(data.polluted_images || 0)} 張，其中低清／損壞 ${lowQuality} 張，已從相冊刪除 ${Number(data.removed_images || 0)} 張垃圾圖。${data.gemini_configured ? '已使用 AI。' : 'Gemini 未設定，使用規則分類。'}`;
         }
         await loadAdminCasesPage();
         await loadAdminMediaReviewPage();
@@ -16565,7 +16578,7 @@
           if (msg) msg.textContent = '外部補抓完成，正在進行相冊分類／污染審計…';
           const audit = await auditAdminCaseGalleryImages({ skipConfirm: true, quiet: true, rethrow: true, actionKey });
           lastGeminiConfigured = Boolean(audit?.gemini_configured);
-          parts.push(`相冊審計：處理 ${Number(audit?.processed || 0)}，分類 ${Number(audit?.classified_cases || 0)}，污染 ${Number(audit?.polluted_images || 0)}，刪除 ${Number(audit?.removed_images || 0)}。${describeGeminiUse(audit)}`);
+          parts.push(`相冊審計：處理 ${Number(audit?.processed || 0)}，分類 ${Number(audit?.classified_cases || 0)}，污染 ${Number(audit?.polluted_images || 0)}，低清 ${Number(audit?.low_quality_images || 0)}，刪除 ${Number(audit?.removed_images || 0)}。${describeGeminiUse(audit)}`);
         }
         setAdminAiToolStatus('success', `外部补抓 + ${modeLabel} 完成`, parts.join(' '), actionKey, { aiConfigured: lastGeminiConfigured });
         if (msg) msg.textContent = parts.join(' ');
@@ -22019,7 +22032,7 @@
 
     function advisorRunAiScenario(scene) {
       const keywordMap = {
-        listing: 'AI 解讀房源 優缺點',
+        listing: '智能解讀房源優缺點',
         market: '日本房地產 市場分析 區域走勢',
         risk: '日本買房 風險說明 稅務 法規',
         decision: '日本房產 成交決策 建議',
@@ -22100,7 +22113,7 @@
      */
     function advisorWorkbenchOpenActionIntake(sceneKey) {
       const map = {
-        listing: { id: 'advisor_wb_listing', lab: 'AI 解讀房源' },
+        listing: { id: 'advisor_wb_listing', lab: '智能解讀房源' },
         market: { id: 'advisor_wb_market', lab: '市場分析' },
         risk: { id: 'advisor_wb_risk', lab: '風險說明' },
         decision: { id: 'advisor_wb_decision', lab: '成交決策支援' },
@@ -23465,7 +23478,7 @@
       homeFeaturedOffset = Number(sourcePayload?.next_offset || homeFeaturedCases.length || 0);
       homeFeaturedBatchOffset = 0;
       renderHomeFeaturedCases();
-      homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，按 2 + 3 + 2 通用卡片排列，可换一批或点卡片查看站内明细。`);
+      homeFeaturedSetStatus(`已为你整理 ${homeFeaturedCases.length} 笔精选房源，可换一批或点卡片查看站内明细。`);
 
       if (preloadItems.length) {
         homeFeaturedStorageSet(homeFeaturedSpotlightCacheKey(), 0, HOME_FEATURED_PRELOAD);
@@ -23525,7 +23538,7 @@
           homeFeaturedCases = stored.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
           homeFeaturedOffset = Number(storagePayload.next_offset || homeFeaturedCases.length || 0);
           renderHomeFeaturedCases();
-          homeFeaturedSetStatus(`本批固定推荐 ${homeFeaturedCases.length} 笔高品质房源，按 2 + 3 + 2 通用卡片排列，可换一批或点卡片查看站内明细。`);
+          homeFeaturedSetStatus(`已为你整理 ${homeFeaturedCases.length} 笔精选房源，可换一批或点卡片查看站内明细。`);
         }
       }
       if (!keepExisting && !homeFeaturedCases.length) homeFeaturedCases = [];
@@ -23550,7 +23563,7 @@
           homeFeaturedStorageSet(homeFeaturedSpotlightCacheKey(), requestOffset, data);
         }
         const count = homeFeaturedCases.length;
-        homeFeaturedSetStatus(count ? `本批固定推荐 ${count} 笔高品质房源，按 2 + 3 + 2 通用卡片排列，可换一批或点卡片查看站内明细。` : '目前没有可推荐的精选房源。');
+        homeFeaturedSetStatus(count ? `已为你整理 ${count} 笔精选房源，可换一批或点卡片查看站内明细。` : '目前没有可推荐的精选房源。');
       } catch (_) {
         homeFeaturedSetStatus(homeFeaturedCases.length ? `已显示上次载入的 ${homeFeaturedCases.length} 笔房源。` : '精选房源暂时无法载入，请稍后再试。');
       } finally {

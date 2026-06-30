@@ -417,6 +417,13 @@ def init_db() -> None:
                 conversation_json TEXT NOT NULL DEFAULT '',
                 scenario_weights_json TEXT NOT NULL DEFAULT '',
                 ai_handoff_summary TEXT NOT NULL DEFAULT '',
+                followup_status TEXT NOT NULL DEFAULT '',
+                followup_attempts INTEGER NOT NULL DEFAULT 0,
+                followup_last_error TEXT NOT NULL DEFAULT '',
+                followup_started_at TEXT NOT NULL DEFAULT '',
+                followup_finished_at TEXT NOT NULL DEFAULT '',
+                followup_telegram_sent INTEGER NOT NULL DEFAULT 0,
+                followup_line_sent INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_human_handoff_created ON human_handoff_requests(created_at DESC);
@@ -505,6 +512,19 @@ def init_db() -> None:
         _ensure_column(conn, "human_handoff_requests", "context_message", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "human_handoff_requests", "opinion", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "human_handoff_requests", "questionnaire_json", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "human_handoff_requests", "followup_status", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "human_handoff_requests", "followup_attempts", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "human_handoff_requests", "followup_last_error", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "human_handoff_requests", "followup_started_at", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "human_handoff_requests", "followup_finished_at", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "human_handoff_requests", "followup_telegram_sent", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "human_handoff_requests", "followup_line_sent", "INTEGER NOT NULL DEFAULT 0")
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_human_handoff_followup
+              ON human_handoff_requests(action_id, followup_status, id DESC)
+            """
+        )
         _ensure_column(conn, "jp_listing_region_index", "sort_time", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "social_radar_accounts", "channel_region", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "social_radar_accounts", "follower_count", "INTEGER NOT NULL DEFAULT 0")

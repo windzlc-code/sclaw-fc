@@ -200,6 +200,7 @@ from src.text_utils import (
     is_disclaimer_or_template_noise,
     is_japanese_primary_plaintext,
     sanitize_article_display_body,
+    strip_public_link_noise,
     strip_disclaimer_noise_for_keypoints,
 )
 
@@ -1544,7 +1545,10 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
         return ""
     try:
         from PIL import Image, ImageFilter, ImageStat  # type: ignore
+    except ImportError:
+        return ""
 
+    try:
         with Image.open(path) as im0:
             im = im0.convert("RGB")
             w, h = im.size
@@ -1595,6 +1599,242 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
         _CASE_REPRESENTATIVE_VISUAL_CACHE.clear()
     _CASE_REPRESENTATIVE_VISUAL_CACHE[s] = reject
     return reason
+
+
+def _case_image_file_dimensions(path: Path) -> tuple[int, int] | None:
+    """Read common image dimensions without requiring Pillow."""
+    try:
+        data = path.read_bytes()[:128 * 1024]
+    except Exception:
+        return None
+    if len(data) < 24:
+        return None
+    if data.startswith(b"\x89PNG\r\n\x1a\n") and data[12:16] == b"IHDR":
+        return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    if data[:2] == b"\xff\xd8":
+        i = 2
+        n = len(data)
+        while i + 9 < n:
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            i += 2
+            if marker in {0xD8, 0xD9, 0x01} or 0xD0 <= marker <= 0xD7:
+                continue
+            if i + 2 > n:
+                break
+            seg_len = int.from_bytes(data[i : i + 2], "big")
+            if seg_len < 2 or i + seg_len > n:
+                break
+            if marker in {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}:
+                h = int.from_bytes(data[i + 3 : i + 5], "big")
+                w = int.from_bytes(data[i + 5 : i + 7], "big")
+                return w, h
+            i += seg_len
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP" and len(data) >= 30:
+        chunk = data[12:16]
+        if chunk == b"VP8X" and len(data) >= 30:
+            w = 1 + int.from_bytes(data[24:27], "little")
+            h = 1 + int.from_bytes(data[27:30], "little")
+            return w, h
+        if chunk == b"VP8 " and len(data) >= 30:
+            pos = data.find(b"\x9d\x01\x2a", 20, 64)
+            if pos >= 0 and pos + 7 <= len(data):
+                w = int.from_bytes(data[pos + 3 : pos + 5], "little") & 0x3FFF
+                h = int.from_bytes(data[pos + 5 : pos + 7], "little") & 0x3FFF
+                return w, h
+        if chunk == b"VP8L" and len(data) >= 25:
+            b0, b1, b2, b3 = data[21], data[22], data[23], data[24]
+            w = 1 + (((b1 & 0x3F) << 8) | b0)
+            h = 1 + (((b3 & 0x0F) << 10) | (b2 << 2) | ((b1 & 0xC0) >> 6))
+            return w, h
+    return None
+
+
+def _case_image_sparse_content_issue(path: Path, *, file_size: int = 0) -> dict[str, Any]:
+    """Detect high-resolution images where the useful content is tiny in a blank canvas."""
+    try:
+        from PIL import Image  # type: ignore
+    except ImportError:
+        return {}
+    try:
+        with Image.open(path) as im0:
+            im = im0.convert("RGB")
+            w0, h0 = im.size
+            if w0 <= 0 or h0 <= 0:
+                return {}
+            max_side = 128
+            ratio = min(1.0, max_side / max(w0, h0))
+            w = max(1, int(round(w0 * ratio)))
+            h = max(1, int(round(h0 * ratio)))
+            sample = im.resize((w, h))
+            px = list(sample.getdata())
+            total = max(1, len(px))
+            min_x = w
+            min_y = h
+            max_x = -1
+            max_y = -1
+            hits = 0
+            for y in range(h):
+                row = y * w
+                for x in range(w):
+                    r, g, b = px[row + x]
+                    spread = max(r, g, b) - min(r, g, b)
+                    is_white_margin = r >= 232 and g >= 232 and b >= 232 and spread <= 24
+                    is_near_blank = r >= 204 and g >= 204 and b >= 204 and spread <= 34
+                    if is_white_margin or is_near_blank:
+                        continue
+                    hits += 1
+                    if x < min_x:
+                        min_x = x
+                    if y < min_y:
+                        min_y = y
+                    if x > max_x:
+                        max_x = x
+                    if y > max_y:
+                        max_y = y
+            if hits < max(18, int(total * 0.006)) or max_x < min_x or max_y < min_y:
+                return {
+                    "category": "placeholder",
+                    "reason": "圖片幾乎全是空白留白，缺少可用房源內容",
+                    "information_value": 4,
+                    "metrics": {"width": w0, "height": h0, "bytes": file_size, "content_ratio": 0},
+                }
+            box_w = (max_x - min_x + 1) / max(1, w)
+            box_h = (max_y - min_y + 1) / max(1, h)
+            box_area = box_w * box_h
+            content_ratio = hits / total
+            sparse = (
+                (box_area <= 0.12 and content_ratio <= 0.11)
+                or (box_area <= 0.20 and content_ratio <= 0.055)
+                or (box_w <= 0.42 and box_h <= 0.42 and content_ratio <= 0.14)
+            )
+            if sparse:
+                return {
+                    "category": "unclear",
+                    "reason": "圖片有效內容占比過低，四周大面積留白，不適合作為房源相冊圖",
+                    "information_value": 10,
+                    "metrics": {
+                        "width": w0,
+                        "height": h0,
+                        "bytes": file_size,
+                        "content_ratio": round(content_ratio, 4),
+                        "content_box_area": round(box_area, 4),
+                        "content_box_w": round(box_w, 4),
+                        "content_box_h": round(box_h, 4),
+                    },
+                }
+    except Exception:
+        return {}
+    return {}
+
+
+def _case_gallery_local_quality_issue(static_url: Any) -> dict[str, Any]:
+    """Return a conservative local quality issue for gallery cleanup."""
+    s = str(static_url or "").strip()
+    if not s:
+        return {}
+    path = _url_to_local_static_path(s)
+    if not path or not path.is_file():
+        return {}
+    try:
+        file_size = int(path.stat().st_size or 0)
+    except Exception:
+        file_size = 0
+    header_dims = _case_image_file_dimensions(path)
+    if header_dims:
+        w, h = header_dims
+        aspect = w / max(1, h)
+        pixels = w * h
+        if min(w, h) < 120 or max(w, h) < 260 or pixels < 60_000:
+            return {
+                "category": "unclear",
+                "reason": f"本地圖片解析度過低（{w}x{h}）",
+                "information_value": 8,
+                "metrics": {"width": w, "height": h, "bytes": file_size},
+            }
+        if min(w, h) < 220 or max(w, h) < 480:
+            return {
+                "category": "unclear",
+                "reason": f"本地圖片偏低清，不適合作為相冊資料（{w}x{h}）",
+                "information_value": 18,
+                "metrics": {"width": w, "height": h, "bytes": file_size},
+            }
+        if aspect < 0.33 or aspect > 4.2:
+            return {
+                "category": "unclear",
+                "reason": f"本地圖片長寬比異常（{w}x{h}）",
+                "information_value": 15,
+                "metrics": {"width": w, "height": h, "bytes": file_size},
+            }
+    sparse_issue = _case_image_sparse_content_issue(path, file_size=file_size)
+    if sparse_issue:
+        return sparse_issue
+    if file_size and file_size < 1500:
+        return {
+            "category": "unclear",
+            "reason": "本地圖片檔案極小，疑似無效低清縮圖",
+            "information_value": 5,
+            "metrics": {"bytes": file_size},
+        }
+    try:
+        from PIL import Image, ImageFilter, ImageStat  # type: ignore
+    except ImportError:
+        return {}
+    try:
+        with Image.open(path) as im0:
+            im = im0.convert("RGB")
+            w, h = im.size
+            if w <= 0 or h <= 0:
+                return {
+                    "category": "placeholder",
+                    "reason": "本地圖片尺寸無效",
+                    "information_value": 0,
+                    "metrics": {"width": w, "height": h, "bytes": file_size},
+                }
+            aspect = w / max(1, h)
+            pixels = w * h
+            if min(w, h) < 120 or max(w, h) < 260 or pixels < 60_000:
+                return {
+                    "category": "unclear",
+                    "reason": f"本地圖片解析度過低（{w}x{h}）",
+                    "information_value": 8,
+                    "metrics": {"width": w, "height": h, "bytes": file_size},
+                }
+            if min(w, h) < 220 or max(w, h) < 480:
+                return {
+                    "category": "unclear",
+                    "reason": f"本地圖片偏低清，不適合作為相冊資料（{w}x{h}）",
+                    "information_value": 18,
+                    "metrics": {"width": w, "height": h, "bytes": file_size},
+                }
+            if aspect < 0.33 or aspect > 4.2:
+                return {
+                    "category": "unclear",
+                    "reason": f"本地圖片長寬比異常（{w}x{h}）",
+                    "information_value": 15,
+                    "metrics": {"width": w, "height": h, "bytes": file_size},
+                }
+            small = im.resize((96, 96))
+            gray = small.convert("L")
+            edge = gray.filter(ImageFilter.FIND_EDGES)
+            edge_mean = float(ImageStat.Stat(edge).mean[0]) / 255.0
+            if file_size and file_size < 8_000 and edge_mean < 0.018:
+                return {
+                    "category": "unclear",
+                    "reason": "本地圖片檔案過小且細節不足，疑似低清縮圖",
+                    "information_value": 12,
+                    "metrics": {"width": w, "height": h, "bytes": file_size, "edge_mean": round(edge_mean, 4)},
+                }
+    except Exception as exc:
+        return {
+            "category": "placeholder",
+            "reason": f"本地圖片無法讀取：{type(exc).__name__}",
+            "information_value": 0,
+            "metrics": {"bytes": file_size},
+        }
+    return {}
 
 
 def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "building") -> str:
@@ -1740,6 +1980,7 @@ _CASE_GALLERY_AUDIT_CATEGORY_LABELS = {
     "kitchen": "廚房",
     "bath": "浴室",
     "bath_toilet": "廁浴",
+    "kitchen_bath": "廚衛圖",
     "toilet": "廁所",
     "balcony_view": "景觀圖",
     "balcony": "陽台",
@@ -1751,6 +1992,7 @@ _CASE_GALLERY_AUDIT_CATEGORY_LABELS = {
     "forest_land": "山林地",
     "parking_space": "車位",
     "parking_lot": "停車場",
+    "parking": "車位／停車",
     "garage": "車庫",
     "shop_front": "店面門面",
     "shop_interior": "店內空間",
@@ -1791,6 +2033,8 @@ _CASE_GALLERY_AI_TO_SECTION_CATEGORY = {
     "parking_space": "parking",
     "parking_lot": "parking",
     "garage": "parking",
+    "parking_area": "parking",
+    "carport": "parking",
 }
 _CASE_GALLERY_POLLUTION_CATEGORIES = {
     "agent_staff",
@@ -2506,6 +2750,93 @@ def _case_gallery_audit_image_key(url: Any) -> str:
     return _case_gallery_url_identity_key(norm) or norm
 
 
+def _case_current_gallery_audit_keys(row: dict[str, Any], *, limit: int = 96) -> set[str]:
+    keys: set[str] = set()
+    try:
+        raw_urls = _case_representative_raw_url_candidates(row, limit=max(32, int(limit or 96)))
+    except Exception:
+        raw_urls = []
+    for raw in raw_urls:
+        key = _case_gallery_audit_image_key(raw)
+        if key:
+            keys.add(key)
+    return keys
+
+
+def _case_prune_stale_gallery_audit_for_row(row: dict[str, Any], *, limit: int = 96) -> dict[str, Any]:
+    """Delete gallery audit rows that no longer map to the case's current image set."""
+    sid = int((row or {}).get("source_item_id") or (row or {}).get("id") or 0)
+    if sid <= 0:
+        return {"deleted": 0, "current_keys": 0}
+    current_keys = _case_current_gallery_audit_keys(row, limit=limit)
+    if not current_keys:
+        return {"deleted": 0, "current_keys": 0}
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT image_key FROM case_gallery_image_audit WHERE source_item_id = ?",
+                (sid,),
+            ).fetchall()
+            stale = [
+                str(dict(r).get("image_key") or "").strip()
+                for r in rows
+                if str(dict(r).get("image_key") or "").strip()
+                and str(dict(r).get("image_key") or "").strip() not in current_keys
+            ]
+            if stale:
+                conn.execute(
+                    "DELETE FROM case_gallery_image_audit WHERE source_item_id = ? AND image_key IN ({})".format(
+                        ",".join("?" for _ in stale)
+                    ),
+                    (sid, *stale),
+                )
+                conn.commit()
+            return {"deleted": len(stale), "current_keys": len(current_keys)}
+    except Exception as exc:
+        _log_backend_error("case-gallery-prune-stale-audit", exc)
+        return {"deleted": 0, "current_keys": len(current_keys), "error": str(exc)[:180]}
+
+
+def _case_prune_stale_gallery_audits(*, limit: int = 240) -> dict[str, Any]:
+    lim = max(1, min(1000, int(limit or 240)))
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    s.id AS source_item_id,
+                    s.item_url,
+                    s.image_urls,
+                    s.thumbnail_url,
+                    s.hero_image_url,
+                    s.title_original,
+                    substr(COALESCE(s.body_original, ''), 1, 1200) AS body_original,
+                    COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+                    c.seo_title,
+                    c.title_zh_hant,
+                    c.topic_category
+                FROM case_gallery_image_audit a
+                JOIN source_items s ON s.id = a.source_item_id
+                LEFT JOIN content_items c ON c.source_item_id = s.id
+                WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+                GROUP BY s.id
+                ORDER BY MAX(a.audited_at) DESC
+                LIMIT ?
+                """,
+                (lim,),
+            ).fetchall()
+    except Exception as exc:
+        _log_backend_error("case-gallery-prune-stale-load", exc)
+        return {"checked": 0, "deleted": 0, "error": str(exc)[:180]}
+    checked = 0
+    deleted = 0
+    for row in rows:
+        checked += 1
+        out = _case_prune_stale_gallery_audit_for_row(dict(row))
+        deleted += int(out.get("deleted") or 0)
+    return {"checked": checked, "deleted": deleted}
+
+
 def _case_gallery_normalize_ai_category(category: Any) -> str:
     cat = str(category or "unknown").strip().lower()
     cat = _CASE_GALLERY_AI_TO_SECTION_CATEGORY.get(cat, cat)
@@ -2525,6 +2856,7 @@ def _case_gallery_local_audit_item(
     static_url: str = "",
     context: str = "",
     image_signature: str = "",
+    remove_low_quality: bool = True,
 ) -> dict[str, Any]:
     category = _case_gallery_category_for_url(image_url, context)
     polluted = False
@@ -2536,12 +2868,21 @@ def _case_gallery_local_audit_item(
     elif _case_gallery_context_is_non_property_media(image_url, context):
         polluted = True
         pollution_reason = "疑似頁面素材、公司/門店或非本案圖片"
+    elif _case_gallery_context_is_text_overlay_media(image_url, context):
+        category = "ad"
+        polluted = True
+        pollution_reason = "疑似帶大字行銷字幕的相冊污染圖"
     elif category in {"map"}:
         polluted = True
         pollution_reason = "地圖或交通圖不屬於房源相冊照片"
     elif _case_representative_semantic_reject_reason(image_url, context, profile="building") == "weak-semantic-context":
         polluted = True
         pollution_reason = "疑似概念圖、廣告圖或低信息圖片"
+    quality_issue = _case_gallery_local_quality_issue(static_url) if remove_low_quality else {}
+    if quality_issue:
+        category = str(quality_issue.get("category") or category or "unclear")
+        polluted = True
+        pollution_reason = str(quality_issue.get("reason") or "本地圖片品質不足")
     return {
         "source_item_id": int(source_item_id or 0),
         "image_url": image_url,
@@ -2552,10 +2893,10 @@ def _case_gallery_local_audit_item(
         "confidence": 55,
         "is_polluted": bool(polluted),
         "pollution_reason": pollution_reason,
-        "information_value": 25 if polluted else 50,
+        "information_value": int(quality_issue.get("information_value") or (25 if polluted else 50)),
         "provider": "rules",
         "model": "",
-        "reason": "Rule-based gallery classification.",
+        "reason": "Rule-based gallery classification." + (f" quality={quality_issue.get('metrics')}" if quality_issue else ""),
         "image_signature": image_signature,
     }
 
@@ -2648,6 +2989,7 @@ def _case_gallery_audit_candidate_pack(
     row: dict[str, Any],
     *,
     limit: int = 16,
+    ensure_local: bool = False,
 ) -> tuple[list[dict[str, Any]], list[str], str]:
     raw_urls = _case_representative_raw_url_candidates(row, limit=max(32, int(limit or 16) * 3))
     signature = _case_representative_image_signature(raw_urls)
@@ -2664,17 +3006,20 @@ def _case_gallery_audit_candidate_pack(
         seen.add(key)
         context = context_by_key.get(key, "")
         local_cat = _case_gallery_category_for_url(url, context)
+        static_url = _case_image_cached_static_url(url)
+        if ensure_local and not static_url:
+            static_url = _case_image_download_to_cache(url)
         candidates.append(
             {
                 "index": len(candidates) + 1,
                 "url": url,
-                "static_url": _case_image_cached_static_url(url),
+                "static_url": static_url,
                 "context": context,
                 "hint": f"{_thumb_kind_label(url)}｜{local_cat}｜{context[:80]}",
                 "image_key": key,
             }
         )
-        if len(candidates) >= max(1, min(24, int(limit or 16))):
+        if len(candidates) >= max(1, min(120, int(limit or 16))):
             break
     return candidates, raw_urls, signature
 
@@ -2884,13 +3229,23 @@ def _case_retry_polluted_gallery_cleanup(*, limit: int = 30) -> dict[str, Any]:
     return {"attempted": attempted, "removed": removed}
 
 
-def _case_audit_gallery_images_for_row(row: dict[str, Any], *, limit: int = 16) -> dict[str, Any]:
+def _case_audit_gallery_images_for_row(
+    row: dict[str, Any],
+    *,
+    limit: int = 16,
+    remove_low_quality: bool = True,
+) -> dict[str, Any]:
     sid = int(row.get("source_item_id") or row.get("id") or 0)
     if sid <= 0:
         return {"ok": False, "reason": "missing_source_item_id"}
-    candidates, raw_urls, signature = _case_gallery_audit_candidate_pack(row, limit=limit)
+    candidates, raw_urls, signature = _case_gallery_audit_candidate_pack(
+        row,
+        limit=limit,
+        ensure_local=bool(remove_low_quality),
+    )
     if not candidates:
         return {"ok": False, "reason": "no_gallery_candidates"}
+    stale = _case_prune_stale_gallery_audit_for_row(row, limit=max(32, int(limit or 16) * 3))
     local_items = [
         _case_gallery_local_audit_item(
             source_item_id=sid,
@@ -2898,9 +3253,11 @@ def _case_audit_gallery_images_for_row(row: dict[str, Any], *, limit: int = 16) 
             static_url=str(c.get("static_url") or ""),
             context=str(c.get("context") or ""),
             image_signature=signature,
+            remove_low_quality=bool(remove_low_quality),
         )
         for c in candidates
     ]
+    local_by_key = {str(x.get("image_key") or "").strip(): x for x in local_items if str(x.get("image_key") or "").strip()}
     _case_store_gallery_image_audit(sid, local_items)
     provider = "rules"
     ai_items: list[dict[str, Any]] = []
@@ -2924,18 +3281,33 @@ def _case_audit_gallery_images_for_row(row: dict[str, Any], *, limit: int = 16) 
                     continue
                 cat = _case_gallery_normalize_ai_category(item.get("category"))
                 polluted = bool(item.get("is_polluted")) or cat in _CASE_GALLERY_POLLUTION_CATEGORIES
+                image_key = str(c.get("image_key") or _case_gallery_audit_image_key(c.get("url")))
+                local_item = local_by_key.get(image_key) or {}
+                local_pollution_reason = str(local_item.get("pollution_reason") or "").strip()
+                if bool(local_item.get("is_polluted")) and local_pollution_reason:
+                    polluted = True
+                    if cat not in _CASE_GALLERY_POLLUTION_CATEGORIES:
+                        cat = _case_gallery_normalize_ai_category(local_item.get("category") or cat)
+                    pollution_reason = local_pollution_reason
+                    information_value = min(
+                        int(item.get("information_value") or 0),
+                        int(local_item.get("information_value") or 0),
+                    )
+                else:
+                    pollution_reason = str(item.get("pollution_reason") or ("AI 標記為污染圖片" if polluted else ""))
+                    information_value = int(item.get("information_value") or 0)
                 ai_items.append(
                     {
                         "source_item_id": sid,
                         "image_url": str(c.get("url") or ""),
                         "image_static_url": str(c.get("static_url") or ""),
-                        "image_key": str(c.get("image_key") or _case_gallery_audit_image_key(c.get("url"))),
+                        "image_key": image_key,
                         "category": cat,
                         "category_label": _case_gallery_category_label(cat),
                         "confidence": int(item.get("confidence") or 0),
                         "is_polluted": polluted,
-                        "pollution_reason": str(item.get("pollution_reason") or ("AI 標記為污染圖片" if polluted else "")),
-                        "information_value": int(item.get("information_value") or 0),
+                        "pollution_reason": pollution_reason,
+                        "information_value": information_value,
                         "provider": "gemini",
                         "model": "",
                         "reason": str(item.get("reason") or ""),
@@ -2943,12 +3315,25 @@ def _case_audit_gallery_images_for_row(row: dict[str, Any], *, limit: int = 16) 
                     }
                 )
             if ai_items:
+                ai_keys = {str(x.get("image_key") or "").strip() for x in ai_items if str(x.get("image_key") or "").strip()}
+                ai_items.extend(
+                    x
+                    for x in local_items
+                    if str(x.get("image_key") or "").strip()
+                    and str(x.get("image_key") or "").strip() not in ai_keys
+                )
                 _case_store_gallery_image_audit(sid, ai_items)
                 provider = "gemini"
         except Exception as exc:
             _log_backend_error("case-gallery-audit-gemini", exc)
     final_items = ai_items or local_items
     cleanup = _case_remove_polluted_gallery_images(sid, final_items)
+    low_quality_count = sum(
+        1
+        for x in final_items
+        if bool(x.get("is_polluted"))
+        and any(tok in str(x.get("pollution_reason") or "") for tok in ("解析度", "低清", "無法讀取", "尺寸無效", "長寬比", "留白", "有效內容"))
+    )
     return {
         "ok": True,
         "source_item_id": sid,
@@ -2956,9 +3341,11 @@ def _case_audit_gallery_images_for_row(row: dict[str, Any], *, limit: int = 16) 
         "candidate_count": len(candidates),
         "classified": len(final_items),
         "polluted": sum(1 for x in final_items if bool(x.get("is_polluted"))),
+        "low_quality": low_quality_count,
         "removed": int(cleanup.get("removed") or 0),
         "removed_urls": list(cleanup.get("removed_urls") or [])[:8],
         "raw_count": len(raw_urls),
+        "stale_audit_removed": int(stale.get("deleted") or 0),
     }
 
 
@@ -6100,6 +6487,8 @@ class AdminGalleryImageAuditPost(BaseModel):
     limit: int = Field(default=24, ge=1, le=80)
     offset: int = Field(default=0, ge=0, le=500000)
     only_missing: bool = True
+    force_reaudit: bool = False
+    remove_low_quality: bool = True
 
 
 class AdminRepresentativeImageManualPost(BaseModel):
@@ -6602,11 +6991,28 @@ class SocialRadarConvertRequest(BaseModel):
     email: str = ""
 
 
+def _start_phone_login_followup_recovery_worker() -> None:
+    def _worker() -> None:
+        time.sleep(2.0)
+        while True:
+            try:
+                _recover_pending_phone_login_followups_once(limit=12)
+            except Exception as exc:
+                _log_backend_error("phone-login-followup-recovery", exc)
+            time.sleep(45.0)
+
+    try:
+        threading.Thread(target=_worker, daemon=True, name="phone-login-followup-recovery").start()
+    except Exception as exc:
+        _log_backend_error("phone-login-followup-recovery-start", exc)
+
+
 @app.on_event("startup")
 def startup_event() -> None:
     init_db()
     _seed_offline_support_scenarios_if_empty()
     _seed_support_qa_training_if_empty()
+    _start_phone_login_followup_recovery_worker()
     # 重要：多進程（例如 uvicorn --workers / WEB_CONCURRENCY）下，startup 會在每個 worker 執行一次。
     # 站內的排程型背景工作（FAQ refresh / smart-nav intel）若不加控管，會造成重複執行、額外寫入與鎖表等待，
     # 影響「搜尋穩定」與 DB 壓力。正式環境建議改由外部排程（scripts/run_daily.ps1 等）運行。
@@ -8144,7 +8550,15 @@ def _case_gallery_url_identity_key(
         return out
 
     if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path_lc:
-        return f"yahoo:{host}{path_lc}"
+        yahoo_variant = ""
+        nf_path = _decode_twice(q_map.get("nf_path") or "").lower()
+        if "noimage" in nf_path or "no_image" in nf_path:
+            yahoo_variant = "|fallback:noimage"
+        elif any(str(k).lower() == "nf_" for k, _v in q_pairs):
+            yahoo_variant = "|fallback:disabled"
+        elif any(str(k).lower().startswith("nf_") for k, _v in q_pairs):
+            yahoo_variant = "|fallback:other"
+        return f"yahoo:{host}{path_lc}{yahoo_variant}"
 
     if ("homes.jp" in host or "homes.co.jp" in host) and ("image.php" in path_lc or "/smallimg/" in path_lc):
         inner = _decode_twice(q_map.get("file") or "")
@@ -8838,6 +9252,7 @@ def _clean_case_body_for_display(text: str) -> str:
         out_lines.append(line)
         skip_url_block = False
     joined = "\n".join(out_lines).strip()
+    joined = strip_public_link_noise(joined)
     if is_listing_cache:
         return re.sub(r"\n{3,}", "\n\n", joined).strip()
     cleaned = sanitize_article_display_body(joined)
@@ -8902,7 +9317,6 @@ def _build_case_original_listing_display(item: dict[str, Any], case_listing_pane
         lines.append(f"{label}：{v if v else fallback}")
 
     title_original = _v(item.get("title_original"))
-    source_url = _v(item.get("item_url") or item.get("source_url"))
     gallery_urls = list((case_listing_panel or {}).get("gallery_property_urls") or [])
     if not gallery_urls:
         gallery_urls = [x.strip() for x in str(item.get("image_urls") or "").splitlines() if x.strip()]
@@ -8943,8 +9357,6 @@ def _build_case_original_listing_display(item: dict[str, Any], case_listing_pane
     if _v(fields.get("next_update_jp")):
         _append(lines, "次回更新予定", fields.get("next_update_jp"))
     lines.append(f"掲載画像：原站素材 {image_count} 枚" if image_count else "掲載画像：—")
-    if source_url:
-        lines.append(f"來源URL：{source_url}")
     return "\n".join(lines).strip()
 
 
@@ -10988,6 +11400,13 @@ def _case_gallery_context_is_non_property_media(url: str, context: str = "") -> 
     text_compact = re.sub(r"\s+", "", text_only)
     if text_compact in ui_exact:
         return True
+    if (
+        "suumo.jp/edit/include/theme/img/" in compact
+        or "/edit/include/theme/img/" in compact
+        or "/edit/include/theme/" in compact
+        or ("suumo." in compact and "k3tsl" in compact)
+    ):
+        return True
     bad_tokens = (
         "/gyousha/",
         "/gyousha/image/",
@@ -11014,6 +11433,74 @@ def _case_gallery_context_is_non_property_media(url: str, context: str = "") -> 
         "お部屋情報",
     )
     if any(tok.lower() in compact for tok in bad_tokens):
+        return True
+    return False
+
+
+def _case_gallery_context_is_text_overlay_media(url: str, context: str = "") -> bool:
+    """Reject portal gallery images whose source context indicates baked marketing text overlays."""
+    try:
+        bag = unquote(f"{url} {context}")
+    except Exception:
+        bag = f"{url} {context}"
+    lower = bag.lower()
+    if "homes.co.jp" not in lower and "homes.jp" not in lower:
+        return False
+    if "homes_playwright_detail" not in lower and "homes_media_repair" not in lower:
+        return False
+    text_only = re.sub(r"https?://\S+", " ", str(context or ""))
+    text_only = re.sub(r"\b(?:homes_playwright_detail|homes_media_repair|image|type|source|note)\b", " ", text_only, flags=re.I)
+    compact = re.sub(r"\s+", "", text_only)
+    if not compact:
+        return False
+    safe_labels = {
+        "外観",
+        "外觀",
+        "間取り",
+        "間取",
+        "洋室",
+        "和室",
+        "浴室",
+        "トイレ",
+        "キッチン",
+        "玄関",
+        "廊下",
+        "洗面",
+        "バルコニー",
+        "リビング",
+        "ダイニング",
+    }
+    if compact in safe_labels:
+        return False
+    if "..." in compact or "…" in compact:
+        return True
+    if re.search(r"\d+(?:\.\d+)?(?:帖|畳|ldk|dk|k)", compact, flags=re.I):
+        return True
+    overlay_tokens = (
+        "広々",
+        "広い",
+        "ゆとり",
+        "明る",
+        "採光",
+        "収納",
+        "清潔感",
+        "機能性",
+        "ペット",
+        "駐車",
+        "駅徒歩",
+        "南向き",
+        "角部屋",
+        "リフォーム",
+        "リノベ",
+        "家具",
+        "エアコン",
+        "設備",
+        "家族",
+        "会話",
+        "空間",
+        "眺望",
+    )
+    if len(compact) >= 8 and any(tok.lower() in compact.lower() for tok in overlay_tokens):
         return True
     return False
 
@@ -11865,6 +12352,9 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         if bool(audit.get("is_polluted")):
             continue
         if _case_gallery_context_is_non_property_media(u, context):
+            continue
+        cached_static = _case_image_cached_static_url(u)
+        if cached_static and _case_gallery_local_quality_issue(cached_static):
             continue
         seen.add(key)
         if key in agent_keys or is_likely_agent_portrait_image_url(u):
@@ -23877,11 +24367,13 @@ def _case_representative_selection_batch(
             }
         if "content_id" not in res:
             res = {**res, "content_id": int(d.get("content_id") or 0)}
+        result_status = str(res.get("status") or "").strip().lower()
+        is_empty_result = result_status in ("empty", "no_images", "no_candidates")
         if bool(res.get("ok")):
             ok_count += 1
-        else:
+        elif not is_empty_result:
             failed_count += 1
-        if str(res.get("status") or "").strip().lower() in ("empty", "no_images", "no_candidates"):
+        if is_empty_result:
             empty_count += 1
         results.append(res)
         review_items.append(_case_representative_review_item(d, res))
@@ -24421,7 +24913,9 @@ def api_admin_cases_audit_gallery_images(payload: AdminGalleryImageAuditPost, re
     lim = max(1, min(80, int(payload.limit or 24)))
     off = max(0, min(500000, int(payload.offset or 0)))
     sql_extra = ""
-    if bool(payload.only_missing):
+    force_reaudit = bool(payload.force_reaudit)
+    remove_low_quality = bool(payload.remove_low_quality)
+    if bool(payload.only_missing) and not force_reaudit:
         sql_extra = "AND a.source_item_id IS NULL"
     with get_conn() as conn:
         rows = conn.execute(
@@ -24468,11 +24962,16 @@ def api_admin_cases_audit_gallery_images(payload: AdminGalleryImageAuditPost, re
     results: list[dict[str, Any]] = []
     ok_count = 0
     polluted_count = 0
+    low_quality_count = 0
     removed_count = 0
     for row in rows:
         d = dict(row)
         try:
-            res = _case_audit_gallery_images_for_row(d, limit=16)
+            res = _case_audit_gallery_images_for_row(
+                d,
+                limit=80,
+                remove_low_quality=remove_low_quality,
+            )
         except Exception as exc:
             _log_backend_error("case-gallery-audit-batch", exc)
             res = {
@@ -24483,6 +24982,7 @@ def api_admin_cases_audit_gallery_images(payload: AdminGalleryImageAuditPost, re
         if bool(res.get("ok")):
             ok_count += 1
             polluted_count += int(res.get("polluted") or 0)
+            low_quality_count += int(res.get("low_quality") or 0)
             removed_count += int(res.get("removed") or 0)
         results.append(res)
     if removed_count > 0:
@@ -24495,10 +24995,13 @@ def api_admin_cases_audit_gallery_images(payload: AdminGalleryImageAuditPost, re
             "processed": len(results),
             "classified_cases": ok_count,
             "polluted_images": polluted_count,
+            "low_quality_images": low_quality_count,
             "removed_images": removed_count,
             "offset": off,
             "limit": lim,
-            "only_missing": bool(payload.only_missing),
+            "only_missing": bool(payload.only_missing) and not force_reaudit,
+            "force_reaudit": force_reaudit,
+            "remove_low_quality": remove_low_quality,
             "gemini_configured": is_gemini_configured(),
             "results": results,
         }
@@ -25099,12 +25602,44 @@ def api_admin_cases_media_review(
     _require_admin_password(request)
     page = max(1, int(page))
     page_size = min(100, max(5, int(page_size)))
-    for _ in range(3):
-        retry = _case_retry_polluted_gallery_cleanup(limit=80)
-        if int(retry.get("attempted") or 0) <= 0:
-            break
+    # Keep the review list fast and predictable. Pollution cleanup and stale audit
+    # pruning are performed by audit/batch actions; the list endpoint only reports
+    # cases that still need manual attention.
 
-    select_sql = """
+    review_from_where_sql = """
+        FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
+        JOIN content_items c ON c.source_item_id = s.id
+        LEFT JOIN case_representative_images r ON r.source_item_id = s.id
+        LEFT JOIN (
+            SELECT source_item_id,
+                   COUNT(1) AS audit_count,
+                   SUM(CASE WHEN is_polluted THEN 1 ELSE 0 END) AS polluted_count,
+                   SUM(CASE WHEN is_polluted AND cleanup_attempts < 3 THEN 1 ELSE 0 END) AS auto_polluted_count,
+                   SUM(CASE WHEN is_polluted AND cleanup_attempts >= 3 THEN 1 ELSE 0 END) AS failed_polluted_count,
+                   MAX(cleanup_attempts) AS max_cleanup_attempts,
+                   MAX(cleanup_last_error) AS cleanup_last_error
+            FROM case_gallery_image_audit
+            GROUP BY source_item_id
+        ) ga ON ga.source_item_id = s.id
+        WHERE COALESCE(s.content_kind, '') = 'jp_listing'
+          AND (
+            r.source_item_id IS NULL
+            OR COALESCE(r.status, '') IN ('', 'empty', 'fallback', 'rules')
+            OR COALESCE(r.representative_static_url, '') = ''
+            OR (
+              COALESCE(r.status, '') IN ('selected', 'fallback', 'rules', 'manual')
+              AND COALESCE(r.backup_static_urls_json, '[]') IN ('', '[]')
+            )
+            OR COALESCE(ga.failed_polluted_count, 0) > 0
+            OR (
+              TRIM(COALESCE(s.hero_image_url, '')) = ''
+              AND TRIM(COALESCE(s.thumbnail_url, '')) = ''
+              AND TRIM(COALESCE(s.image_urls, '')) = ''
+              AND TRIM(COALESCE(c.listing_media_json, '')) IN ('', '[]')
+            )
+          )
+    """
+    select_sql = f"""
         SELECT
           c.id AS content_id,
           c.source_item_id,
@@ -25135,47 +25670,17 @@ def api_admin_cases_media_review(
           COALESCE(ga.failed_polluted_count, 0) AS gallery_failed_polluted_count,
           COALESCE(ga.max_cleanup_attempts, 0) AS gallery_max_cleanup_attempts,
           COALESCE(ga.cleanup_last_error, '') AS gallery_cleanup_last_error
-        FROM content_items c
-        JOIN source_items s ON s.id = c.source_item_id
-        LEFT JOIN case_representative_images r ON r.source_item_id = s.id
-        LEFT JOIN (
-            SELECT source_item_id,
-                   COUNT(1) AS audit_count,
-                   SUM(CASE WHEN is_polluted THEN 1 ELSE 0 END) AS polluted_count,
-                   SUM(CASE WHEN is_polluted AND cleanup_attempts < 3 THEN 1 ELSE 0 END) AS auto_polluted_count,
-                   SUM(CASE WHEN is_polluted AND cleanup_attempts >= 3 THEN 1 ELSE 0 END) AS failed_polluted_count,
-                   MAX(cleanup_attempts) AS max_cleanup_attempts,
-                   MAX(cleanup_last_error) AS cleanup_last_error
-            FROM case_gallery_image_audit
-            GROUP BY source_item_id
-        ) ga ON ga.source_item_id = s.id
-        WHERE COALESCE(s.content_kind, '') = 'jp_listing'
-          AND (
-            r.source_item_id IS NULL
-            OR COALESCE(r.status, '') IN ('', 'empty', 'fallback', 'rules')
-            OR COALESCE(r.status, '') IN ('selected', 'manual')
-            OR COALESCE(r.representative_static_url, '') = ''
-            OR COALESCE(r.backup_static_urls_json, '[]') IN ('', '[]')
-            OR COALESCE(ga.failed_polluted_count, 0) > 0
-            OR (
-              TRIM(COALESCE(s.hero_image_url, '')) = ''
-              AND TRIM(COALESCE(s.thumbnail_url, '')) = ''
-              AND TRIM(COALESCE(s.image_urls, '')) = ''
-              AND TRIM(COALESCE(c.listing_media_json, '')) IN ('', '[]')
-            )
-          )
+        {review_from_where_sql}
         ORDER BY
-          CASE
-            WHEN COALESCE(ga.failed_polluted_count, 0) > 0 THEN 0
-            WHEN COALESCE(r.status, '') IN ('', 'empty') THEN 1
-            WHEN COALESCE(r.representative_static_url, '') = '' THEN 2
-            ELSE 3
-          END ASC,
-          c.updated_at DESC,
-          c.id DESC
+          s.last_checked_at DESC,
+          s.id DESC
+        LIMIT ? OFFSET ?
     """
     with get_conn() as conn:
-        rows = conn.execute(select_sql).fetchall()
+        start = (page - 1) * page_size
+        rows = conn.execute(select_sql, (page_size + 1, start)).fetchall()
+    has_more = len(rows) > page_size
+    rows = rows[:page_size]
 
     review_items: list[dict[str, Any]] = []
     for row in rows:
@@ -25283,17 +25788,16 @@ def api_admin_cases_media_review(
             }
         )
 
-    total = len(review_items)
-    start = (page - 1) * page_size
-    page_items = review_items[start : start + page_size]
     return JSONResponse(
         {
             "ok": True,
-            "total": total,
+            "total": start + len(review_items) + (1 if has_more else 0),
+            "total_is_estimate": True,
+            "has_more": has_more,
             "page": page,
             "page_size": page_size,
             "gemini_configured": is_gemini_configured(),
-            "items": page_items,
+            "items": review_items,
         }
     )
 
@@ -27587,6 +28091,341 @@ def _validate_support_human_intake_questionnaire(
         raise HTTPException(status_code=400, detail="請先勾選聲明同意，人工顧問才會回覆。")
 
 
+def _utc_iso_now() -> str:
+    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+def _claim_phone_login_followup(hid: int) -> dict[str, Any] | None:
+    hid = int(hid or 0)
+    if hid <= 0:
+        return None
+    now = _utc_iso_now()
+    stale_before = (datetime.utcnow() - timedelta(minutes=8)).replace(microsecond=0).isoformat() + "Z"
+    try:
+        with get_conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE human_handoff_requests
+                SET followup_status = 'running',
+                    followup_attempts = COALESCE(followup_attempts, 0) + 1,
+                    followup_started_at = ?,
+                    followup_last_error = ''
+                WHERE id = ?
+                  AND action_id = 'phone_login'
+                  AND (
+                    COALESCE(followup_status, '') IN ('', 'pending', 'retry')
+                    OR (
+                      COALESCE(followup_status, '') = 'running'
+                      AND COALESCE(followup_started_at, '') < ?
+                    )
+                  )
+                """,
+                (now, hid, stale_before),
+            )
+            if int(cur.rowcount or 0) <= 0:
+                conn.commit()
+                return None
+            row = conn.execute(
+                """
+                SELECT
+                    id, name, phone, email, note, action_id, session_id,
+                    matched_scene_id, matched_scene_label, context_message, opinion,
+                    questionnaire_json, conversation_json, scenario_weights_json,
+                    followup_attempts, followup_telegram_sent, followup_line_sent
+                FROM human_handoff_requests
+                WHERE id = ?
+                LIMIT 1
+                """,
+                (hid,),
+            ).fetchone()
+            conn.commit()
+            return dict(row) if row else None
+    except Exception as exc:
+        _log_backend_error("phone-login-followup-claim", exc)
+        return None
+
+
+def _mark_phone_login_followup_done(hid: int, *, telegram_sent: bool, line_sent: bool) -> None:
+    if int(hid or 0) <= 0:
+        return
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE human_handoff_requests
+                SET followup_status = 'done',
+                    followup_last_error = '',
+                    followup_finished_at = ?,
+                    followup_telegram_sent = CASE WHEN ? THEN 1 ELSE followup_telegram_sent END,
+                    followup_line_sent = CASE WHEN ? THEN 1 ELSE followup_line_sent END
+                WHERE id = ?
+                """,
+                (_utc_iso_now(), 1 if telegram_sent else 0, 1 if line_sent else 0, int(hid)),
+            )
+            conn.commit()
+    except Exception as exc:
+        _log_backend_error("phone-login-followup-done", exc)
+
+
+def _mark_phone_login_followup_retry(hid: int, error: str) -> None:
+    if int(hid or 0) <= 0:
+        return
+    err = str(error or "")[:500]
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(followup_attempts, 0) AS attempts FROM human_handoff_requests WHERE id = ?",
+                (int(hid),),
+            ).fetchone()
+            attempts = int(row["attempts"] or 0) if row else 0
+            status = "failed" if attempts >= 5 else "retry"
+            conn.execute(
+                """
+                UPDATE human_handoff_requests
+                SET followup_status = ?,
+                    followup_last_error = ?,
+                    followup_finished_at = ?
+                WHERE id = ?
+                """,
+                (status, err, _utc_iso_now(), int(hid)),
+            )
+            conn.commit()
+    except Exception as exc:
+        _log_backend_error("phone-login-followup-retry", exc)
+
+
+def _decode_handoff_json_list(raw: Any) -> list:
+    try:
+        val = json.loads(str(raw or "[]"))
+        return val if isinstance(val, list) else []
+    except Exception:
+        return []
+
+
+def _decode_handoff_json_dict(raw: Any) -> dict[str, Any]:
+    try:
+        val = json.loads(str(raw or "{}"))
+        return val if isinstance(val, dict) else {}
+    except Exception:
+        return {}
+
+
+def _recover_pending_phone_login_followups_once(*, limit: int = 12) -> int:
+    lim = max(1, min(50, int(limit or 12)))
+    stale_before = (datetime.utcnow() - timedelta(minutes=8)).replace(microsecond=0).isoformat() + "Z"
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT id
+                FROM human_handoff_requests
+                WHERE action_id = 'phone_login'
+                  AND (
+                    COALESCE(followup_status, '') IN ('pending', 'retry')
+                    OR (
+                      COALESCE(followup_status, '') = 'running'
+                      AND COALESCE(followup_started_at, '') < ?
+                    )
+                  )
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (stale_before, lim),
+            ).fetchall()
+    except Exception as exc:
+        _log_backend_error("phone-login-followup-recovery-load", exc)
+        return 0
+    started = 0
+    for row in rows:
+        hid = int(dict(row).get("id") or 0)
+        if hid <= 0:
+            continue
+        try:
+            threading.Thread(
+                target=_human_intake_phone_login_followup,
+                kwargs={"hid": hid},
+                daemon=True,
+                name=f"phone-login-followup-retry-{hid}",
+            ).start()
+            started += 1
+        except Exception as exc:
+            _log_backend_error("phone-login-followup-recovery-start-item", exc)
+    return started
+
+
+def _human_intake_phone_login_followup(
+    *,
+    hid: int,
+    name: str = "",
+    phone: str = "",
+    email: str = "",
+    note: str = "",
+    opinion: str = "",
+    action_id: str = "phone_login",
+    session_id: str = "",
+    matched_scene_id: str = "",
+    matched_scene_label: str = "",
+    context_message: str = "",
+    conv_list: list | None = None,
+    weights: list | None = None,
+    questionnaire_text: str = "",
+) -> None:
+    """Run expensive phone-login handoff sync after the login response returns."""
+    claimed = _claim_phone_login_followup(hid)
+    if not claimed:
+        return
+    name = name or str(claimed.get("name") or "")[:120]
+    phone = phone or str(claimed.get("phone") or "")[:80]
+    email = email or str(claimed.get("email") or "")[:160]
+    note = note or str(claimed.get("note") or "")[:2000]
+    action_id = action_id or str(claimed.get("action_id") or "phone_login")[:80]
+    session_id = session_id or str(claimed.get("session_id") or "")[:120]
+    matched_scene_id = matched_scene_id or str(claimed.get("matched_scene_id") or "")[:80]
+    matched_scene_label = matched_scene_label or str(claimed.get("matched_scene_label") or "")[:160]
+    context_message = context_message or str(claimed.get("context_message") or "")[:2000]
+    opinion = opinion or str(claimed.get("opinion") or "")[:2000]
+    if conv_list is None:
+        conv_list = _decode_handoff_json_list(claimed.get("conversation_json"))
+    if weights is None:
+        weights = _decode_handoff_json_list(claimed.get("scenario_weights_json"))
+    if not questionnaire_text:
+        questionnaire = _decode_handoff_json_dict(claimed.get("questionnaire_json"))
+        questionnaire_text = _format_support_human_questionnaire_text(questionnaire) if questionnaire else ""
+    telegram_already_sent = bool(int(claimed.get("followup_telegram_sent") or 0))
+    line_already_sent = bool(int(claimed.get("followup_line_sent") or 0))
+    telegram_sent_now = False
+    line_sent_now = False
+    try:
+        conv_prompt = _handoff_conversation_for_prompt(conv_list)
+        interest_cases = _load_support_session_interest_cases(session_id, limit=20)
+        last_user_msg = ""
+        for turn in reversed(conv_list):
+            if not isinstance(turn, dict):
+                continue
+            if str(turn.get("role") or "").strip().lower() == "user":
+                last_user_msg = str(turn.get("content") or "").strip()
+                if last_user_msg:
+                    break
+        ai_summary = _ai_summarize_handoff_ticket(
+            name=name,
+            phone=phone,
+            email=email,
+            note=note,
+            opinion=opinion,
+            action_id=action_id,
+            context_message=context_message,
+            scenario_weights=weights,
+            interest_cases=interest_cases,
+            conversation_text=conv_prompt,
+        )
+        if hid > 0 and ai_summary:
+            try:
+                with get_conn() as conn:
+                    conn.execute(
+                        "UPDATE human_handoff_requests SET ai_handoff_summary = ? WHERE id = ?",
+                        (ai_summary[:8000], hid),
+                    )
+                    conn.commit()
+            except Exception as exc:
+                _log_backend_error("phone-login-summary-update", exc)
+        try:
+            eval_msg = context_message or last_user_msg or "號碼登入／顧問留單"
+            eval_knowledge = {
+                "row_count": 0,
+                "distinct_sources": 0,
+                "skipped_lookup": True,
+                "selected_case_count": len(interest_cases),
+                "managed_case_count": 0,
+                "featured_count": 0,
+                "property_listing_intent": bool(interest_cases),
+                "selected_cases": interest_cases,
+            }
+            eval_sales = {
+                "session_id": session_id,
+                "human_handoff_intent": True,
+                "should_notify_human": True,
+                "lead_capture": _support_lead_capture_blueprint(eval_msg, eval_knowledge, human_intent=True),
+            }
+            eval_scene = None
+            if weights:
+                top_w = dict(weights[0])
+                eval_scene = {
+                    "id": top_w.get("scene_id") or "",
+                    "label": top_w.get("label") or "",
+                    "keywords": top_w.get("keywords_matched") or [],
+                }
+            bot_eval = _build_support_bot_self_eval(
+                message=eval_msg,
+                reply=ai_summary or "已建立號碼登入顧問留單。",
+                knowledge_meta=eval_knowledge,
+                sales_mcp=eval_sales,
+                llm_meta={
+                    "enabled": bool(is_llm_configured(resolve_llm_provider(None))),
+                    "crm_prompt_injected": bool(_support_crm_enabled_runtime()),
+                },
+                matched_scene=eval_scene,
+                matched_qa=None,
+            )
+            _save_support_bot_self_eval(session_id=session_id, message=eval_msg, bot_eval=bot_eval)
+        except Exception as exc:
+            _log_backend_error("phone-login-bot-eval", exc)
+        tg_body = _build_handoff_telegram_body(
+            name=name,
+            phone=phone,
+            email=email,
+            note=note,
+            action_id=action_id,
+            session_id=session_id,
+            matched_scene_id=matched_scene_id,
+            matched_scene_label=matched_scene_label,
+            context_message=context_message,
+            opinion=opinion,
+            weights=weights,
+            interest_cases=interest_cases,
+            ai_summary=ai_summary,
+            questionnaire_text=questionnaire_text,
+        )
+        notify_errors: list[str] = []
+        if (not telegram_already_sent) and _support_notify_channel_enabled("telegram"):
+            try:
+                _telegram_send_and_bridge(tg_body, session_id, "human_handoff")
+                telegram_sent_now = True
+                with get_conn() as conn:
+                    conn.execute(
+                        "UPDATE human_handoff_requests SET followup_telegram_sent = 1 WHERE id = ?",
+                        (int(hid),),
+                    )
+                    conn.commit()
+            except Exception as exc:
+                err = _sanitize_telegram_error_detail(exc)[:300]
+                notify_errors.append(f"telegram: {err}")
+                _log_backend_error("phone-login-telegram-notify", err)
+        if (not line_already_sent) and _support_notify_channel_enabled("line"):
+            try:
+                _line_send_and_bridge(tg_body[:4900], session_id, "human_handoff")
+                line_sent_now = True
+                with get_conn() as conn:
+                    conn.execute(
+                        "UPDATE human_handoff_requests SET followup_line_sent = 1 WHERE id = ?",
+                        (int(hid),),
+                    )
+                    conn.commit()
+            except Exception as exc:
+                err = _sanitize_line_error_detail(exc)[:300]
+                notify_errors.append(f"line: {err}")
+                _log_backend_error("phone-login-line-notify", err)
+        if notify_errors:
+            raise RuntimeError("; ".join(notify_errors))
+        _mark_phone_login_followup_done(
+            hid,
+            telegram_sent=telegram_already_sent or telegram_sent_now,
+            line_sent=line_already_sent or line_sent_now,
+        )
+    except Exception as exc:
+        _mark_phone_login_followup_retry(hid, str(exc))
+        _log_backend_error("phone-login-followup", exc)
+
+
 def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONResponse:
     name = (payload.name or "").strip()[:120]
     phone = (payload.phone or "").strip()[:80]
@@ -27634,6 +28473,7 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
     matched_scene_label = (payload.matched_scene_label or "").strip()[:160]
     context_message = (payload.context_message or "").strip()[:2000]
     conv_list: list = list(payload.conversation) if isinstance(payload.conversation, list) else []
+    is_phone_login = action_id == "phone_login"
     weights = _compute_scenario_weights_for_handoff(conv_list, highlight_scene_id=matched_scene_id)
     weights_json = json.dumps(weights, ensure_ascii=False)[:120000]
     conv_json = _serialize_handoff_conversation(payload.conversation)
@@ -27649,9 +28489,9 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
                     INSERT INTO human_handoff_requests (
                         name, phone, email, note, user_agent,
                         action_id, session_id, matched_scene_id, matched_scene_label, context_message, opinion,
-                        questionnaire_json, conversation_json, scenario_weights_json, ai_handoff_summary
+                        questionnaire_json, conversation_json, scenario_weights_json, ai_handoff_summary, followup_status
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
                     """,
                     (
                         name,
@@ -27668,6 +28508,7 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
                         questionnaire_json,
                         conv_json,
                         weights_json,
+                        "pending" if is_phone_login else "",
                     ),
                 )
                 hid = int(cur.lastrowid or 0)
@@ -27686,6 +28527,51 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
             raise HTTPException(status_code=503, detail=f"資料庫寫入失敗：{exc}") from exc
     if last_err is not None:
         raise HTTPException(status_code=503, detail=f"資料庫寫入失敗：{last_err}") from last_err
+    if is_phone_login:
+        try:
+            threading.Thread(
+                target=_human_intake_phone_login_followup,
+                kwargs={
+                    "hid": hid,
+                    "name": name,
+                    "phone": phone,
+                    "email": email,
+                    "note": note,
+                    "opinion": opinion,
+                    "action_id": action_id,
+                    "session_id": session_id,
+                    "matched_scene_id": matched_scene_id,
+                    "matched_scene_label": matched_scene_label,
+                    "context_message": context_message,
+                    "conv_list": conv_list,
+                    "weights": weights,
+                    "questionnaire_text": questionnaire_text,
+                },
+                daemon=True,
+                name=f"phone-login-followup-{hid or 0}",
+            ).start()
+        except Exception as exc:
+            _log_backend_error("phone-login-followup-start", exc)
+        return JSONResponse(
+            {
+                "ok": True,
+                "handoff_id": hid,
+                "session_id": session_id,
+                "scenario_weights": weights,
+                "interested_cases": [],
+                "ai_handoff_summary": "",
+                "telegram_sent": False,
+                "telegram_error": "",
+                "line_sent": False,
+                "line_error": "",
+                "notify_channels": _support_notify_channels(),
+                "line_qr_url": "/static/human-handoff/line.png",
+                "wechat_qr_url": "/static/human-handoff/wechat.png",
+                "fast_login": True,
+                "sync_pending": True,
+                "notify_pending": True,
+            }
+        )
     conv_prompt = _handoff_conversation_for_prompt(conv_list)
     interest_cases = _load_support_session_interest_cases(session_id, limit=20)
     last_user_msg = ""
@@ -29806,6 +30692,20 @@ def _portal_case_apply_representative_media(items: list[dict[str, Any]]) -> list
                 context=rep_context,
                 profile=rep_profile,
             )
+        if not gallery:
+            gallery = _dedupe_case_gallery_urls(
+                [
+                    _normalize_listing_image_url_for_display(
+                        str(u or "").strip(),
+                        suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                        suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+                    )
+                    for u in fallback_candidates
+                    if str(u or "").strip() and _is_case_property_gallery_image_url(str(u or "").strip())
+                ],
+                suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+            )[:8]
         if gallery:
             nit["thumb_url"] = gallery[0]
             nit["gallery_urls"] = gallery
@@ -29954,7 +30854,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
             "offset": page_offset if page_size > 0 else 0,
             "page_size": page_size if page_size > 0 else 0,
             "detail_gate": "openable-v1",
-            "media_policy": "detail-panel-gallery-v7",
+            "media_policy": "detail-panel-gallery-v10",
         }
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
@@ -30020,8 +30920,9 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
                 item["jp_region_display_zh"] = response_region_hint
     items_bf, detail_gate_meta = _portal_case_filter_openable_detail_items(items_bf)
     items_bf = _portal_case_prioritize_displayable_media(items_bf)
-    items_bf = _portal_case_apply_representative_media(items_bf)
-    _case_schedule_representative_selection(items_bf[: min(len(items_bf), 4)], limit=4)
+    if page_size <= 0:
+        items_bf = _portal_case_apply_representative_media(items_bf)
+        _case_schedule_representative_selection(items_bf[: min(len(items_bf), 4)], limit=4)
     data["items"] = items_bf
     data["portal_detail_gate"] = detail_gate_meta
     if page_size > 0:
@@ -31418,6 +32319,9 @@ def _article_related_news_fast(
                 SELECT
                     c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category, c.intent_target, c.updated_at,
                     s.source_name, s.item_url, s.access_status,
+                    s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
+                    s.thumbnail_url, s.hero_image_url,
+                    COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                     COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                 FROM content_items c INDEXED BY {idx_name}
                 JOIN source_items s ON s.id = c.source_item_id
@@ -31600,6 +32504,11 @@ def _related_article_row_lite(row: Any) -> dict[str, Any]:
             "updated_at",
             "access_status",
             "source_content_kind",
+            "image_urls",
+            "body_original",
+            "listing_media_json",
+            "thumbnail_url",
+            "hero_image_url",
         ),
     )
     sid = int(d.get("source_item_id") or 0)
@@ -31614,6 +32523,22 @@ def _related_article_row_lite(row: Any) -> dict[str, Any]:
         src = _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or "")
         title = f"{src or '站內'} 案件 #{sid}" if sid > 0 else (src or "站內案件")
     d["seo_title"] = title
+    thumb = ""
+    try:
+        thumb = str(
+            _first_thumb(
+                str(d.get("image_urls") or ""),
+                str(d.get("body_original") or ""),
+                str(d.get("listing_media_json") or ""),
+                item_url=str(d.get("item_url") or ""),
+            )
+            or ""
+        ).strip()
+    except Exception:
+        thumb = ""
+    if not thumb:
+        thumb = str(d.get("hero_image_url") or d.get("thumbnail_url") or "").strip()
+    d["thumb_url"] = thumb
     return d
 
 
@@ -31656,6 +32581,9 @@ def _related_articles_lite_fallback_rows(
                     c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category,
                     c.intent_target, c.updated_at,
                     s.source_name, s.item_url, s.access_status,
+                    s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
+                    s.thumbnail_url, s.hero_image_url,
+                    COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                     COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                 FROM content_items c
                 JOIN source_items s ON s.id = c.source_item_id
@@ -31707,6 +32635,9 @@ def _related_articles_lite_fallback_rows(
                         c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category,
                         c.intent_target, c.updated_at,
                         s.source_name, s.item_url, s.access_status,
+                        s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
+                        s.thumbnail_url, s.hero_image_url,
+                        COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                         COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                     FROM jp_listing_region_index ri INDEXED BY idx_jp_listing_region_sort_time
                     JOIN content_items c ON c.source_item_id = ri.source_item_id
@@ -31731,6 +32662,9 @@ def _related_articles_lite_fallback_rows(
                     c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category,
                     c.intent_target, c.updated_at,
                     s.source_name, s.item_url, s.access_status,
+                    s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
+                    s.thumbnail_url, s.hero_image_url,
+                    COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                     COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                 FROM content_items c
                 JOIN source_items s ON s.id = c.source_item_id

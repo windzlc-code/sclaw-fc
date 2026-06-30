@@ -160,6 +160,56 @@ _RE_SUUMO_RESIZE_SPLIT = re.compile(
     r"(https://img\d*\.suumo\.com/jj/resizeImage)(?:\s*\n\s*|\s+)(src=[^\s\]\)\"']+)",
     flags=re.IGNORECASE,
 )
+_RE_PUBLIC_DISPLAY_URL = re.compile(r"https?://[^\s\]\)\"'<>]+", flags=re.IGNORECASE)
+_RE_PUBLIC_LINK_NOISE_LABEL = re.compile(
+    r"^\s*(?:[-－*•・]\s*)?"
+    r"(?:"
+    r"來源|来源|來源URL|来源URL|來源網址|来源网址|來源連結|来源链接|"
+    r"圖片網址|图片网址|圖片頁|图片页|物件參考圖像\s*URL|image\s*urls?|source\s*url"
+    r")\s*[:：]?",
+    flags=re.IGNORECASE,
+)
+_RE_PUBLIC_IMAGE_URL_FRAGMENT = re.compile(
+    r"(?:resizeImage\?|/jj/resizeImage|src=|gazo%2F|image\.php|img\d*\.suumo\.(?:com|jp)|/image_files/path/)",
+    flags=re.IGNORECASE,
+)
+_RE_PUBLIC_HTML_TAG = re.compile(r"<[^>\n]{1,240}>")
+
+
+def strip_public_link_noise(text: str) -> str:
+    """Remove raw source/image URL fragments from public article and case narrative text."""
+    raw = html.unescape(str(text or ""))
+    if not raw.strip():
+        return ""
+    out_lines: list[str] = []
+    skip_url_block = False
+    for raw_line in raw.splitlines():
+        line = _RE_PUBLIC_HTML_TAG.sub("", str(raw_line or "")).strip()
+        if not line:
+            if out_lines and out_lines[-1] != "":
+                out_lines.append("")
+            continue
+        has_label = bool(_RE_PUBLIC_LINK_NOISE_LABEL.match(line))
+        has_url = bool(_RE_PUBLIC_DISPLAY_URL.search(line))
+        has_img_fragment = bool(_RE_PUBLIC_IMAGE_URL_FRAGMENT.search(line))
+        if has_label and (has_url or has_img_fragment or len(line) <= 48):
+            skip_url_block = True
+            continue
+        if skip_url_block and (has_url or has_img_fragment):
+            continue
+        skip_url_block = False
+        if _RE_PUBLIC_DISPLAY_URL.fullmatch(line):
+            continue
+        if has_url:
+            if has_img_fragment:
+                continue
+            line = _RE_PUBLIC_DISPLAY_URL.sub("", line).strip(" \t　｜|:：,，;；。()（）[]【】")
+            if not line or _RE_PUBLIC_LINK_NOISE_LABEL.match(line):
+                continue
+        if _RE_PUBLIC_IMAGE_URL_FRAGMENT.search(line):
+            continue
+        out_lines.append(line)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out_lines)).strip()
 
 
 def _suumo_resize_url_is_safe(url: str) -> bool:
@@ -233,6 +283,7 @@ def sanitize_article_display_body(text: str) -> str:
         t = _RE_DISCLAIMER_HANS_SENT.sub("", t)
     # 常見誤植：「衝縄」應為沖繩一帶的「沖縄」
     t = t.replace("衝縄", "沖縄")
+    t = strip_public_link_noise(t)
     t = strip_disclaimer_noise_for_keypoints(t)
     t = re.sub(r"[ \t\u3000]{2,}", " ", t)
     t = re.sub(r"\n{3,}", "\n\n", t).strip()

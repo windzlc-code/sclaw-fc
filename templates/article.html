@@ -6,7 +6,7 @@
   <title>{{ item.seo_title }}</title>
   <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260630-deploy-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260630-mobile-c">
   <link rel="canonical" href="{{ site_url }}{{ item.article_path }}">
   <link rel="alternate" hreflang="zh-Hant" href="{{ site_url }}{{ item.article_path }}">
   <link rel="alternate" hreflang="zh-Hans" href="{{ site_url }}{{ item.article_path }}?lang=zh-hans">
@@ -44,7 +44,7 @@
       <p class="muted" style="margin:0.5rem 0 0;">圖像取自來源官網公開素材；點主圖另開原物件頁（與 SUUMO 個別案件頁對照）。</p>
       <div class="article-source-cta-row">
         <a class="article-btn-primary" href="{{ item.item_url }}" target="_blank" rel="nofollow noopener noreferrer">開啟來源網站（個別案件頁）</a>
-        <a class="article-btn-secondary" href="#article-translation">站內翻譯與 AI 解說</a>
+        <a class="article-btn-secondary" href="#article-translation">站內翻譯與重點解說</a>
       </div>
       {% if is_restricted %}
       <p class="article-warn" style="margin-top:0.65rem;">此來源內文可能不完整；請以來源官網為準，並交叉比對 SUUMO／HOMES／AtHome。</p>
@@ -68,7 +68,7 @@
         </div>
       </div>
 
-      <h2 class="article-section-title" style="margin-top:1.25rem;">AI 解說</h2>
+      <h2 class="article-section-title" style="margin-top:1.25rem;">重點解說</h2>
       <div class="article-dual-col article-dual-col-tabbed">
         <div class="article-dual-cell" data-site-lang-pane="hant" data-lang-pane="hant">
           <h4 class="article-dual-sub">必讀重點</h4>
@@ -152,6 +152,12 @@
       <div class="article-related-cards">
         {% for n in related_news %}
         <article class="article-related-card">
+          {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
+          {% if n.thumb_url %}
+          <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
+            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+          </a>
+          {% endif %}
           <div class="article-related-card-head">
             {% if n.source_content_kind == 'jp_listing' %}
             <span class="article-badge-case">案件</span>
@@ -160,7 +166,6 @@
             {% endif %}
             <span class="muted">{{ n.region_code or '' }}</span>
           </div>
-          {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
           <h3 class="article-related-title"><a href="{{ related_primary_path }}">{{ n.seo_title }}</a></h3>
           <p class="muted article-related-meta">{{ n.topic_category }}／{{ n.intent_target }}｜更新 {{ n.updated_at or '-' }}</p>
           <p class="article-related-actions">
