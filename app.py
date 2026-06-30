@@ -3090,7 +3090,7 @@ def _case_remove_polluted_gallery_images(source_item_id: int, items: list[dict[s
         with get_conn() as conn:
             row = conn.execute(
                 """
-                SELECT s.image_urls, s.hero_image_url, s.thumbnail_url,
+                SELECT s.image_urls, s.hero_image_url, s.thumbnail_url, s.body_original,
                        COALESCE(c.listing_media_json, '[]') AS listing_media_json
                 FROM source_items s
                 LEFT JOIN content_items c ON c.source_item_id = s.id
@@ -3134,14 +3134,24 @@ def _case_remove_polluted_gallery_images(source_item_id: int, items: list[dict[s
             if len(kept_media) != len(media):
                 media_changed = True
 
-            if kept_lines != image_lines or hero_new != hero or thumb_new != thumb:
+            body_changed = False
+            body_original = str(d.get("body_original") or "")
+            body_new = body_original
+            if body_original:
+                for body_url in _extract_image_urls_from_plain_blob(body_original, limit=2000):
+                    if _is_removed_url(body_url):
+                        removed_urls.append(body_url)
+                        body_new = body_new.replace(body_url, "")
+                        body_changed = True
+
+            if kept_lines != image_lines or hero_new != hero or thumb_new != thumb or body_changed:
                 conn.execute(
                     """
                     UPDATE source_items
-                    SET image_urls = ?, hero_image_url = ?, thumbnail_url = ?, last_checked_at = last_checked_at
+                    SET image_urls = ?, hero_image_url = ?, thumbnail_url = ?, body_original = ?, last_checked_at = last_checked_at
                     WHERE id = ?
                     """,
-                    ("\n".join(kept_lines), hero_new, thumb_new, sid),
+                    ("\n".join(kept_lines), hero_new, thumb_new, body_new, sid),
                 )
             if media_changed:
                 conn.execute(
@@ -24934,7 +24944,7 @@ def api_admin_cases_audit_gallery_images(payload: AdminGalleryImageAuditPost, re
                 s.source_category,
                 s.item_url,
                 s.title_original,
-                substr(COALESCE(s.body_original, ''), 1, 1200) AS body_original,
+                substr(COALESCE(s.body_original, ''), 1, 50000) AS body_original,
                 s.image_urls,
                 s.thumbnail_url,
                 s.hero_image_url,
