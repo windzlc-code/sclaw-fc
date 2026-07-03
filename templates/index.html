@@ -12314,10 +12314,15 @@
         : mode === 'queueing'
           ? '排隊接待中'
           : '顧問接待中';
+      const queueHint = mode === 'handoff_ready'
+        ? '正在為您接入值班顧問，請稍候…'
+        : '正在確認值班順序，請稍候…';
       return (
         `<div class="support-chat-service-banner support-chat-service-banner--${esc(mode)}">` +
         `<span class="support-chat-service-badge">${esc(modeText)}</span>` +
         `<span class="support-chat-service-label">${label}</span>` +
+        `<span class="support-chat-service-dots" aria-hidden="true"><span></span><span></span><span></span></span>` +
+        `<div class="support-chat-service-hint">${esc(queueHint)}</div>` +
         (text ? `<div class="support-chat-service-text">${text}</div>` : '') +
         '</div>'
       );
@@ -12330,8 +12335,9 @@
       return mode === 'queueing' || mode === 'handoff_ready';
     }
 
-    function waitSupportChatServiceQueue(ms = 2600) {
-      return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+    function waitSupportChatServiceQueue(ms = 520) {
+      const safeMs = Math.min(900, Math.max(0, Number(ms) || 0));
+      return new Promise((resolve) => window.setTimeout(resolve, safeMs));
     }
 
     function supportChatMatchReasonHtml(scene, qa) {
@@ -13361,11 +13367,12 @@
       supportChatHistory.push({ role: 'user', content: msg });
       renderSupportChatMessages();
       stopSupportChatSpeech();
+      const isHumanHandoffMsg = isSupportHumanHandoffMessage(msg);
       const geminiModel = (document.getElementById('seo-draft-gemini-model')?.value || '').trim();
       const ph = String(document.getElementById('seo-draft-gemini-model')?.placeholder || '').trim();
       const pvo = seoLlmProviderPayload().llm_provider;
       const provHint = pvo || (__llmStatusCache && __llmStatusCache.active_provider) || '預設';
-      const thinkingLabel = /人工|真人|顧問|顾问|買房|买房|看屋|看房/.test(msg)
+      const thinkingLabel = isHumanHandoffMsg || /買房|买房|看屋|看房/.test(msg)
         ? '正在安排值班顧問整理需求…'
         : '顧問正在整理回覆…';
       setSupportChatThinking(true, `${geminiModel || ph || 'model'}（${provHint}）`, thinkingLabel);
@@ -13399,7 +13406,7 @@
           body: JSON.stringify({
             message: apiMessage,
             history: hist,
-            use_knowledge: true,
+            use_knowledge: !isHumanHandoffMsg,
             knowledge_query: msg,
             sales_session_id: getSupportSalesSessionId(),
             selected_cases: selectedCasesForThisSend,
@@ -13449,7 +13456,7 @@
             });
             renderSupportChatMessages();
             await waitSupportChatServiceQueue(
-              String(data.sales_mcp?.simulated_service?.mode || '') === 'handoff_ready' ? 3000 : 2400
+              String(data.sales_mcp?.simulated_service?.mode || '') === 'handoff_ready' ? 520 : 420
             );
           }
           const reply = data.reply || data.detail || '（無回覆）';

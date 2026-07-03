@@ -10075,6 +10075,37 @@ body.selected-compare-body {
   color: #203246;
 }
 
+.support-chat-service-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.support-chat-service-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #5f819a;
+  animation: dialogThinkDot 1s ease-in-out infinite;
+}
+
+.support-chat-service-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.support-chat-service-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.support-chat-service-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #587086;
+}
+
 .support-chat-service-text {
   margin-top: 6px;
   font-size: 13px;

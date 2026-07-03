@@ -725,7 +725,8 @@
       supportFallbackHistory = supportFallbackHistory.filter(function (row) { return !(row && row.transientWelcome); });
       supportFallbackHistory.push({ role: 'user', content: text });
       renderSupportFallbackChatMessages();
-      setSupportFallbackThinking(true, /人工|真人|顧問|顾问|買房|买房|看屋|看房/.test(text) ? '正在整理顧問諮詢方向…' : '顧問正在整理回覆…');
+      var humanHandoffText = /(人工|真人|專人|专人|顧問|顾问|業務|业务|銷售|销售|仲介|經紀|经纪)/.test(text);
+      setSupportFallbackThinking(true, humanHandoffText || /買房|买房|看屋|看房/.test(text) ? '正在整理顧問諮詢方向…' : '顧問正在整理回覆…');
       try {
         var selectedCases = readList(selectedKey).slice(0, 20);
         var history = supportFallbackHistory
@@ -739,7 +740,7 @@
           body: JSON.stringify({
             message: text,
             history: history,
-            use_knowledge: true,
+            use_knowledge: !humanHandoffText,
             knowledge_query: text,
             sales_session_id: supportFallbackSalesSessionId(),
             selected_cases: selectedCases,
