@@ -15,6 +15,9 @@ from app import (
     _case_image_cache_hash,
     _case_image_cache_response,
     _case_image_visual_reject_reason,
+    _case_representative_raw_url_allowed,
+    _case_representative_semantic_category,
+    _case_representative_semantic_reject_reason,
     _normalize_listing_image_url_for_display,
     case_static_image_url,
     _listing_media_entries_from_case_row,
@@ -411,6 +414,22 @@ class CaseMediaFilterTests(unittest.TestCase):
                 rel.unlink(missing_ok=True)
             except Exception:
                 pass
+
+    def test_representative_filter_rejects_vending_machine_and_facility_detail(self):
+        context = "中古マンション 2LDK 価格 350万円 静岡県駿東郡小山町須走"
+        urls = [
+            "https://example.test/listing/images/jihanki_01.jpg",
+            "https://example.test/listing/images/vending-machine-coca-cola.jpg",
+            "https://example.test/listing/images/setsubi_takuhaibox.jpg",
+            "https://example.test/listing/images/設備写真_自動販売機.jpg",
+        ]
+        for url in urls:
+            self.assertEqual(_case_representative_semantic_category(url, context), "facility_detail")
+            self.assertEqual(
+                _case_representative_semantic_reject_reason(url, context, profile="apartment"),
+                "weak-semantic-facility_detail",
+            )
+            self.assertFalse(_case_representative_raw_url_allowed(url, context, profile="apartment"))
 
     def test_case_image_cache_response_does_not_serve_cached_placeholder(self):
         try:

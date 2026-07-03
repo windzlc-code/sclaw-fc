@@ -6,7 +6,7 @@
   <title>{{ company_profile.name }}｜{{ site_name }}</title>
   <meta name="description" content="公司背景、服務流程、資訊來源與查詢導引。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260630-smart-geo-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260701-selected-drawer-c">
 </head>
 <body class="site-home site-case-standalone site-buy-guide site-company-profile site-company-luxe site-lang-hant">
   {% include 'partials/site_header.html' %}
@@ -111,7 +111,7 @@
     <section id="company-luxe-contact" class="company-luxe-contact" aria-labelledby="company-luxe-contact-title">
       <div class="company-luxe-section-head">
         <h2 id="company-luxe-contact-title">聯絡方式</h2>
-        <p>跨境不動產諮詢需要清楚的窗口。以下保留公司公開地址、信箱與官方參考頁，方便使用者直接核對與聯絡。</p>
+        <p>跨境不動產諮詢需要清楚的窗口。以下保留公開地址、信箱與官方參考頁，方便使用者直接核對與聯絡。</p>
       </div>
       <div class="company-luxe-contact-grid">
         <article class="company-luxe-contact-card company-luxe-contact-card--primary">
@@ -119,7 +119,9 @@
           <h3>{{ company_profile.name }}</h3>
           <div class="company-luxe-contact-lines">
             <section><strong>所在地</strong><span>{{ company_profile.address }}</span></section>
+            {% if company_profile.contact %}
             <section><strong>Email</strong><a href="mailto:{{ company_profile.contact }}">{{ company_profile.contact }}</a></section>
+            {% endif %}
             {% if company_profile.reference_url %}
             <section><strong>官方參考</strong><a href="{{ company_profile.reference_url }}" target="_blank" rel="nofollow noopener">查看公司服務頁</a></section>
             {% endif %}

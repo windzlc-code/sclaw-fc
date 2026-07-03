@@ -4,25 +4,104 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>收藏案件｜{{ site_name }}</title>
-  <meta name="description" content="查看已收藏的日本不動產案件，快速進入站內明細或移除收藏。">
+  <meta name="description" content="查看已收藏的日本不動產案件，按目標篩選、加入對比或移除收藏。">
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="/static/site.css?v=20260630-smart-geo-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260701-selected-drawer-c">
 </head>
 <body class="site-home site-case-standalone saved-cases-body site-lang-hant">
   {% include 'partials/site_header.html' %}
   <main class="container saved-cases-page">
     <header class="suumo-case-brandbar saved-cases-brandbar">
-      <span class="suumo-case-brandbar-logo">收藏案件</span>
-      <span class="suumo-case-brandbar-src">站內收藏清單 ｜ 明細直達 ｜ public</span>
+      <span class="suumo-case-brandbar-logo">收藏清單</span>
+      <span class="suumo-case-brandbar-src">收藏案件 ｜ 站內功能 ｜ public</span>
     </header>
-    <section class="saved-cases-hero" aria-label="收藏案件總覽">
+    <section class="panel case-suumo-hero-card saved-cases-hero" aria-label="收藏案件總覽">
       <div class="saved-cases-title">
         <h1>收藏案件</h1>
-        <p><strong id="saved-cases-count">0</strong> 筆收藏 · <span id="saved-cases-status">讀取中</span></p>
+        <p><strong id="saved-cases-count">0</strong> 筆收藏 · <span id="saved-cases-filter-count">0</span> 筆符合 · <span id="saved-cases-status">讀取中</span></p>
       </div>
       <div class="saved-cases-actions">
         <button type="button" class="secondary" onclick="window.location.href='/'">返回首頁</button>
         <button id="saved-cases-refresh" type="button" class="primary" onclick="renderSavedCasesPage()">重新整理</button>
+      </div>
+    </section>
+    <section class="saved-cases-filter-panel" aria-label="收藏案件目標篩選">
+      <div class="saved-cases-filter-head">
+        <div>
+          <strong>目標篩選</strong>
+          <span id="saved-cases-filter-owner" class="muted">依目前登入號碼記住篩選習慣</span>
+        </div>
+        <button id="saved-cases-filter-reset" type="button" class="secondary">清除篩選</button>
+      </div>
+      <div class="saved-cases-filter-grid">
+        <label>關鍵字
+          <input id="saved-filter-keyword" type="search" autocomplete="off" placeholder="地區、標題、交通">
+        </label>
+        <label>地區
+          <select id="saved-filter-region">
+            <option value="">全部地區</option>
+          </select>
+        </label>
+        <label>來源
+          <select id="saved-filter-source">
+            <option value="">全部來源</option>
+          </select>
+        </label>
+        <label>物件類型
+          <select id="saved-filter-type">
+            <option value="">全部類型</option>
+          </select>
+        </label>
+        <label>最低總價
+          <select id="saved-filter-price-min">
+            <option value="">不限</option>
+            <option value="500">500萬以上</option>
+            <option value="1000">1,000萬以上</option>
+            <option value="2000">2,000萬以上</option>
+            <option value="3000">3,000萬以上</option>
+            <option value="5000">5,000萬以上</option>
+            <option value="8000">8,000萬以上</option>
+            <option value="10000">1億以上</option>
+          </select>
+        </label>
+        <label>最高總價
+          <select id="saved-filter-price-max">
+            <option value="">不限</option>
+            <option value="1000">1,000萬以下</option>
+            <option value="2000">2,000萬以下</option>
+            <option value="3000">3,000萬以下</option>
+            <option value="5000">5,000萬以下</option>
+            <option value="8000">8,000萬以下</option>
+            <option value="10000">1億以下</option>
+            <option value="15000">1.5億以下</option>
+          </select>
+        </label>
+        <label>最少房數
+          <select id="saved-filter-layout-min">
+            <option value="">不限</option>
+            <option value="1">1房以上</option>
+            <option value="2">2房以上</option>
+            <option value="3">3房以上</option>
+            <option value="4">4房以上</option>
+            <option value="5">5房以上</option>
+          </select>
+        </label>
+        <label>時間排序
+          <select id="saved-filter-sort">
+            <option value="saved_desc">收藏時間新到舊</option>
+            <option value="saved_asc">收藏時間舊到新</option>
+            <option value="case_desc">案件更新新到舊</option>
+            <option value="case_asc">案件更新舊到新</option>
+            <option value="price_desc">價格高到低</option>
+            <option value="price_asc">價格低到高</option>
+          </select>
+        </label>
+        <label>圖片條件
+          <select id="saved-filter-has-image">
+            <option value="">不限</option>
+            <option value="1">只看有圖片</option>
+          </select>
+        </label>
       </div>
     </section>
     <section id="saved-cases-empty" class="saved-cases-empty" hidden>
@@ -36,7 +115,7 @@
     {% include 'partials/seo_site_keywords_strip.html' %}
   </main>
   {% include 'partials/site_footer.html' %}
-  <script src="/static/saved-cases.js?v=20260627-inner-return-a"></script>
+  <script src="/static/saved-cases.js?v=20260701-saved-sync-c"></script>
   {% include 'partials/support_chat_public_fab.html' %}
 </body>
 </html>

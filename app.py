@@ -1430,23 +1430,46 @@ def _case_image_download_to_cache(raw_url: Any) -> str:
         return cached
     headers = dict(BROWSER_HEADERS)
     headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-    try:
-        with httpx.Client(timeout=httpx.Timeout(12.0, connect=4.0), follow_redirects=True, headers=headers) as client:
-            resp = client.get(raw)
-    except Exception:
-        return ""
-    if resp.status_code >= 400 or not resp.content or len(resp.content) > 20 * 1024 * 1024:
-        return ""
-    ctype = str(resp.headers.get("content-type") or "").strip()
-    if ctype and "image" not in ctype.lower() and not re.search(r"\.(?:jpe?g|png|webp|gif|bmp)(?:$|[?&#])", raw, re.I):
-        return ""
+    max_bytes = 20 * 1024 * 1024
+    curl_max_time = max(1.5, min(8.0, float(os.getenv("CASE_IMAGE_DOWNLOAD_MAX_TIME", "2.8") or 2.8)))
+    curl_connect_time = max(0.8, min(curl_max_time, float(os.getenv("CASE_IMAGE_DOWNLOAD_CONNECT_TIME", "1.4") or 1.4)))
     h = _case_image_cache_hash(raw)
     shard_dir = _CASE_IMAGE_CACHE_DIR / h[:2]
     shard_dir.mkdir(parents=True, exist_ok=True)
-    dest = shard_dir / f"{h}{_case_image_cache_ext(raw, ctype)}"
+    dest = shard_dir / f"{h}{_case_image_cache_ext(raw, '')}"
     tmp = dest.with_name(dest.name + ".tmp")
     try:
-        tmp.write_bytes(resp.content)
+        tmp.unlink(missing_ok=True)
+        cmd = [
+            "curl",
+            "--location",
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            f"{curl_max_time:.1f}",
+            "--connect-timeout",
+            f"{curl_connect_time:.1f}",
+            "--max-filesize",
+            str(max_bytes),
+            "--user-agent",
+            str(headers.get("User-Agent") or "Mozilla/5.0"),
+            "--header",
+            f"Accept: {headers['Accept']}",
+            "--output",
+            str(tmp),
+            raw,
+        ]
+        subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=max(2.0, curl_max_time + 1.0),
+            check=True,
+        )
+        if not tmp.exists() or tmp.stat().st_size <= 256 or tmp.stat().st_size > max_bytes:
+            tmp.unlink(missing_ok=True)
+            return ""
         tmp.replace(dest)
     except Exception:
         try:
@@ -1872,12 +1895,32 @@ def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "buil
         "sanitary",
         "washroom",
         "lavatory",
+        "setsubi",
+        "facility",
+        "equipment",
+        "vending",
+        "vendingmachine",
+        "jihanki",
+        "drink",
+        "beverage",
+        "cocacola",
+        "coca-cola",
         "トイレ",
         "便所",
         "浴室",
         "風呂",
         "洗面",
         "脱衣",
+        "設備",
+        "設備写真",
+        "設備画像",
+        "自販機",
+        "自動販売機",
+        "販売機",
+        "飲料",
+        "ドリンク",
+        "宅配ボックス",
+        "インターホン",
         "廁",
         "厕",
         "/map/",
@@ -1929,6 +1972,7 @@ _CASE_REPRESENTATIVE_REJECT_CATEGORIES = {
     "toilet",
     "bath",
     "kitchen_bath",
+    "facility_detail",
     "environment",
 }
 _CASE_REPRESENTATIVE_HARD_REJECT_CATEGORIES = {
@@ -2495,7 +2539,12 @@ def _case_store_representative_image(
         _log_backend_error("case-representative-store", exc)
 
 
-def _case_ai_candidate_pack(row: dict[str, Any], *, limit: int = 8) -> tuple[list[dict[str, Any]], list[str], str]:
+def _case_ai_candidate_pack(
+    row: dict[str, Any],
+    *,
+    limit: int = 8,
+    predownload: bool = True,
+) -> tuple[list[dict[str, Any]], list[str], str]:
     raw_urls = _case_representative_raw_url_candidates(row, limit=32)
     signature = _case_representative_image_signature(raw_urls)
     context = _case_representative_context_text(row)
@@ -2505,21 +2554,27 @@ def _case_ai_candidate_pack(row: dict[str, Any], *, limit: int = 8) -> tuple[lis
         for u in raw_urls
         if _case_representative_raw_url_allowed(u, context, profile=profile)
     ]
-    sorted_raw = _sort_relevant_real_estate_images(raw_candidates, limit=max(16, limit * 2), profile=profile)
+    scan_limit = max(
+        max(1, int(limit or 1)),
+        min(12, int(os.getenv("CASE_REPRESENTATIVE_DOWNLOAD_SCAN_LIMIT", "5") or 5)),
+    )
+    sorted_raw = _sort_relevant_real_estate_images(raw_candidates, limit=scan_limit, profile=profile)
     candidates: list[dict[str, Any]] = []
     for raw in sorted_raw:
-        static_url = _case_image_download_to_cache(raw)
-        if not static_url or not _url_to_local_static_path(static_url):
-            continue
-        reject_reason = _case_image_visual_reject_reason(static_url)
-        if reject_reason:
-            continue
+        static_url = ""
+        if predownload:
+            static_url = _case_image_download_to_cache(raw)
+            if not static_url or not _url_to_local_static_path(static_url):
+                continue
+            reject_reason = _case_image_visual_reject_reason(static_url)
+            if reject_reason:
+                continue
         candidates.append(
             {
                 "index": len(candidates) + 1,
                 "url": raw,
                 "static_url": static_url,
-                "hint": f"{_thumb_kind_label(static_url)}｜{profile}｜{_case_representative_semantic_category(raw)}",
+                "hint": f"{_thumb_kind_label(static_url) if static_url else '未缓存'}｜{profile}｜{_case_representative_semantic_category(raw)}",
             }
         )
         if len(candidates) >= max(1, int(limit or 1)):
@@ -2557,7 +2612,12 @@ def _case_representative_backup_selection(
     return backup_urls, backup_static_urls
 
 
-def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: bool = False) -> dict[str, Any]:
+def _case_select_representative_image_with_ai(
+    row: dict[str, Any],
+    *,
+    force: bool = False,
+    audit_gallery_after: bool = False,
+) -> dict[str, Any]:
     sid = int(row.get("source_item_id") or row.get("id") or 0)
     if sid <= 0:
         return {"ok": False, "status": "skip", "reason": "missing source_item_id"}
@@ -2591,7 +2651,18 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
     existing = "" if force else _case_stored_representative_static_url(row, raw_urls)
     if existing:
         return {"ok": True, "status": "cached", "source_item_id": sid, "static_url": existing, "representative_url": existing}
-    candidates, raw_urls, signature = _case_ai_candidate_pack(row, limit=8)
+    ai_candidate_limit = max(1, min(4, int(os.getenv("CASE_REPRESENTATIVE_AI_CANDIDATE_LIMIT", "2") or 2)))
+    predownload_candidates = str(os.getenv("CASE_REPRESENTATIVE_PREDOWNLOAD_CANDIDATES", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    candidates, raw_urls, signature = _case_ai_candidate_pack(
+        row,
+        limit=ai_candidate_limit,
+        predownload=predownload_candidates,
+    )
     if not candidates:
         fallback = _case_representative_gallery_urls(
             raw_urls,
@@ -2616,14 +2687,15 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
             reason="No AI candidate; stored rule fallback.",
             source_last_checked_at=str(row.get("last_checked_at") or ""),
         )
-        try:
-            gallery_audit = _case_audit_gallery_images_for_row(row, limit=16)
-            if int(gallery_audit.get("removed") or 0) > 0:
-                with _HOME_FEATURED_CASES_CACHE_LOCK:
-                    _HOME_FEATURED_CASES_CACHE.clear()
-                _portal_case_search_cache_clear()
-        except Exception as exc:
-            _log_backend_error("case-gallery-audit-after-rules-fallback", exc)
+        if audit_gallery_after:
+            try:
+                gallery_audit = _case_audit_gallery_images_for_row(row, limit=16)
+                if int(gallery_audit.get("removed") or 0) > 0:
+                    with _HOME_FEATURED_CASES_CACHE_LOCK:
+                        _HOME_FEATURED_CASES_CACHE.clear()
+                    _portal_case_search_cache_clear()
+            except Exception as exc:
+                _log_backend_error("case-gallery-audit-after-rules-fallback", exc)
         return {
             "ok": bool(static_url),
             "status": "fallback" if static_url else "empty",
@@ -2719,14 +2791,15 @@ def _case_select_representative_image_with_ai(row: dict[str, Any], *, force: boo
         rejected=rejected,
         source_last_checked_at=str(row.get("last_checked_at") or ""),
     )
-    try:
-        gallery_audit = _case_audit_gallery_images_for_row(row, limit=16)
-        if int(gallery_audit.get("removed") or 0) > 0:
-            with _HOME_FEATURED_CASES_CACHE_LOCK:
-                _HOME_FEATURED_CASES_CACHE.clear()
-            _portal_case_search_cache_clear()
-    except Exception as exc:
-        _log_backend_error("case-gallery-audit-after-representative", exc)
+    if audit_gallery_after:
+        try:
+            gallery_audit = _case_audit_gallery_images_for_row(row, limit=16)
+            if int(gallery_audit.get("removed") or 0) > 0:
+                with _HOME_FEATURED_CASES_CACHE_LOCK:
+                    _HOME_FEATURED_CASES_CACHE.clear()
+                _portal_case_search_cache_clear()
+        except Exception as exc:
+            _log_backend_error("case-gallery-audit-after-representative", exc)
     return {
         "ok": bool(static_url),
         "status": status,
@@ -7607,7 +7680,7 @@ def build_index_schema(top_keywords: list[dict]) -> str:
         )
     org_block: dict[str, object] = {
         "@type": "Organization",
-        "name": COMPANY_PROFILE.get("name", "沐新株式會社"),
+        "name": COMPANY_PROFILE.get("name", "日本不動產指定查詢入口"),
         "url": base,
         "logo": avatar_url,
         "image": avatar_url,
@@ -8295,9 +8368,6 @@ def _row_image_url_is_usable(u: str) -> bool:
         return False
     if _is_truncated_listing_image_url(lu):
         return False
-    if _is_non_listing_asset_url(lu):
-        return False
-    path_before_q = lu.split("?", 1)[0]
     try:
         parsed = urlparse(u)
         host = (parsed.netloc or "").lower()
@@ -8305,6 +8375,13 @@ def _row_image_url_is_usable(u: str) -> bool:
     except Exception:
         host = ""
         path = ""
+    if "athome.co.jp" in host:
+        athome_group = _case_athome_cimage_group(u)
+        if athome_group in {"project_detail_slide", "guidance"}:
+            return True
+    if _is_non_listing_asset_url(lu):
+        return False
+    path_before_q = lu.split("?", 1)[0]
     if host.endswith("realestate-pctr.c.yimg.jp") and path:
         # Yahoo also serves genuine listing photos through opaque signed paths
         # such as /mREG... without a file extension. They are same-source media
@@ -8555,7 +8632,7 @@ def _is_case_property_gallery_image_url(u: str) -> bool:
         "間取",
     )
     athome_group = _case_athome_cimage_group(s)
-    if athome_group in {"project_detail_slide", "project_free", "setsubi", "guidance", "energy_saving"}:
+    if athome_group in {"project_free", "setsubi", "energy_saving"}:
         return False
     return not any(t in lu for t in reject_tokens)
 
@@ -11541,7 +11618,7 @@ def _case_gallery_context_is_non_property_media(url: str, context: str = "") -> 
     ):
         return True
     athome_group = _case_athome_cimage_group(url)
-    if athome_group in {"project_detail_slide", "project_free", "setsubi", "guidance", "energy_saving"}:
+    if athome_group in {"project_free", "setsubi", "energy_saving"}:
         return True
     bad_tokens = (
         "/gyousha/",
@@ -11661,9 +11738,39 @@ def _case_gallery_category_for_url(url: str, context: str = "") -> str:
         return "map"
     if athome_group in {"project_detail_slide", "project_free", "energy_saving"}:
         return "ad"
+    if any(
+        t in bag
+        for t in (
+            "setsubi",
+            "facility",
+            "equipment",
+            "vending",
+            "vendingmachine",
+            "jihanki",
+            "drink",
+            "beverage",
+            "cocacola",
+            "coca-cola",
+            "設備",
+            "設備写真",
+            "設備画像",
+            "自販機",
+            "自動販売機",
+            "販売機",
+            "飲料",
+            "ドリンク",
+            "宅配ボックス",
+            "インターホン",
+        )
+    ):
+        return "facility_detail"
     if any(t in bag for t in ("madori", "floorplan", "floor_plan", "layout", "間取", "間取り", "平面", "図面", "圖面", "户型", "戶型")):
         return "floorplan"
-    if any(t in bag for t in ("toilet", "toire", "トイレ", "便所", "wc", "廁", "厕")):
+    if any(t in bag for t in ("toilet", "toire", "トイレ", "便所", "廁", "厕")) or re.search(
+        r"(?:^|[/_\-\s])wc(?:$|[/_\-\s.])",
+        bag,
+        flags=re.I,
+    ):
         return "toilet"
     if any(t in bag for t in ("kitchen", "キッチン", "台所", "廚房", "厨房", "廚", "厨")):
         return "kitchen"
@@ -11697,6 +11804,8 @@ def _case_gallery_category_for_caption(text: str) -> str:
         return "kitchen"
     if any(t in bag for t in ("浴室", "風呂", "バス", "洗面", "脱衣", "洗濯", "bath", "powder", "sanitary", "wash")):
         return "bath"
+    if any(t in bag for t in ("設備", "設備写真", "設備画像", "自販機", "自動販売機", "販売機", "飲料", "ドリンク", "宅配ボックス", "インターホン", "setsubi", "facility", "equipment", "vending", "vendingmachine", "jihanki", "drink", "beverage", "cocacola", "coca-cola")):
+        return "facility_detail"
     if any(t in bag for t in ("バルコニー", "ベランダ", "テラス", "眺望", "view", "陽台", "阳台", "景觀", "景观")):
         return "balcony_view"
     if any(t in bag for t in ("ldk", "リビング", "ダイニング", "洋室", "和室", "寝室", "居室", "室内", "室內", "内装", "內裝", "収納", "closet", "room", "bedroom", "living")):
@@ -11731,6 +11840,7 @@ def _case_gallery_caption_category_hints(row: dict[str, Any], *, limit: int) -> 
         ("toilet", r"トイレ|toire|toilet|便所|WC|廁所|厕所"),
         ("kitchen", r"キッチン|台所|kitchen|廚房|厨房"),
         ("bath", r"浴室|風呂|バス|洗面|脱衣|洗濯機|bath|powder|sanitary"),
+        ("facility_detail", r"設備|設備写真|設備画像|自販機|自動販売機|販売機|飲料|ドリンク|宅配ボックス|インターホン|setsubi|facility|equipment|vending|vendingmachine|jihanki|drink|beverage|coca[ -]?cola"),
         ("balcony_view", r"バルコニー|ベランダ|テラス|眺望|陽台|阳台|景觀|景观"),
         ("interior", r"LDK|リビング|ダイニング|洋室|和室|寝室|居室|室内|室內|内装|內裝|収納|フローリング"),
         ("exterior", r"外観|外觀|建物|外壁|エントランス|現地|玄関|入口|facade|exterior"),
@@ -24420,12 +24530,55 @@ def _case_representative_selection_batch(
     lim = max(1, min(80, int(limit or 24)))
     off = max(0, min(500000, int(offset or 0)))
     sql_extra = ""
+    media_ready_sql = """
+              (
+                TRIM(COALESCE(s.hero_image_url, '')) <> ''
+                OR TRIM(COALESCE(s.thumbnail_url, '')) <> ''
+                OR TRIM(COALESCE(s.image_urls, '')) <> ''
+                OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
+              )
+    """
+    price_ready_sql = """
+              (
+                (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) GLOB '*[0-9]*万円*'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) GLOB '*[0-9]*万円*'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) GLOB '*[0-9]*萬*'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) GLOB '*[0-9]*万日*'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) GLOB '*[0-9]*億*'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) GLOB '*[0-9]*円*'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) GLOB '*[0-9]*JPY*'
+              )
+    """
+    useful_info_sql = """
+              (
+                LENGTH(TRIM(COALESCE(s.body_original, ''))) >= 120
+                OR LENGTH(TRIM(COALESCE(c.body_zh_hant, ''))) >= 120
+                OR LENGTH(TRIM(COALESCE(c.body_zh_hans, ''))) >= 120
+                OR TRIM(COALESCE(c.case_jp_region_override, '')) <> ''
+                OR TRIM(COALESCE(c.case_transit_override, '')) <> ''
+                OR COALESCE(c.jp_station_id, 0) > 0
+              )
+              AND (
+                (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%間取り%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%LDK%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%㎡%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%徒歩%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%所在地%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%専有%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%土地%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%建物%'
+                OR (COALESCE(c.seo_title, '') || ' ' || COALESCE(c.seo_description, '') || ' ' || COALESCE(c.body_zh_hant, '') || ' ' || COALESCE(c.body_zh_hans, '') || ' ' || COALESCE(s.title_original, '') || ' ' || COALESCE(s.body_original, '')) LIKE '%駅%'
+              )
+    """
     if bool(only_missing) and not bool(force):
         sql_extra = """
               AND (
                 r.source_item_id IS NULL
-                OR COALESCE(r.status, '') NOT IN ('selected', 'fallback', 'rules', 'manual')
-                OR TRIM(COALESCE(r.representative_static_url, '')) = ''
+                OR COALESCE(r.status, '') = ''
+                OR (
+                    COALESCE(r.status, '') IN ('selected', 'fallback', 'rules')
+                    AND TRIM(COALESCE(r.representative_static_url, '')) = ''
+                )
               )
         """
     with get_conn() as conn:
@@ -24453,14 +24606,22 @@ def _case_representative_selection_batch(
             JOIN source_items s ON s.id = c.source_item_id
             LEFT JOIN case_representative_images r ON r.source_item_id = s.id
             WHERE COALESCE(s.content_kind, '') = 'jp_listing'
-              AND (
-                TRIM(COALESCE(s.hero_image_url, '')) <> ''
-                OR TRIM(COALESCE(s.thumbnail_url, '')) <> ''
-                OR TRIM(COALESCE(s.image_urls, '')) <> ''
-                OR TRIM(COALESCE(c.listing_media_json, '')) NOT IN ('', '[]')
-              )
+              AND {media_ready_sql}
+              AND {price_ready_sql}
+              AND {useful_info_sql}
               {sql_extra}
-            ORDER BY c.updated_at DESC, c.id DESC
+            ORDER BY
+                CASE
+                    WHEN TRIM(COALESCE(c.case_jp_region_override, '')) <> ''
+                     AND TRIM(COALESCE(c.case_transit_override, '')) <> ''
+                     AND COALESCE(c.jp_station_id, 0) > 0 THEN 0
+                    WHEN TRIM(COALESCE(c.case_jp_region_override, '')) <> ''
+                     OR TRIM(COALESCE(c.case_transit_override, '')) <> ''
+                     OR COALESCE(c.jp_station_id, 0) > 0 THEN 1
+                    ELSE 2
+                END,
+                c.updated_at DESC,
+                c.id DESC
             LIMIT ? OFFSET ?
             """,
             (lim, off),
@@ -25748,16 +25909,70 @@ def api_admin_cases_media_review(
     request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=5, le=100),
+    bucket: str = Query(default="actionable"),
 ):
     """Dedicated admin queue for cases whose representative/gallery media needs human review."""
     _require_admin_password(request)
     page = max(1, int(page))
     page_size = min(100, max(5, int(page_size)))
+    bucket_key = str(bucket or "actionable").strip().lower().replace("-", "_")
+    bucket_labels = {
+        "actionable": "需人工处理",
+        "unprocessed": "未筛选",
+        "pollution_failed": "污染失败",
+        "empty": "无主图/缺图",
+        "no_backup": "无备份",
+        "fallback": "AI降级",
+        "rules": "规则选图",
+        "no_media": "相册无图",
+        "all": "全部问题",
+    }
+    if bucket_key not in bucket_labels:
+        bucket_key = "actionable"
+    unprocessed_sql = "(r.source_item_id IS NULL OR COALESCE(r.status, '') = '')"
+    no_backup_sql = """(
+              COALESCE(r.status, '') IN ('selected', 'fallback', 'rules', 'manual')
+              AND COALESCE(r.backup_static_urls_json, '[]') IN ('', '[]')
+            )"""
+    no_media_sql = """(
+              TRIM(COALESCE(s.hero_image_url, '')) = ''
+              AND TRIM(COALESCE(s.thumbnail_url, '')) = ''
+              AND TRIM(COALESCE(s.image_urls, '')) = ''
+              AND TRIM(COALESCE(c.listing_media_json, '')) IN ('', '[]')
+            )"""
+    bucket_where_sql_map = {
+        "actionable": f"""(
+            NOT {unprocessed_sql}
+            AND (
+              COALESCE(r.status, '') IN ('empty', 'fallback', 'rules')
+              OR COALESCE(r.representative_static_url, '') = ''
+              OR {no_backup_sql}
+              OR COALESCE(ga.failed_polluted_count, 0) > 0
+              OR {no_media_sql}
+            )
+          )""",
+        "unprocessed": unprocessed_sql,
+        "pollution_failed": "COALESCE(ga.failed_polluted_count, 0) > 0",
+        "empty": f"(NOT {unprocessed_sql} AND (COALESCE(r.status, '') = 'empty' OR COALESCE(r.representative_static_url, '') = ''))",
+        "no_backup": no_backup_sql,
+        "fallback": "COALESCE(r.status, '') = 'fallback'",
+        "rules": "COALESCE(r.status, '') = 'rules'",
+        "no_media": f"(NOT {unprocessed_sql} AND {no_media_sql})",
+        "all": f"""(
+            {unprocessed_sql}
+            OR COALESCE(r.status, '') IN ('empty', 'fallback', 'rules')
+            OR COALESCE(r.representative_static_url, '') = ''
+            OR {no_backup_sql}
+            OR COALESCE(ga.failed_polluted_count, 0) > 0
+            OR {no_media_sql}
+          )""",
+    }
+    bucket_where_sql = bucket_where_sql_map[bucket_key]
     # Keep the review list fast and predictable. Pollution cleanup and stale audit
     # pruning are performed by audit/batch actions; the list endpoint only reports
     # cases that still need manual attention.
 
-    review_from_where_sql = """
+    review_from_where_sql = f"""
         FROM source_items s INDEXED BY idx_source_items_content_kind_last_checked
         JOIN content_items c ON c.source_item_id = s.id
         LEFT JOIN case_representative_images r ON r.source_item_id = s.id
@@ -25773,22 +25988,7 @@ def api_admin_cases_media_review(
             GROUP BY source_item_id
         ) ga ON ga.source_item_id = s.id
         WHERE COALESCE(s.content_kind, '') = 'jp_listing'
-          AND (
-            r.source_item_id IS NULL
-            OR COALESCE(r.status, '') IN ('', 'empty', 'fallback', 'rules')
-            OR COALESCE(r.representative_static_url, '') = ''
-            OR (
-              COALESCE(r.status, '') IN ('selected', 'fallback', 'rules', 'manual')
-              AND COALESCE(r.backup_static_urls_json, '[]') IN ('', '[]')
-            )
-            OR COALESCE(ga.failed_polluted_count, 0) > 0
-            OR (
-              TRIM(COALESCE(s.hero_image_url, '')) = ''
-              AND TRIM(COALESCE(s.thumbnail_url, '')) = ''
-              AND TRIM(COALESCE(s.image_urls, '')) = ''
-              AND TRIM(COALESCE(c.listing_media_json, '')) IN ('', '[]')
-            )
-          )
+          AND {bucket_where_sql}
     """
     select_sql = f"""
         SELECT
@@ -25935,6 +26135,8 @@ def api_admin_cases_media_review(
                 "gallery_cleanup_attempts": attempts,
                 "media_review_level": level,
                 "media_review_label": label,
+                "media_review_bucket": bucket_key,
+                "media_review_bucket_label": bucket_labels[bucket_key],
                 "media_review_reasons": reasons[:8],
             }
         )
@@ -25947,6 +26149,8 @@ def api_admin_cases_media_review(
             "has_more": has_more,
             "page": page,
             "page_size": page_size,
+            "bucket": bucket_key,
+            "bucket_label": bucket_labels[bucket_key],
             "gemini_configured": is_gemini_configured(),
             "items": review_items,
         }
@@ -27499,6 +27703,126 @@ def _build_support_light_chat_reply(
             "您先回我一個重點就行，例如想看東京還是大阪、自住還是投資，或目前大概抓多少預算。"
         )
     return _build_support_greeting_reply(persona_region)
+
+
+def _support_fast_empty_knowledge_meta(message: str, *, selected_cases: list[dict] | None = None) -> dict[str, Any]:
+    selected = list(selected_cases or [])
+    return {
+        "query": str(message or "").strip(),
+        "days": 0,
+        "merged_max": 0,
+        "row_count": 0,
+        "keyword_hit_count": 0,
+        "recent_fill_count": 0,
+        "distinct_sources": 0,
+        "items": [],
+        "skipped_lookup": True,
+        "featured_count": 0,
+        "featured_recommendations": [],
+        "managed_cases": [],
+        "managed_case_count": 0,
+        "selected_cases": selected,
+        "selected_case_count": len(selected),
+        "property_listing_intent": False,
+        "purchase_discovery_mode": False,
+        "purchase_discovery": {"active": False, "dimensions": {}, "missing_fields": [], "skip_reason": "keyword_preset"},
+        "client_search": {"figure_keyword": "", "figure_region": "", "dialog_keyword": "", "query_blend": str(message or "").strip()},
+    }
+
+
+def _support_keyword_preset_reply(
+    message: str,
+    *,
+    session_id: str,
+    turn_index: int = 0,
+    selected_cases: list[dict] | None = None,
+) -> dict[str, Any] | None:
+    """Return high-confidence canned replies before slow RAG/LLM paths."""
+    raw = str(message or "").strip()
+    if not raw:
+        return None
+    if _is_support_identity_question(raw):
+        return None
+    compact = re.sub(r"\s+", "", raw).lower()
+    selected = list(selected_cases or [])
+    knowledge_meta = _support_fast_empty_knowledge_meta(raw, selected_cases=selected)
+
+    def _payload(kind: str, reply: str, sales_mcp: dict[str, Any], *, intent_score: int = 0) -> dict[str, Any]:
+        return {
+            "kind": kind,
+            "reply": sanitize_support_chat_visible_reply(reply),
+            "knowledge": knowledge_meta,
+            "llm": {
+                "provider": "",
+                "enabled": False,
+                "model": "",
+                "fast_mode": True,
+                "knowledge_skipped": True,
+                "keyword_preset": True,
+                "keyword_preset_kind": kind,
+            },
+            "sales_mcp": sales_mcp,
+            "intent_score": intent_score,
+        }
+
+    if _message_wants_human_or_advisor(raw):
+        sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
+        simulated = sales_mcp.get("simulated_service") if isinstance(sales_mcp, dict) else {}
+        display = str((simulated or {}).get("display_text") or "").strip()
+        if not display:
+            display = "我先幫您接入顧問留單流程。"
+        reply = (
+            f"{display}\n\n"
+            "可以，這類需求不用等系統慢慢整理。"
+            "請直接留下 LINE／WeChat／電話其中一項，再補一句預算、地區或用途，我會把這輪對話整理給真人顧問。\n\n"
+            "如果您還沒想好條件，也可以先回：地區、預算、用途，我先幫您收斂。"
+        )
+        return _payload("human_handoff", reply, sales_mcp, intent_score=int(sales_mcp.get("intent_score") or 82))
+
+    flow_terms = ("買房流程", "买房流程", "購買流程", "购买流程", "怎麼買", "怎么买", "如何買", "如何买", "怎麼開始", "怎么开始")
+    if any(term in compact for term in flow_terms):
+        sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
+        sales_mcp["next_actions"] = [
+            {"id": "buying_consult", "label": "先看買房流程"},
+            {"id": "confirm_budget", "label": "確認預算"},
+            {"id": "handoff_human", "label": "需要時轉顧問"},
+        ]
+        reply = (
+            "日本買房可以先抓 5 步：先定用途與預算，再篩地區和物件類型，接著確認稅費／貸款／管理費，最後才安排看屋與出價。\n\n"
+            "您先回我一個方向就好：自住、收租，還是先了解流程？我會照這個方向往下整理。"
+        )
+        return _payload("buying_flow", reply, sales_mcp, intent_score=28)
+
+    fee_terms = ("稅費", "税费", "費用", "费用", "貸款", "贷款", "頭期", "头期", "利率", "管理費", "管理费", "修繕", "修缮")
+    if any(term in compact for term in fee_terms):
+        sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
+        sales_mcp["next_actions"] = [
+            {"id": "cost_brief", "label": "拆買房成本"},
+            {"id": "confirm_budget", "label": "估總預算"},
+            {"id": "handoff_human", "label": "顧問核算"},
+        ]
+        reply = (
+            "日本房產成本通常要一起看：物件價格、登記與仲介相關費用、持有稅、管理費、修繕積立金，以及匯率和貸款條件。\n\n"
+            "如果您給我一個預算或案件價格，我可以先用客服口徑幫您拆出要確認的成本清單。"
+        )
+        return _payload("cost_loan", reply, sales_mcp, intent_score=34)
+
+    search_terms = ("查案件", "找案件", "找房", "篩選", "筛选", "東京", "东京", "大阪", "福岡", "福冈", "公寓", "一戶建", "一户建")
+    if len(raw) <= 80 and any(term in compact for term in search_terms):
+        sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
+        sales_mcp["next_actions"] = [
+            {"id": "browse_tokyo_cases", "label": "看站內案件"},
+            {"id": "confirm_budget", "label": "補預算"},
+            {"id": "compare_cases", "label": "比較已選案件"},
+        ]
+        reply = (
+            "可以，我先幫您把找房條件收斂。"
+            "請回覆：地區、總預算、用途（自住／收租）三個裡任兩個，我就能更快帶您去看站內案件。\n\n"
+            "例如：東京、5000萬日圓內、自住公寓。"
+        )
+        return _payload("case_search", reply, sales_mcp, intent_score=30)
+
+    return None
 
 
 _PURCHASE_DISCOVERY_INTENT_TERMS = (
@@ -29114,6 +29438,30 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     if not session_id:
         session_id = f"sess-{uuid4().hex[:16]}"
     support_turn_index = _support_user_turn_count(payload.history, msg)
+    selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
+    preset = _support_keyword_preset_reply(
+        msg,
+        session_id=session_id,
+        turn_index=support_turn_index,
+        selected_cases=selected_cases_input,
+    )
+    if preset:
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": preset["reply"],
+                "knowledge": preset["knowledge"],
+                "llm": preset["llm"],
+                "sales_mcp": preset["sales_mcp"],
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
     purchase_quick_dimensions = _support_purchase_discovery_dimensions(
         msg,
         figure_region=(payload.figure_region or "").strip(),
@@ -29131,7 +29479,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         and sum(1 for ok in purchase_quick_dimensions.values() if ok) < 4
     )
     if purchase_quick_mode:
-        selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
         reply = _build_purchase_discovery_reply(
             msg,
             selected_cases=selected_cases_input,
@@ -29302,7 +29649,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
             }
         )
-    selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
     if selected_cases_input:
         session_id, _ = _replace_support_session_interest_cases(session_id, selected_cases_input)
     selected_cases = _load_support_session_interest_cases(session_id, limit=20)

@@ -177,7 +177,7 @@ def url_is_low_value_for_link_list(url: str) -> bool:
 # Titles often share the same trailing brand / guide phrase from SEO templates.
 _SUFFIX_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
-        r"[｜|\-—–\s]*(?:台灣買日本房地產指南|台灣人買日本房完整流程|日本買房完整流程指南|沐新株式會社|沐新)\s*$"
+        r"[｜|\-—–\s]*(?:台灣買日本房地產指南|台灣人買日本房完整流程|日本買房完整流程指南)\s*$"
     ),
     re.compile(r"[｜|\-—–]\s*[^\s｜|]{1,20}\s*官網\s*$"),
 )

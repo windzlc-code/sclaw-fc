@@ -1,8 +1,10 @@
 const SELECTED_COMPARE_KEY = 'sclaw_support_selected_cases_v1';
 const SELECTED_COMPARE_CHANNEL = 'sclaw_support_selected_cases_channel_v1';
+const SC_SUPPORT_SALES_SESSION_KEY = 'sclaw_support_sales_session_v1';
 let selectedCompareAnnotationsOn = true;
 let scCurrentItems = [];
 let scSyncChannel = null;
+let scSavingSelf = false;
 
 function scEsc(value) {
   return String(value == null ? '' : value)
@@ -205,16 +207,55 @@ function scSaveCases(items) {
     floorplan_urls: scUrlList(it.floorplan_urls, 4),
     image_count: Number(it.image_count || 0),
   }));
+  let oldValue = '';
+  let newValue = '';
   try {
-    localStorage.setItem(SELECTED_COMPARE_KEY, JSON.stringify(payload));
+    oldValue = localStorage.getItem(SELECTED_COMPARE_KEY) || '';
+    newValue = JSON.stringify(payload);
+    localStorage.setItem(SELECTED_COMPARE_KEY, newValue);
   } catch (_) {}
-  scNotifySelectedCasesChanged(payload);
+  scNotifySelectedCasesChanged(payload, oldValue, newValue);
 }
 
-function scNotifySelectedCasesChanged(payload) {
+function scNotifySelectedCasesChanged(payload, oldValue, newValue) {
+  scSavingSelf = true;
+  try {
+    window.dispatchEvent(new CustomEvent('sclaw:selected-cases-updated', { detail: { items: payload || [], source: 'compare' } }));
+  } catch (_) {}
+  try {
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: SELECTED_COMPARE_KEY,
+      oldValue: oldValue || '',
+      newValue: newValue || JSON.stringify(payload || []),
+      storageArea: localStorage,
+    }));
+  } catch (_) {}
   try {
     if (!scSyncChannel && 'BroadcastChannel' in window) scSyncChannel = new BroadcastChannel(SELECTED_COMPARE_CHANNEL);
     if (scSyncChannel) scSyncChannel.postMessage({ type: 'selected-cases-updated', source: 'compare', items: payload || [] });
+  } catch (_) {}
+  window.setTimeout(() => {
+    scSavingSelf = false;
+  }, 0);
+}
+
+function scSupportSessionId() {
+  try {
+    return scText(localStorage.getItem(SC_SUPPORT_SALES_SESSION_KEY));
+  } catch (_) {
+    return '';
+  }
+}
+
+async function scPersistRemote(items) {
+  const sessionId = scSupportSessionId();
+  if (!sessionId) return;
+  try {
+    await fetch('/api/support/session-interest-cases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, cases: (Array.isArray(items) ? items : []).slice(0, 20) }),
+    });
   } catch (_) {}
 }
 
@@ -222,6 +263,7 @@ function removeSelectedCompareCase(index) {
   if (index < 0 || index >= scCurrentItems.length) return;
   scCurrentItems = scCurrentItems.filter((_, idx) => idx !== index);
   scSaveCases(scCurrentItems);
+  scPersistRemote(scCurrentItems);
   renderSelectedCompare(scCurrentItems);
 }
 
@@ -910,13 +952,20 @@ async function hydrateAndRenderSelectedCompare(force) {
     items = await scEnrich(items);
     scCurrentItems = items;
     renderSelectedCompare(items);
+    scSaveCases(items);
+    scPersistRemote(items);
   }
   if (btn) btn.disabled = false;
 }
 
 function setupSelectedCompareSync() {
   window.addEventListener('storage', (ev) => {
+    if (scSavingSelf) return;
     if (ev.key !== SELECTED_COMPARE_KEY) return;
+    hydrateAndRenderSelectedCompare(false);
+  });
+  window.addEventListener('sclaw:selected-cases-updated', (ev) => {
+    if (ev && ev.detail && ev.detail.source === 'compare') return;
     hydrateAndRenderSelectedCompare(false);
   });
   try {

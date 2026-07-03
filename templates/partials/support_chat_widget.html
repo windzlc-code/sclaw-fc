@@ -225,6 +225,11 @@
 
     var selectedKey = 'sclaw_support_selected_cases_v1';
     var savedKey = 'sclaw_support_saved_cases_v1';
+    var selectedChannelKey = 'sclaw_support_selected_cases_channel_v1';
+    var savedChannelKey = 'sclaw_support_saved_cases_channel_v1';
+    var supportFallbackSelectedChannel = null;
+    var supportFallbackSavedChannel = null;
+    var supportFallbackOwnsFloatingCases = !(window.renderSupportSelectedCasesPanel || window.renderSupportSavedCasesState);
     var phoneKey = 'sclaw_support_phone_login';
     var phoneCountryKey = 'sclaw_support_phone_login_country';
     var legacyPhoneProfileKey = 'sclaw_support_phone_profile_v1';
@@ -245,8 +250,27 @@
     }
 
     function writeList(key, list) {
+      var payload = Array.isArray(list) ? list : [];
+      var oldValue = '';
+      var newValue = '';
       try {
-        localStorage.setItem(key, JSON.stringify(Array.isArray(list) ? list : []));
+        oldValue = localStorage.getItem(key) || '';
+        newValue = JSON.stringify(payload);
+        localStorage.setItem(key, newValue);
+      } catch (_) {}
+      try {
+        window.dispatchEvent(new StorageEvent('storage', { key: key, oldValue: oldValue, newValue: newValue, storageArea: localStorage }));
+      } catch (_) {}
+      try {
+        if (key === selectedKey) {
+          window.dispatchEvent(new CustomEvent('sclaw:selected-cases-updated', { detail: { items: payload, source: 'fallback-widget' } }));
+          if (!supportFallbackSelectedChannel && 'BroadcastChannel' in window) supportFallbackSelectedChannel = new BroadcastChannel(selectedChannelKey);
+          if (supportFallbackSelectedChannel) supportFallbackSelectedChannel.postMessage({ type: 'selected-cases-updated', source: 'fallback-widget', items: payload });
+        } else if (key === savedKey) {
+          window.dispatchEvent(new CustomEvent('sclaw:saved-cases-updated', { detail: { items: payload, source: 'fallback-widget' } }));
+          if (!supportFallbackSavedChannel && 'BroadcastChannel' in window) supportFallbackSavedChannel = new BroadcastChannel(savedChannelKey);
+          if (supportFallbackSavedChannel) supportFallbackSavedChannel.postMessage({ type: 'saved-cases-updated', source: 'fallback-widget', items: payload });
+        }
       } catch (_) {}
     }
 
@@ -407,11 +431,17 @@
       if (!item) return '';
       if (item.thumb_url) return String(item.thumb_url);
       if (item.image_url) return String(item.image_url);
+      if (item.hero_media_url) return String(item.hero_media_url);
+      if (item.thumbnail_url) return String(item.thumbnail_url);
+      if (item.thumbnail) return String(item.thumbnail);
       if (Array.isArray(item.gallery_urls) && item.gallery_urls.length) return String(item.gallery_urls[0]);
+      if (Array.isArray(item.image_urls) && item.image_urls.length) return String(item.image_urls[0]);
+      if (Array.isArray(item.images) && item.images.length) return String(item.images[0]);
       return '';
     }
 
     function refreshSupportFallbackBadges() {
+      if (!supportFallbackOwnsFloatingCases) return;
       var selectedCount = readList(selectedKey).length;
       var savedCount = readList(savedKey).length;
       [
@@ -426,30 +456,97 @@
         el.textContent = pair[1] + (pair[0].indexOf('drawer-count') > -1 ? ' 筆' : '');
         if (pair[0].indexOf('fab-count') > -1) el.hidden = pair[1] <= 0;
       });
+      var selectedFab = document.getElementById('support-selected-cases-fab');
+      if (selectedFab) selectedFab.setAttribute('aria-label', selectedCount ? '已選案件清單（' + selectedCount + ' 筆）' : '已選案件清單（尚未加入）');
+      var savedFab = document.getElementById('support-saved-cases-fab');
+      if (savedFab) savedFab.setAttribute('aria-label', savedCount ? '收藏案件（' + savedCount + ' 筆）' : '收藏案件（尚未收藏）');
+    }
+
+    function refreshSupportFloatingCaseState(storageKey) {
+      if (!supportFallbackOwnsFloatingCases) return;
+      refreshSupportFallbackBadges();
+      if (!storageKey || storageKey === selectedKey) {
+        var selectedDrawer = document.getElementById('support-selected-cases-drawer');
+        var selectedOpen = selectedDrawer && selectedDrawer.style.display !== 'none' && selectedDrawer.style.display !== '';
+        if (selectedOpen) renderCaseList(selectedKey, 'support-selected-cases-drawer-list', '尚未加入案件。可在智慧查詢結果點選加號加入案件對比。');
+      }
+      if (!storageKey || storageKey === savedKey) {
+        var savedDrawer = document.getElementById('support-saved-cases-drawer');
+        var savedOpen = savedDrawer && savedDrawer.style.display !== 'none' && savedDrawer.style.display !== '';
+        if (savedOpen) renderCaseList(savedKey, 'support-saved-cases-drawer-list', '尚未收藏案件。可在智慧查詢結果點選愛心收藏。');
+      }
     }
 
     function renderCaseList(key, wrapId, emptyText) {
+      if (!supportFallbackOwnsFloatingCases) return;
       var wrap = document.getElementById(wrapId);
       if (!wrap) return;
       var list = readList(key);
       if (!list.length) {
         wrap.classList.add('muted');
-        wrap.innerHTML = esc(emptyText);
+        if (wrap.dataset.renderSignature !== 'empty:' + emptyText) {
+          wrap.dataset.renderSignature = 'empty:' + emptyText;
+          wrap.innerHTML = esc(emptyText);
+        }
         return;
       }
       wrap.classList.remove('muted');
-      wrap.innerHTML = '<div class="support-selected-cases-cart">' + list.map(function (item) {
+      var rows = list.map(function (item) {
         var title = String((item && item.title) || '日本不動產案件').slice(0, 96);
-        var meta = String((item && (item.meta_text || item.location_text || item.address_text || item.addr || item.address)) || '').slice(0, 80);
+        var meta = String((item && (
+          item.meta_text ||
+          [item.layout_text_hant, item.area_text_hant].filter(Boolean).join('｜') ||
+          [item.region, item.transit].filter(Boolean).join('｜') ||
+          item.location_text ||
+          item.address_text ||
+          item.address_hint_zh ||
+          item.addr ||
+          item.address
+        )) || '').slice(0, 96);
         var price = String((item && (item.price_text_hant || item.price_text || item.price)) || '');
         var href = primaryLink(item);
         var thumb = thumbUrl(item);
         var keyVal = stableKey(item);
-        var img = thumb ? '<img src="' + esc(thumb) + '" alt="' + esc(title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">' : '';
-        var media = '<span class="support-selected-cases-card-thumb' + (thumb ? '' : ' is-empty') + '">' + img + '</span>';
+        var sig = JSON.stringify([keyVal, title, meta, price, href, thumb]);
+        var img = thumb ? '<img src="' + esc(thumb) + '" alt="' + esc(title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.parentNode.classList.add(\'is-loaded\')" onerror="this.style.display=\'none\';this.parentNode.classList.add(\'is-empty\')">' : '';
+        var media = '<span class="support-selected-cases-card-thumb' + (thumb ? '' : ' is-empty') + '">' + img + '<span class="support-selected-cases-card-placeholder">' + (thumb ? '圖片載入中' : '暫無配圖') + '</span></span>';
         var titleHtml = href ? '<a class="support-selected-cases-cart-link" href="' + esc(href) + '">' + esc(title) + '</a>' : '<strong class="support-selected-cases-cart-link">' + esc(title) + '</strong>';
-        return '<article class="support-selected-cases-cart-item">' + media + '<div class="support-selected-cases-cart-main">' + titleHtml + (meta ? '<div class="support-selected-cases-cart-meta">' + esc(meta) + '</div>' : '') + (price ? '<div class="support-selected-cases-cart-price">' + esc(price) + '</div>' : '') + '</div><button type="button" class="support-selected-cases-cart-remove" data-storage-key="' + esc(key) + '" data-case-key="' + esc(keyVal) + '" onclick="removeSupportFloatingCaseByBtn(this)">移除</button></article>';
-      }).join('') + '</div>';
+        return {
+          key: keyVal,
+          sig: sig,
+          html: '<article class="support-selected-cases-cart-item" data-case-key="' + esc(keyVal) + '" data-render-signature="' + esc(sig) + '">' + media + '<div class="support-selected-cases-cart-main">' + titleHtml + (meta ? '<div class="support-selected-cases-cart-meta">' + esc(meta) + '</div>' : '') + (price ? '<div class="support-selected-cases-cart-price">' + esc(price) + '</div>' : '') + '</div><button type="button" class="support-selected-cases-cart-remove" data-storage-key="' + esc(key) + '" data-case-key="' + esc(keyVal) + '" onclick="removeSupportFloatingCaseByBtn(this)">移除</button></article>'
+        };
+      });
+      var signature = rows.map(function (row) { return row.sig; }).join('||');
+      var cart = wrap.querySelector(':scope > .support-selected-cases-cart');
+      if (wrap.dataset.renderSignature === signature && cart) return;
+      if (!cart) {
+        wrap.dataset.renderSignature = signature;
+        wrap.innerHTML = '<div class="support-selected-cases-cart">' + rows.map(function (row) { return row.html; }).join('') + '</div>';
+        return;
+      }
+      var existing = {};
+      Array.prototype.forEach.call(cart.querySelectorAll(':scope > .support-selected-cases-cart-item[data-case-key]'), function (el) {
+        existing[String(el.getAttribute('data-case-key') || '')] = el;
+      });
+      rows.forEach(function (row) {
+        var el = existing[row.key];
+        if (!el) {
+          var tmp = document.createElement('div');
+          tmp.innerHTML = row.html;
+          el = tmp.firstElementChild;
+        } else if (el.getAttribute('data-render-signature') !== row.sig) {
+          var tmp2 = document.createElement('div');
+          tmp2.innerHTML = row.html;
+          el = tmp2.firstElementChild;
+        }
+        if (el) cart.appendChild(el);
+      });
+      Array.prototype.forEach.call(cart.querySelectorAll(':scope > .support-selected-cases-cart-item[data-case-key]'), function (el) {
+        var rowKey = String(el.getAttribute('data-case-key') || '');
+        if (!rows.some(function (row) { return row.key === rowKey; })) el.remove();
+      });
+      wrap.dataset.renderSignature = signature;
     }
 
     function closeSupportFallbackPanels(keep) {
@@ -591,6 +688,7 @@
     window.renderSupportKbHistoryList = window.renderSupportKbHistoryList || function () {};
     window.clearSupportKbHistory = window.clearSupportKbHistory || function () {};
     window.refreshSupportPhoneLoginHint = window.refreshSupportPhoneLoginHint || function () {};
+    window.refreshSupportFloatingCaseState = window.refreshSupportFloatingCaseState || refreshSupportFloatingCaseState;
 
     window.submitSupportPhoneLogin = window.submitSupportPhoneLogin || function () {
       var input = document.getElementById('support-phone-login-input');
@@ -688,6 +786,32 @@
       }
     });
 
-    refreshSupportFallbackBadges();
+    window.addEventListener('sclaw:selected-cases-updated', function () {
+      refreshSupportFloatingCaseState(selectedKey);
+    });
+    window.addEventListener('sclaw:saved-cases-updated', function () {
+      refreshSupportFloatingCaseState(savedKey);
+    });
+    window.addEventListener('storage', function (ev) {
+      if (!ev || ev.key === selectedKey || ev.key === savedKey) refreshSupportFloatingCaseState(ev && ev.key);
+    });
+    try {
+      if ('BroadcastChannel' in window) {
+        supportFallbackSelectedChannel = new BroadcastChannel(selectedChannelKey);
+        supportFallbackSelectedChannel.addEventListener('message', function (ev) {
+          if (ev && ev.data && ev.data.type === 'selected-cases-updated' && ev.data.source !== 'fallback-widget') {
+            refreshSupportFloatingCaseState(selectedKey);
+          }
+        });
+        supportFallbackSavedChannel = supportFallbackSavedChannel || new BroadcastChannel(savedChannelKey);
+        supportFallbackSavedChannel.addEventListener('message', function (ev) {
+          if (ev && ev.data && ev.data.type === 'saved-cases-updated' && ev.data.source !== 'fallback-widget') {
+            refreshSupportFloatingCaseState(savedKey);
+          }
+        });
+      }
+    } catch (_) {}
+
+    refreshSupportFloatingCaseState();
   })();
 </script>

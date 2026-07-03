@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
@@ -267,6 +268,10 @@ def select_representative_listing_image_via_gemini(
     for c in usable:
         content.append({"type": "image_url", "image_url": {"url": c["url"]}})
 
+    fast_timeout_sec = max(
+        3.0,
+        min(12.0, float(os.getenv("CASE_REPRESENTATIVE_GEMINI_TIMEOUT", "5.0") or 5.0)),
+    )
     raw = chat_completion(
         [
             {"role": "system", "content": "你只输出一个合法 JSON object。"},
@@ -274,7 +279,7 @@ def select_representative_listing_image_via_gemini(
         ],
         model=model,
         temperature=0.1,
-        timeout_sec=90.0,
+        timeout_sec=fast_timeout_sec,
         provider="gemini",
         max_tokens=700,
     )

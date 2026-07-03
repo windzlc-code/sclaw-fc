@@ -154,7 +154,43 @@ class SupportChatConversationTests(unittest.TestCase):
         action_ids = [str(x.get("id") or "") for x in sales["next_actions"]]
         self.assertIn("handoff_human", action_ids)
         self.assertIn("工號", data["reply"])
-        self.assertTrue(data["llm"].get("simulated_service_reply_applied"))
+        self.assertTrue(data["llm"].get("keyword_preset"))
+        self.assertEqual(data["llm"].get("keyword_preset_kind"), "human_handoff")
+
+    def test_human_advisor_keyword_uses_fast_preset_without_llm_or_knowledge(self):
+        resp = app_module.api_ai_chat_support(
+            app_module.ChatSupportRequest(
+                message="我想聯絡顧問，請先告訴我怎麼處理",
+                sales_session_id="sess-human-keyword-fast-preset",
+            )
+        )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["llm"]["keyword_preset"])
+        self.assertEqual(data["llm"]["keyword_preset_kind"], "human_handoff")
+        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(data["llm"]["knowledge_skipped"])
+        self.assertTrue(data["knowledge"]["skipped_lookup"])
+        self.assertTrue(data["sales_mcp"]["human_handoff_intent"])
+        self.assertIn("LINE", data["reply"])
+        self.assertIn("真人顧問", data["reply"])
+
+    def test_buying_flow_keyword_uses_fast_preset_without_llm_or_knowledge(self):
+        resp = app_module.api_ai_chat_support(
+            app_module.ChatSupportRequest(
+                message="我想先了解日本买房流程",
+                sales_session_id="sess-buying-flow-fast-preset",
+            )
+        )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["llm"]["keyword_preset"])
+        self.assertEqual(data["llm"]["keyword_preset_kind"], "buying_flow")
+        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(data["knowledge"]["skipped_lookup"])
+        self.assertIn("5 步", data["reply"])
 
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"

@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260630-smart-geo-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260701-selected-drawer-c">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions {
@@ -1741,6 +1741,17 @@
                 <span class="muted">代表圖／備用圖／污染圖清理失敗</span>
               </summary>
               <div class="search-row-basic admin-media-review-toolbar" style="flex-wrap:wrap;gap:0.5rem;align-items:center;">
+                <div class="admin-media-review-buckets" role="tablist" aria-label="媒體審核分類">
+                  <button type="button" class="admin-media-review-bucket is-active" data-media-review-bucket="actionable" onclick="setAdminMediaReviewBucket('actionable')" aria-pressed="true">需人工處理</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="unprocessed" onclick="setAdminMediaReviewBucket('unprocessed')" aria-pressed="false">未篩選</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="pollution_failed" onclick="setAdminMediaReviewBucket('pollution_failed')" aria-pressed="false">污染失敗</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="empty" onclick="setAdminMediaReviewBucket('empty')" aria-pressed="false">無主圖/缺圖</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="no_backup" onclick="setAdminMediaReviewBucket('no_backup')" aria-pressed="false">無備份</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="fallback" onclick="setAdminMediaReviewBucket('fallback')" aria-pressed="false">AI降級</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="rules" onclick="setAdminMediaReviewBucket('rules')" aria-pressed="false">規則選圖</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="no_media" onclick="setAdminMediaReviewBucket('no_media')" aria-pressed="false">相冊無圖</button>
+                  <button type="button" class="admin-media-review-bucket" data-media-review-bucket="all" onclick="setAdminMediaReviewBucket('all')" aria-pressed="false">全部</button>
+                </div>
                 <span id="admin-media-review-summary" class="muted">尚未載入。</span>
               </div>
               <div id="admin-media-review-list-wrap" class="muted">請先登入。</div>
@@ -4190,7 +4201,10 @@
     let supportSelectedCasesDetailEnrichPending = false;
     let supportSelectedCasesDetailEnrichSig = '';
     let supportSelectedCasesSyncChannel = null;
+    let supportSelectedCasesLocalWritePending = false;
     let supportSavedCases = [];
+    let supportSavedCasesSyncChannel = null;
+    let supportSavedCasesLocalWritePending = false;
     let supportSavedCasesDrawerOpen = false;
     let supportTelegramInboxBootstrapped = false;
     let latestFigureCaseItems = [];
@@ -4202,6 +4216,7 @@
     const SUPPORT_SELECTED_CASES_KEY = 'sclaw_support_selected_cases_v1';
     const SUPPORT_SAVED_CASES_KEY = 'sclaw_support_saved_cases_v1';
     const SUPPORT_SELECTED_CASES_CHANNEL = 'sclaw_support_selected_cases_channel_v1';
+    const SUPPORT_SAVED_CASES_CHANNEL = 'sclaw_support_saved_cases_channel_v1';
     const SUPPORT_SELECTED_CASES_COLLAPSED_KEY = 'sclaw_support_selected_cases_collapsed_v1';
     const SUPPORT_CHAT_TTS_ENABLED_KEY = 'sclaw_support_chat_tts_enabled_v1';
     const ADVISOR_RESOURCE_COLLAPSED_KEY = 'sclaw_advisor_resource_collapsed_v1';
@@ -4226,7 +4241,7 @@
     }
 
     /** Strip repetitive SEO site suffixes; fallback to URL path segment. */
-    const LINK_LABEL_JUNK_SUFFIX_RE = /(?:[｜|\-—]\s*)*(?:台灣買日本房地產指南|台灣人買日本房完整流程|日本買房完整流程指南|沐新株式會社|沐新)\s*$/g;
+    const LINK_LABEL_JUNK_SUFFIX_RE = /(?:[｜|\-—]\s*)*(?:台灣買日本房地產指南|台灣人買日本房完整流程|日本買房完整流程指南)\s*$/g;
 
     function scrubLinkDisplayTitle(raw, url) {
       let t = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -4313,6 +4328,7 @@
     let adminSupportQaTraining = [];
     let adminCasesPage = 1;
     let adminMediaReviewPage = 1;
+    let adminMediaReviewBucket = 'actionable';
     let adminCasesView = 'list';
     let adminAiReviewItems = [];
     let adminHandoffPage = 1;
@@ -5681,6 +5697,13 @@
     function bindPortalCaseCardDetailDelegation() {
       if (window.__sclawPortalCaseDetailDelegationBound) return;
       window.__sclawPortalCaseDetailDelegationBound = true;
+      const homeFeaturedActionButtonAtPoint = (evt, card) => {
+        if (!evt || !card || typeof evt.clientX !== 'number' || typeof evt.clientY !== 'number') return false;
+        return Array.from(card.querySelectorAll('.home-featured-action')).find((el) => {
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && evt.clientX >= rect.left && evt.clientX <= rect.right && evt.clientY >= rect.top && evt.clientY <= rect.bottom;
+        }) || null;
+      };
       document.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target : null;
         if (!target) return;
@@ -5693,6 +5716,16 @@
           target.closest('button, input, textarea, select, [role="button"], .figure-case-actions, .home-featured-card-actions, .home-featured-hero-actions')
         ) {
           return;
+        }
+        if (card.classList.contains('home-featured-card')) {
+          const actionButton = homeFeaturedActionButtonAtPoint(evt, card);
+          if (actionButton) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
+            if (!target.closest('.home-featured-action')) actionButton.click();
+            return;
+          }
         }
         const link = target.closest('a[href]');
         const url = String((link && link.getAttribute('href')) || card.getAttribute('data-case-detail-url') || '').trim();
@@ -10847,12 +10880,22 @@
       const region = String(raw.region || raw.jp_region_display_zh || '').trim();
       const transit = String(raw.transit || raw.transit_line_zh || '').trim();
       const address_hint_zh = String(raw.address_hint_zh || raw.address || [region, transit].filter(Boolean).join('｜') || '').trim();
+      const gallery_urls = supportSelectedCaseUrlList(raw.gallery_urls || raw.image_urls || raw.images || [], 8);
+      const thumb_url = String(
+        raw.thumb_url ||
+          raw.image_url ||
+          raw.hero_media_url ||
+          raw.thumbnail_url ||
+          raw.thumbnail ||
+          gallery_urls[0] ||
+          ''
+      ).trim();
       return {
         case_key: case_key || supportCaseKeyFromItem(raw),
         source_item_id: Number(raw.source_item_id || 0),
         content_id: Number(raw.content_id || 0),
         title,
-        source_name,
+        source_name: source_name || '日本房產',
         item_url,
         article_url: String(raw.article_url || '').trim(),
         region,
@@ -10874,9 +10917,10 @@
         age_text_hant: String(raw.age_text_hant || '').trim(),
         transaction_label_zh: String(raw.transaction_label_zh || '').trim(),
         building_type_zh: String(raw.building_type_zh || '').trim(),
-        thumb_url: String(raw.thumb_url || '').trim(),
-        gallery_urls: supportSelectedCaseUrlList(raw.gallery_urls || raw.image_urls || [], 8),
-        image_count: Number(raw.image_count || 0),
+        thumb_url,
+        hero_media_url: thumb_url,
+        gallery_urls: gallery_urls.length ? gallery_urls : (thumb_url ? [thumb_url] : []),
+        image_count: Number(raw.image_count || gallery_urls.length || (thumb_url ? 1 : 0) || 0),
         case_time_at: String(raw.case_time_at || '').trim(),
         data_time_at: String(raw.data_time_at || '').trim(),
         sort_time_at: String(raw.sort_time_at || '').trim(),
@@ -10912,14 +10956,14 @@
     }
 
     function supportSelectedCaseThumbUrl(it) {
-      const thumb = String((it && it.thumb_url) || '').trim();
+      const thumb = String((it && (it.thumb_url || it.image_url || it.hero_media_url || it.thumbnail_url || it.thumbnail)) || '').trim();
       if (/^https?:\/\//i.test(thumb) || thumb.startsWith('/')) return thumb;
-      const urls = supportSelectedCaseUrlList(it && (it.gallery_urls || it.image_urls), 8);
+      const urls = supportSelectedCaseUrlList(it && (it.gallery_urls || it.image_urls || it.images), 8);
       if (urls[0]) return urls[0];
       const src = supportSelectedCaseCurrentSource(it);
-      const srcThumb = String(src?.thumb_url || '').trim();
+      const srcThumb = String(src?.thumb_url || src?.image_url || src?.hero_media_url || src?.thumbnail_url || src?.thumbnail || '').trim();
       if (/^https?:\/\//i.test(srcThumb) || srcThumb.startsWith('/')) return srcThumb;
-      return supportSelectedCaseUrlList(src && (src.gallery_urls || src.image_urls), 8)[0] || '';
+      return supportSelectedCaseUrlList(src && (src.gallery_urls || src.image_urls || src.images), 8)[0] || '';
     }
 
     function supportSelectedCaseMetaText(it) {
@@ -10996,8 +11040,30 @@
     function saveSupportSelectedCasesLocal() {
       try {
         supportSelectedCases = dedupeSupportSelectedCaseList(supportSelectedCases).slice(0, 20);
-        localStorage.setItem(SUPPORT_SELECTED_CASES_KEY, JSON.stringify(supportSelectedCases));
+        const oldValue = localStorage.getItem(SUPPORT_SELECTED_CASES_KEY) || '';
+        const newValue = JSON.stringify(supportSelectedCases);
+        localStorage.setItem(SUPPORT_SELECTED_CASES_KEY, newValue);
+        try {
+          supportSelectedCasesLocalWritePending = true;
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: SUPPORT_SELECTED_CASES_KEY,
+            oldValue,
+            newValue,
+            storageArea: localStorage,
+          }));
+        } catch (_) {}
+        window.setTimeout(() => {
+          supportSelectedCasesLocalWritePending = false;
+        }, 0);
+        try {
+          window.dispatchEvent(new CustomEvent('sclaw:selected-cases-updated', {
+            detail: { items: supportSelectedCases, source: 'home' },
+          }));
+        } catch (_) {}
         notifySupportSelectedCasesChanged('home');
+        try {
+          settleSupportSelectedCasesFloatingState();
+        } catch (_) {}
       } catch (_) {}
     }
 
@@ -11015,7 +11081,27 @@
     function saveSupportSavedCasesLocal() {
       try {
         supportSavedCases = dedupeSupportSelectedCaseList(supportSavedCases).slice(0, 60);
-        localStorage.setItem(SUPPORT_SAVED_CASES_KEY, JSON.stringify(supportSavedCases));
+        const oldValue = localStorage.getItem(SUPPORT_SAVED_CASES_KEY) || '';
+        const newValue = JSON.stringify(supportSavedCases);
+        localStorage.setItem(SUPPORT_SAVED_CASES_KEY, newValue);
+        try {
+          supportSavedCasesLocalWritePending = true;
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: SUPPORT_SAVED_CASES_KEY,
+            oldValue,
+            newValue,
+            storageArea: localStorage,
+          }));
+        } catch (_) {}
+        window.setTimeout(() => {
+          supportSavedCasesLocalWritePending = false;
+        }, 0);
+        try {
+          window.dispatchEvent(new CustomEvent('sclaw:saved-cases-updated', {
+            detail: { items: supportSavedCases, source: 'home' },
+          }));
+        } catch (_) {}
+        notifySupportSavedCasesChanged('home');
       } catch (_) {}
     }
 
@@ -11035,6 +11121,8 @@
         fab.classList.toggle('is-active', total > 0);
       }
       syncFigureCaseSavedButtons();
+      window.setTimeout(syncFigureCaseSavedButtons, 0);
+      window.setTimeout(syncFigureCaseSavedButtons, 160);
     }
 
     function upsertSupportSavedCase(norm) {
@@ -11067,6 +11155,22 @@
       }
     }
 
+    function getSupportFloatingDrawerSignature(list, limit) {
+      try {
+        return JSON.stringify(dedupeSupportSelectedCaseList(list).slice(0, limit || 20).map((it) => [
+          supportSelectedCaseStableKey(it),
+          String(it?.title || ''),
+          String(supportSelectedCaseMetaText(it) || ''),
+          String(supportSelectedCasePriceText(it) || ''),
+          String(supportSelectedCaseThumbUrl(it) || ''),
+          Number(it?.image_count || (Array.isArray(it?.gallery_urls) ? it.gallery_urls.length : 0) || 0),
+          String(supportSelectedCasePrimaryLink(it) || ''),
+        ]));
+      } catch (_) {
+        return '';
+      }
+    }
+
     function notifySupportSelectedCasesChanged(source) {
       try {
         if (!supportSelectedCasesSyncChannel && 'BroadcastChannel' in window) {
@@ -11077,6 +11181,21 @@
             type: 'selected-cases-updated',
             source: source || 'home',
             items: supportSelectedCases,
+          });
+        }
+      } catch (_) {}
+    }
+
+    function notifySupportSavedCasesChanged(source) {
+      try {
+        if (!supportSavedCasesSyncChannel && 'BroadcastChannel' in window) {
+          supportSavedCasesSyncChannel = new BroadcastChannel(SUPPORT_SAVED_CASES_CHANNEL);
+        }
+        if (supportSavedCasesSyncChannel) {
+          supportSavedCasesSyncChannel.postMessage({
+            type: 'saved-cases-updated',
+            source: source || 'home',
+            items: supportSavedCases,
           });
         }
       } catch (_) {}
@@ -11103,6 +11222,7 @@
       document.documentElement.dataset.supportSelectedCasesSyncBound = '1';
       window.addEventListener('storage', (ev) => {
         if (ev.key !== SUPPORT_SELECTED_CASES_KEY) return;
+        if (supportSelectedCasesLocalWritePending) return;
         refreshSupportSelectedCasesFromSharedStorage({ persistRemote: true }).catch(() => {});
       });
       window.addEventListener('focus', () => {
@@ -11117,6 +11237,46 @@
           supportSelectedCasesSyncChannel.addEventListener('message', (ev) => {
             if (!ev || !ev.data || ev.data.type !== 'selected-cases-updated' || ev.data.source === 'home') return;
             refreshSupportSelectedCasesFromSharedStorage({ persistRemote: true }).catch(() => {});
+          });
+        }
+      } catch (_) {}
+    }
+
+    async function refreshSupportSavedCasesFromSharedStorage(options = {}) {
+      const before = getSupportSelectedCasesSignature(supportSavedCases);
+      const next = loadSupportSavedCasesLocal();
+      const after = getSupportSelectedCasesSignature(next);
+      if (!options.force && before === after) return false;
+      supportSavedCases = next;
+      renderSupportSavedCasesState();
+      renderSupportSavedCasesDrawerList();
+      return true;
+    }
+
+    function bindSupportSavedCasesSharedSync() {
+      if (document.documentElement.dataset.supportSavedCasesSyncBound === '1') return;
+      document.documentElement.dataset.supportSavedCasesSyncBound = '1';
+      window.addEventListener('storage', (ev) => {
+        if (ev.key !== SUPPORT_SAVED_CASES_KEY) return;
+        if (supportSavedCasesLocalWritePending) return;
+        refreshSupportSavedCasesFromSharedStorage().catch(() => {});
+      });
+      window.addEventListener('sclaw:saved-cases-updated', (ev) => {
+        if (ev && ev.detail && ev.detail.source === 'home') return;
+        refreshSupportSavedCasesFromSharedStorage().catch(() => {});
+      });
+      window.addEventListener('focus', () => {
+        refreshSupportSavedCasesFromSharedStorage().catch(() => {});
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshSupportSavedCasesFromSharedStorage().catch(() => {});
+      });
+      try {
+        if ('BroadcastChannel' in window) {
+          supportSavedCasesSyncChannel = supportSavedCasesSyncChannel || new BroadcastChannel(SUPPORT_SAVED_CASES_CHANNEL);
+          supportSavedCasesSyncChannel.addEventListener('message', (ev) => {
+            if (!ev || !ev.data || ev.data.type !== 'saved-cases-updated' || ev.data.source === 'home') return;
+            refreshSupportSavedCasesFromSharedStorage().catch(() => {});
           });
         }
       } catch (_) {}
@@ -11330,6 +11490,82 @@
       }
     }
 
+    function syncSupportSelectedCasesFloatingState() {
+      const total = supportSelectedCases.length;
+      const fab = document.getElementById('support-selected-cases-fab');
+      const fabCountEl = document.getElementById('support-selected-cases-fab-count');
+      const drawerCountEl = document.getElementById('support-selected-cases-drawer-count');
+      const chatCountInlineEl = document.getElementById('support-chat-selected-cases-count');
+      if (fabCountEl) {
+        fabCountEl.textContent = String(total);
+        fabCountEl.hidden = total === 0;
+      }
+      if (chatCountInlineEl) chatCountInlineEl.textContent = String(total);
+      if (drawerCountEl) drawerCountEl.textContent = `${total} 筆`;
+      if (fab) {
+        fab.setAttribute('aria-label', total ? `已選案件清單（${total} 筆）` : '已選案件清單（尚未加入）');
+        fab.setAttribute('aria-expanded', supportSelectedCasesDrawerOpen ? 'true' : 'false');
+        fab.classList.toggle('is-active', total > 0);
+      }
+    }
+
+    function enforceSupportSelectedCasesFloatingLabel() {
+      const fab = document.getElementById('support-selected-cases-fab');
+      if (!fab) return;
+      const badgeText = String(document.getElementById('support-selected-cases-fab-count')?.textContent || '').trim();
+      const drawerText = String(document.getElementById('support-selected-cases-drawer-count')?.textContent || '').trim();
+      const badgeCount = Number((badgeText.match(/\d+/) || [])[0] || 0);
+      const drawerCount = Number((drawerText.match(/\d+/) || [])[0] || 0);
+      const total = Math.max(badgeCount, drawerCount, supportSelectedCases.length);
+      const expectedLabel = total ? `已選案件清單（${total} 筆）` : '已選案件清單（尚未加入）';
+      if (fab.getAttribute('aria-label') !== expectedLabel) fab.setAttribute('aria-label', expectedLabel);
+      if (fab.classList.contains('is-active') !== total > 0) fab.classList.toggle('is-active', total > 0);
+      document.querySelectorAll('[data-support-fav-case-key].is-active, [data-support-fav-case-key][aria-pressed="true"]').forEach((btn) => {
+        if (btn.getAttribute('aria-pressed') !== 'true') btn.setAttribute('aria-pressed', 'true');
+        if (btn.getAttribute('title') !== '已加入對比（點一下移除）') btn.setAttribute('title', '已加入對比（點一下移除）');
+        if (btn.getAttribute('aria-label') !== '已加入案件對比') btn.setAttribute('aria-label', '已加入案件對比');
+      });
+    }
+
+    function settleSupportSelectedCasesFloatingState() {
+      syncSupportSelectedCasesFloatingState();
+      enforceSupportSelectedCasesFloatingLabel();
+      window.setTimeout(() => {
+        syncSupportSelectedCasesFloatingState();
+        enforceSupportSelectedCasesFloatingLabel();
+      }, 0);
+      window.setTimeout(enforceSupportSelectedCasesFloatingLabel, 160);
+    }
+
+    function installSupportSelectedCasesFloatingStateGuard() {
+      if (document.documentElement.dataset.supportSelectedCasesFloatingGuard === '1') return;
+      document.documentElement.dataset.supportSelectedCasesFloatingGuard = '1';
+      let pending = false;
+      const run = () => {
+        if (pending) return;
+        pending = true;
+        window.setTimeout(() => {
+          pending = false;
+          enforceSupportSelectedCasesFloatingLabel();
+        }, 0);
+      };
+      const observer = new MutationObserver(run);
+      ['support-selected-cases-fab', 'support-selected-cases-fab-count', 'support-selected-cases-drawer-count'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        observer.observe(el, { attributes: true, childList: true, subtree: true, characterData: true });
+      });
+      if (document.body) {
+        observer.observe(document.body, {
+          attributes: true,
+          attributeFilter: ['aria-pressed', 'aria-label', 'title', 'class'],
+          childList: true,
+          subtree: true,
+        });
+      }
+      run();
+    }
+
     function renderSupportSelectedCasesPanel() {
       const panel = document.getElementById('support-selected-cases-panel');
       const wrap = document.getElementById('support-selected-cases-list');
@@ -11339,24 +11575,11 @@
       const total = supportSelectedCases.length;
       const collapsed = total > 1 && supportSelectedCasesCollapsed;
       const drawerWrap = document.getElementById('support-selected-cases-drawer-list');
-      const drawerCountEl = document.getElementById('support-selected-cases-drawer-count');
-      const fab = document.getElementById('support-selected-cases-fab');
-      const fabCountEl = document.getElementById('support-selected-cases-fab-count');
-      const chatCountInlineEl = document.getElementById('support-chat-selected-cases-count');
-      if (fabCountEl) {
-        fabCountEl.textContent = String(total);
-        fabCountEl.hidden = total === 0;
-      }
-      if (chatCountInlineEl) chatCountInlineEl.textContent = String(total);
-      if (fab) {
-        const label = total ? `已選案件清單（${total} 筆）` : '已選案件清單（尚未加入）';
-        fab.setAttribute('aria-label', label);
-        fab.setAttribute('aria-expanded', supportSelectedCasesDrawerOpen ? 'true' : 'false');
-      }
-      if (drawerCountEl) drawerCountEl.textContent = `${total} 筆`;
+      syncSupportSelectedCasesFloatingState();
       if (drawerWrap) renderSupportSelectedCasesDrawerList();
       syncFigureCaseFavoriteButtons();
       renderSupportSavedCasesState();
+      settleSupportSelectedCasesFloatingState();
       if (!wrap) return;
       if (panel) {
         panel.classList.toggle('is-empty', total === 0);
@@ -11372,6 +11595,7 @@
       if (clearBtn) clearBtn.disabled = total === 0;
       if (!total) {
         wrap.innerHTML = '<span class="muted">尚未加入案件。可在智慧查詢結果點選心型收藏。</span>';
+        settleSupportSelectedCasesFloatingState();
         return;
       }
       if (collapsed) {
@@ -11394,6 +11618,7 @@
         }
         html += '</div></div>';
         wrap.innerHTML = html;
+        settleSupportSelectedCasesFloatingState();
         return;
       }
       let html = '<div class="support-selected-cases-chips">';
@@ -11417,6 +11642,7 @@
       }
       html += '</div>';
       wrap.innerHTML = html;
+      settleSupportSelectedCasesFloatingState();
     }
 
     function lockBodyScrollForSupportSelectedCasesDrawer() {
@@ -11542,9 +11768,13 @@
       const total = supportSavedCases.length;
       renderSupportSavedCasesState();
       if (!total) {
+        if (wrap.dataset.renderSignature === 'saved-empty' && wrap.firstElementChild) return;
+        wrap.dataset.renderSignature = 'saved-empty';
         wrap.innerHTML = '<div class="support-selected-cases-cart-empty"><strong>尚未收藏案件</strong><span>可在智慧查詢結果卡片右上角點選愛心，收藏後會出現在這裡。</span></div>';
         return;
       }
+      const renderSignature = `saved:${getSupportFloatingDrawerSignature(supportSavedCases, 60)}`;
+      if (wrap.dataset.renderSignature === renderSignature && wrap.firstElementChild) return;
       let html = '<div class="support-selected-cases-cart support-saved-cases-cart">';
       for (const [idx, it] of supportSavedCases.slice(0, 60).entries()) {
         const titleShown = esc(String(it.title || '').slice(0, 96) || '案件');
@@ -11582,6 +11812,7 @@
         html += '</article>';
       }
       html += '</div>';
+      wrap.dataset.renderSignature = renderSignature;
       wrap.innerHTML = html;
     }
 
@@ -11589,8 +11820,20 @@
       const wrap = document.getElementById('support-selected-cases-drawer-list');
       if (!wrap) return;
       const total = supportSelectedCases.length;
+      syncSupportSelectedCasesFloatingState();
       if (!total) {
+        if (wrap.dataset.renderSignature === 'selected-empty' && wrap.firstElementChild) {
+          settleSupportSelectedCasesFloatingState();
+          return;
+        }
+        wrap.dataset.renderSignature = 'selected-empty';
         wrap.innerHTML = '<div class="support-selected-cases-cart-empty"><strong>尚未加入案件</strong><span>可在智慧查詢結果點選心型收藏，案件會出現在這裡。</span></div>';
+        settleSupportSelectedCasesFloatingState();
+        return;
+      }
+      const renderSignature = `selected:${getSupportFloatingDrawerSignature(supportSelectedCases, 20)}`;
+      if (wrap.dataset.renderSignature === renderSignature && wrap.firstElementChild) {
+        settleSupportSelectedCasesFloatingState();
         return;
       }
       let html = '<div class="support-selected-cases-cart">';
@@ -11630,7 +11873,9 @@
         html += '</article>';
       }
       html += '</div>';
+      wrap.dataset.renderSignature = renderSignature;
       wrap.innerHTML = html;
+      settleSupportSelectedCasesFloatingState();
     }
 
     async function openSupportSelectedCasesComparePage() {
@@ -11701,6 +11946,8 @@
         if (btn) {
           btn.classList.remove('is-active');
           btn.setAttribute('aria-pressed', 'false');
+          btn.setAttribute('title', '加入案件對比');
+          btn.setAttribute('aria-label', '加入案件對比');
           syncFigureCaseActionPinnedState(btn);
         }
         return;
@@ -11721,12 +11968,16 @@
       saveSupportSelectedCasesCollapsedLocal();
       saveSupportSelectedCasesLocal();
       renderSupportSelectedCasesPanel();
+      settleSupportSelectedCasesFloatingState();
       await persistSupportSelectedCasesRemote();
       if (btn) {
         btn.classList.add('is-active');
         btn.setAttribute('aria-pressed', 'true');
+        btn.setAttribute('title', '已加入對比（點一下移除）');
+        btn.setAttribute('aria-label', '已加入案件對比');
         syncFigureCaseActionPinnedState(btn);
       }
+      settleSupportSelectedCasesFloatingState();
     }
 
     function syncFigureCaseFavoriteButtons() {
@@ -11739,6 +11990,7 @@
         btn.classList.toggle('is-active', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
         btn.setAttribute('title', on ? '已加入對比（點一下移除）' : '加入案件對比');
+        btn.setAttribute('aria-label', on ? '已加入案件對比' : '加入案件對比');
         syncFigureCaseActionPinnedState(btn);
       });
     }
@@ -11756,6 +12008,8 @@
         if (btn) {
           btn.classList.remove('is-active');
           btn.setAttribute('aria-pressed', 'false');
+          btn.setAttribute('title', '收藏此案件');
+          btn.setAttribute('aria-label', '收藏此案件');
           syncFigureCaseActionPinnedState(btn);
         }
         return;
@@ -11778,6 +12032,8 @@
       if (btn) {
         btn.classList.add('is-active');
         btn.setAttribute('aria-pressed', 'true');
+        btn.setAttribute('title', '已收藏（點一下取消）');
+        btn.setAttribute('aria-label', '已收藏案件');
         syncFigureCaseActionPinnedState(btn);
       }
     }
@@ -11792,6 +12048,7 @@
         btn.classList.toggle('is-active', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
         btn.setAttribute('title', on ? '已收藏（點一下取消）' : '收藏此案件');
+        btn.setAttribute('aria-label', on ? '已收藏案件' : '收藏此案件');
         syncFigureCaseActionPinnedState(btn);
       });
     }
@@ -11858,6 +12115,7 @@
       saveSupportSelectedCasesCollapsedLocal();
       saveSupportSelectedCasesLocal();
       renderSupportSelectedCasesPanel();
+      settleSupportSelectedCasesFloatingState();
       await persistSupportSelectedCasesRemote();
       toggleSupportChat(true);
       const noticeText = result.added
@@ -11912,6 +12170,7 @@
       saveSupportSelectedCasesLocal();
       saveSupportSelectedCasesCollapsedLocal();
       renderSupportSelectedCasesPanel();
+      settleSupportSelectedCasesFloatingState();
       await persistSupportSelectedCasesRemote();
     }
 
@@ -17484,9 +17743,47 @@
         aiReviewBtn.setAttribute('aria-selected', nextView === 'ai-review' ? 'true' : 'false');
       }
       updateAdminCasesRefreshButtonLabel(nextView);
+      if (nextView === 'media') {
+        updateAdminMediaReviewBucketTabs();
+        loadAdminMediaReviewPage().catch(() => {});
+      }
       if (nextView === 'ai-review') {
         renderAdminAiReviewList();
       }
+    }
+
+    function adminMediaReviewBucketLabel(bucket) {
+      const key = String(bucket || 'actionable');
+      const labels = {
+        actionable: '需人工處理',
+        unprocessed: '未篩選',
+        pollution_failed: '污染失敗',
+        empty: '無主圖/缺圖',
+        no_backup: '無備份',
+        fallback: 'AI降級',
+        rules: '規則選圖',
+        no_media: '相冊無圖',
+        all: '全部問題',
+      };
+      return labels[key] || labels.actionable;
+    }
+
+    function updateAdminMediaReviewBucketTabs() {
+      document.querySelectorAll('[data-media-review-bucket]').forEach((btn) => {
+        const active = String(btn.getAttribute('data-media-review-bucket') || '') === String(adminMediaReviewBucket || 'actionable');
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    function setAdminMediaReviewBucket(bucket) {
+      adminMediaReviewBucket = String(bucket || 'actionable').trim() || 'actionable';
+      adminMediaReviewPage = 1;
+      updateAdminMediaReviewBucketTabs();
+      loadAdminMediaReviewPage().catch((err) => {
+        const msg = document.getElementById('admin-cases-msg');
+        if (msg) msg.textContent = `媒体异常审核刷新失败：${formatApiError(err)}`;
+      });
     }
 
     function updateAdminMediaReviewPager(page, totalPages, total, hasItems = true) {
@@ -17496,6 +17793,7 @@
       const summary = document.getElementById('admin-media-review-summary');
       const ai = String(window.__adminMediaReviewAiStatus || '');
       const aiText = ai ? `｜${ai}` : '';
+      const bucketLabel = String(window.__adminMediaReviewBucketLabel || adminMediaReviewBucketLabel(adminMediaReviewBucket));
       const safeTotal = Math.max(0, Number(total || 0));
       const safePages = safeTotal > 0 ? Math.max(1, Number(totalPages || 1)) : 0;
       const safePage = safePages > 0 ? Math.min(Math.max(1, Number(page || 1)), safePages) : 1;
@@ -17505,8 +17803,8 @@
           : '無異常';
       }
       if (summary) summary.textContent = safeTotal > 0
-        ? `目前有 ${safeTotal} 筆需人工確認的媒體問題。污染圖會先自動清理最多 3 次，仍失敗才出現在這裡。${aiText}`
-        : `目前沒有需要人工處理的媒體異常。${aiText}`;
+        ? `目前分欄「${bucketLabel}」有 ${safeTotal} 筆媒體問題。污染圖會先自動清理最多 3 次，仍失敗才出現在人工處理分欄。${aiText}`
+        : `目前分欄「${bucketLabel}」沒有媒體問題。${aiText}`;
       if (prev) prev.disabled = safeTotal <= 0 || safePage <= 1;
       if (next) next.disabled = safeTotal <= 0 || !hasItems || safePage >= safePages;
     }
@@ -17520,11 +17818,13 @@
         return;
       }
       const ps = Math.max(5, Math.min(100, parseInt(String(document.getElementById('admin-cases-page-size')?.value || '20'), 10) || 20));
-      wrap.textContent = '載入媒體審核列表中…';
+      updateAdminMediaReviewBucketTabs();
+      wrap.textContent = `載入「${adminMediaReviewBucketLabel(adminMediaReviewBucket)}」列表中…`;
       try {
         const qs = new URLSearchParams({
           page: String(adminMediaReviewPage || 1),
           page_size: String(ps),
+          bucket: String(adminMediaReviewBucket || 'actionable'),
         }).toString();
         const res = await fetchSclawApiFirstOk([
           `/api/admin/media-review/cases?${qs}`,
@@ -17532,6 +17832,7 @@
         ], { headers: adminApiHeaders(false) });
         const data = await parseApiResponseSafe(res);
         window.__adminMediaReviewAiStatus = data.gemini_configured ? 'AI 已配置' : 'AI 未配置，列表只顯示規則／已存審核結果';
+        window.__adminMediaReviewBucketLabel = String(data.bucket_label || adminMediaReviewBucketLabel(adminMediaReviewBucket));
         const total = Number(data.total || 0);
         const page = Math.max(1, Number(data.page || 1));
         const pageSize = Number(data.page_size || ps);
@@ -22839,13 +23140,13 @@
       })[String(type || '').trim()] || String(type || '').trim() || '综合推荐';
     }
 
-    function homeFeaturedSupportPayload(item) {
+    function homeFeaturedSupportPayload(item, forcedKey = '') {
       const norm = homeFeaturedNormalizeCase(item);
       if (!norm) return null;
       return normalizeSupportSelectedCase({
         ...norm,
         article_url: norm.article_url || (norm.source_item_id ? `/case/${norm.source_item_id}` : ''),
-        case_key: norm.case_key,
+        case_key: String(forcedKey || norm.case_key || '').trim(),
         title: norm.title,
         region: norm.region,
         transit: norm.transit,
@@ -22859,22 +23160,35 @@
       }
       const key = String(btn?.getAttribute('data-home-featured-key') || '').trim();
       const item = key ? homeFeaturedCaseMap.get(key) : null;
-      const norm = homeFeaturedSupportPayload(item);
+      const norm = homeFeaturedSupportPayload(item, key);
       if (!norm) return;
       const stableKey = supportSelectedCaseStableKey(norm);
       const exists = supportSelectedCases.some((x) => supportSelectedCaseStableKey(x) === stableKey);
       if (exists) {
         await removeSupportSelectedCase(norm.case_key);
+        if (btn) {
+          btn.classList.remove('is-active');
+          btn.setAttribute('aria-pressed', 'false');
+          btn.setAttribute('title', '加入案件對比');
+          btn.setAttribute('aria-label', '加入案件對比');
+        }
       } else {
         upsertSupportSelectedCase(norm);
         supportSelectedCasesCollapsed = true;
         saveSupportSelectedCasesCollapsedLocal();
         saveSupportSelectedCasesLocal();
         await persistSupportSelectedCasesRemote();
+        if (btn) {
+          btn.classList.add('is-active');
+          btn.setAttribute('aria-pressed', 'true');
+          btn.setAttribute('title', '已加入對比（點一下移除）');
+          btn.setAttribute('aria-label', '已加入案件對比');
+        }
       }
       renderSupportSelectedCasesPanel();
       renderSupportSelectedCasesDrawerList();
       syncFigureCaseFavoriteButtons();
+      settleSupportSelectedCasesFloatingState();
     }
 
     function toggleHomeFeaturedSaved(event, btn) {
@@ -22884,14 +23198,26 @@
       }
       const key = String(btn?.getAttribute('data-home-featured-key') || '').trim();
       const item = key ? homeFeaturedCaseMap.get(key) : null;
-      const norm = homeFeaturedSupportPayload(item);
+      const norm = homeFeaturedSupportPayload(item, key);
       if (!norm) return;
       const stableKey = supportSelectedCaseStableKey(norm);
       const exists = supportSavedCases.some((x) => supportSelectedCaseStableKey(x) === stableKey);
       if (exists) {
         supportSavedCases = supportSavedCases.filter((x) => supportSelectedCaseStableKey(x) !== stableKey);
+        if (btn) {
+          btn.classList.remove('is-active');
+          btn.setAttribute('aria-pressed', 'false');
+          btn.setAttribute('title', '收藏此案件');
+          btn.setAttribute('aria-label', '收藏此案件');
+        }
       } else {
         upsertSupportSavedCase(norm);
+        if (btn) {
+          btn.classList.add('is-active');
+          btn.setAttribute('aria-pressed', 'true');
+          btn.setAttribute('title', '已收藏（點一下取消）');
+          btn.setAttribute('aria-label', '已收藏案件');
+        }
       }
       saveSupportSavedCasesLocal();
       renderSupportSavedCasesState();
@@ -22910,6 +23236,13 @@
     function homeFeaturedOpenCase(event, card) {
       const target = event && event.target instanceof Element ? event.target : null;
       if (target && target.closest('button, input, textarea, select, [role="button"], .home-featured-card-actions')) return;
+      if (event && card && typeof event.clientX === 'number' && typeof event.clientY === 'number') {
+        const hitActions = Array.from(card.querySelectorAll('.home-featured-card-actions, .home-featured-hero-actions')).some((el) => {
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+        });
+        if (hitActions) return;
+      }
       if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) return;
       const link = target && target.closest ? target.closest('a[href]') : null;
       const url = String((link && link.getAttribute('href')) || card?.getAttribute('data-case-detail-url') || '').trim();
@@ -27302,8 +27635,10 @@
     supportSavedCases = loadSupportSavedCasesLocal();
     renderSupportSelectedCasesPanel();
     renderSupportSavedCasesState();
+    installSupportSelectedCasesFloatingStateGuard();
     syncSupportPhoneLoginUiState();
     bindSupportSelectedCasesSharedSync();
+    bindSupportSavedCasesSharedSync();
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (!isAdminStandalonePage()) toggleAdminDrawer(false);
@@ -29140,6 +29475,6 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runSclawStartupChecks);
     else runSclawStartupChecks();
   </script>
-  <script src="/static/selected-cases-compare.js?v=20260627-inner-switch-a"></script>
+  <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b"></script>
 </body>
 </html>

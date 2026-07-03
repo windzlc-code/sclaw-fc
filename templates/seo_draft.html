@@ -6,7 +6,7 @@
   <title>{{ item.seo_title }}</title>
   <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords(item.keyword or '') }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260630-smart-geo-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260701-selected-drawer-c">
   <link rel="canonical" href="{{ site_url }}/seo-draft/{{ item.seo_slug }}">
   <script type="application/ld+json">{{ item.faq_schema_json|safe }}</script>
 </head>
@@ -14,8 +14,8 @@
   {% include 'partials/site_header.html' %}
   <main class="container case-page-suumo">
     <header class="suumo-case-brandbar legacy-standalone-brandbar">
-      <span class="suumo-case-brandbar-logo">SEO 草稿</span>
-      <span class="suumo-case-brandbar-src">關鍵字草稿 ｜ 雙語內容 ｜ public</span>
+      <span class="suumo-case-brandbar-logo">站內明細</span>
+      <span class="suumo-case-brandbar-src">SEO 草稿 ｜ 站內資料 ｜ public</span>
     </header>
     <section class="panel case-suumo-hero-card legacy-standalone-hero">
       <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">返回查詢首頁</a></p>

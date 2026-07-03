@@ -1,7 +1,7 @@
 {% set footer_hash_prefix = site_footer_hash_prefix | default('', true) %}
 {% set footer_support_onclick = site_footer_support_onclick | default('toggleSupportChat(true)', true) %}
 {% set footer_company = company_profile | default({}, true) %}
-{% set footer_company_name = footer_company.name | default('沐新株式會社', true) %}
+{% set footer_company_name = footer_company.name | default(site_name, true) %}
 {% set footer_company_address = footer_company.address | default('東京都豊島区北大塚2-17-4 大塚キャリアビル B1', true) %}
 {% set footer_company_contact = footer_company.contact | default('mokushin.tokyo@gmail.com', true) %}
 {% set footer_company_reference_url = footer_company.reference_url | default('https://www.moon-bears.com/manus/app/views/services.php', true) %}
@@ -84,18 +84,16 @@
     </section>
 
     <div class="bh-footer-company-strip" aria-label="公司聯絡方式">
-      <a class="bh-footer-company-row" href="/company">
-        <span class="bh-footer-company-icon bh-footer-company-icon--company" aria-hidden="true"></span>
-        <span><strong>公司：</strong>{{ footer_company_name }}</span>
-      </a>
       <span class="bh-footer-company-row">
         <span class="bh-footer-company-icon bh-footer-company-icon--address" aria-hidden="true"></span>
         <span><strong>所在地：</strong>{{ footer_company_address }}</span>
       </span>
+      {% if footer_company_contact %}
       <a class="bh-footer-company-row" href="mailto:{{ footer_company_contact }}">
         <span class="bh-footer-company-icon bh-footer-company-icon--email" aria-hidden="true"></span>
         <span><strong>Email：</strong>{{ footer_company_contact }}</span>
       </a>
+      {% endif %}
     </div>
 
     <section class="bh-footer-legal" aria-label="網站聲明">

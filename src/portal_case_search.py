@@ -2281,6 +2281,24 @@ def _homes_listing_image_token(item_url: str) -> str:
     return toks[0] if toks else ""
 
 
+def _is_athome_detail_gallery_compatible_image(url: str) -> bool:
+    """Allow a narrow set of AtHome project-detail images in case lightbox playback.
+
+    The crawler-level pollution filter still rejects these groups before
+    persistence; this exception only prevents already-sourced detail galleries
+    from becoming empty.
+    """
+    s = str(url or "").strip().lower()
+    if "athome.co.jp" not in s:
+        return False
+    return bool(
+        re.search(
+            r"/mansion/shinchiku/(?:cimages|images)/(?:project_detail_slide|guidance)/",
+            s,
+        )
+    )
+
+
 def _listing_image_candidates_scored(
     image_urls: str,
     body_original: str,
@@ -2313,13 +2331,14 @@ def _listing_image_candidates_scored(
             return
         if not s.startswith("http"):
             return
-        if is_portal_non_property_image_url(s, item_url=item_url, context=context):
+        athome_detail_gallery_compatible = _is_athome_detail_gallery_compatible_image(s)
+        if not athome_detail_gallery_compatible and is_portal_non_property_image_url(s, item_url=item_url, context=context):
             return
         if not _is_percent_encoding_valid(s):
             return
         if _is_truncated_listing_image_url(s):
             return
-        if _is_non_listing_asset_url(s):
+        if not athome_detail_gallery_compatible and _is_non_listing_asset_url(s):
             return
         if is_non_image_portal_page_url(s):
             return
