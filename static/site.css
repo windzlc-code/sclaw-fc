@@ -38768,16 +38768,24 @@ body.site-home .home-featured-action-label {
 }
 
 /* Property type picks: staggered IKEA-like image grid. */
+body.site-home {
+  --home-featured-dense-gap: clamp(7px, 0.72vw, 10px);
+}
+
+body.site-home .home-featured-board + .home-featured-board {
+  margin-top: clamp(14px, 1.5vw, 22px) !important;
+}
+
 body.site-home .home-featured-board--spotlight .home-featured-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: clamp(8px, 1vw, 14px) !important;
+  gap: var(--home-featured-dense-gap) !important;
   align-items: stretch;
 }
 
 body.site-home .home-featured-type-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  grid-auto-rows: clamp(74px, 7vw, 96px);
-  gap: clamp(8px, 1vw, 14px) !important;
+  grid-auto-rows: clamp(50px, 4.8vw, 68px);
+  gap: var(--home-featured-dense-gap) !important;
   align-items: stretch;
 }
 
@@ -38829,23 +38837,23 @@ body.site-home .home-featured-type-grid .home-featured-card--loading .home-featu
 
 body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 1),
 body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 5) {
-  grid-row: span 6;
+  grid-row: span 5;
 }
 
 body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 2),
 body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 4),
 body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 6) {
-  grid-row: span 5;
+  grid-row: span 4;
 }
 
 body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 3) {
-  grid-row: span 4;
+  grid-row: span 3;
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card-body,
 body.site-home .home-featured-type-grid .home-featured-card-body {
-  padding: clamp(18px, 2vw, 24px);
-  padding-right: clamp(58px, 5.4vw, 78px);
+  padding: clamp(14px, 1.55vw, 20px);
+  padding-right: clamp(52px, 4.8vw, 68px);
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-card h3,
@@ -38867,7 +38875,7 @@ body.site-home .home-featured-card-meta .home-featured-area {
 body.site-home .home-featured-type-grid .home-featured-card-actions {
   inset: 50% 14px auto auto;
   flex-direction: column;
-  gap: 11px;
+  gap: 8px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -38886,12 +38894,12 @@ body.site-home .home-featured-type-grid .home-featured-card:focus-within .home-f
 }
 
 body.site-home .home-featured-type-grid .home-featured-action {
-  width: 46px;
-  min-width: 46px;
-  max-width: 46px;
-  height: 46px;
-  min-height: 46px;
-  max-height: 46px;
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
   border-color: rgba(255, 255, 255, 0.72);
   background: transparent;
   color: #fff;
@@ -38975,7 +38983,7 @@ body.site-home .home-featured-type-grid .home-featured-action.figure-case-compar
 /* Spotlight recommendation layout: seven shared cards in a compact responsive grid. */
 body.site-home .home-featured-board--spotlight {
   display: block !important;
-  gap: clamp(8px, 1vw, 14px);
+  gap: var(--home-featured-dense-gap);
 }
 
 body.site-home .home-featured-board--spotlight .home-featured-hero {
@@ -39079,8 +39087,8 @@ body.site-home .home-featured-board--spotlight .home-featured-hero-cta .home-fea
 body.site-home .home-featured-board--spotlight #home-featured-grid {
   display: grid !important;
   grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-  grid-auto-rows: clamp(250px, 21vw, 330px);
-  gap: clamp(10px, 1.1vw, 16px) !important;
+  grid-auto-rows: clamp(220px, 18vw, 292px);
+  gap: var(--home-featured-dense-gap) !important;
   min-height: 0;
   height: auto !important;
   column-count: auto !important;
@@ -39158,7 +39166,7 @@ body.site-home .home-featured-board--spotlight #home-featured-grid .home-feature
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-status {
-  margin-top: clamp(10px, 1.2vw, 16px);
+  margin-top: clamp(7px, 0.9vw, 10px);
 }
 
 body.site-home .home-featured-board--spotlight .home-featured-action {
@@ -39332,6 +39340,128 @@ body.site-home .jp-workbench-suite .figure-type-picks {
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+}
+
+/* 2026-07-04: compact wide cards only inside the property-type picks section. */
+body.site-home .home-featured-type-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-rows: clamp(50px, 4.8vw, 68px) !important;
+  gap: var(--home-featured-dense-gap) !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card {
+  grid-column: auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  border-radius: 14px !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 1),
+body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 5) {
+  grid-row: span 5 !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 2),
+body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 4),
+body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 6) {
+  grid-row: span 4 !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card:nth-child(6n + 3) {
+  grid-row: span 3 !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card::before {
+  background:
+    linear-gradient(180deg, rgba(9, 20, 31, 0.52) 0%, rgba(9, 20, 31, 0.04) 36%, rgba(9, 20, 31, 0.62) 100%) !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card-body {
+  padding: clamp(13px, 1.3vw, 18px) !important;
+  padding-right: clamp(48px, 4.2vw, 64px) !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card h3 {
+  max-width: min(88%, 460px) !important;
+  font-size: clamp(14px, 1vw, 17px) !important;
+  line-height: 1.24 !important;
+  -webkit-line-clamp: 2;
+}
+
+body.site-home .home-featured-type-grid .home-featured-media-spec {
+  left: clamp(13px, 1.2vw, 18px) !important;
+  right: clamp(52px, 4.5vw, 70px) !important;
+  bottom: clamp(48px, 4vw, 62px) !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-media-spec strong {
+  font-size: clamp(20px, 1.55vw, 28px) !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-media-spec span {
+  font-size: clamp(11px, 0.75vw, 13px) !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-tags {
+  left: clamp(13px, 1.2vw, 18px) !important;
+  right: clamp(52px, 4.5vw, 70px) !important;
+  bottom: clamp(10px, 0.8vw, 14px) !important;
+  gap: 6px !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-tags span {
+  min-height: 24px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-source {
+  display: none !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-card-actions {
+  inset: 50% 10px auto auto !important;
+  gap: 8px !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-action {
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-action-icon {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+body.site-home .home-featured-type-grid .home-featured-action-svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+@media (max-width: 1080px) {
+  body.site-home .home-featured-type-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: clamp(50px, 9vw, 68px) !important;
+    gap: var(--home-featured-dense-gap) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  body.site-home .home-featured-type-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: minmax(190px, auto) !important;
+    gap: var(--home-featured-dense-gap) !important;
+  }
+
+  body.site-home .home-featured-type-grid .home-featured-card {
+    min-height: 190px !important;
+    grid-row: auto !important;
+  }
 }
 
 /* 2026-06-28: standalone case detail readability and tighter top spacing. */

@@ -14,6 +14,7 @@ logs/
 exports/
 data/
 static/cache/
+static/uploads/
 server.*.log
 *.stderr.log
 *.stdout.log

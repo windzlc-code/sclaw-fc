@@ -1365,6 +1365,7 @@ def _url_to_local_static_path(raw_url: Any) -> Path | None:
 
 
 _CASE_IMAGE_CACHE_DIR = Path("static/cache/case-images")
+_CASE_IMAGE_THUMB_DIR = Path("static/cache/case-thumbs")
 _CASE_IMAGE_PREFETCH_LOCK = threading.Lock()
 _CASE_IMAGE_PREFETCH_INFLIGHT: set[str] = set()
 _CASE_IMAGE_URL_CACHE: dict[str, str] = {}
@@ -1381,6 +1382,74 @@ def _case_image_static_url_from_path(path: Path) -> str:
         return "/static/" + str(rel).replace("\\", "/")
     except Exception:
         return "/" + str(path).replace("\\", "/").lstrip("/")
+
+
+def _case_image_thumbnail_path(static_url: Any, width: int = 520, height: int = 360) -> Path | None:
+    src = str(static_url or "").strip()
+    if not src.startswith("/static/"):
+        return None
+    source_path = _url_to_local_static_path(src)
+    if not source_path or not source_path.is_file():
+        return None
+    w = max(120, min(960, int(width or 520)))
+    h = max(90, min(720, int(height or 360)))
+    digest = hashlib.sha1(f"{src}|{source_path.stat().st_mtime_ns}|{source_path.stat().st_size}|{w}x{h}".encode("utf-8")).hexdigest()
+    return _CASE_IMAGE_THUMB_DIR / f"{w}x{h}" / digest[:2] / f"{digest}.webp"
+
+
+def _case_image_make_thumbnail(static_url: Any, width: int = 520, height: int = 360) -> str:
+    src = str(static_url or "").strip()
+    thumb_path = _case_image_thumbnail_path(src, width=width, height=height)
+    if not thumb_path:
+        return src
+    try:
+        if thumb_path.is_file() and thumb_path.stat().st_size > 256:
+            return _case_image_static_url_from_path(thumb_path)
+    except Exception:
+        pass
+    source_path = _url_to_local_static_path(src)
+    if not source_path:
+        return src
+    try:
+        from PIL import Image, ImageOps  # type: ignore
+
+        w = max(120, min(960, int(width or 520)))
+        h = max(90, min(720, int(height or 360)))
+        thumb_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = thumb_path.with_name(thumb_path.name + ".tmp")
+        with Image.open(source_path) as im0:
+            im = ImageOps.exif_transpose(im0).convert("RGB")
+            im.thumbnail((w, h), Image.Resampling.LANCZOS)
+            canvas = Image.new("RGB", (w, h), (246, 248, 250))
+            x = max(0, (w - im.width) // 2)
+            y = max(0, (h - im.height) // 2)
+            canvas.paste(im, (x, y))
+            canvas.save(tmp, format="WEBP", quality=76, method=4)
+        tmp.replace(thumb_path)
+        return _case_image_static_url_from_path(thumb_path)
+    except Exception:
+        try:
+            thumb_path.with_name(thumb_path.name + ".tmp").unlink(missing_ok=True)
+        except Exception:
+            pass
+        return src
+
+
+def case_card_thumb_url(static_url: Any, width: int = 520, height: int = 360) -> str:
+    src = str(static_url or "").strip()
+    if not src:
+        return ""
+    if not src.startswith("/static/"):
+        return src
+    # Pre-generate the thumbnail during server-side rendering, but keep the
+    # browser URL identical to the client-side renderer so hydration does not
+    # swap image URLs and download the same card art twice.
+    _case_image_make_thumbnail(src, width=width, height=height)
+    if re.match(r"^/static/cache/case-images/[a-f0-9]{2}/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$", src, re.I):
+        w = max(120, min(960, int(width or 520)))
+        h = max(90, min(720, int(height or 360)))
+        return f"/api/case-image-thumb?src={quote(src, safe='')}&w={w}&h={h}"
+    return _case_image_make_thumbnail(src, width=width, height=height)
 
 
 def _case_image_cache_ext(raw_url: Any, content_type: str = "") -> str:
@@ -4800,7 +4869,11 @@ def _home_featured_cases_payload(
     if query_text:
         sql_limit = min(220, max(lim * 24, lim + 72))
     else:
-        sql_limit = min(1600 if query_property_type else 900, max(lim * (100 if query_property_type else 80), lim + 360))
+        # Static representative images do not help if every refresh still scans
+        # hundreds or thousands of listings. Keep cold-path batches bounded; the
+        # homepage API now serves common first pages from the preload file when
+        # available and falls back here only for sparse/missing ranges.
+        sql_limit = min(420 if query_property_type else 360, max(lim * (32 if query_property_type else 24), lim + 96))
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -5215,7 +5288,23 @@ _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
 _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v15"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 6 * 60 * 60
+_HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
+# Representative card images are intentionally fixed/static. Keep the preload
+# file usable across restarts and daily traffic; external jobs can replace it
+# when a new screening batch is generated.
+_HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 30 * 24 * 60 * 60
+
+
+def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bool:
+    if not isinstance(bundle, dict):
+        return False
+    hot_items = ((bundle.get("home_featured_preload") or {}).get("items") or [])
+    if hot_items:
+        return True
+    type_payloads = bundle.get("home_featured_type_preloads") or {}
+    if isinstance(type_payloads, dict):
+        return any((payload or {}).get("items") for payload in type_payloads.values() if isinstance(payload, dict))
+    return False
 
 
 def _home_featured_index_preload_bundle() -> dict[str, Any]:
@@ -5230,7 +5319,7 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
             ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
-            if now - ts <= _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS:
+            if now - ts <= _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS and _home_featured_preload_bundle_has_items(cached):
                 return copy.deepcopy(cached)
         try:
             if _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file():
@@ -5254,6 +5343,169 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(empty_bundle))
     return copy.deepcopy(empty_bundle)
+
+
+def _home_featured_index_preload_bundle_cached_only() -> dict[str, Any] | None:
+    """Return a valid homepage preload bundle without building a new one."""
+    global _HOME_FEATURED_INDEX_PRELOAD_CACHE
+    now = time.time()
+    with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
+        if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
+            ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
+            if now - ts <= _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS and _home_featured_preload_bundle_has_items(cached):
+                return copy.deepcopy(cached)
+        try:
+            if not _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file():
+                return None
+            cached_payload = json.loads(_HOME_FEATURED_INDEX_PRELOAD_FILE.read_text(encoding="utf-8"))
+            ts = float(cached_payload.get("ts") or 0)
+            bundle = cached_payload.get("bundle") or {}
+            if (
+                cached_payload.get("version") == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
+                and ts > 0
+                and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
+                and isinstance(bundle, dict)
+            ):
+                _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
+                return copy.deepcopy(bundle)
+        except Exception:
+            return None
+    return None
+
+
+def _home_featured_cases_payload_from_preload(
+    *,
+    limit: int,
+    offset: int,
+    category: str,
+    property_type: str,
+    region: str,
+    q: str,
+    excluded_source_item_ids: Iterable[int] | None = None,
+) -> dict[str, Any] | None:
+    """Serve common homepage card requests from the static preload bundle."""
+    lim = max(1, min(24, int(limit or 12)))
+    off = max(0, min(50000, int(offset or 0)))
+    query_category = str(category or "hot").strip().lower()
+    query_property_type = str(property_type or "").strip()
+    if query_category != "hot" or str(region or "").strip() or str(q or "").strip():
+        return None
+    excluded_ids = {int(sid) for sid in (excluded_source_item_ids or []) if int(sid or 0) > 0}
+    if excluded_ids:
+        return None
+    bundle = _home_featured_index_preload_bundle_cached_only()
+    if not bundle:
+        return None
+    if query_property_type:
+        payload = (bundle.get("home_featured_type_preloads") or {}).get(query_property_type)
+    else:
+        payload = bundle.get("home_featured_preload")
+    if not isinstance(payload, dict):
+        return None
+    items = [item for item in list(payload.get("items") or []) if isinstance(item, dict)]
+    # A stale/static preload can be valid but sparse after client-side filters
+    # or older screening batches. Let the DB-backed path refill instead of
+    # serving a half-empty 12-card section.
+    if off == 0 and lim >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS and len(items) < lim:
+        return None
+    if off >= len(items):
+        return None
+    sliced = items[off : off + lim]
+    if not sliced:
+        return None
+    return {
+        **payload,
+        "ok": True,
+        "items": copy.deepcopy(sliced),
+        "limit": lim,
+        "offset": off,
+        "next_offset": off + len(sliced),
+        "has_more": bool(payload.get("has_more") is not False and off + len(sliced) < len(items)),
+        "category": query_category,
+        "property_type": query_property_type,
+        "region": "",
+        "q": "",
+        "cached": True,
+        "preloaded": True,
+    }
+
+
+_HOME_FEATURED_THUMB_PREWARM_LOCK = threading.Lock()
+_HOME_FEATURED_THUMB_PREWARM_STARTED = False
+
+
+def _home_featured_preload_thumb_sources(bundle: dict[str, Any], *, limit: int = 180) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add_from_payload(payload: Any) -> None:
+        if not isinstance(payload, dict):
+            return
+        for item in list(payload.get("items") or []):
+            if not isinstance(item, dict):
+                continue
+            candidates = [
+                item.get("thumb_url"),
+                item.get("hero_media_url"),
+                *((item.get("gallery_urls") or []) if isinstance(item.get("gallery_urls"), list) else []),
+            ]
+            for raw in candidates:
+                src = str(raw or "").strip()
+                if not src.startswith("/static/cache/case-images/"):
+                    continue
+                if src in seen:
+                    continue
+                seen.add(src)
+                out.append(src)
+                if len(out) >= limit:
+                    return
+
+    add_from_payload((bundle or {}).get("home_featured_preload"))
+    type_payloads = (bundle or {}).get("home_featured_type_preloads") or {}
+    if isinstance(type_payloads, dict):
+        for payload in type_payloads.values():
+            add_from_payload(payload)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def _prewarm_home_featured_thumbnail_cache() -> None:
+    try:
+        bundle = _home_featured_index_preload_bundle_cached_only()
+        if not bundle:
+            return
+        sources = _home_featured_preload_thumb_sources(bundle)
+        made = 0
+        for src in sources:
+            # Generate both card sizes used by SSR/client rendering and idle image warmup.
+            for w, h in ((520, 360), (360, 240)):
+                thumb = _case_image_make_thumbnail(src, width=w, height=h)
+                if thumb and thumb.startswith("/static/cache/case-thumbs/"):
+                    made += 1
+        if sources:
+            print(f"SCLAW: 首頁卡片縮略圖預熱完成（來源 {len(sources)}，縮圖 {made}）", flush=True)
+    except Exception as exc:
+        _log_backend_error("home-featured-thumb-prewarm", exc)
+
+
+def _start_home_featured_thumbnail_prewarm() -> None:
+    global _HOME_FEATURED_THUMB_PREWARM_STARTED
+    enabled = (os.getenv("SCLAW_HOME_THUMB_PREWARM") or "1").strip().lower()
+    if enabled in ("0", "false", "no", "off"):
+        return
+    with _HOME_FEATURED_THUMB_PREWARM_LOCK:
+        if _HOME_FEATURED_THUMB_PREWARM_STARTED:
+            return
+        _HOME_FEATURED_THUMB_PREWARM_STARTED = True
+    try:
+        threading.Thread(
+            target=_prewarm_home_featured_thumbnail_cache,
+            daemon=True,
+            name="home-featured-thumb-prewarm",
+        ).start()
+    except Exception as exc:
+        _log_backend_error("home-featured-thumb-prewarm-start", exc)
 
 
 def _home_intro_script_response(payload: Any | None = None) -> dict[str, Any]:
@@ -6348,9 +6600,28 @@ def api_case_image_cache(image_hash: str, u: str = Query(..., min_length=8)):
     return _case_image_cache_response(u, expected_hash=str(image_hash or ""))
 
 
+@app.get("/api/case-image-thumb")
+def api_case_image_thumb(
+    src: str = Query(..., min_length=8),
+    w: int = Query(default=520, ge=120, le=960),
+    h: int = Query(default=360, ge=90, le=720),
+):
+    thumb_url = _case_image_make_thumbnail(src, width=w, height=h)
+    path = _url_to_local_static_path(thumb_url)
+    if not path or not path.is_file():
+        return Response(status_code=404, content="thumbnail unavailable")
+    media_type = mimetypes.guess_type(str(path))[0] or "image/webp"
+    return FileResponse(
+        path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
 templates = Jinja2Templates(directory="templates")
 templates.env.filters["pack_line_html"] = format_ai_pack_line_html
 templates.env.filters["case_static_image_url"] = case_static_image_url
+templates.env.filters["case_card_thumb_url"] = case_card_thumb_url
 templates.env.globals["merge_seo_meta_keywords"] = merge_seo_meta_keywords
 templates.env.globals["seo_description_suffix"] = SEO_DESCRIPTION_SUFFIX
 templates.env.globals["seo_meta_keywords_base"] = SEO_META_KEYWORDS_BASE
@@ -7245,6 +7516,7 @@ def startup_event() -> None:
             ):
                 threading.Thread(target=_portal_case_search_cache_prewarm_loop, daemon=True).start()
         threading.Thread(target=_prewarm_home_titlebar_case_search_cache, daemon=True, name="titlebar-case-prewarm").start()
+        _start_home_featured_thumbnail_prewarm()
     except Exception:
         pass
 
@@ -7766,7 +8038,9 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
     )
     home_featured_bundle = _home_featured_index_preload_bundle()
     home_featured_preload = home_featured_bundle.get("home_featured_preload") or {"ok": False, "items": []}
-    home_featured_type_preloads = home_featured_bundle.get("home_featured_type_preloads") or {}
+    home_featured_type_preloads = dict(home_featured_bundle.get("home_featured_type_preloads") or {})
+    if "" not in home_featured_type_preloads and (home_featured_preload.get("items") or []):
+        home_featured_type_preloads[""] = home_featured_preload
     home_room_explore_tiles = home_featured_bundle.get("home_room_explore_tiles") or []
     return {
         "request": request,
@@ -7891,8 +8165,45 @@ def _build_case_listing_zh_display(case_listing_panel: dict[str, Any]) -> str:
     return "\n".join(rows)[:900]
 
 
+_INDEX_HTML_CACHE_TTL_SECONDS = int(os.getenv("SCLAW_INDEX_HTML_CACHE_TTL", "60") or "60")
+_INDEX_HTML_CACHE_LOCK = threading.RLock()
+_INDEX_HTML_CACHE: tuple[float, bytes] | None = None
+
+
+def _should_use_index_html_cache(request: Request) -> bool:
+    return (
+        _INDEX_HTML_CACHE_TTL_SECONDS > 0
+        and request.method.upper() == "GET"
+        and request.url.path == "/"
+        and not request.url.query
+    )
+
+
+def _render_index_html(request: Request, *, admin_standalone: bool = False) -> str:
+    context = _index_template_context(request, admin_standalone=admin_standalone)
+    return templates.env.get_template("index.html").render(context)
+
+
 @app.get("/")
 def index(request: Request):
+    global _INDEX_HTML_CACHE
+    if _should_use_index_html_cache(request):
+        now = time.time()
+        with _INDEX_HTML_CACHE_LOCK:
+            if _INDEX_HTML_CACHE and now - _INDEX_HTML_CACHE[0] <= _INDEX_HTML_CACHE_TTL_SECONDS:
+                return Response(
+                    content=_INDEX_HTML_CACHE[1],
+                    media_type="text/html; charset=utf-8",
+                    headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=120", "X-SCLAW-Index-Cache": "hit"},
+                )
+        body = _render_index_html(request).encode("utf-8")
+        with _INDEX_HTML_CACHE_LOCK:
+            _INDEX_HTML_CACHE = (now, body)
+        return Response(
+            content=body,
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=120", "X-SCLAW-Index-Cache": "miss"},
+        )
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -26562,6 +26873,20 @@ def api_home_featured_cases(
             continue
         if sid > 0:
             excluded_ids.append(sid)
+    preload_payload = _home_featured_cases_payload_from_preload(
+        limit=limit,
+        offset=offset,
+        category=category,
+        property_type=property_type,
+        region=region,
+        q=q,
+        excluded_source_item_ids=excluded_ids,
+    )
+    if preload_payload is not None:
+        return JSONResponse(
+            preload_payload,
+            headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},
+        )
     return JSONResponse(
         _home_featured_cases_payload(
             limit=limit,
