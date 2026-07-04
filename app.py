@@ -5403,10 +5403,10 @@ def _home_featured_cases_payload_from_preload(
     if not isinstance(payload, dict):
         return None
     items = [item for item in list(payload.get("items") or []) if isinstance(item, dict)]
-    # A stale/static preload can be valid but sparse after client-side filters
-    # or older screening batches. Let the DB-backed path refill instead of
-    # serving a half-empty 12-card section.
-    if off == 0 and lim >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS and len(items) < lim:
+    # A stale/static hot preload can be sparse after client-side de-duplication.
+    # Property-specific sparse preloads should still return quickly; the client
+    # supplements them from the hot pool instead of forcing a slow DB scan.
+    if not query_property_type and off == 0 and lim >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS and len(items) < lim:
         return None
     if off >= len(items):
         return None
