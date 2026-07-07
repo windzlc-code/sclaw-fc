@@ -1948,8 +1948,8 @@
             <button type="button" onclick="saveAdminLineSettings()">儲存通知方式</button>
             <button type="button" class="secondary" onclick="testAdminLine()">測試 LINE</button>
           </div>
-          <details class="admin-notify-setup-details">
-            <summary>更換 LINE 收件資料</summary>
+          <div class="admin-notify-setup-block">
+            <h5>LINE 收件資料</h5>
             <div class="admin-notify-form-grid">
             <label class="muted">LINE 授權碼（留空不變）
               <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="貼上 LINE 後台提供的授權碼">
@@ -1978,7 +1978,7 @@
               <button type="button" class="admin-technical-info" onclick="registerAdminLineWebhook()">設定 LINE Webhook</button>
             </div>
             <pre id="admin-line-webhook-status" class="muted admin-technical-info" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
-          </details>
+          </div>
           <input id="admin-line-test-msg" type="hidden" value="SCLAW LINE 連線測試">
           <p id="admin-line-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         </div>
@@ -1995,8 +1995,8 @@
             <button type="button" onclick="saveAdminTelegramAccounts()">儲存目前顧問</button>
             <button type="button" class="secondary" id="admin-tg-test-btn" onclick="testAdminTelegram()">測試 Telegram</button>
           </div>
-          <details class="admin-notify-setup-details admin-notify-accounts-details">
-            <summary>管理 Telegram 顧問帳號</summary>
+          <div class="admin-notify-setup-block admin-notify-accounts-block">
+            <h5>Telegram 顧問帳號</h5>
             <div class="search-row-basic" style="margin:0.65rem 0 0.55rem;">
               <button type="button" class="secondary" onclick="addAdminTelegramAccountRow()">新增顧問帳號</button>
               <button type="button" onclick="saveAdminTelegramAccounts()">儲存帳號列表</button>
@@ -2005,7 +2005,7 @@
             <div class="admin-notify-test-row" aria-label="Telegram 重載">
               <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入 Telegram</button>
             </div>
-          </details>
+          </div>
           <select id="admin-tg-test-account" hidden aria-hidden="true">
             <option value="">（目前收件顧問）</option>
           </select>
@@ -2036,8 +2036,8 @@
           </div>
           <p id="admin-tg-quick-msg" class="muted" style="margin-top:0.45rem;"></p>
         </div>
-        <details class="panel slim admin-notify-advanced" style="margin-top:0.35rem;">
-          <summary>高級設定（一般不需要打開）</summary>
+        <div class="panel slim admin-notify-advanced" style="margin-top:0.35rem;">
+          <h4 class="config-subhead" style="margin-top:0;">高級設定</h4>
           <div style="margin-top:0.65rem;">
         <label class="muted">Telegram 收件 ID
           <input id="admin-tg-chat-id" type="text" autocomplete="off" placeholder="例：7601992552">
@@ -2113,7 +2113,7 @@
           <button type="button" onclick="sendAdminTelegramBySession()">發送到此 Session</button>
         </div>
           </div>
-        </details>
+        </div>
       </div>
       </div>
 
@@ -4554,7 +4554,10 @@
         { label: '知識庫', selector: '.admin-knowledge-stack' },
       ],
       telegram: [
-        { label: '通知通道', selector: '.admin-notify-panel' },
+        { label: 'LINE 通知', selector: '.admin-telegram-line-panel' },
+        { label: 'Telegram 通知', selector: '.admin-telegram-accounts-panel' },
+        { label: '手動通知', selector: '.admin-telegram-quick-panel' },
+        { label: '高級設定', selector: '.admin-notify-advanced' },
       ],
       'home-content': [
         { label: '首頁影片', selector: '.admin-home-hero-layout' },

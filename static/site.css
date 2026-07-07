@@ -5876,8 +5876,8 @@ body.site-company-profile main.case-page-suumo {
 
 .company-luxe-line-qr-card {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
+  justify-items: center;
   align-items: center;
   margin-top: 2px;
   padding: 12px;
@@ -5889,8 +5889,9 @@ body.site-company-profile main.case-page-suumo {
 }
 
 .company-luxe-line-qr-card img {
-  width: 96px;
-  height: 96px;
+  width: min(100%, 176px);
+  height: auto;
+  aspect-ratio: 1 / 1;
   display: block;
   border-radius: 8px;
   background: #fff;
@@ -5899,6 +5900,7 @@ body.site-company-profile main.case-page-suumo {
 .company-luxe-line-qr-card span {
   display: grid;
   gap: 5px;
+  text-align: center;
 }
 
 .company-luxe-line-qr-card strong {
@@ -6055,12 +6057,12 @@ body.site-company-profile main.case-page-suumo {
   }
 
   .company-luxe-line-qr-card {
-    grid-template-columns: 82px minmax(0, 1fr);
+    justify-items: center;
   }
 
   .company-luxe-line-qr-card img {
-    width: 82px;
-    height: 82px;
+    width: min(100%, 132px);
+    height: auto;
   }
 }
 

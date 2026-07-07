@@ -124,9 +124,6 @@
             <section><strong>電話</strong><a href="tel:0985847613">09-8584-7613</a></section>
             <section><strong>LINE 諮詢帳號</strong><span>Gn148848</span></section>
             <section><strong>電子信箱</strong><span><a href="mailto:xmu6611@gmail.com">xmu6611@gmail.com</a> / <a href="mailto:g0985847613@gmail.com">g0985847613@gmail.com</a></span></section>
-            {% if company_profile.reference_url %}
-            <section><strong>官方參考</strong><a href="{{ company_profile.reference_url }}" target="_blank" rel="nofollow noopener">查看公司服務頁</a></section>
-            {% endif %}
           </div>
         </article>
         <article class="company-luxe-contact-card company-luxe-contact-card--summary">
@@ -154,7 +151,7 @@
             <a href="https://www.manuvip.com/" target="_blank" rel="noopener noreferrer">前往 manuvip.com 查看更多案件</a>
           </div>
           <div>
-            {% for category, items in knowledge_sources.items() %}
+            {% for category, items in knowledge_sources.items() if category != '大型房仲網站' %}
             <section>
               <strong>{{ category }}</strong>
               {% for item in items[:2] %}
