@@ -1919,7 +1919,7 @@
         <div class="admin-notify-head">
           <div>
             <h3 class="config-subhead">通知通道</h3>
-            <p class="muted">用來接收站內留單、案件諮詢、加入對比與人工接手通知。日常只需要確認通道已啟用，並按測試確認顧問端能收到。</p>
+          <p class="muted">用來接收站內留單、案件諮詢、加入對比與人工接手通知。日常只需要打開通知、選好顧問、按一次測試。</p>
           </div>
           <button type="button" class="secondary" onclick="loadAdminTelegramSettings(); loadAdminLineSettings();">刷新通道狀態</button>
         </div>
@@ -1939,13 +1939,17 @@
         <div class="admin-notify-main-grid">
         <div class="panel admin-telegram-line-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
           <h4 class="config-subhead" style="margin-top:0;">LINE 顧問通知</h4>
-          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">適合顧問用 LINE 收到留單提醒。一般使用只需要勾選通知並測試是否收到。</p>
+          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">適合顧問用 LINE 收到提醒。平時只需要確認是否勾選。</p>
           <div class="admin-notify-channel-toggle" style="align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.55rem;">
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-telegram" type="checkbox"> 自動通知 Telegram</label>
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-line" type="checkbox"> 自動通知 LINE</label>
           </div>
+          <div class="admin-notify-primary-actions">
+            <button type="button" onclick="saveAdminLineSettings()">儲存通知方式</button>
+            <button type="button" class="secondary" onclick="testAdminLine()">測試 LINE</button>
+          </div>
           <details class="admin-notify-setup-details">
-            <summary>首次配置 / 更換 LINE 收件資料</summary>
+            <summary>更換 LINE 收件資料</summary>
             <div class="admin-notify-form-grid">
             <label class="muted">LINE 授權碼（留空不變）
               <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="貼上 LINE 後台提供的授權碼">
@@ -1964,22 +1968,19 @@
             </label>
             </div>
             <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">這裡只在首次接 LINE 或更換顧問收件人時使用。</p>
+            <label class="muted admin-technical-info">Webhook URL
+              <input id="admin-line-webhook-url" type="url" autocomplete="off" placeholder="https://your-domain.com/api/line/webhook">
+            </label>
+            <div class="search-row-basic" style="margin-top:0.5rem;">
+              <button type="button" onclick="saveAdminLineSettings()">儲存 LINE 設定</button>
+              <button type="button" class="secondary" onclick="loadAdminLineSettings()">重新載入 LINE</button>
+              <button type="button" class="secondary admin-technical-info" onclick="loadAdminLineWebhookInfo()">查詢 Webhook</button>
+              <button type="button" class="admin-technical-info" onclick="registerAdminLineWebhook()">設定 LINE Webhook</button>
+            </div>
+            <pre id="admin-line-webhook-status" class="muted admin-technical-info" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
           </details>
-          <label class="muted admin-technical-info">Webhook URL
-            <input id="admin-line-webhook-url" type="url" autocomplete="off" placeholder="https://your-domain.com/api/line/webhook">
-          </label>
-          <label class="muted">測試訊息
-            <input id="admin-line-test-msg" type="text" value="SCLAW LINE 連線測試" autocomplete="off">
-          </label>
-          <div class="search-row-basic" style="margin-top:0.5rem;">
-            <button type="button" onclick="saveAdminLineSettings()">儲存 LINE 設定</button>
-            <button type="button" class="secondary" onclick="loadAdminLineSettings()">重新載入 LINE</button>
-            <button type="button" class="secondary" onclick="testAdminLine()">測試 LINE 推播</button>
-            <button type="button" class="secondary admin-technical-info" onclick="loadAdminLineWebhookInfo()">查詢 Webhook</button>
-            <button type="button" class="admin-technical-info" onclick="registerAdminLineWebhook()">設定 LINE Webhook</button>
-          </div>
+          <input id="admin-line-test-msg" type="hidden" value="SCLAW LINE 連線測試">
           <p id="admin-line-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
-          <pre id="admin-line-webhook-status" class="muted admin-technical-info" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
         </div>
         <div class="panel admin-telegram-accounts-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
           <h4 class="config-subhead" style="margin-top:0;">Telegram 顧問通知</h4>
@@ -1992,7 +1993,7 @@
               <select id="admin-tg-active-account" style="min-width:13rem;" title="預設推播與一鍵通知（未另指定時）"></select>
             </label>
             <button type="button" onclick="saveAdminTelegramAccounts()">儲存目前顧問</button>
-            <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入 Telegram</button>
+            <button type="button" class="secondary" id="admin-tg-test-btn" onclick="testAdminTelegram()">測試 Telegram</button>
           </div>
           <details class="admin-notify-setup-details admin-notify-accounts-details">
             <summary>管理 Telegram 顧問帳號</summary>
@@ -2001,18 +2002,14 @@
               <button type="button" onclick="saveAdminTelegramAccounts()">儲存帳號列表</button>
             </div>
             <div id="admin-tg-accounts-wrap" class="muted" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+            <div class="admin-notify-test-row" aria-label="Telegram 重載">
+              <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入 Telegram</button>
+            </div>
           </details>
-          <div class="admin-notify-test-row" aria-label="Telegram 測試">
-            <label class="muted">測試收件顧問
-              <select id="admin-tg-test-account" style="min-width:18rem;">
-                <option value="">（目前收件顧問）</option>
-              </select>
-            </label>
-            <label class="muted">測試訊息
-              <input id="admin-tg-test-msg" type="text" value="SCLAW 連線測試" autocomplete="off">
-            </label>
-            <button type="button" class="secondary" id="admin-tg-test-btn" onclick="testAdminTelegram()">測試 Telegram</button>
-          </div>
+          <select id="admin-tg-test-account" hidden aria-hidden="true">
+            <option value="">（目前收件顧問）</option>
+          </select>
+          <input id="admin-tg-test-msg" type="hidden" value="SCLAW 連線測試">
           <p id="admin-tg-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         </div>
         </div>
@@ -2042,16 +2039,16 @@
         <details class="panel slim admin-notify-advanced" style="margin-top:0.35rem;">
           <summary>高級設定（一般不需要打開）</summary>
           <div style="margin-top:0.65rem;">
-        <label class="muted">Chat ID
+        <label class="muted">Telegram 收件 ID
           <input id="admin-tg-chat-id" type="text" autocomplete="off" placeholder="例：7601992552">
         </label>
-        <label class="muted">Bot Token（留空不變；已儲存的不會顯示在框內，新帳號必須貼上整段 <code>數字:密鑰</code> 再儲存）
-          <input id="admin-tg-bot-token" type="password" autocomplete="new-password" placeholder="貼上 @BotFather 的 API Token，例：7123456789:AAH…">
+        <label class="muted">Telegram 授權碼（留空不變；已儲存的不會顯示在框內）
+          <input id="admin-tg-bot-token" type="password" autocomplete="new-password" placeholder="貼上 Telegram 後台提供的授權碼">
         </label>
         <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
-          <input id="admin-tg-clear-token" type="checkbox"> 清除 Token
+          <input id="admin-tg-clear-token" type="checkbox"> 清除已儲存授權碼
         </label>
-        <p class="muted" style="margin:0.5rem 0 0;font-size:12px;line-height:1.45;">Chat ID / Token 會寫入上方「測試目標 Bot」選定的帳號；未選時寫入使用中帳號。Telegram 測試也請在上方顧問 Bot 卡片內執行。</p>
+        <p class="muted" style="margin:0.5rem 0 0;font-size:12px;line-height:1.45;">這裡只在首次接 Telegram 或更換收件帳號時使用；平時不用打開。</p>
         <div class="search-row-basic" style="margin-top:0.5rem;">
           <button type="button" onclick="saveAdminTelegramSettings()">儲存 Telegram</button>
           <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入</button>
