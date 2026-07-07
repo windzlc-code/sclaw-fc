@@ -5216,6 +5216,32 @@ def _prewarm_home_titlebar_case_search_cache() -> None:
             print(f"SCLAW: titlebar keyword prewarm failed kw={kw}: {type(exc).__name__}: {exc}", flush=True)
 
 
+def _prewarm_home_featured_api_cache() -> None:
+    """Warm the public homepage recommendation API after deploy/restart."""
+    try:
+        bundle = _home_featured_index_preload_bundle_cached_only() or {}
+        hot_items = list(((bundle.get("home_featured_preload") or {}).get("items") or []))
+        excluded_ids = [
+            int(item.get("source_item_id") or 0)
+            for item in hot_items[:12]
+            if isinstance(item, dict) and int(item.get("source_item_id") or 0) > 0
+        ]
+        offsets = (0, 12, 24, 36, 48, 60, 72)
+        for off in offsets:
+            _home_featured_cases_payload_merged(limit=12, offset=off, category="hot", max_rounds=10)
+        if excluded_ids:
+            _home_featured_cases_payload_merged(
+                limit=12,
+                offset=0,
+                category="hot",
+                max_rounds=10,
+                exclude_source_item_ids=excluded_ids,
+            )
+        print("SCLAW: 首頁綜合推薦 API 快取預熱完成", flush=True)
+    except Exception as exc:
+        _log_backend_error("home-featured-api-prewarm", exc)
+
+
 def _home_featured_cases_payload(
     *,
     limit: int = 12,
@@ -5431,6 +5457,7 @@ def _home_featured_cases_payload_merged(
     region: str = "",
     q: str = "",
     max_rounds: int = 6,
+    exclude_source_item_ids: Iterable[int] | None = None,
 ) -> dict[str, Any]:
     """Backfill sparse featured batches so homepage sections do not render half-empty."""
     target = max(1, min(24, int(limit or 12)))
@@ -5450,6 +5477,7 @@ def _home_featured_cases_payload_merged(
             property_type=property_type,
             region=region,
             q=q,
+            exclude_source_item_ids=exclude_source_item_ids,
         )
         last_payload = payload
         items = list(payload.get("items") or [])
@@ -5751,6 +5779,62 @@ def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bo
     return False
 
 
+def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
+    """Backfill the generic type pool from specific type preloads when the hot pool is sparse."""
+    if not isinstance(bundle, dict):
+        return {}
+    fixed = copy.deepcopy(bundle)
+    type_payloads = fixed.get("home_featured_type_preloads")
+    if not isinstance(type_payloads, dict):
+        type_payloads = {}
+        fixed["home_featured_type_preloads"] = type_payloads
+    hot_payload = fixed.get("home_featured_preload") if isinstance(fixed.get("home_featured_preload"), dict) else {}
+    generic_payload = type_payloads.get("") if isinstance(type_payloads.get(""), dict) else {}
+    generic_items = list((generic_payload or {}).get("items") or [])
+    hot_items = list((hot_payload or {}).get("items") or [])
+    if len(generic_items) >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS:
+        return fixed
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_items(items: Any) -> None:
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("source_item_id") or item.get("case_path") or item.get("title") or "").strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+            if len(merged) >= 180:
+                return
+
+    add_items(generic_items)
+    add_items(hot_items)
+    for key, payload in list(type_payloads.items()):
+        if key == "" or not isinstance(payload, dict):
+            continue
+        add_items(payload.get("items") or [])
+        if len(merged) >= 180:
+            break
+    if len(merged) >= len(generic_items):
+        base_payload = generic_payload or hot_payload or {"ok": True}
+        type_payloads[""] = {
+            **base_payload,
+            "ok": True,
+            "items": merged,
+            "limit": 12,
+            "offset": 0,
+            "next_offset": min(12, len(merged)),
+            "has_more": len(merged) > 12,
+            "property_type": "",
+            "preload_backfilled": True,
+        }
+    return fixed
+
+
 def _home_featured_index_preload_bundle() -> dict[str, Any]:
     """Prepare homepage featured sections once, then reuse them across refreshes."""
     global _HOME_FEATURED_INDEX_PRELOAD_CACHE
@@ -5776,6 +5860,7 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
                     and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
                     and isinstance(bundle, dict)
                 ):
+                    bundle = _home_featured_normalized_preload_bundle(bundle)
                     _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
                     return copy.deepcopy(bundle)
         except Exception:
@@ -5810,6 +5895,7 @@ def _home_featured_index_preload_bundle_cached_only() -> dict[str, Any] | None:
                 and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
                 and isinstance(bundle, dict)
             ):
+                bundle = _home_featured_normalized_preload_bundle(bundle)
                 _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
                 return copy.deepcopy(bundle)
         except Exception:
@@ -5835,26 +5921,34 @@ def _home_featured_cases_payload_from_preload(
     if query_category != "hot" or str(region or "").strip() or str(q or "").strip():
         return None
     excluded_ids = {int(sid) for sid in (excluded_source_item_ids or []) if int(sid or 0) > 0}
-    if excluded_ids:
-        return None
     bundle = _home_featured_index_preload_bundle_cached_only()
     if not bundle:
         return None
     if query_property_type:
         payload = (bundle.get("home_featured_type_preloads") or {}).get(query_property_type)
     else:
-        payload = bundle.get("home_featured_preload")
+        payload = (bundle.get("home_featured_type_preloads") or {}).get("") or bundle.get("home_featured_preload")
     if not isinstance(payload, dict):
         return None
-    items = [item for item in list(payload.get("items") or []) if isinstance(item, dict)]
+    items = [
+        item
+        for item in list(payload.get("items") or [])
+        if isinstance(item, dict) and int(item.get("source_item_id") or 0) not in excluded_ids
+    ]
     # A stale/static hot preload can be sparse after client-side de-duplication.
     # Property-specific sparse preloads should still return quickly; the client
     # supplements them from the hot pool instead of forcing a slow DB scan.
     if not query_property_type and off == 0 and lim >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS and len(items) < lim:
         return None
     if off >= len(items):
-        return None
-    sliced = items[off : off + lim]
+        if query_property_type or not items:
+            return None
+        effective_off = off % len(items)
+    else:
+        effective_off = off
+    sliced = items[effective_off : effective_off + lim]
+    if not query_property_type and len(sliced) < lim and len(items) > len(sliced):
+        sliced = [*sliced, *items[: lim - len(sliced)]]
     if not sliced:
         return None
     return {
@@ -5864,7 +5958,7 @@ def _home_featured_cases_payload_from_preload(
         "limit": lim,
         "offset": off,
         "next_offset": off + len(sliced),
-        "has_more": bool(payload.get("has_more") is not False and off + len(sliced) < len(items)),
+        "has_more": bool((not query_property_type and len(items) > lim) or (payload.get("has_more") is not False and effective_off + len(sliced) < len(items))),
         "category": query_category,
         "property_type": query_property_type,
         "region": "",
@@ -7986,6 +8080,7 @@ def startup_event() -> None:
             ):
                 threading.Thread(target=_portal_case_search_cache_prewarm_loop, daemon=True).start()
         threading.Thread(target=_prewarm_home_titlebar_case_search_cache, daemon=True, name="titlebar-case-prewarm").start()
+        threading.Thread(target=_prewarm_home_featured_api_cache, daemon=True, name="home-featured-api-prewarm").start()
         _start_home_featured_thumbnail_prewarm()
     except Exception:
         pass
@@ -28518,14 +28613,16 @@ def api_home_featured_cases(
             preload_payload,
             headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},
         )
+    max_rounds = 10 if not str(property_type or "").strip() else 8
     return JSONResponse(
-        _home_featured_cases_payload(
+        _home_featured_cases_payload_merged(
             limit=limit,
             offset=offset,
             category=category,
             property_type=property_type,
             region=region,
             q=q,
+            max_rounds=max_rounds,
             exclude_source_item_ids=excluded_ids,
         ),
         headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},

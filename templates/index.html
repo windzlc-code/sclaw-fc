@@ -23376,10 +23376,11 @@
       if (!homeFeaturedTypeShouldExcludeSpotlight(propertyType)) return list;
       const excluded = homeFeaturedSpotlightKeySet();
       if (!excluded.size) return list;
-      return list.filter((item) => {
+      const filtered = list.filter((item) => {
         const key = homeFeaturedStableKey(item);
         return !key || !excluded.has(key);
       });
+      return filtered.length >= Math.min(6, HOME_FEATURED_PAGE_SIZE) ? filtered : list;
     }
 
     function homeFeaturedTrustedImageUrl(value) {
@@ -23649,7 +23650,7 @@
     }
 
     function homeFeaturedTypeFetchRounds(type) {
-      return String(type || '').trim() ? 8 : 3;
+      return String(type || '').trim() ? 8 : 10;
     }
 
     function homeFeaturedExistingTypeCardCount() {
@@ -23723,7 +23724,7 @@
       let lastPayload = null;
       const merged = [];
       const seen = new Set();
-      const excluded = excludeKeys instanceof Set ? excludeKeys : new Set(Array.isArray(excludeKeys) ? excludeKeys : []);
+      let excluded = excludeKeys instanceof Set ? excludeKeys : new Set(Array.isArray(excludeKeys) ? excludeKeys : []);
       const fetchPage = async (type, fetchOffset) => {
         const params = new URLSearchParams({
           limit: String(target),
@@ -23766,6 +23767,23 @@
         else nextOffset += Math.max(1, items.length || target);
         if (data.has_more === false) break;
         if (!items.length && candidateOffset <= lastOffset) break;
+      }
+      if (!String(propertyType || '').trim() && excluded.size && merged.length < target) {
+        excluded = new Set();
+        nextOffset = Math.max(0, Number(offset || 0));
+        lastOffset = -1;
+        for (let round = 0; round < Math.max(3, Number(maxRounds || 1)) && merged.length < target; round += 1) {
+          if (nextOffset === lastOffset) break;
+          lastOffset = nextOffset;
+          const data = await fetchPage('', nextOffset);
+          lastPayload = data;
+          const items = absorbItems(data.items);
+          const candidateOffset = Number(data.next_offset || 0);
+          if (candidateOffset > nextOffset) nextOffset = candidateOffset;
+          else nextOffset += Math.max(1, items.length || target);
+          if (data.has_more === false) break;
+          if (!items.length && candidateOffset <= lastOffset) break;
+        }
       }
       const type = String(propertyType || '').trim();
       const typedCount = merged.length;
@@ -24491,7 +24509,7 @@
         renderHomeFeaturedTypeCases();
         queueHomeFeaturedTypeImageWarmup(homeFeaturedTypeCases, HOME_FEATURED_PAGE_SIZE);
         const hasMore = data.has_more !== false && next.length > 0;
-        if (append || !homeFeaturedTypeNeedsRefill(homeFeaturedTypeCases, hasMore)) {
+        if (next.length && (append || !homeFeaturedTypeNeedsRefill(homeFeaturedTypeCases, hasMore))) {
           homeFeaturedStorageSet(propertyType, fetchOffset, { ...data, items: nextRaw });
           homeFeaturedTypeCache.set(cacheKey, {
             items: homeFeaturedTypeCases.slice(),
