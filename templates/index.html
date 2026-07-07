@@ -3713,7 +3713,8 @@
         const base = `${window.location.pathname}${window.location.search}`;
         const nextHash = key === 'query' ? '#query-dialog' : '#jp-map-hub';
         try {
-          window.history.replaceState(null, '', `${base}${nextHash}`);
+          if (isCleanHomepagePath()) cleanHomepageAddressBar();
+          else window.history.replaceState(null, '', `${base}${nextHash}`);
         } catch (_) {}
       }
     }
@@ -7128,8 +7129,7 @@
       window.__sclawInboundGeoKeywordConsumed = kw;
       if (window.history && window.location) {
         try {
-          const cleanUrl = `${window.location.pathname}${window.location.hash || '#query-dialog'}`;
-          window.history.replaceState(null, '', cleanUrl);
+          cleanHomepageAddressBar();
         } catch (_) {}
       }
       const run = () => {
@@ -7139,6 +7139,25 @@
         runGeoKeywordSearch(kw, target || null);
       };
       window.setTimeout(run, 80);
+    }
+
+    function isCleanHomepagePath() {
+      try {
+        if (typeof isAdminStandalonePage === 'function' && isAdminStandalonePage()) return false;
+        const path = String(window.location && window.location.pathname ? window.location.pathname : '/');
+        return path === '/' || path === '';
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function cleanHomepageAddressBar() {
+      if (!window.history || !window.location || !isCleanHomepagePath()) return;
+      try {
+        if (window.location.pathname !== '/' || window.location.search || window.location.hash) {
+          window.history.replaceState(null, '', '/');
+        }
+      } catch (_) {}
     }
 
     function applyDialogKeywordToCaseSearch(explicitKeyword) {
@@ -23523,11 +23542,13 @@
       const cacheKey = homeFeaturedCacheKey(type);
       const cached = homeFeaturedTypeCache.get(cacheKey);
       if (cached && Array.isArray(cached.items)) {
+        if (!cached.items.length) return null;
         if (!homeFeaturedTypeShouldExcludeSpotlight(type)) {
           if (cached.items.length > 0 && cached.items.length < HOME_FEATURED_PAGE_SIZE) return null;
           return cached;
         }
         const filteredItems = homeFeaturedFilterTypeItems(cached.items, type);
+        if (!filteredItems.length) return null;
         if (filteredItems.length > 0 && filteredItems.length < HOME_FEATURED_PAGE_SIZE) return null;
         return {
           ...cached,
@@ -23538,6 +23559,7 @@
       if (!storedPayload || !Array.isArray(storedPayload.items)) return null;
       const storedItems = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(storedPayload), type);
       const firstPageItems = storedItems.slice(0, HOME_FEATURED_PAGE_SIZE);
+      if (!firstPageItems.length) return null;
       const normalized = {
         items: firstPageItems,
         offset: Number(storedPayload.next_offset || storedItems.length || 0),
@@ -23549,7 +23571,7 @@
     }
 
     function homeFeaturedTypeNeedsRefill(items, hasMore = true) {
-      return Array.isArray(items) && items.length > 0 && items.length < HOME_FEATURED_PAGE_SIZE;
+      return Array.isArray(items) && hasMore !== false && items.length < HOME_FEATURED_PAGE_SIZE;
     }
 
     function homeFeaturedTypeFetchRounds(type) {
@@ -29246,7 +29268,11 @@
         u.searchParams.delete('case_sid');
         u.searchParams.delete('social_lead');
         const qs = u.searchParams.toString();
-        history.replaceState({}, '', u.pathname + (qs ? `?${qs}` : '') + u.hash);
+        if (isCleanHomepagePath()) {
+          cleanHomepageAddressBar();
+        } else {
+          history.replaceState({}, '', u.pathname + (qs ? `?${qs}` : '') + u.hash);
+        }
       } catch (_) {
         /* ignore */
       }
@@ -29723,7 +29749,8 @@
 		        const nextHash = showWorkbench ? workbenchTarget : '#home-hero-heading';
 	        const base = `${window.location.pathname}${window.location.search}`;
 	        try {
-	          window.history.replaceState(null, '', `${base}${nextHash}`);
+	          if (isCleanHomepagePath()) cleanHomepageAddressBar();
+	          else window.history.replaceState(null, '', `${base}${nextHash}`);
 	        } catch (_) {}
 	      }
 	    }
