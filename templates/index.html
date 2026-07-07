@@ -15049,32 +15049,39 @@
 
     // 後台不再分核心/完整模式：所有可操作模組都展示，僅隱藏不必要的技術資訊。
     function applyAdminSimpleModeVisibility() {
+      const previousNavState = readAdminNavState();
       const drawer = document.getElementById('admin-drawer');
       const toggle = document.getElementById('admin-simple-mode-toggle');
       const meta = document.getElementById('admin-simple-mode-meta');
       adminSimpleMode = false;
       if (toggle) toggle.checked = false;
       if (!drawer) return;
-      const btns = Array.from(drawer.querySelectorAll('.admin-tab-btn'));
-      let visibleCount = 0;
-      for (const btn of btns) {
-        btn.style.display = '';
-        visibleCount += 1;
-      }
-      drawer.querySelectorAll('.admin-tab-group').forEach((group) => {
-        group.style.display = '';
-      });
-      if (meta) {
-        meta.textContent = `全部功能：${visibleCount} 個分頁`;
-      }
-      const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
-      const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || '');
-      if (!activeTab) {
-        switchAdminTab('visitors');
-      } else {
-        syncAdminSidebarGroups(activeTab);
-        updateAdminFlowHint(activeTab);
-        updateAdminConsoleHero(activeTab);
+      adminNavStateRestoring = true;
+      try {
+        const btns = Array.from(drawer.querySelectorAll('.admin-tab-btn'));
+        let visibleCount = 0;
+        for (const btn of btns) {
+          btn.style.display = '';
+          visibleCount += 1;
+        }
+        drawer.querySelectorAll('.admin-tab-group').forEach((group) => {
+          group.style.display = '';
+        });
+        if (meta) {
+          meta.textContent = `全部功能：${visibleCount} 個分頁`;
+        }
+        const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
+        const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || '');
+        if (!activeTab) {
+          switchAdminTab('visitors');
+        } else {
+          syncAdminSidebarGroups(activeTab);
+          updateAdminFlowHint(activeTab);
+          updateAdminConsoleHero(activeTab);
+        }
+      } finally {
+        adminNavStateRestoring = false;
+        persistAdminNavState(previousNavState);
       }
     }
 
