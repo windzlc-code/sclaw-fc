@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260705-home-dense-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260707-visitor-year-lines-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions {
@@ -965,6 +965,7 @@
           <button type="button" class="admin-tab-group-label" data-admin-group-toggle="daily" aria-expanded="true">日常操作</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">房源案件</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶諮詢</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="visitors">访客数据</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
         </div>
         <div class="admin-tab-group" data-admin-group="support">
@@ -1033,9 +1034,40 @@
           <button type="button" class="secondary" onclick="goAdminFlow('home-content')"><span class="admin-flow-index">03</span><span><strong>更新網站首頁</strong><small>影片輪播與首頁內容</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">04</span><span><strong>調整智能客服</strong><small>客服頭像、回覆素材與話術</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>設定通知通道</strong><small>LINE / Telegram 顧問接手</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">06</span><span><strong>檢查資料狀態</strong><small>七大門戶缺口與補齊進度</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('visitors')"><span class="admin-flow-index">06</span><span><strong>查看访客数据</strong><small>普通游客、号码登录與历史累计</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">07</span><span><strong>檢查資料狀態</strong><small>七大門戶缺口與補齊進度</small></span></button>
         </div>
         <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
+      </div>
+
+      <div id="admin-tab-visitors" class="admin-tab-panel" role="tabpanel">
+        <div class="panel admin-visitor-panel" id="admin-visitor-overview">
+          <div class="admin-panel-title-row admin-panel-title-row--compact">
+            <h3 class="config-subhead">访客数据仪表盘</h3>
+            <div class="admin-ui-chipline" aria-label="訪客統計摘要">
+              <span>普通游客</span>
+              <span>号码登录</span>
+              <span>历史累计</span>
+            </div>
+          </div>
+          <div class="search-row-basic admin-visitor-toolbar">
+            <label class="muted">統計範圍
+              <select id="admin-visitor-days" onchange="loadAdminVisitorDashboard()">
+                <option value="7">近 7 天</option>
+                <option value="14" selected>近 14 天</option>
+                <option value="30">近 30 天</option>
+                <option value="90">近 90 天</option>
+                <option value="180">近 180 天</option>
+                <option value="365">近 1 年</option>
+              </select>
+            </label>
+            <button type="button" class="secondary" onclick="loadAdminVisitorDashboard()">重新載入</button>
+            <p id="admin-visitor-status" class="muted admin-visitor-status">登入後載入访客数据。</p>
+          </div>
+          <div id="admin-visitor-dashboard" class="admin-visitor-dashboard">
+            <p class="muted">尚未載入數據。</p>
+          </div>
+        </div>
       </div>
 
       <div id="admin-tab-home-content" class="admin-tab-panel" role="tabpanel">
@@ -4419,7 +4451,7 @@
     let adminConsoleSectionIndex = 0;
     const adminDeferredLoadState = new Set();
     const ADMIN_PANEL_TRANSITION_MS = 320;
-    const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'home-content', 'portal-matrix', 'leads', 'llm', 'password']);
+    const ADMIN_SIMPLE_CORE_TABS = new Set(['cases', 'handoffs', 'support-hub', 'knowledge', 'telegram', 'home-content', 'visitors', 'portal-matrix', 'leads', 'llm', 'password']);
     const ADMIN_TAB_LABEL_MAP = {
       cases: '房源案件',
       handoffs: '客戶諮詢',
@@ -4427,6 +4459,7 @@
       knowledge: '知識庫',
       telegram: '通知通道',
       'home-content': '網站首頁',
+      visitors: '访客数据',
       'portal-matrix': '資料檢查',
       leads: '社群雷達',
       llm: 'AI 設定',
@@ -4491,6 +4524,16 @@
           ['選素材', '先選首頁影片或圖片。'],
           ['預覽效果', '確認標題、比例與順序。'],
           ['儲存套用', '沒有問題後再發布到首頁。'],
+        ],
+      },
+      visitors: {
+        desc: '查看前端網站進入流量與獨立 IP 趨勢。',
+        chips: ['普通游客', '號碼登入', '历史累计'],
+        notice: '访客数据只記錄是否進入前端網站；不拆分頁面，後台、API 與靜態資源不計入，同一 IP 在統計範圍內只計為一位獨立訪客。',
+        steps: [
+          ['看總覽', '先看獨立訪客與今日變化。'],
+          ['分身份', '區分普通游客與號碼登入游客。'],
+          ['看累計', '用歷史累計確認長期訪客量。'],
         ],
       },
       'portal-matrix': {
@@ -4565,6 +4608,9 @@
         { label: '首頁影片', selector: '.admin-home-hero-layout' },
         { label: '口播影片', selector: '.home-intro-video-panel' },
         { label: '輪播清單', selector: '.admin-home-carousel-manager' },
+      ],
+      visitors: [
+        { label: '流量總覽', selector: '#admin-visitor-overview' },
       ],
       'portal-matrix': [
         { label: '七站報表', selector: '#admin-portal-matrix-wrap' },
@@ -9910,6 +9956,7 @@
 
     const SUPPORT_PHONE_LOGIN_KEY = 'sclaw_support_phone_login';
     const SUPPORT_PHONE_LOGIN_COUNTRY_KEY = 'sclaw_support_phone_login_country';
+    const SUPPORT_PHONE_LOGIN_COOKIE = 'sclaw_phone_logged_in';
     const SUPPORT_PHONE_COUNTRY_RULES = {
       tw: { label: '台灣', dial: '+886', example: '0912 345 678', hint: '台灣手機需 09 開頭共 10 碼；市話需含區碼，例如 02 2345 6789。' },
       jp: { label: '日本', dial: '+81', example: '090 1234 5678', hint: '日本手機通常 070 / 080 / 090 開頭共 11 碼；市話通常 10 碼。' },
@@ -9934,6 +9981,17 @@
 
     function isSupportPhoneLoggedIn() {
       return !!getSupportPhoneLoginValue();
+    }
+
+    function syncSupportPhoneLoginCookie(logged) {
+      try {
+        const base = `${SUPPORT_PHONE_LOGIN_COOKIE}=`;
+        if (logged) {
+          document.cookie = `${base}1; Max-Age=31536000; Path=/; SameSite=Lax`;
+        } else {
+          document.cookie = `${base}; Max-Age=0; Path=/; SameSite=Lax`;
+        }
+      } catch (_) {}
     }
 
     function getSupportPhoneCountryLabel(countryKey) {
@@ -9981,6 +10039,7 @@
 
     function syncSupportPhoneLoginUiState() {
       const logged = isSupportPhoneLoggedIn();
+      syncSupportPhoneLoginCookie(logged);
       const navBtn = document.getElementById('bh-nav-phone-login-btn');
       const navText = document.getElementById('bh-nav-phone-login-text');
       const floatingBtn = document.getElementById('support-phone-login-toggle');
@@ -10825,6 +10884,7 @@
       try {
         localStorage.removeItem(SUPPORT_PHONE_LOGIN_KEY);
       } catch (_) {}
+      syncSupportPhoneLoginCookie(false);
       toggleSupportChat(false, { skipExclusive: true });
       syncSupportPhoneLoginUiState();
       const modal = document.getElementById('support-phone-login-modal');
@@ -10876,6 +10936,7 @@
           localStorage.setItem(SUPPORT_PHONE_LOGIN_KEY, phone);
           localStorage.setItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY, validation.country);
         } catch (_) {}
+        syncSupportPhoneLoginCookie(true);
         syncSupportPhoneLoginUiState();
         if (msg) {
           msg.textContent = `已登入：${phone}${data.handoff_id ? `｜留單 #${data.handoff_id}` : ''}`;
@@ -13674,6 +13735,134 @@
       return headers;
     }
 
+    function adminVisitorNumber(value) {
+      const n = Number(value || 0);
+      if (!Number.isFinite(n)) return '0';
+      return n.toLocaleString('zh-Hant');
+    }
+
+    function adminVisitorPercent(value) {
+      const n = Number(value || 0);
+      if (!Number.isFinite(n)) return '0%';
+      return `${Math.round(n * 10) / 10}%`;
+    }
+
+    function adminVisitorRenderLineChart(items, maxValue) {
+      const arr = Array.isArray(items) ? items : [];
+      if (!arr.length) return '<p class="muted admin-visitor-empty">暫無曲線資料。</p>';
+      const width = 520;
+      const height = 156;
+      const padX = 18;
+      const padY = 18;
+      const usableW = width - padX * 2;
+      const usableH = height - padY * 2;
+      const max = Math.max(
+        1,
+        Number(maxValue || 0),
+        ...arr.map((it) => Number(it.guest_visitors || 0)),
+        ...arr.map((it) => Number(it.phone_visitors || 0))
+      );
+      const makePoints = (key) => arr.map((it, index) => {
+        const value = Number(it[key] || 0);
+        const x = padX + (arr.length <= 1 ? usableW / 2 : (index / (arr.length - 1)) * usableW);
+        const y = padY + usableH - (value / max) * usableH;
+        return { x, y, value, label: String(it.label || it.date || '') };
+      });
+      const guestPoints = makePoints('guest_visitors');
+      const phonePoints = makePoints('phone_visitors');
+      const line = (points) => points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      const circles = (points, cls) => points.map((p) => `<circle class="${cls}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5"><title>${esc(p.label)}：${adminVisitorNumber(p.value)}</title></circle>`).join('');
+      return `<div class="admin-visitor-line-chart">
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="普通游客與號碼登入游客曲線圖" preserveAspectRatio="none">
+          <line x1="${padX}" y1="${height - padY}" x2="${width - padX}" y2="${height - padY}" />
+          <polyline class="is-guest" points="${line(guestPoints)}" />
+          <polyline class="is-phone" points="${line(phonePoints)}" />
+          ${circles(guestPoints, 'is-guest')}
+          ${circles(phonePoints, 'is-phone')}
+        </svg>
+        <div class="admin-visitor-line-labels">${guestPoints.map((p) => `<span>${esc(p.label).replace('~', '<br>')}</span>`).join('')}</div>
+      </div>`;
+    }
+
+    function renderAdminVisitorDashboard(data) {
+      const root = document.getElementById('admin-visitor-dashboard');
+      if (!root) return;
+      const totals = data && data.totals ? data.totals : {};
+      const daily = Array.isArray(data && data.daily) ? data.daily : [];
+      const buckets = Array.isArray(data && data.buckets) && data.buckets.length ? data.buckets : daily;
+      const range = data && data.range ? data.range : {};
+      const maxDaily = Math.max(
+        1,
+        ...buckets.map((it) => Number(it.guest_visitors || 0)),
+        ...buckets.map((it) => Number(it.phone_visitors || 0))
+      );
+      const delta = Number(totals.unique_delta_vs_yesterday || 0);
+      const deltaClass = delta >= 0 ? 'is-up' : 'is-down';
+      const deltaText = `${delta >= 0 ? '+' : ''}${adminVisitorNumber(delta)}`;
+      const dayBars = buckets.map((it) => {
+        const unique = Number(it.unique_visitors || 0);
+        const entries = Number(it.entries || it.pageviews || 0);
+        const guest = Number(it.guest_visitors || 0);
+        const phone = Number(it.phone_visitors || 0);
+        const guestH = guest > 0 ? Math.max(6, Math.round((guest / maxDaily) * 100)) : 0;
+        const phoneH = phone > 0 ? Math.max(6, Math.round((phone / maxDaily) * 100)) : 0;
+        const label = String(it.label || it.date || '').replace(/-/g, '/');
+        const labelHtml = esc(label).replace('~', '<br>');
+        return `<span class="admin-visitor-daybar" title="${esc(label)}：普通 ${adminVisitorNumber(guest)} / 號碼登入 ${adminVisitorNumber(phone)} / 合計 ${adminVisitorNumber(unique)}">
+          <span class="admin-visitor-bar-pair">
+            <i class="admin-visitor-bar-guest" style="height:${guestH}%">${guest > 0 ? `<b>${adminVisitorNumber(guest)}</b>` : ''}</i>
+            <i class="admin-visitor-bar-phone" style="height:${phoneH}%">${phone > 0 ? `<b>${adminVisitorNumber(phone)}</b>` : ''}</i>
+          </span>
+          <small>${labelHtml}</small>
+        </span>`;
+      }).join('');
+      root.innerHTML = `
+        <div class="admin-visitor-range-note">統計區間：${esc(range.start_date || '-')} 至 ${esc(range.end_date || '-')}。只記錄是否進入前端網站；同一 IP 去重，並區分普通游客與號碼登入游客。</div>
+        <section class="admin-visitor-kpis" aria-label="訪客核心數據">
+          <article><span>历史累计</span><strong>${adminVisitorNumber(totals.historical_unique_visitors)}</strong><small>自记录以来</small></article>
+          <article><span>区间访客</span><strong>${adminVisitorNumber(totals.unique_visitors)}</strong><small>${adminVisitorNumber(range.days || buckets.length)} 天 IP 去重</small></article>
+          <article><span>普通游客</span><strong>${adminVisitorNumber(totals.guest_visitors)}</strong><small>未号码登录</small></article>
+          <article><span>号码登录游客</span><strong>${adminVisitorNumber(totals.phone_login_visitors)}</strong><small>区间内已登录</small></article>
+          <article><span>今日号码登录</span><strong>${adminVisitorNumber(totals.today_phone_login_visitors)}</strong><small class="${Number(totals.phone_login_delta_vs_yesterday || 0) >= 0 ? 'is-up' : 'is-down'}">较昨日 ${Number(totals.phone_login_delta_vs_yesterday || 0) >= 0 ? '+' : ''}${adminVisitorNumber(totals.phone_login_delta_vs_yesterday)}</small></article>
+        </section>
+        <section class="admin-visitor-chart-grid">
+          <article class="admin-visitor-card">
+            <div class="admin-visitor-card-head"><h4>去重進入柱狀圖</h4><span>${adminVisitorNumber(buckets.length)} 段</span></div>
+            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>号码登录</span></div>
+            <div class="admin-visitor-chart">${dayBars || '<p class="muted">沒有趨勢資料。</p>'}</div>
+          </article>
+          <article class="admin-visitor-card">
+            <div class="admin-visitor-card-head"><h4>訪客曲線圖</h4><span>普通 / 号码登录</span></div>
+            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>号码登录</span></div>
+            ${adminVisitorRenderLineChart(buckets, maxDaily)}
+          </article>
+        </section>
+        `;
+    }
+
+    async function loadAdminVisitorDashboard() {
+      const status = document.getElementById('admin-visitor-status');
+      const root = document.getElementById('admin-visitor-dashboard');
+      const days = String(document.getElementById('admin-visitor-days')?.value || '14');
+      if (!adminPanelPassword) {
+        if (status) status.textContent = '請先登入後台。';
+        if (root) root.innerHTML = '<p class="muted">登入後載入访客数据。</p>';
+        return;
+      }
+      if (status) status.textContent = '載入中…';
+      try {
+        const res = await fetch(`/api/admin/visitor-dashboard?days=${encodeURIComponent(days)}`, {
+          headers: adminApiHeaders(false),
+        });
+        const data = await parseApiResponseSafe(res);
+        renderAdminVisitorDashboard(data);
+        if (status) status.textContent = `已載入近 ${esc(days)} 天访客数据。`;
+      } catch (err) {
+        if (status) status.textContent = `載入失敗：${formatApiError(err)}`;
+        if (root) root.innerHTML = '<p class="muted">访客数据暫時無法載入。</p>';
+      }
+    }
+
     function adminPagerHtml(page, total, fnName) {
       const current = Math.max(1, Number(page || 1));
       const rawTotal = Math.max(0, Number(total || 0));
@@ -14453,6 +14642,11 @@
         } else if (idx === 2) {
           await loadAdminHomeCarousel();
         }
+        return;
+      }
+      if (key === 'visitors') {
+        if (!adminPanelPassword) return;
+        await loadAdminVisitorDashboard();
         return;
       }
       if (key === 'portal-matrix') {

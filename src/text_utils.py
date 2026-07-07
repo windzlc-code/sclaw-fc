@@ -276,6 +276,15 @@ def sanitize_article_display_body(text: str) -> str:
     t = (text or "").strip()
     if not t:
         return ""
+    t = t.replace("\ufffd", "")
+    t = re.sub(r"ヒント\s*[:：]\s*", "", t)
+    if re.search(r"(?:需授權或無法抽吸|需授权或无法抽吸)\s+JavaScript\s*被禁用", t):
+        return ""
+    t = re.sub(
+        r"(?is)\[物件欄位摘要\].*?(?=\n\s*\[[^\]]+\]|\Z)",
+        "\n",
+        t,
+    )
     prev = None
     while prev != t:
         prev = t
@@ -284,6 +293,7 @@ def sanitize_article_display_body(text: str) -> str:
     # 常見誤植：「衝縄」應為沖繩一帶的「沖縄」
     t = t.replace("衝縄", "沖縄")
     t = strip_public_link_noise(t)
+    t = re.sub(r"(?im)^\s*\[(?:來源網址|来源网址|圖片網址|图片网址|來源連結|来源链接)\]\s*$", "", t)
     t = strip_disclaimer_noise_for_keypoints(t)
     t = re.sub(r"[ \t\u3000]{2,}", " ", t)
     t = re.sub(r"\n{3,}", "\n\n", t).strip()

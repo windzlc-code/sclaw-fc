@@ -2733,14 +2733,95 @@ def _clean_listing_fee_value(value: Any) -> str:
     return s[:80]
 
 
+def _clean_listing_built_value(value: Any) -> str:
+    s = _compact_listing_value(value, max_len=180)
+    if not s:
+        return ""
+    compact = re.sub(r"\s+", "", s)
+    patterns = (
+        r"\d{4}\s*年\s*\d{1,2}\s*月(?:\s*(?:上旬|中旬|下旬))?(?:\s*(?:完成予定|竣工予定|築))?",
+        r"\d{4}\s*[./／]\s*\d{1,2}(?:\s*(?:完成予定|竣工予定))?",
+        r"令和\s*[0-9元]{1,2}\s*(?:年|[./／])\s*\d{1,2}\s*月?(?:\s*(?:上旬|中旬|下旬))?(?:\s*(?:完成予定|竣工予定))?",
+        r"(?:新築|築浅)",
+    )
+    for pat in patterns:
+        m = re.search(pat, s)
+        if m:
+            return re.sub(r"\s+", "", m.group(0)).strip()
+    if re.search(r"(?:現地写真|撮影風景|お電話|お気軽|Yahoo!?不動産|物件詳細|住宅|來源|来源|引き渡し|引渡|土地状況|地目|用途地域|土地権利)", s, re.I):
+        return ""
+    if len(compact) > 48:
+        return ""
+    return s[:80]
+
+
+def _clean_listing_parking_value(value: Any) -> str:
+    s = _compact_listing_value(value, max_len=160)
+    if not s:
+        return ""
+    s = re.sub(r"^\s*ヒント\s*[:：]\s*", "", s).strip()
+    if re.search(r"(?:会社概要|仲介|宅地建物取引業|不動産協会)", s):
+        return ""
+    if re.search(r"(?:玄関|バルコニー|収納|設備|リフォーム|土間|その他現地|スロープ|キッチン|庭|クローク)", s):
+        m_explicit = re.search(r"(?:[0-9０-９]+\s*台(?:以上|可|分|有)?|駐車場\s*(?:有|無|なし|空有|近隣|要確認|相談|無料)|(?:空有|近隣|要確認|相談|無料))", s)
+        return re.sub(r"\s+", "", m_explicit.group(0)).strip("、。・/／ ")[:40] if m_explicit else ""
+    patterns = (
+        r"(?:駐車場\s*)?(?:有|無|なし|空有|近隣|要確認|相談|無料|[0-9０-９]+\s*台(?:以上|可|分|有)?)",
+        r"(?:駐車場\s*)?(?:[0-9０-９]+\s*台(?:以上|可|分|有)?)",
+    )
+    for pat in patterns:
+        m = re.search(pat, s)
+        if m:
+            out = re.sub(r"\s+", "", m.group(0)).strip("、。・/／ ")
+            if out and out not in {"駐車場"}:
+                return out
+    if re.search(r"(?:情報更新日|情報掲載開始日|資料公開|下次更新)", s):
+        return ""
+    if re.search(r"(?:新築一戸建て|Yahoo!?不動産|物件欄位摘要|情報掲載|価格|間取り|所在地|交通)", s, re.I):
+        return ""
+    if len(s) > 60:
+        return ""
+    return s[:80]
+
+
+def _clean_listing_handover_value(value: Any) -> str:
+    s = _compact_listing_value(value, max_len=180)
+    if not s or s in {"—", "-"}:
+        return ""
+    s = re.sub(r"^\s*ヒント\s*[:：]\s*", "", s).strip()
+    if not s:
+        return ""
+    simple = re.match(
+        r"^(?:相談|即引渡可|即時|即入居可|[0-9０-９]{4}\s*年\s*[0-9０-９]{1,2}\s*月(?:上旬|中旬|下旬)?(?:予定|可)?)",
+        s,
+    )
+    if simple:
+        return re.sub(r"\s+", "", simple.group(0)).strip()
+    if re.search(r"(?:会社概要|仲介|宅地建物取引業|不動産協会|沿線駅|乗り換え案)", s):
+        return ""
+    if len(s) > 140:
+        s = s[:140].rstrip("、。，. ")
+    return s
+
+
 def _clean_listing_structure_value(value: Any) -> str:
     s = _compact_listing_value(value, max_len=140).strip("—- ")
     if not s:
         return ""
+    structure_match = re.search(
+        r"(?:SRC|RC|S造|鉄骨造|鉄筋コンクリート|鉄骨鉄筋コンクリート|木造|軽量鉄骨)"
+        r"(?:[0-9０-９]{1,3}\s*階建)?(?:一部(?:RC|SRC|S造|木造))?",
+        s,
+        flags=re.I,
+    )
+    if "ヒント" in s or "沿線駅" in s or "乗り換え案" in s or "完成予定" in s:
+        return re.sub(r"\s+", "", structure_match.group(0)).strip()[:60] if structure_match else ""
+    if re.search(r"(?:仕様|現地外観写真|玄関|耐震性|シロアリ|徒歩|分譲地|キッチン|標準装備|システム)", s):
+        return re.sub(r"\s+", "", structure_match.group(0)).strip()[:60] if structure_match else ""
     if _LISTING_VALUE_STOP_RE.search(" " + s):
         s = _LISTING_VALUE_STOP_RE.split(" " + s, maxsplit=1)[0].strip()
     if len(s) > 90:
-        return ""
+        return re.sub(r"\s+", "", structure_match.group(0)).strip()[:60] if structure_match else ""
     if re.search(r"(?:來源|来源|管理費|修繕|物件名|価格|價格|格局|所在地|交通)", s):
         return ""
     return s[:90]
@@ -3620,14 +3701,14 @@ def _extract_suumo_style_detail(blob: str, *, blob_hw: str | None = None) -> dic
         "balcony_line_jp": balcony,
         "other_area_line_jp": other_area_line,
         "sales_units_line_jp": sales_units,
-        "built_ym_jp": built,
+        "built_ym_jp": _clean_listing_built_value(built),
         "manage_fee_jp": _clean_listing_fee_value(manage_fee),
         "reserve_fee_jp": _clean_listing_fee_value(reserve_fee),
         "total_units_jp": total_units,
         "structure_jp": _clean_listing_structure_value(structure),
-        "parking_jp": _compact_listing_value(parking, max_len=120),
+        "parking_jp": _clean_listing_parking_value(parking),
         "status_jp": _compact_listing_value(status, max_len=80),
-        "handover_jp": _compact_listing_value(handover, max_len=90),
+        "handover_jp": _clean_listing_handover_value(handover),
         "property_no_jp": property_no,
         "info_open_jp": info_open,
         "next_update_jp": next_update,
@@ -3795,7 +3876,7 @@ def _extract_listing_fields(row: dict[str, Any], *, meta: dict[str, Any]) -> dic
                 addr_jp = addr_jp.split(_tok, 1)[0].strip()
     layout_line_jp_out = str(suumo.get("layout_line_jp") or "").strip()
     exclusive_area_jp = str(suumo.get("area_line_jp") or "").strip()
-    built_ym_eff = str(suumo.get("built_ym_jp") or "").strip()
+    built_ym_eff = _clean_listing_built_value(suumo.get("built_ym_jp") or "")
     if built_ym_eff:
         age_years = None
         age_text_hant = ""
@@ -3812,7 +3893,7 @@ def _extract_listing_fields(row: dict[str, Any], *, meta: dict[str, Any]) -> dic
     inquiry_contact_jp = str(suumo.get("inquiry_contact_jp") or "").strip()
     total_units_jp = str(suumo.get("total_units_jp") or "").strip()
     structure_jp = _clean_listing_structure_value(suumo.get("structure_jp") or "")
-    parking_jp = str(suumo.get("parking_jp") or "").strip()
+    parking_jp = _clean_listing_parking_value(suumo.get("parking_jp") or "")
     status_jp = str(suumo.get("status_jp") or "").strip()
     handover_jp = str(suumo.get("handover_jp") or "").strip()
     if "homes.co.jp" in (item_url or "").lower() and "/mansion/b-" in (item_url or "").lower():
@@ -4102,6 +4183,8 @@ def _extract_listing_fields(row: dict[str, Any], *, meta: dict[str, Any]) -> dic
     addr_jp = _clean_listing_address_line(addr_jp)
     access_jp = _clean_listing_access_line(access_jp)
     structure_jp = _clean_listing_structure_value(structure_jp)
+    parking_jp = _clean_listing_parking_value(parking_jp)
+    handover_jp = _clean_listing_handover_value(handover_jp)
     item_url_lc = (item_url or "").lower()
     if "/kodate/" in item_url_lc or "/ikkodate/" in item_url_lc:
         building_type = "透天/一戶建"

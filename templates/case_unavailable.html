@@ -30,8 +30,8 @@
         <a class="portal-suumo-cta portal-suumo-cta--consult" href="{{ search_url }}">依這個關鍵字重新查詢</a>
         <a class="portal-suumo-cta portal-suumo-cta--ghost" href="/?open_support=1">請 BOT 幫我縮小條件</a>
       </div>
-      {% set zh_body = item.body_zh_hant_display or item.body_zh_hant or '' %}
-      {% set jp_body = item.body_original_display or item.body_original or '' %}
+      {% set zh_body = item.body_zh_hant_display or '' %}
+      {% set jp_body = item.body_original_display or '' %}
       {% if zh_body %}
       <section class="case-unavailable-content">
         <h2>中文整理</h2>

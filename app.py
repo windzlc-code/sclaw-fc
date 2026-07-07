@@ -15,7 +15,7 @@ import time
 import unicodedata
 import wave
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse
@@ -1682,6 +1682,10 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                         reason = "line-diagram"
                     elif sat_mean <= 0.10 and light_ratio >= 0.20 and dark_ratio <= 0.04 and edge_mean >= 0.16:
                         reason = "access-map"
+                    elif sat_mean <= 0.12 and 0.24 <= light_ratio <= 0.55 and dark_ratio <= 0.01 and mid_gray_ratio >= 0.52 and edge_mean >= 0.12:
+                        reason = "site-plan"
+                    elif sat_mean <= 0.20 and light_ratio <= 0.13 and dark_ratio <= 0.01 and mid_gray_ratio >= 0.58 and edge_mean >= 0.14:
+                        reason = "site-plan"
                     elif light_ratio >= 0.78 and dark_ratio <= 0.03 and sat_mean <= 0.18:
                         reason = "blank-placeholder"
     except Exception:
@@ -2024,8 +2028,6 @@ def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "buil
         return "non-photo-context"
     if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/project_detail_slide/" in hay:
         return "new-build-concept"
-    if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/gaikan/" in hay:
-        return "new-build-render"
     if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/energy_saving/" in hay:
         return "new-build-spec"
     if "athome.co.jp" in hay and "/mansion/shinchiku/cimages/project_free/" in hay:
@@ -2034,8 +2036,8 @@ def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "buil
 
 
 _CASE_REPRESENTATIVE_STRONG_CATEGORIES = {"interior", "exterior"}
-_CASE_REPRESENTATIVE_ACCEPTABLE_CATEGORIES = {"interior", "exterior", "kitchen", "balcony_view", "other"}
-_CASE_REPRESENTATIVE_WEAK_CATEGORIES = {"kitchen", "balcony_view", "other"}
+_CASE_REPRESENTATIVE_ACCEPTABLE_CATEGORIES = {"interior", "exterior", "render", "kitchen", "balcony_view", "other"}
+_CASE_REPRESENTATIVE_WEAK_CATEGORIES = {"render", "kitchen", "balcony_view", "other"}
 _CASE_REPRESENTATIVE_REJECT_CATEGORIES = {
     "floorplan",
     "toilet",
@@ -2050,6 +2052,47 @@ _CASE_REPRESENTATIVE_HARD_REJECT_CATEGORIES = {
     "bath",
     "kitchen_bath",
 }
+_CASE_REPRESENTATIVE_RENDER_TOKENS = (
+    "render",
+    "rendering",
+    "3d render",
+    "3d rendering",
+    "3dパース",
+    "3dパース図",
+    "perspective",
+    "artist impression",
+    "artist_impression",
+    "パース",
+    "完成予想",
+    "完成予想図",
+    "完成予想cg",
+    "外観予想",
+    "内観予想",
+    "外観パース",
+    "内観パース",
+    "建物パース",
+)
+_CASE_REPRESENTATIVE_CONCEPT_RENDER_TOKENS = (
+    "concept",
+    "conceptual",
+    "illustration",
+    "イメージ図",
+    "イメージ画像",
+    "参考イメージ",
+    "概念図",
+    "概念",
+)
+_CASE_REPRESENTATIVE_LOW_QUALITY_RENDER_TOKENS = (
+    "low quality 3d",
+    "rough 3d",
+    "simple 3d",
+    "poor 3d",
+    "低品質3d",
+    "低品質cg",
+    "粗い3d",
+    "簡易3d",
+    "簡易cg",
+)
 _CASE_REPRESENTATIVE_TYPE_TO_PROFILE = {
     "公寓": "apartment",
     "大樓": "tower",
@@ -2303,13 +2346,15 @@ def _case_representative_semantic_reject_reason(url: Any, context: str = "", *, 
         bag = f"{url or ''} {context or ''}".lower()
     weak_tokens = (
         "concept",
-        "render",
-        "perspective",
-        "パース",
-        "完成予想",
+        "artist impression",
         "完成イメージ",
-        "イメージ",
+        "イメージ図",
+        "イメージ画像",
+        "参考イメージ",
+        "概念図",
+        "概念",
         "illustration",
+        *_CASE_REPRESENTATIVE_LOW_QUALITY_RENDER_TOKENS,
         "野外",
         "空地",
         "原野",
@@ -2355,6 +2400,8 @@ def _case_representative_ai_category_accepted(category: str, information_value: 
         "floor_plan",
         "map",
         "concept",
+        "cg",
+        "illustration",
         "ad",
         "watermark",
         "placeholder",
@@ -2382,6 +2429,8 @@ def _case_representative_ai_category_accepted(category: str, information_value: 
             return int(information_value or 0) >= 70
     if cat in bad:
         return False
+    if cat in {"render", "cg_render", "perspective", "artist_impression"}:
+        return int(information_value or 0) >= 76
     if cat in strong:
         return int(information_value or 0) >= 45
     if cat in weak:
@@ -2414,6 +2463,71 @@ def _case_representative_raw_url_candidates(row: dict[str, Any], *, limit: int =
         if len(out) >= max(1, int(limit or 1)):
             break
     return out
+
+
+def _case_gallery_caption_hints_by_url(row: dict[str, Any], raw_urls: list[Any] | None = None) -> dict[str, str]:
+    urls = list(raw_urls or _case_representative_raw_url_candidates(row, limit=80))
+    if not urls:
+        return {}
+    try:
+        hints = _case_gallery_caption_category_hints(row, limit=len(urls))
+    except Exception:
+        hints = []
+    out: dict[str, str] = {}
+    for idx, raw in enumerate(urls):
+        if idx >= len(hints):
+            break
+        cat = str(hints[idx] or "").strip()
+        if not cat:
+            continue
+        key = _case_gallery_audit_image_key(raw)
+        if key:
+            out[key] = cat
+    return out
+
+
+def _case_representative_static_used_by_other(
+    source_item_id: int,
+    static_url: Any = "",
+    raw_url: Any = "",
+) -> bool:
+    """Return True when an AI/rules representative image is already bound elsewhere.
+
+    Different lots in the same subdivision often share model-room or stock CG
+    images. Those are valid gallery items, but they make poor permanent card
+    covers because the homepage looks duplicated. Manual selections are left
+    untouched; this guard only prevents automated AI/rules selections from
+    reusing the same image across different cases.
+    """
+    sid = int(source_item_id or 0)
+    static = str(static_url or "").strip()
+    raw = str(raw_url or "").strip()
+    if sid <= 0 or (not static and not raw):
+        return False
+    conditions: list[str] = []
+    params: list[Any] = [sid]
+    if static:
+        conditions.append("representative_static_url = ?")
+        params.append(static)
+    if raw:
+        conditions.append("representative_url = ?")
+        params.append(raw)
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                f"""
+                SELECT 1
+                FROM case_representative_images
+                WHERE source_item_id <> ?
+                  AND status IN ('selected', 'fallback', 'rules')
+                  AND ({' OR '.join(conditions)})
+                LIMIT 1
+                """,
+                tuple(params),
+            ).fetchone()
+        return bool(row)
+    except Exception:
+        return False
 
 
 def _case_gallery_raw_url_candidates(row: dict[str, Any], *, limit: int = 160) -> list[str]:
@@ -2477,6 +2591,8 @@ def _case_stored_representative_media(row: dict[str, Any], raw_urls: list[Any] |
     if sid <= 0:
         return []
     context = _case_representative_context_text(row)
+    context_by_key = _case_gallery_context_by_url(row)
+    caption_hint_by_key = _case_gallery_caption_hints_by_url(row, raw_urls or [])
     profile = _case_representative_profile(row, context=context)
     try:
         with get_conn() as conn:
@@ -2515,7 +2631,9 @@ def _case_stored_representative_media(row: dict[str, Any], raw_urls: list[Any] |
             if not static_url or static_url in seen:
                 continue
             raw_url = str(raw_value or "").strip()
-            if status != "manual" and raw_url and not _case_representative_raw_url_allowed(raw_url, context, profile=profile):
+            raw_key = _case_gallery_audit_image_key(raw_url) if raw_url else ""
+            image_context = f"{context} {caption_hint_by_key.get(raw_key, '')} {context_by_key.get(raw_key, '')}".strip()
+            if status != "manual" and raw_url and not _case_representative_raw_url_allowed(raw_url, image_context, profile=profile):
                 continue
             if not _url_to_local_static_path(static_url):
                 continue
@@ -2617,12 +2735,15 @@ def _case_ai_candidate_pack(
     raw_urls = _case_representative_raw_url_candidates(row, limit=32)
     signature = _case_representative_image_signature(raw_urls)
     context = _case_representative_context_text(row)
+    context_by_key = _case_gallery_context_by_url(row)
+    caption_hint_by_key = _case_gallery_caption_hints_by_url(row, raw_urls)
     profile = _case_representative_profile(row, context=context)
-    raw_candidates = [
-        u
-        for u in raw_urls
-        if _case_representative_raw_url_allowed(u, context, profile=profile)
-    ]
+    raw_candidates: list[str] = []
+    for u in raw_urls:
+        key = _case_gallery_audit_image_key(u)
+        image_context = f"{context} {caption_hint_by_key.get(key, '')} {context_by_key.get(key, '')}".strip()
+        if _case_representative_raw_url_allowed(u, image_context, profile=profile):
+            raw_candidates.append(u)
     scan_limit = max(
         max(1, int(limit or 1)),
         min(12, int(os.getenv("CASE_REPRESENTATIVE_DOWNLOAD_SCAN_LIMIT", "5") or 5)),
@@ -2638,12 +2759,23 @@ def _case_ai_candidate_pack(
             reject_reason = _case_image_visual_reject_reason(static_url)
             if reject_reason:
                 continue
+        if _case_representative_static_used_by_other(
+            int(row.get("source_item_id") or row.get("id") or 0),
+            static_url,
+            raw,
+        ):
+            continue
+        raw_key = _case_gallery_audit_image_key(raw)
+        semantic_hint = f"{caption_hint_by_key.get(raw_key, '')} {context_by_key.get(raw_key, '')}".strip()
         candidates.append(
             {
                 "index": len(candidates) + 1,
                 "url": raw,
                 "static_url": static_url,
-                "hint": f"{_thumb_kind_label(static_url) if static_url else '未缓存'}｜{profile}｜{_case_representative_semantic_category(raw)}",
+                "hint": (
+                    f"{_thumb_kind_label(static_url) if static_url else '未缓存'}｜"
+                    f"{profile}｜{_case_representative_semantic_category(raw, semantic_hint)}"
+                ),
             }
         )
         if len(candidates) >= max(1, int(limit or 1)):
@@ -2656,6 +2788,7 @@ def _case_representative_backup_selection(
     selected: dict[str, Any] | None,
     *,
     limit: int = 3,
+    source_item_id: int = 0,
 ) -> tuple[list[str], list[str]]:
     selected_url = str((selected or {}).get("url") or "").strip()
     selected_static = str((selected or {}).get("static_url") or "").strip()
@@ -2671,6 +2804,8 @@ def _case_representative_backup_selection(
         if raw == selected_url or static == selected_static:
             continue
         if raw in seen_raw or static in seen_static:
+            continue
+        if _case_representative_static_used_by_other(source_item_id, static, raw):
             continue
         seen_raw.add(raw)
         seen_static.add(static)
@@ -2693,6 +2828,8 @@ def _case_select_representative_image_with_ai(
     raw_urls = _case_representative_raw_url_candidates(row, limit=32)
     signature = _case_representative_image_signature(raw_urls)
     context = _case_representative_context_text(row)
+    context_by_key = _case_gallery_context_by_url(row)
+    caption_hint_by_key = _case_gallery_caption_hints_by_url(row, raw_urls)
     profile = _case_representative_profile(row, context=context)
     if force:
         try:
@@ -2740,6 +2877,9 @@ def _case_select_representative_image_with_ai(
             proxy_fallback=False,
             context=context,
             profile=profile,
+            source_item_id=sid,
+            context_by_key=context_by_key,
+            caption_hint_by_key=caption_hint_by_key,
         )
         static_url = fallback[0] if fallback else ""
         backup_static_urls = fallback[1:4] if len(fallback) > 1 else []
@@ -2836,13 +2976,42 @@ def _case_select_representative_image_with_ai(
     original_url = str(selected.get("url") or "").strip()
     if not static_url:
         static_url = _case_image_download_to_cache(original_url)
+    if static_url and _case_representative_static_used_by_other(sid, static_url, original_url):
+        replacement = next(
+            (
+                c
+                for c in candidates
+                if not _case_representative_static_used_by_other(
+                    sid,
+                    c.get("static_url") or _case_image_cached_static_url(c.get("url")),
+                    c.get("url"),
+                )
+            ),
+            None,
+        )
+        if replacement:
+            selected = replacement
+            original_url = str(selected.get("url") or "").strip()
+            static_url = str(selected.get("static_url") or "").strip() or _case_image_download_to_cache(original_url)
+            reason = f"{reason} Duplicate representative image avoided; promoted next candidate."
+        else:
+            static_url = ""
+            original_url = ""
+            status = "empty"
+            score = 0
+            reason = "Selected image is already used by another case and no unique backup candidate was available."
     if not static_url or _case_image_visual_reject_reason(static_url):
         status = "empty"
         score = 0
         reason = "Selected image failed local cache/visual validation."
         static_url = ""
         original_url = ""
-    backup_urls, backup_static_urls = _case_representative_backup_selection(candidates, selected, limit=3)
+    backup_urls, backup_static_urls = _case_representative_backup_selection(
+        candidates,
+        selected,
+        limit=3,
+        source_item_id=sid,
+    )
     if not static_url:
         backup_urls = []
         backup_static_urls = []
@@ -3573,6 +3742,9 @@ def _case_representative_gallery_urls(
     proxy_fallback: bool = True,
     context: str = "",
     profile: str = "building",
+    source_item_id: int = 0,
+    context_by_key: dict[str, str] | None = None,
+    caption_hint_by_key: dict[str, str] | None = None,
 ) -> list[str]:
     """Select fixed representative static images for cards.
 
@@ -3583,7 +3755,15 @@ def _case_representative_gallery_urls(
     raw_candidates = [
         str(u or "").strip()
         for u in raw_urls
-        if _case_representative_raw_url_allowed(u, context, profile=profile)
+        if _case_representative_raw_url_allowed(
+            u,
+            (
+                f"{context} "
+                f"{(caption_hint_by_key or {}).get(_case_gallery_audit_image_key(u), '')} "
+                f"{(context_by_key or {}).get(_case_gallery_audit_image_key(u), '')}"
+            ).strip(),
+            profile=profile,
+        )
     ]
     candidates = _sort_relevant_real_estate_images(raw_candidates, limit=max(fetch_limit, lim), profile=profile)
     if candidates:
@@ -3595,6 +3775,8 @@ def _case_representative_gallery_urls(
         if not cached and sync_download:
             cached = _case_image_download_to_cache(raw)
         if not cached or cached in seen:
+            continue
+        if _case_representative_static_used_by_other(source_item_id, cached, raw):
             continue
         if not _url_to_local_static_path(cached):
             continue
@@ -3615,6 +3797,8 @@ def _case_representative_gallery_urls(
                 continue
             cached = _case_image_cached_static_url(s)
             if cached and _case_image_visual_reject_reason(cached):
+                continue
+            if cached and _case_representative_static_used_by_other(source_item_id, cached, s):
                 continue
             px = case_static_image_url(s)
             if px and px not in proxied:
@@ -7549,6 +7733,160 @@ def _log_backend_error(scope: str, exc: BaseException | str) -> None:
     )
 
 
+_VISITOR_TRACKING_EXCLUDED_PREFIXES = (
+    "/api/",
+    "/admin",
+    "/static/",
+    "/assets/",
+    "/favicon",
+    "/sclaw-ping",
+    "/openapi.json",
+    "/docs",
+    "/redoc",
+)
+_VISITOR_TRACKING_EXCLUDED_SUFFIXES = (
+    ".css",
+    ".js",
+    ".map",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".mp4",
+    ".webm",
+    ".mov",
+    ".m4v",
+    ".mp3",
+    ".wav",
+    ".woff",
+    ".woff2",
+    ".ttf",
+)
+_VISITOR_TZ = timezone(timedelta(hours=8))
+
+
+def _visitor_client_ip(request: Request) -> str:
+    for header in ("cf-connecting-ip", "x-real-ip", "x-forwarded-for"):
+        raw = str(request.headers.get(header) or "").strip()
+        if not raw:
+            continue
+        first = raw.split(",")[0].strip()
+        if first:
+            return first[:120]
+    return str(getattr(request.client, "host", "") or "").strip()[:120] or "unknown"
+
+
+def _visitor_ip_hash(ip: str) -> str:
+    salt = (os.getenv("SCLAW_VISITOR_HASH_SALT") or SITE_NAME or "sclaw").encode("utf-8", "ignore")
+    return hmac.new(salt, str(ip or "unknown").encode("utf-8", "ignore"), hashlib.sha256).hexdigest()
+
+
+def _visitor_ip_label(ip: str) -> str:
+    text = str(ip or "unknown").strip()
+    if not text or text == "unknown":
+        return "unknown"
+    if ":" in text:
+        parts = [p for p in text.split(":") if p]
+        return ":".join(parts[:3]) + ":*"
+    parts = text.split(".")
+    if len(parts) == 4:
+        return ".".join(parts[:3] + ["*"])
+    return text[:24]
+
+
+def _visitor_device_type(user_agent: str) -> str:
+    ua = str(user_agent or "").lower()
+    if any(x in ua for x in ("bot", "crawler", "spider", "slurp", "bingpreview")):
+        return "bot"
+    if any(x in ua for x in ("ipad", "tablet")):
+        return "tablet"
+    if any(x in ua for x in ("mobi", "iphone", "android", "phone")):
+        return "mobile"
+    return "desktop"
+
+
+def _visitor_query_group(request: Request) -> str:
+    # Visitor counting only cares that a frontend page was entered.
+    # Query parameters are intentionally ignored to keep the dashboard simple.
+    return ""
+
+
+def _visitor_retention_cutoff(today: date) -> str:
+    return (today - timedelta(days=364)).isoformat()
+
+
+def _visitor_kind(request: Request) -> str:
+    flag = str(request.cookies.get("sclaw_phone_logged_in") or "").strip().lower()
+    if flag in {"1", "true", "yes", "phone_login"}:
+        return "phone_login"
+    return "guest"
+
+
+def _should_track_visitor_request(request: Request, status_code: int) -> bool:
+    method = str(request.method or "").upper()
+    if method not in {"GET", "HEAD"}:
+        return False
+    path = str(request.url.path or "/")
+    lowered = path.lower()
+    if status_code >= 500:
+        return False
+    if any(lowered.startswith(prefix) for prefix in _VISITOR_TRACKING_EXCLUDED_PREFIXES):
+        return False
+    if any(lowered.endswith(suffix) for suffix in _VISITOR_TRACKING_EXCLUDED_SUFFIXES):
+        return False
+    return True
+
+
+def _record_visitor_event(request: Request, status_code: int, elapsed_ms: int) -> None:
+    if not _should_track_visitor_request(request, status_code):
+        return
+    try:
+        ip = _visitor_client_ip(request)
+        now = datetime.now(_VISITOR_TZ)
+        today = now.date()
+        path = "/"
+        user_agent = str(request.headers.get("user-agent") or "")[:420]
+        referrer = str(request.headers.get("referer") or "")[:420]
+        with get_conn() as conn:
+            conn.execute("DELETE FROM site_visitor_events WHERE event_date < ?", (_visitor_retention_cutoff(today),))
+            conn.execute(
+                """
+                INSERT INTO site_visitor_events (
+                    event_time, event_date, ip_hash, ip_label, method, path, query_group,
+                    status_code, elapsed_ms, referrer, user_agent, device_type, visitor_kind
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    now.isoformat(timespec="seconds"),
+                    today.isoformat(),
+                    _visitor_ip_hash(ip),
+                    _visitor_ip_label(ip),
+                    str(request.method or "GET").upper()[:12],
+                    path,
+                    _visitor_query_group(request),
+                    int(status_code or 0),
+                    max(0, int(elapsed_ms or 0)),
+                    referrer,
+                    user_agent,
+                    _visitor_device_type(user_agent),
+                    _visitor_kind(request),
+                ),
+            )
+            conn.commit()
+    except Exception as exc:
+        _push_backend_error_log(
+            method="BG",
+            path="visitor-tracking",
+            status_code=500,
+            message=f"Visitor tracking failed: {type(exc).__name__}: {str(exc)[:220]}",
+            elapsed_ms=0,
+        )
+
+
 @app.middleware("http")
 async def backend_error_log_middleware(request: Request, call_next):
     started = time.time()
@@ -7573,6 +7911,7 @@ async def backend_error_log_middleware(request: Request, call_next):
             message="HTTP error response",
             elapsed_ms=elapsed,
         )
+    _record_visitor_event(request, int(response.status_code), int((time.time() - started) * 1000))
     return response
 
 
@@ -9721,6 +10060,15 @@ def _clean_case_body_for_display(text: str) -> str:
     s = str(text or "")
     if not s.strip():
         return ""
+    s = s.replace("\ufffd", "")
+    s = re.sub(r"ヒント\s*[:：]\s*", "", s)
+    if re.search(r"(?:需授權或無法抽吸|需授权或无法抽吸)\s+JavaScript\s*被禁用", s):
+        return ""
+    s = re.sub(
+        r"(?is)\[物件欄位摘要\].*?(?=\n\s*\[[^\]]+\]|\Z)",
+        "\n",
+        s,
+    )
     is_listing_cache = bool(re.match(r"^\s*日本房[產产]案源", s))
     # 先移除常見「圖片網址 / 來源網址」整段區塊，避免正文被 URL 清單淹沒。
     s = re.sub(
@@ -9774,10 +10122,14 @@ def _clean_case_body_for_display(text: str) -> str:
         skip_url_block = False
     joined = "\n".join(out_lines).strip()
     joined = strip_public_link_noise(joined)
+    joined = joined.replace("\ufffd", "")
+    joined = re.sub(r"ヒント\s*[:：]\s*", "", joined)
     if is_listing_cache:
         return re.sub(r"\n{3,}", "\n\n", joined).strip()
     cleaned = sanitize_article_display_body(joined)
-    return cleaned or joined
+    cleaned = (cleaned or joined).replace("\ufffd", "")
+    cleaned = re.sub(r"ヒント\s*[:：]\s*", "", cleaned)
+    return cleaned
 
 
 def _build_case_original_listing_display(item: dict[str, Any], case_listing_panel: dict[str, Any] | None) -> str:
@@ -9788,6 +10140,8 @@ def _build_case_original_listing_display(item: dict[str, Any], case_listing_pane
 
     def _v(value: Any) -> str:
         s = re.sub(r"\s+", " ", str(value or "")).strip()
+        s = s.replace("\ufffd", "")
+        s = re.sub(r"ヒント\s*[:：]\s*", "", s)
         return s
 
     def _price_jp(value: Any) -> str:
@@ -9802,7 +10156,8 @@ def _build_case_original_listing_display(item: dict[str, Any], case_listing_pane
             .replace("萬", "万")
         )
 
-    body_original_compact = re.sub(r"\s+", " ", str(item.get("body_original") or "")).strip()
+    body_original_compact = re.sub(r"\s+", " ", str(item.get("body_original") or "").replace("\ufffd", "")).strip()
+    body_original_compact = re.sub(r"ヒント\s*[:：]\s*", "", body_original_compact)
 
     def _layout_jp(value: Any) -> str:
         for pat in (
@@ -12034,6 +12389,12 @@ def _case_gallery_category_for_url(url: str, context: str = "") -> str:
         bag = unquote(f"{url} {context}").lower()
     except Exception:
         bag = f"{url} {context}".lower()
+    if any(t.lower() in bag for t in _CASE_REPRESENTATIVE_CONCEPT_RENDER_TOKENS):
+        return "concept"
+    if any(t.lower() in bag for t in _CASE_REPRESENTATIVE_LOW_QUALITY_RENDER_TOKENS):
+        return "concept"
+    if any(t.lower() in bag for t in _CASE_REPRESENTATIVE_RENDER_TOKENS):
+        return "render"
     athome_group = _case_athome_cimage_group(url)
     if athome_group == "madori":
         return "floorplan"
@@ -12107,6 +12468,12 @@ def _case_gallery_category_for_caption(text: str) -> str:
         bag = str(text or "").lower()
     if not bag:
         return "other"
+    if any(t.lower() in bag for t in _CASE_REPRESENTATIVE_CONCEPT_RENDER_TOKENS):
+        return "concept"
+    if any(t.lower() in bag for t in _CASE_REPRESENTATIVE_LOW_QUALITY_RENDER_TOKENS):
+        return "concept"
+    if any(t.lower() in bag for t in _CASE_REPRESENTATIVE_RENDER_TOKENS):
+        return "render"
     if any(t in bag for t in ("間取", "間取り", "平面", "図面", "圖面", "户型", "戶型", "madori", "floorplan", "floor_plan")):
         return "floorplan"
     if any(t in bag for t in ("トイレ", "toire", "toilet", "便所", "wc", "廁", "厕")):
@@ -14184,6 +14551,268 @@ def _require_admin_password(request: Request) -> None:
     admin_password = str(request.headers.get("x-admin-password") or "").strip()
     if admin_password != ADMIN_PANEL_PASSWORD:
         raise HTTPException(status_code=401, detail="後台管理密碼錯誤")
+
+
+def _visitor_dashboard_days(raw_days: int | None) -> int:
+    try:
+        days = int(raw_days or 14)
+    except (TypeError, ValueError):
+        days = 14
+    return max(1, min(365, days))
+
+
+def _visitor_dashboard_bucket_span(days: int) -> int:
+    if days <= 7:
+        return 1
+    if days <= 14:
+        return 2
+    if days <= 30:
+        return 5
+    if days <= 90:
+        return 15
+    if days <= 180:
+        return 30
+    return 30
+
+
+def _visitor_dashboard_date_label(start: date, end: date) -> str:
+    if start == end:
+        return start.strftime("%m-%d")
+    return f"{start.strftime('%m-%d')}~{end.strftime('%m-%d')}"
+
+
+@app.get("/api/admin/visitor-dashboard")
+def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, ge=1, le=365)):
+    _require_admin_password(request)
+    range_days = _visitor_dashboard_days(days)
+    today = datetime.now(_VISITOR_TZ).date()
+    start_date = today - timedelta(days=range_days - 1)
+    yesterday = today - timedelta(days=1)
+    start_text = start_date.isoformat()
+    today_text = today.isoformat()
+    yesterday_text = yesterday.isoformat()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM site_visitor_events WHERE event_date < ?", (_visitor_retention_cutoff(today),))
+        conn.commit()
+        totals_row = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS visitors,
+              SUM(has_phone) AS phone_visitors,
+              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors,
+              AVG(avg_elapsed_ms) AS avg_elapsed_ms
+            FROM (
+              SELECT
+                ip_hash,
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone,
+                AVG(elapsed_ms) AS avg_elapsed_ms
+              FROM site_visitor_events
+              WHERE event_date >= ?
+              GROUP BY ip_hash
+            )
+            """,
+            (start_text,),
+        ).fetchone()
+        historical_row = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS visitors,
+              SUM(has_phone) AS phone_visitors,
+              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+            FROM (
+              SELECT
+                ip_hash,
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+              FROM site_visitor_events
+              WHERE event_date >= ?
+              GROUP BY ip_hash
+            )
+            """,
+            (_visitor_retention_cutoff(today),),
+        ).fetchone()
+        today_row = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS visitors,
+              SUM(has_phone) AS phone_visitors,
+              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+            FROM (
+              SELECT
+                ip_hash,
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+              FROM site_visitor_events
+              WHERE event_date = ?
+              GROUP BY ip_hash
+            )
+            """,
+            (today_text,),
+        ).fetchone()
+        yesterday_row = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS visitors,
+              SUM(has_phone) AS phone_visitors,
+              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+            FROM (
+              SELECT
+                ip_hash,
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+              FROM site_visitor_events
+              WHERE event_date = ?
+              GROUP BY ip_hash
+            )
+            """,
+            (yesterday_text,),
+        ).fetchone()
+        daily_rows = conn.execute(
+            """
+            SELECT
+              event_date,
+              COUNT(*) AS visitors,
+              SUM(has_phone) AS phone_visitors,
+              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+            FROM (
+              SELECT
+                event_date,
+                ip_hash,
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+              FROM site_visitor_events
+              WHERE event_date >= ?
+              GROUP BY event_date, ip_hash
+            )
+            GROUP BY event_date
+            ORDER BY event_date ASC
+            """,
+            (start_text,),
+        ).fetchall()
+
+    daily_map = {
+        str(row["event_date"]): {
+            "date": str(row["event_date"]),
+            "entries": int(row["visitors"] or 0),
+            "pageviews": int(row["visitors"] or 0),
+            "unique_visitors": int(row["visitors"] or 0),
+            "visitors": int(row["visitors"] or 0),
+            "guest_visitors": int(row["guest_visitors"] or 0),
+            "phone_visitors": int(row["phone_visitors"] or 0),
+        }
+        for row in daily_rows
+    }
+    daily: list[dict[str, Any]] = []
+    for offset in range(range_days):
+        d = (start_date + timedelta(days=offset)).isoformat()
+        daily.append(
+            daily_map.get(d)
+            or {
+                "date": d,
+                "entries": 0,
+                "pageviews": 0,
+                "unique_visitors": 0,
+                "guest_visitors": 0,
+                "phone_visitors": 0,
+            }
+        )
+
+    bucket_span = _visitor_dashboard_bucket_span(range_days)
+    buckets: list[dict[str, Any]] = []
+    bucket_start = start_date
+    with get_conn() as conn:
+        bucket_rows: dict[tuple[str, str], dict[str, int]] = {}
+        while bucket_start <= today:
+            bucket_end = min(today, bucket_start + timedelta(days=bucket_span - 1))
+            row = conn.execute(
+                """
+                SELECT
+                  COUNT(*) AS visitors,
+                  SUM(has_phone) AS phone_visitors,
+                  SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+                FROM (
+                  SELECT
+                    ip_hash,
+                    MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+                  FROM site_visitor_events
+                  WHERE event_date BETWEEN ? AND ?
+                  GROUP BY ip_hash
+                )
+                """,
+                (bucket_start.isoformat(), bucket_end.isoformat()),
+            ).fetchone()
+            bucket_rows[(bucket_start.isoformat(), bucket_end.isoformat())] = {
+                "entries": int(row["visitors"] or 0) if row else 0,
+                "unique_visitors": int(row["visitors"] or 0) if row else 0,
+                "guest_visitors": int(row["guest_visitors"] or 0) if row else 0,
+                "phone_visitors": int(row["phone_visitors"] or 0) if row else 0,
+            }
+            bucket_start = bucket_end + timedelta(days=1)
+
+    bucket_start = start_date
+    while bucket_start <= today:
+        bucket_end = min(today, bucket_start + timedelta(days=bucket_span - 1))
+        row = bucket_rows.get((bucket_start.isoformat(), bucket_end.isoformat())) or {}
+        entries = int(row.get("entries") or 0)
+        unique_count = int(row.get("unique_visitors") or 0)
+        guest_count = int(row.get("guest_visitors") or 0)
+        phone_count = int(row.get("phone_visitors") or 0)
+        buckets.append(
+            {
+                "label": _visitor_dashboard_date_label(bucket_start, bucket_end),
+                "start_date": bucket_start.isoformat(),
+                "end_date": bucket_end.isoformat(),
+                "entries": entries,
+                "pageviews": entries,
+                "unique_visitors": unique_count,
+                "guest_visitors": guest_count,
+                "phone_visitors": phone_count,
+            }
+        )
+        bucket_start = bucket_end + timedelta(days=1)
+
+    pageviews = int(totals_row["visitors"] or 0) if totals_row else 0
+    unique_visitors = int(totals_row["visitors"] or 0) if totals_row else 0
+    guest_visitors = int(totals_row["guest_visitors"] or 0) if totals_row else 0
+    phone_visitors = int(totals_row["phone_visitors"] or 0) if totals_row else 0
+    historical_unique = int(historical_row["visitors"] or 0) if historical_row else 0
+    historical_guest = int(historical_row["guest_visitors"] or 0) if historical_row else 0
+    historical_phone = int(historical_row["phone_visitors"] or 0) if historical_row else 0
+    avg_elapsed = float(totals_row["avg_elapsed_ms"] or 0) if totals_row else 0.0
+    today_unique = int(today_row["visitors"] or 0) if today_row else 0
+    today_guest = int(today_row["guest_visitors"] or 0) if today_row else 0
+    today_phone = int(today_row["phone_visitors"] or 0) if today_row else 0
+    today_entries = today_unique
+    yesterday_unique = int(yesterday_row["visitors"] or 0) if yesterday_row else 0
+    yesterday_phone = int(yesterday_row["phone_visitors"] or 0) if yesterday_row else 0
+    delta = today_unique - yesterday_unique
+    phone_delta = today_phone - yesterday_phone
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "range": {"days": range_days, "start_date": start_text, "end_date": today_text},
+            "totals": {
+                "unique_visitors": unique_visitors,
+                "guest_visitors": guest_visitors,
+                "phone_login_visitors": phone_visitors,
+                "pageviews": pageviews,
+                "entries": pageviews,
+                "today_unique_visitors": today_unique,
+                "today_guest_visitors": today_guest,
+                "today_phone_login_visitors": today_phone,
+                "today_pageviews": today_entries,
+                "today_entries": today_entries,
+                "yesterday_unique_visitors": yesterday_unique,
+                "yesterday_phone_login_visitors": yesterday_phone,
+                "unique_delta_vs_yesterday": delta,
+                "phone_login_delta_vs_yesterday": phone_delta,
+                "historical_unique_visitors": historical_unique,
+                "historical_guest_visitors": historical_guest,
+                "historical_phone_login_visitors": historical_phone,
+                "pages_per_unique_visitor": 1 if unique_visitors else 0,
+                "avg_elapsed_ms": round(avg_elapsed),
+            },
+            "daily": daily,
+            "buckets": buckets,
+        }
+    )
 
 
 @app.post("/api/admin/change-password")
@@ -25067,6 +25696,8 @@ def _case_audit_representative_images(*, limit: int = 500, dry_run: bool = False
         raw = str(raw_url or "").strip()
         if not skip_semantic and raw and not _case_representative_raw_url_allowed(raw, context, profile=profile):
             return False
+        if not skip_semantic and _case_representative_static_used_by_other(sid, s, raw):
+            return False
         return bool(s and _url_to_local_static_path(s) and not _case_image_visual_reject_reason(s))
 
     for row in rows:
@@ -25074,6 +25705,8 @@ def _case_audit_representative_images(*, limit: int = 500, dry_run: bool = False
         checked += 1
         sid = int(d.get("source_item_id") or 0)
         rep_context = _case_representative_context_text(d)
+        rep_context_by_key = _case_gallery_context_by_url(d)
+        rep_caption_hint_by_key = _case_gallery_caption_hints_by_url(d)
         rep_profile = _case_representative_profile(d, context=rep_context)
         is_manual = str(d.get("status") or "") == "manual"
         primary = str(d.get("representative_static_url") or "").strip()
@@ -25094,11 +25727,18 @@ def _case_audit_representative_images(*, limit: int = 500, dry_run: bool = False
         for idx, static_url in enumerate(backup_static_urls):
             su = str(static_url or "").strip()
             raw = str(backup_urls[idx] if idx < len(backup_urls) else "").strip()
-            if not _static_ok(su, raw, context=rep_context, profile=rep_profile, skip_semantic=is_manual):
+            raw_key = _case_gallery_audit_image_key(raw)
+            image_context = f"{rep_context} {rep_caption_hint_by_key.get(raw_key, '')} {rep_context_by_key.get(raw_key, '')}".strip()
+            if not _static_ok(su, raw, context=image_context, profile=rep_profile, skip_semantic=is_manual):
                 continue
             valid_pairs.append((raw, su))
 
-        if _static_ok(primary, d.get("representative_url"), context=rep_context, profile=rep_profile, skip_semantic=is_manual):
+        primary_raw = str(d.get("representative_url") or "").strip()
+        primary_key = _case_gallery_audit_image_key(primary_raw)
+        primary_context = (
+            f"{rep_context} {rep_caption_hint_by_key.get(primary_key, '')} {rep_context_by_key.get(primary_key, '')}"
+        ).strip()
+        if _static_ok(primary, primary_raw, context=primary_context, profile=rep_profile, skip_semantic=is_manual):
             ok += 1
             clean_raw = [raw for raw, _su in valid_pairs][:6]
             clean_static = [su for _raw, su in valid_pairs][:6]
@@ -26141,6 +26781,9 @@ def api_admin_cases(
             media_review_reasons.append("Gemini 未配置或未使用，代表圖由規則選出")
         if rep_status in {"selected", "fallback", "rules"} and not rep_static:
             media_review_reasons.append("代表圖本地靜態檔缺失")
+        if rep_status in {"selected", "fallback", "rules"} and rep_static:
+            if _case_representative_static_used_by_other(int(d.get("source_item_id") or 0), rep_static):
+                media_review_reasons.append("代表圖與其他案件重複，需重新篩選或人工固定")
         if rep_status in {"selected", "fallback", "rules", "manual"} and rep_backup_count <= 0:
             media_review_reasons.append("沒有備用展示圖")
         if failed_polluted_count > 0:
@@ -26148,7 +26791,7 @@ def api_admin_cases(
         if rep_status == "manual":
             media_review_level = "manual"
             media_review_label = "人工固定"
-        elif any(x in " ".join(media_review_reasons) for x in ("沒有可用主展示圖", "相冊沒有可用圖片", "本地靜態檔缺失")):
+        elif any(x in " ".join(media_review_reasons) for x in ("沒有可用主展示圖", "相冊沒有可用圖片", "本地靜態檔缺失", "重複")):
             media_review_level = "danger"
             media_review_label = "需人工"
         elif media_review_reasons:
@@ -26233,6 +26876,7 @@ def api_admin_cases_media_review(
         "pollution_failed": "污染失败",
         "empty": "无主图/缺图",
         "no_backup": "无备份",
+        "duplicate": "重复主图",
         "fallback": "AI降级",
         "rules": "规则选图",
         "no_media": "相册无图",
@@ -26251,6 +26895,18 @@ def api_admin_cases_media_review(
               AND TRIM(COALESCE(s.image_urls, '')) = ''
               AND TRIM(COALESCE(c.listing_media_json, '')) IN ('', '[]')
             )"""
+    duplicate_rep_sql = """(
+              COALESCE(r.status, '') IN ('selected', 'fallback', 'rules')
+              AND TRIM(COALESCE(r.representative_static_url, '')) <> ''
+              AND EXISTS (
+                SELECT 1
+                FROM case_representative_images r2
+                WHERE r2.source_item_id <> r.source_item_id
+                  AND COALESCE(r2.status, '') IN ('selected', 'fallback', 'rules')
+                  AND r2.representative_static_url = r.representative_static_url
+                LIMIT 1
+              )
+            )"""
     bucket_where_sql_map = {
         "actionable": f"""(
             NOT {unprocessed_sql}
@@ -26258,6 +26914,7 @@ def api_admin_cases_media_review(
               COALESCE(r.status, '') IN ('empty', 'fallback', 'rules')
               OR COALESCE(r.representative_static_url, '') = ''
               OR {no_backup_sql}
+              OR {duplicate_rep_sql}
               OR COALESCE(ga.failed_polluted_count, 0) > 0
               OR {no_media_sql}
             )
@@ -26266,6 +26923,7 @@ def api_admin_cases_media_review(
         "pollution_failed": "COALESCE(ga.failed_polluted_count, 0) > 0",
         "empty": f"(NOT {unprocessed_sql} AND (COALESCE(r.status, '') = 'empty' OR COALESCE(r.representative_static_url, '') = ''))",
         "no_backup": no_backup_sql,
+        "duplicate": duplicate_rep_sql,
         "fallback": "COALESCE(r.status, '') = 'fallback'",
         "rules": "COALESCE(r.status, '') = 'rules'",
         "no_media": f"(NOT {unprocessed_sql} AND {no_media_sql})",
@@ -26274,6 +26932,7 @@ def api_admin_cases_media_review(
             OR COALESCE(r.status, '') IN ('empty', 'fallback', 'rules')
             OR COALESCE(r.representative_static_url, '') = ''
             OR {no_backup_sql}
+            OR {duplicate_rep_sql}
             OR COALESCE(ga.failed_polluted_count, 0) > 0
             OR {no_media_sql}
           )""",
@@ -26405,6 +27064,12 @@ def api_admin_cases_media_review(
             if label == "待確認":
                 label = "檔案缺失"
             reasons.append("代表圖記錄存在，但本地靜態檔缺失。")
+        if rep_status in {"selected", "fallback", "rules"} and rep_static:
+            if _case_representative_static_used_by_other(int(d.get("source_item_id") or 0), rep_static):
+                level = "danger"
+                if label == "待確認":
+                    label = "重複主圖"
+                reasons.append("代表圖已被其他案件使用，需要重新篩選唯一封面或人工固定。")
         if rep_status in {"selected", "fallback", "rules", "manual"} and rep_static:
             static_path = _url_to_local_static_path(rep_static)
             visual_reject = _case_image_visual_reject_reason(rep_static) if static_path else ""

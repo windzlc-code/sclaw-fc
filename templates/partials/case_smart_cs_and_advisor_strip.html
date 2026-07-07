@@ -1,51 +1,51 @@
 {# 依外層預先提供 ns_case_portraits 與 item #}
 {% set hide_smart_contact = case_hide_smart_contact|default(false) %}
 {% if item.source_item_id and not hide_smart_contact %}
-<div class="portal-yahoo-smart-cs">
-  <a class="case-advisor-avatar-cta portal-yahoo-smart-cs-btn" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" title="開啟智能顧問並帶入本案">
+<div class="portal-source-extra-smart-cs">
+  <a class="case-advisor-avatar-cta portal-source-extra-smart-cs-btn" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" title="開啟智能顧問並帶入本案">
     <img src="{{ support_avatar_url }}" alt="" loading="eager" decoding="async" width="58" height="58">
     <span class="sr-only">智能顧問｜帶入本案</span>
   </a>
-  <p class="muted portal-yahoo-smart-cs-note">可直接帶入本案資料開啟站內對話，交由智能客服或顧問協助後續諮詢。</p>
+  <p class="muted portal-source-extra-smart-cs-note">可直接帶入本案資料開啟站內對話，交由智能客服或顧問協助後續諮詢。</p>
 </div>
 {% endif %}
-<div class="portal-yahoo-advisor-strip">
-  <p class="portal-yahoo-advisor-label">日本當地公開參考圖<span class="muted">（來源公開圖片｜僅供輔助參考）</span></p>
+<div class="portal-source-extra-advisor-strip">
+  <p class="portal-source-extra-advisor-label">日本當地公開參考圖<span class="muted">（來源公開圖片｜僅供輔助參考）</span></p>
   {% if ns_case_portraits.urls|length > 0 %}
-  <div class="portal-yahoo-advisor-thumbs" role="list">
+  <div class="portal-source-extra-advisor-thumbs" role="list">
     {% if not hide_smart_contact %}
     {% if item.source_item_id %}
-    <a class="portal-yahoo-advisor-thumb portal-yahoo-advisor-thumb--default" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" role="listitem" title="開啟智能客服並帶入本案">
+    <a class="portal-source-extra-advisor-thumb portal-source-extra-advisor-thumb--default" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" role="listitem" title="開啟智能客服並帶入本案">
       <img src="{{ support_avatar_url }}" alt="站內智能客服顧問形象" loading="eager" decoding="async" width="52" height="52">
     </a>
     {% else %}
-    <a class="portal-yahoo-advisor-thumb portal-yahoo-advisor-thumb--default" href="/?open_support=1" role="listitem" title="開啟智能客服">
+    <a class="portal-source-extra-advisor-thumb portal-source-extra-advisor-thumb--default" href="/?open_support=1" role="listitem" title="開啟智能客服">
       <img src="{{ support_avatar_url }}" alt="站內智能客服顧問形象" loading="eager" decoding="async" width="52" height="52">
     </a>
     {% endif %}
     {% endif %}
     {% for u in ns_case_portraits.urls[:7] %}
-    <a class="portal-yahoo-advisor-thumb" href="{{ u }}" target="_blank" rel="nofollow noopener" role="listitem" title="另開來源公開參考圖">
+    <a class="portal-source-extra-advisor-thumb" href="{{ u }}" target="_blank" rel="nofollow noopener" role="listitem" title="另開來源公開參考圖">
       <img src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" width="52" height="52">
     </a>
     {% endfor %}
   </div>
   {% else %}
   {% if not hide_smart_contact %}
-  <p class="muted portal-yahoo-advisor-fallback-note">本筆暫無可顯示的來源公開參考圖；下列為站內<strong>智能客服</strong>預設顧問形象（僅作示意）。點擊可開啟對話。</p>
-  <div class="portal-yahoo-advisor-thumbs portal-yahoo-advisor-thumbs--fallback" role="list">
+  <p class="muted portal-source-extra-advisor-fallback-note">本筆暫無可顯示的來源公開參考圖；下列為站內<strong>智能客服</strong>預設顧問形象（僅作示意）。點擊可開啟對話。</p>
+  <div class="portal-source-extra-advisor-thumbs portal-source-extra-advisor-thumbs--fallback" role="list">
     {% if item.source_item_id %}
-    <a class="portal-yahoo-advisor-thumb portal-yahoo-advisor-thumb--default" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" role="listitem" title="開啟智能客服並帶入本案">
+    <a class="portal-source-extra-advisor-thumb portal-source-extra-advisor-thumb--default" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" role="listitem" title="開啟智能客服並帶入本案">
       <img src="{{ support_avatar_url }}" alt="站內智能客服顧問形象（示意）" loading="eager" decoding="async" width="52" height="52">
     </a>
     {% else %}
-    <a class="portal-yahoo-advisor-thumb portal-yahoo-advisor-thumb--default" href="/?open_support=1" role="listitem" title="開啟智能客服">
+    <a class="portal-source-extra-advisor-thumb portal-source-extra-advisor-thumb--default" href="/?open_support=1" role="listitem" title="開啟智能客服">
       <img src="{{ support_avatar_url }}" alt="站內智能客服顧問形象（示意）" loading="eager" decoding="async" width="52" height="52">
     </a>
     {% endif %}
   </div>
   {% else %}
-  <p class="muted portal-yahoo-advisor-fallback-note">本筆暫無可顯示的來源公開參考圖。</p>
+  <p class="muted portal-source-extra-advisor-fallback-note">本筆暫無可顯示的來源公開參考圖。</p>
   {% endif %}
   {% endif %}
 </div>

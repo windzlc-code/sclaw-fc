@@ -220,7 +220,7 @@ def _label_from_url(url: str) -> str:
 def listing_title_or_fallback(title: str, url: str) -> str:
     """
     Use crawl title when usable; otherwise a client-facing label from URL
-    (avoids showing portal bot-wall titles like「JavaScript 被禁用」).
+    (avoids showing portal bot-wall placeholder titles).
     """
     raw = (title or "").strip()
     if raw and not title_looks_like_crawl_placeholder(raw):

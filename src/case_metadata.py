@@ -48,9 +48,9 @@ def _blob(row: dict[str, Any]) -> str:
         str(row.get("title_zh_hant") or ""),
         str(row.get("title_zh_hans") or ""),
         str(row.get("seo_title") or ""),
-        _skip_generated_listing_cache(row.get("body_zh_hant"))[:800],
-        _skip_generated_listing_cache(row.get("body_zh_hans"))[:800],
-        bo[:1500],
+        _skip_generated_listing_cache(row.get("body_zh_hant"))[:500],
+        _skip_generated_listing_cache(row.get("body_zh_hans"))[:500],
+        bo[:900],
         str(row.get("title_original") or ""),
         str(row.get("item_url") or ""),
     ]

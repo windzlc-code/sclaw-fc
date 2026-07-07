@@ -50,43 +50,6 @@
           {% endif %}
         {% endif %}
       {% endfor %}
-      {% if is_yahoo_case %}
-      <section class="portal-yahoo-block">
-        <h2 class="portal-yahoo-block-title">Yahoo! 不動產案件概要（對齊原站分組）{% if '/land/' in (item.item_url or '') %}<span class="muted" style="font-size:0.88em;font-weight:400">（含土地物件／搜尋列表展開摘要）</span>{% endif %}</h2>
-        <div class="portal-yahoo-grid">
-          <section class="portal-yahoo-card">
-            <h3>費用與建物資訊</h3>
-            <dl class="portal-yahoo-dl">
-              <div><dt>販賣價格</dt><dd>{% if f.price_text_hant %}{{ f.price_text_hant }}{% else %}—{% endif %}</dd></div>
-              <div><dt>管理費</dt><dd>{{ f.manage_fee_jp or '—' }}</dd></div>
-              <div><dt>修繕積立金</dt><dd>{{ f.reserve_fee_jp or '—' }}</dd></div>
-              <div><dt>專有面積</dt><dd>{{ f.area_text_hant or '—' }}</dd></div>
-              <div><dt>格局</dt><dd>{{ f.layout_text_hant or '—' }}</dd></div>
-              <div><dt>建築年月</dt><dd>{{ f.built_ym_jp or f.age_text_hant or '—' }}</dd></div>
-              <div><dt>樓層</dt><dd>{{ f.floor_text_hant or '—' }}</dd></div>
-              <div><dt>總戶數</dt><dd>{{ f.total_units_jp or '—' }}</dd></div>
-              <div><dt>建築結構</dt><dd>{{ f.structure_jp or '—' }}</dd></div>
-              <div><dt>停車資訊</dt><dd>{{ f.parking_jp or '—' }}</dd></div>
-            </dl>
-          </section>
-          <section class="portal-yahoo-card portal-yahoo-card--contact">
-            <h3>位置與聯絡／更新資訊</h3>
-            <dl class="portal-yahoo-dl">
-              <div><dt>案件名稱</dt><dd>{{ f.building_name_jp or '—' }}</dd></div>
-              <div><dt>地址</dt><dd>{{ f.address_line_jp or '—' }}</dd></div>
-              <div><dt>交通</dt><dd>{{ f.access_line_jp or m.transit_line_zh or '—' }}</dd></div>
-              <div><dt>目前狀態</dt><dd>{{ f.status_jp or '—' }}</dd></div>
-              <div><dt>交屋時間</dt><dd>{{ f.handover_jp or '—' }}</dd></div>
-              <div><dt>物件管理編號</dt><dd>{{ f.property_no_jp or '—' }}</dd></div>
-              <div><dt>資料公開日</dt><dd>{{ f.info_open_jp or '—' }}</dd></div>
-              <div><dt>下次更新日</dt><dd>{{ f.next_update_jp or '—' }}</dd></div>
-            </dl>
-            {% set case_hide_smart_contact = true %}
-            {% include 'partials/case_smart_cs_and_advisor_strip.html' %}
-          </section>
-        </div>
-      </section>
-      {% endif %}
       <p class="muted suumo-case-footnote">資料為站內整理版本；實際房源狀態、價格與交易條件請以顧問確認為準。</p>
     </section>
 
@@ -1028,7 +991,7 @@
         }
       });
       document.querySelectorAll(
-        '.case-image-cell img, .article-inline-suumo-thumb, .portal-suumo-heroimg, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .portal-suumo-agent-thumb img, .portal-yahoo-advisor-thumb:not(.portal-yahoo-advisor-thumb--default) img'
+        '.case-image-cell img, .article-inline-suumo-thumb, .portal-suumo-heroimg, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .portal-suumo-agent-thumb img, .portal-source-extra-advisor-thumb:not(.portal-source-extra-advisor-thumb--default) img'
       ).forEach((img) => img.classList.add('zoomable-image'));
       initPortalCaseHeroFallback();
       initCaseImageFallbackPool();

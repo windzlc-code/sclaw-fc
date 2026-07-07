@@ -241,6 +241,8 @@ def select_representative_listing_image_via_gemini(
             "住宅/建筑类优先客厅/LDK/卧室等室内主空间、建筑外观、整栋/立面、入口；厨房、阳台、玄关只作为次优备选。",
             "商业/办公/仓库/厂房/车位/土地案件必须按其用途选择图片，不要套用住宅室内优先规则。",
             "不要选择户型图、结构图、地图、交通图、概念渲染图、广告海报、文字说明图、验证码/错误页、人物头像或纯 logo。",
+            "优先真实实拍图；但新建案缺少实拍时，可选择清晰、精美、能表达建筑外观/室内空间的完成予想CG或外観/内観パース作为次优代表图。",
+            "低质量3D、粗糙建模、泛概念图、イメージ図、参考イメージ、看不出房源主体或信息价值低的CG仍必须拒绝。",
             "不要选择厕所、浴室、洗面台、设备特写、杂乱角落等低信息图片；但土地/车位案件中，真实现场和道路临接可按该类型信息价值判断。",
             "非土地/车位案件不要选择野外空景、道路/公园/停车场等看不到案件主体和用途的图片。",
             "明显水印过重、模糊、裁切严重、无房屋主体、信息含糊不清的图要降权或拒绝。",
@@ -250,7 +252,7 @@ def select_representative_listing_image_via_gemini(
         "response_schema": {
             "selected_index": "number，候选 index",
             "score": "0-100，代表图质量分",
-            "category": "real_interior_main|real_interior_room|real_exterior|real_building|entrance|land_site|land_frontage|farmland|forest_land|parking_space|parking_lot|garage|shop_front|shop_interior|street_front|office_interior|office_building|warehouse_interior|warehouse_exterior|factory_interior|factory_exterior|kitchen|balcony|bath_toilet|facility_detail|environment|floor_plan|map|concept|ad|watermark|placeholder|unclear|unknown",
+            "category": "real_interior_main|real_interior_room|real_exterior|real_building|entrance|land_site|land_frontage|farmland|forest_land|parking_space|parking_lot|garage|shop_front|shop_interior|street_front|office_interior|office_building|warehouse_interior|warehouse_exterior|factory_interior|factory_exterior|kitchen|balcony|bath_toilet|facility_detail|environment|floor_plan|map|concept|render|cg_render|perspective|artist_impression|ad|watermark|placeholder|unclear|unknown",
             "information_value": "0-100，是否能看出该物件类型的核心信息和真实状态",
             "reason": "简短中文理由",
             "rejected": [{"index": "number", "reason": "简短原因"}],

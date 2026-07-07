@@ -1388,6 +1388,9 @@ _YAHOO_DETAIL_TABLE_KEYS = frozenset(
         "総戸数",
         "土地面積",
         "建物面積",
+        "完成予定",
+        "完成時期",
+        "駐車場",
     }
 )
 
@@ -1430,8 +1433,12 @@ def _yahoo_mansion_detail_kv_digest(soup: BeautifulSoup) -> str:
         ("交通", r"交通\s*[:：]?\s*(.+?)(?=\s*間取り|\s*専有面積|\s*所在階|\s*主要採光面)"),
         ("間取り", r"間取り\s*[:：]?\s*([0-9]+(?:S)?(?:LDK|DK|K|R))"),
         ("専有面積", r"専有面積\s*[:：]?\s*([0-9][0-9.,]*\s*(?:m2|㎡).{0,20}?)"),
+        ("建物面積", r"建物面積\s*[:：]?\s*([0-9][0-9.,]*\s*(?:m2|㎡).{0,20}?)"),
+        ("土地面積", r"土地面積\s*[:：]?\s*([0-9][0-9.,]*\s*(?:m2|㎡).{0,20}?)"),
         ("所在階", r"所在階\s*[:：]?\s*([0-9]{1,2}\s*階)"),
         ("築年月", r"築年月\s*[:：]?\s*([0-9]{4}\s*年\s*[0-9]{1,2}\s*月(?:\s*\([^)]+\))?)"),
+        ("完成予定", r"完成予定\s*[:：]?\s*((?:令和\s*)?[0-9元]{1,4}(?:年|[./／])\s*[0-9]{1,2}\s*月?(?:\s*(?:上旬|中旬|下旬))?(?:\s*完成予定)?)"),
+        ("駐車場", r"駐車場\s*[:：]?\s*([0-9０-９]+\s*台(?:以上|可|分|有)?|有|無|なし|空有|近隣|要確認|相談)"),
         ("総戸数", r"総戸数\s*[:：]?\s*([0-9０-９]{1,6}\s*戸)"),
         ("物件管理番号", r"物件管理番号\s*[:：]?\s*([A-Za-z0-9\-]{6,40})"),
     ]
@@ -3624,7 +3631,7 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
         if athome_shinchiku_digest:
             text = " ".join(athome_shinchiku_digest) + " " + text
     if "realestate.yahoo.co.jp" in pul and (
-        "/used/mansion/detail" in pul or "/land/detail" in pul
+        "/used/mansion/detail" in pul or "/land/detail" in pul or "/house/detail" in pul
     ):
         ydigest = _yahoo_mansion_detail_kv_digest(soup)
         if ydigest:
@@ -3638,7 +3645,9 @@ def _extract_meta_and_images(soup: BeautifulSoup, page_url: str, raw_html: str =
         max_len = 5200
     elif "homes.co.jp" in pul and "/chintai/room/" in pul:
         max_len = 5200
-    elif "realestate.yahoo.co.jp" in pul and ("/used/mansion/detail" in pul or "/land/detail" in pul):
+    elif "realestate.yahoo.co.jp" in pul and (
+        "/used/mansion/detail" in pul or "/land/detail" in pul or "/house/detail" in pul
+    ):
         max_len = 5200
     elif "athome.co.jp" in pul and "/mansion/" in pul:
         max_len = 5200

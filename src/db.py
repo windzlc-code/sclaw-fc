@@ -213,6 +213,29 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_keyword_logs_keyword ON keyword_search_logs(keyword);
             CREATE INDEX IF NOT EXISTS idx_keyword_logs_time ON keyword_search_logs(searched_at DESC);
 
+            CREATE TABLE IF NOT EXISTS site_visitor_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                event_date TEXT NOT NULL,
+                ip_hash TEXT NOT NULL,
+                ip_label TEXT NOT NULL DEFAULT '',
+                method TEXT NOT NULL DEFAULT 'GET',
+                path TEXT NOT NULL DEFAULT '',
+                query_group TEXT NOT NULL DEFAULT '',
+                status_code INTEGER NOT NULL DEFAULT 0,
+                elapsed_ms INTEGER NOT NULL DEFAULT 0,
+                referrer TEXT NOT NULL DEFAULT '',
+                user_agent TEXT NOT NULL DEFAULT '',
+                device_type TEXT NOT NULL DEFAULT 'desktop',
+                visitor_kind TEXT NOT NULL DEFAULT 'guest'
+            );
+            CREATE INDEX IF NOT EXISTS idx_site_visitors_date
+                ON site_visitor_events(event_date, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_site_visitors_ip_date
+                ON site_visitor_events(ip_hash, event_date);
+            CREATE INDEX IF NOT EXISTS idx_site_visitors_path
+                ON site_visitor_events(path, event_date);
+
             CREATE TABLE IF NOT EXISTS seo_draft_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 keyword TEXT NOT NULL UNIQUE,
@@ -556,6 +579,31 @@ def init_db() -> None:
         _ensure_column(conn, "content_items", "listing_media_json", "TEXT NOT NULL DEFAULT '[]'")
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS site_visitor_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                event_date TEXT NOT NULL,
+                ip_hash TEXT NOT NULL,
+                ip_label TEXT NOT NULL DEFAULT '',
+                method TEXT NOT NULL DEFAULT 'GET',
+                path TEXT NOT NULL DEFAULT '',
+                query_group TEXT NOT NULL DEFAULT '',
+                status_code INTEGER NOT NULL DEFAULT 0,
+                elapsed_ms INTEGER NOT NULL DEFAULT 0,
+                referrer TEXT NOT NULL DEFAULT '',
+                user_agent TEXT NOT NULL DEFAULT '',
+                device_type TEXT NOT NULL DEFAULT 'desktop',
+                visitor_kind TEXT NOT NULL DEFAULT 'guest'
+            )
+            """
+        )
+        _ensure_column(conn, "site_visitor_events", "visitor_kind", "TEXT NOT NULL DEFAULT 'guest'")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_site_visitors_date ON site_visitor_events(event_date, id DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_site_visitors_ip_date ON site_visitor_events(ip_hash, event_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_site_visitors_path ON site_visitor_events(path, event_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_site_visitors_kind_date ON site_visitor_events(visitor_kind, event_date)")
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS case_investment_metrics (
                 source_item_id INTEGER PRIMARY KEY,
                 metrics_json TEXT NOT NULL,
@@ -637,6 +685,14 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_case_representative_status "
             "ON case_representative_images(status, selected_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_case_representative_static_status "
+            "ON case_representative_images(representative_static_url, status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_case_representative_url_status "
+            "ON case_representative_images(representative_url, status)"
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_seo_slug ON content_items(seo_slug)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_source_item ON content_items(source_item_id)")
