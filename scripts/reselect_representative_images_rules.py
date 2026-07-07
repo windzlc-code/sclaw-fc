@@ -72,6 +72,25 @@ def _render_suspect_source_item_ids(app: Any, *, limit: int, offset: int) -> lis
     return [int(row[0]) for row in rows if int(row[0] or 0) > 0]
 
 
+def _yahoo_opaque_source_item_ids(app: Any, *, limit: int, offset: int) -> list[int]:
+    lim = max(1, min(50000, int(limit or 1)))
+    off = max(0, int(offset or 0))
+    with app.get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT r.source_item_id
+            FROM case_representative_images r
+            LEFT JOIN content_items c ON c.source_item_id = r.source_item_id
+            WHERE COALESCE(r.status, '') IN ('selected', 'fallback', 'rules')
+              AND LOWER(COALESCE(r.representative_url, '')) LIKE 'https://realestate-pctr.c.yimg.jp/m%'
+            ORDER BY COALESCE(c.featured_weight, 0) DESC, r.selected_at DESC, r.source_item_id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (lim, off),
+        ).fetchall()
+    return [int(row[0]) for row in rows if int(row[0] or 0) > 0]
+
+
 def _row_for_source_item(app: Any, source_item_id: int) -> dict[str, Any] | None:
     with app.get_conn() as conn:
         row = conn.execute(
@@ -141,9 +160,9 @@ def _remaining_duplicate_groups(app: Any) -> tuple[int, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Reselect duplicate/render-suspect representative images with local rules only."
+        description="Reselect duplicate/render/Yahoo opaque representative images with local rules only."
     )
-    parser.add_argument("--mode", choices=("duplicates", "render", "both"), default="duplicates")
+    parser.add_argument("--mode", choices=("duplicates", "render", "yahoo-opaque", "both", "all"), default="duplicates")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
@@ -156,10 +175,12 @@ def main() -> int:
     app.is_gemini_configured = lambda: False
     before_groups, before_rows = _remaining_duplicate_groups(app)
     ids: list[int] = []
-    if args.mode in {"duplicates", "both"}:
+    if args.mode in {"duplicates", "both", "all"}:
         ids.extend(_duplicate_source_item_ids(app, limit=args.limit, offset=args.offset))
-    if args.mode in {"render", "both"}:
+    if args.mode in {"render", "both", "all"}:
         ids.extend(_render_suspect_source_item_ids(app, limit=args.limit, offset=args.offset))
+    if args.mode in {"yahoo-opaque", "all"}:
+        ids.extend(_yahoo_opaque_source_item_ids(app, limit=args.limit, offset=args.offset))
     seen: set[int] = set()
     ids = [sid for sid in ids if not (sid in seen or seen.add(sid))]
 

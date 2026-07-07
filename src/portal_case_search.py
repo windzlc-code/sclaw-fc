@@ -3114,6 +3114,25 @@ _SMART_PROPERTY_TYPE_ORDER = (
     "其他",
 )
 _SMART_PROPERTY_TYPE_SET = set(_SMART_PROPERTY_TYPE_ORDER)
+_SMART_STUDIO_TYPE_TOKENS = (
+    "套房",
+    "ワンルーム",
+    "studio",
+    "1room",
+    "1 room",
+    "one room",
+    "コンパクト",
+    "単身",
+    "單身",
+    "单身",
+    "小戶型",
+    "小户型",
+    "シングル",
+)
+_SMART_STUDIO_LAYOUT_RE = re.compile(
+    r"(?<![0-9a-z])1\s*(?:s?ldk|ldk\+s|dk|k|r|room)(?![0-9a-z])",
+    re.I,
+)
 
 
 def _normalize_smart_property_types(values: list[str] | tuple[str, ...] | None) -> list[str]:
@@ -3148,7 +3167,72 @@ def _smart_type_text_bag(item: dict[str, Any]) -> str:
     return unicodedata.normalize("NFKC", " ".join(str(x or "") for x in parts)).lower()
 
 
+def _smart_type_focused_text_bag(item: dict[str, Any]) -> str:
+    parts = [
+        item.get("building_type_zh"),
+        item.get("title_zh_hant"),
+        item.get("title_zh_hans"),
+        item.get("title_original"),
+        item.get("topic_category"),
+        item.get("item_url"),
+    ]
+    return unicodedata.normalize("NFKC", " ".join(str(x or "") for x in parts)).lower()
+
+
+def _smart_type_layout_text_bag(item: dict[str, Any]) -> str:
+    parts = [
+        item.get("building_type_zh"),
+        item.get("layout_text_hant"),
+        item.get("layout_line_jp"),
+        item.get("title_zh_hant"),
+        item.get("title_zh_hans"),
+        item.get("title_original"),
+        item.get("topic_category"),
+        item.get("item_url"),
+    ]
+    return unicodedata.normalize("NFKC", " ".join(str(x or "") for x in parts)).lower()
+
+
+def _smart_text_has_studio_like(bag: str) -> bool:
+    if any(t.lower() in bag for t in _SMART_STUDIO_TYPE_TOKENS):
+        return True
+    return bool(_SMART_STUDIO_LAYOUT_RE.search(bag))
+
+
+def _smart_probe_has_studio_like_layout(probe: dict[str, Any]) -> bool:
+    text = unicodedata.normalize(
+        "NFKC",
+        " ".join(
+            str(probe.get(k) or "")
+            for k in (
+                "title_zh_hant",
+                "title_zh_hans",
+                "title_original",
+                "snippet_jp",
+                "body_zh_hant_preview",
+                "body_zh_hans_preview",
+            )
+        ),
+    ).lower()
+    if any(t.lower() in text for t in ("套房", "ワンルーム", "studio", "1room", "1 room", "コンパクト", "単身", "單身", "单身")):
+        return True
+    layout_markers = ("格局", "間取り", "間取", "layout", "房型")
+    for marker in layout_markers:
+        start = 0
+        while True:
+            idx = text.find(marker.lower(), start)
+            if idx < 0:
+                break
+            window = text[idx : idx + 90]
+            if _SMART_STUDIO_LAYOUT_RE.search(window):
+                return True
+            start = idx + len(marker)
+    return False
+
+
 def _smart_property_type_hits(item: dict[str, Any]) -> set[str]:
+    focused_bag = _smart_type_focused_text_bag(item)
+    layout_bag = _smart_type_layout_text_bag(item)
     bag = _smart_type_text_bag(item)
     hits: set[str] = set()
     apartment_tokens = (
@@ -3161,28 +3245,113 @@ def _smart_property_type_hits(item: dict[str, Any]) -> set[str]:
         "中古マンション",
         "新築マンション",
     )
-    if any(t.lower() in bag for t in apartment_tokens):
+    if any(t.lower() in focused_bag for t in apartment_tokens):
         hits.update({"公寓", "大樓", "華廈"})
-    if any(t.lower() in bag for t in ("套房", "ワンルーム", "1r", "1k", "studio")):
+    if _smart_text_has_studio_like(layout_bag):
         hits.add("套房")
     if any(
-        t.lower() in bag
+        t.lower() in focused_bag
         for t in ("別墅", "透天", "一戶建", "一戸建", "戸建", "detached", "villa", "中古一戸建て", "新築一戸建て")
     ):
         hits.add("別墅/透天")
-    if any(t.lower() in bag for t in ("辦公", "事務所", "オフィス", "office")):
+    if any(t.lower() in focused_bag for t in ("辦公", "事務所", "オフィス", "office", "/office/")):
         hits.add("辦公")
-    if any(t.lower() in bag for t in ("倉庫", "warehouse", "souko")):
+    if any(t.lower() in focused_bag for t in ("倉庫", "warehouse", "souko", "/warehouse/")):
         hits.add("倉庫")
-    if any(t.lower() in bag for t in ("店面", "店舗", "テナント", "shop", "store")):
+    if any(t.lower() in focused_bag for t in ("店面", "店舗", "テナント", "shop", "store", "/shop/", "/store/")):
         hits.add("店面")
-    if any(t.lower() in bag for t in ("廠房", "工場", "factory", "plant")):
+    if any(t.lower() in focused_bag for t in ("廠房", "工場", "factory", "plant", "/factory/")):
         hits.add("廠房")
-    if any(t.lower() in bag for t in ("土地", "売地", "tochi", "land")):
+    if any(t.lower() in focused_bag for t in ("土地", "売地", "tochi", "/land/")):
         hits.add("土地")
-    if any(t.lower() in bag for t in ("單售車位", "車位", "駐車", "駐車場", "parking", "garage")):
+    if any(t.lower() in focused_bag for t in ("單售車位", "車位", "駐車", "駐車場", "parking", "garage", "/parking/")):
         hits.add("單售車位")
     return hits
+
+
+def _row_to_smart_type_probe(row: Any) -> dict[str, Any]:
+    def g(key: str) -> Any:
+        try:
+            return row[key]
+        except Exception:
+            return ""
+
+    return {
+        "building_type_zh": " ".join(str(g(k) or "") for k in ("keyword_type", "case_transaction_override", "topic_category")),
+        "layout_text_hant": " ".join(str(g(k) or "") for k in ("body_zh_hant", "body_zh_hans")),
+        "layout_line_jp": g("body_original"),
+        "title_zh_hant": g("title_zh_hant"),
+        "title_zh_hans": g("title_zh_hans"),
+        "title_original": g("title_original"),
+        "snippet_jp": g("body_original"),
+        "body_zh_hant_preview": g("body_zh_hant"),
+        "body_zh_hans_preview": g("body_zh_hans"),
+        "topic_category": g("topic_category"),
+        "item_url": g("item_url"),
+    }
+
+
+def _smart_type_probe_is_listing_detail(row: Any, probe: dict[str, Any]) -> bool:
+    try:
+        if str(row["content_kind"] or "") != "jp_listing":
+            return False
+    except Exception:
+        pass
+    url = str(probe.get("item_url") or "").strip()
+    title = " ".join(
+        str(probe.get(k) or "").strip()
+        for k in ("title_zh_hant", "title_zh_hans", "title_original")
+        if str(probe.get(k) or "").strip()
+    )
+    if not url or not title:
+        return False
+    if re.search(r"(?:javascript\s*(?:is disabled|被禁用|已禁用)|需要\s*javascript|浏览器.{0,8}不支持)", title, re.I):
+        return False
+    return True
+
+
+def _smart_property_type_candidate_sql(property_types: list[str]) -> tuple[str, list[Any]]:
+    selected = _normalize_smart_property_types(property_types)
+    if not selected or "其他" in selected:
+        return "", []
+    focused_fields = (
+        "c.title_zh_hant",
+        "c.title_zh_hans",
+        "c.seo_title",
+        "s.title_original",
+        "s.item_url",
+    )
+    broad_fields = (*focused_fields, "c.body_zh_hant", "c.body_zh_hans", "s.body_original")
+    terms_by_type: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+        "公寓": (("公寓", "マンション", "mansion", "apartment", "中古マンション", "新築マンション"), broad_fields),
+        "大樓": (("大樓", "大楼", "マンション", "mansion", "中古マンション", "新築マンション"), broad_fields),
+        "華廈": (("華廈", "华厦", "マンション", "mansion", "中古マンション", "新築マンション"), broad_fields),
+        "套房": (
+            ("套房", "ワンルーム", "1R", "1K", "1DK", "1LDK", "1ROOM", "STUDIO", "コンパクト", "単身", "單身", "单身"),
+            broad_fields,
+        ),
+        "別墅/透天": (("別墅", "透天", "一戶建", "一戸建", "戸建", "中古一戸建て", "新築一戸建て", "detached", "villa"), focused_fields),
+        "辦公": (("辦公", "办公", "事務所", "オフィス", "office"), focused_fields),
+        "倉庫": (("倉庫", "warehouse", "souko"), focused_fields),
+        "店面": (("店面", "店舗", "テナント", "shop", "store"), focused_fields),
+        "廠房": (("廠房", "工場", "factory", "plant"), focused_fields),
+        "土地": (("土地", "売地", "tochi", "/land/"), focused_fields),
+        "單售車位": (("單售車位", "車位", "駐車場", "parking", "garage"), focused_fields),
+    }
+    clauses: list[str] = []
+    params: list[Any] = []
+    for ptype in selected:
+        spec = terms_by_type.get(ptype)
+        if not spec:
+            continue
+        terms, fields = spec
+        for term in terms:
+            like = f"%{term}%"
+            clauses.append("(" + " OR ".join(f"COALESCE({field}, '') LIKE ?" for field in fields) + ")")
+            params.extend([like] * len(fields))
+    if not clauses:
+        return "", []
+    return " AND (" + " OR ".join(clauses) + ")", params
 
 
 def _smart_item_matches_property_types(item: dict[str, Any], property_types: list[str]) -> bool:
@@ -5563,7 +5732,20 @@ def search_portal_cases(
             fetch_lim = lim
     if requested_page_size > 0 and has_smart_structured_filters:
         visible_target = max(1, page_offset + requested_page_size)
-        fetch_lim = min(fetch_lim, max(360, visible_target * 80))
+        has_only_type_filter = bool(smart_property_types) and not (
+            smart_price_min > 0
+            or smart_price_max > 0
+            or smart_layout_min > 0
+            or smart_layout_max > 0
+            or smart_layout_exact_zero
+            or has_transit_filter
+            or (region_hint or "").strip()
+            or (kw_base or "").strip()
+        )
+        if has_only_type_filter:
+            fetch_lim = min(2400, max(fetch_lim, 2400, visible_target * 400))
+        else:
+            fetch_lim = min(fetch_lim, max(360, visible_target * 80))
     if fine_grained_region_index_probe and requested_page_size > 0 and not has_smart_structured_filters:
         fetch_lim = max(fetch_lim, min(480, max(int(lim) * 3, 240)))
     if requested_page_size > 0 and not has_smart_structured_filters:
@@ -6058,6 +6240,14 @@ def search_portal_cases(
                     kw_params.extend([like] * len(fields))
                 if clauses:
                     kw_sql = " AND (" + " OR ".join(clauses) + ")"
+        type_candidate_sql, type_candidate_params = _smart_property_type_candidate_sql(smart_property_types)
+        if type_candidate_sql and not kw:
+            if kw_sql:
+                kw_sql = f"{kw_sql} {type_candidate_sql}"
+                kw_params.extend(type_candidate_params)
+            else:
+                kw_sql = type_candidate_sql
+                kw_params = list(type_candidate_params)
         fts_content_rowid_floor = 0
         fts_source_rowid_floor = 0
         try:
@@ -6139,20 +6329,51 @@ def search_portal_cases(
             has_price = pmin > 0 or pmax > 0
             has_layout = exact_zero or rmin > 0 or rmax > 0
             target_pass = max(lim, min(fetch_lim, max(int(lim * 1.25), 70)))
-            # Keep interactive searches snappy: stop scanning if we hit the time budget.
-            deadline = time.perf_counter() + 0.42
+            type_only_scan = bool(types) and not has_price and not has_layout
+            # Type-only searches feed the homepage category cards. Scan the whole
+            # bounded candidate window so counts do not collapse to the first few
+            # hundred fresh rows; mixed price/layout filters keep the short budget.
+            deadline = None if type_only_scan else time.perf_counter() + 0.42
+            collect_target = max(lim, page_offset + (requested_page_size if requested_page_size > 0 else lim))
 
             collected: list[dict[str, Any]] = []
+            matched_count = 0
+            hit_deadline = False
             while True:
-                if time.perf_counter() >= deadline:
+                if deadline is not None and time.perf_counter() >= deadline:
+                    hit_deadline = True
                     break
                 batch = cur.fetchmany()
                 if not batch:
                     break
                 scanned_rows += len(batch)
                 for rr in batch:
-                    if time.perf_counter() >= deadline:
+                    if deadline is not None and time.perf_counter() >= deadline:
+                        hit_deadline = True
                         break
+                    if type_only_scan:
+                        probe = _row_to_smart_type_probe(rr)
+                        if not _smart_type_probe_is_listing_detail(rr, probe):
+                            continue
+                        scanned_after_detail += 1
+                        if types == ["套房"]:
+                            type_matched = _smart_probe_has_studio_like_layout(probe)
+                        else:
+                            type_matched = _smart_item_matches_property_types(probe, types)
+                        if not type_matched:
+                            continue
+                        if len(collected) < collect_target:
+                            it = _row_to_portal_case_item(rr)
+                            if not _is_probably_listing_detail_result(it):
+                                continue
+                            if types == ["套房"] and not _smart_item_matches_property_types(it, types):
+                                continue
+                            matched_count += 1
+                            if type_matched:
+                                collected.append(it)
+                        else:
+                            matched_count += 1
+                        continue
                     it = _row_to_portal_case_item(rr)
                     if not _is_probably_listing_detail_result(it):
                         continue
@@ -6196,7 +6417,7 @@ def search_portal_cases(
                     collected.append(it)
                     if len(collected) >= target_pass:
                         break
-                if len(collected) >= target_pass:
+                if (not type_only_scan) and len(collected) >= target_pass:
                     break
             streamed_items = collected
             streamed_filter_meta = {
@@ -6207,10 +6428,13 @@ def search_portal_cases(
                 "layout_max_rooms": rmax,
                 "layout_exact_zero": exact_zero,
                 "before_count": scanned_after_detail,
-                "after_count": len(collected),
+                "after_count": matched_count if type_only_scan else len(collected),
                 "price_unknown_excluded": price_unknown_excluded,
                 "layout_unknown_excluded": layout_unknown_excluded,
-                "early_stop": scanned_rows < int(fetch_lim),
+                "scanned_rows": scanned_rows,
+                "scanned_after_detail": scanned_after_detail,
+                "early_stop": hit_deadline,
+                "candidate_window_truncated": scanned_rows >= int(fetch_lim),
             }
             rows = []
             row_fetch_count = int(scanned_rows)
@@ -6318,7 +6542,10 @@ def search_portal_cases(
             items = _row_dicts_to_portal_case_items(rows)
     else:
         if requested_page_size > 0:
-            total_count_override = len(streamed_items)
+            try:
+                total_count_override = int((streamed_filter_meta or {}).get("after_count") or len(streamed_items))
+            except Exception:
+                total_count_override = len(streamed_items)
             items = streamed_items[page_offset : page_offset + requested_page_size]
             used_paged_fast_path = True
         else:

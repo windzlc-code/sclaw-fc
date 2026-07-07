@@ -415,7 +415,10 @@
         </div>
         <div class="home-featured-flow-foot">
           <p id="home-featured-type-status" class="home-featured-status">{% if type_ssr_items %}已载入 {{ type_ssr_items|length }} 笔「综合推荐」房源。{% else %}正在载入物件类型房源...{% endif %}</p>
-          <button type="button" id="home-featured-type-more" class="home-featured-more-btn" onclick="loadHomeFeaturedTypeCases({ append: true })">加载更多房源</button>
+          <div class="home-featured-flow-actions" aria-label="房源更多操作">
+            <button type="button" id="home-featured-type-more" class="home-featured-more-btn" onclick="loadHomeFeaturedTypeCases({ append: true })">加载更多房源</button>
+            <a class="home-featured-contact-btn" href="/company#company-luxe-contact">联络我们</a>
+          </div>
         </div>
       </div>
     </section>
@@ -2929,7 +2932,7 @@
       });
       const summary = document.getElementById('figure-summary');
       if (summary) {
-        summary.innerHTML = `<p><strong>已填入物件类型</strong>：${esc(formatFigureTypeLabel(getSelectedFigurePropertyTypes()))}。请按「查询日本不动产案件」开始搜索。</p>`;
+        summary.innerHTML = `<p><strong>已套用物件类型</strong>：${esc(formatFigureTypeLabel(getSelectedFigurePropertyTypes()))}。正在为你查询站内案件...</p>`;
       }
       return target;
     }
@@ -2963,6 +2966,25 @@
           }
         });
       }
+      const runRoomExploreSearch = () => {
+        if (typeof setSmartQueryMainTab === 'function') {
+          try {
+            setSmartQueryMainTab('cases');
+          } catch (_) {}
+        }
+        const summary = document.getElementById('figure-summary');
+        if (summary) {
+          summary.innerHTML = `<p><strong>已套用物件类型</strong>：${esc(formatFigureTypeLabel(getSelectedFigurePropertyTypes()))}。正在为你查询站内案件...</p>`;
+        }
+        if (typeof runDialogQuery === 'function') {
+          void runDialogQuery();
+          return;
+        }
+        if (typeof searchFigureTab === 'function') {
+          void searchFigureTab(false);
+        }
+      };
+      window.setTimeout(runRoomExploreSearch, 180);
       return propertyType;
     }
     window.openRoomExploreWorkbench = openRoomExploreWorkbench;

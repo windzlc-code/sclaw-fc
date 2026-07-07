@@ -18,6 +18,7 @@ from app import (
     _case_representative_raw_url_allowed,
     _case_representative_semantic_category,
     _case_representative_semantic_reject_reason,
+    _sort_relevant_real_estate_images,
     _normalize_listing_image_url_for_display,
     case_static_image_url,
     _listing_media_entries_from_case_row,
@@ -79,6 +80,21 @@ class CaseMediaFilterTests(unittest.TestCase):
         url = "https://image4.homes.jp/smallimg/image.php?width=1600&height=1600"
 
         self.assertFalse(_row_image_url_is_usable(url))
+
+    def test_yahoo_opaque_proxy_is_not_representative_cover_candidate(self):
+        opaque = (
+            "https://realestate-pctr.c.yimg.jp/"
+            "mREGDukoFr8i44YuELjED-Bl7bjU_0PTrbizfFnqAhqCPtpt5HOBYNyn1dPTVJ_9GEXZTPR65QfBY32x71gasxyz"
+        )
+        canonical = (
+            "https://realestate-pctr.c.yimg.jp/ds/realestate-buy-image/bld_image/"
+            "00/2005/9852/0420/ffb8dfeae1b0c036bae2b1654d7aff94_02_01.jpg"
+            "?pri=l&up=0&nf_src=ds&nf_st=200&w=990&h=570"
+        )
+
+        self.assertFalse(_case_representative_raw_url_allowed(opaque))
+        self.assertTrue(_case_representative_raw_url_allowed(canonical))
+        self.assertEqual(_sort_relevant_real_estate_images([opaque, canonical], limit=4)[0], canonical)
 
     def test_yahoo_listing_image_with_noimage_fallback_query_is_still_usable(self):
         url = (

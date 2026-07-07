@@ -1939,10 +1939,19 @@ def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "buil
     if not s:
         return "empty"
     try:
+        parsed_url = urlparse(s)
+        host = (parsed_url.netloc or "").lower()
+        path = (parsed_url.path or "").lower()
+    except Exception:
+        host = ""
+        path = ""
+    try:
         decoded = unquote(s)
     except Exception:
         decoded = s
     hay = f"{s} {decoded}".lower()
+    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" not in path:
+        return "opaque-yahoo-proxy"
     if is_likely_agent_portrait_image_url(s):
         return "agent"
     if is_portal_non_property_image_url(s):
@@ -2312,7 +2321,7 @@ def _case_representative_profile(row: dict[str, Any] | None = None, *, context: 
         ("shop", ("店面", "店舗", "テナント", "shop", "store")),
         ("office", ("辦公", "事務所", "オフィス", "office")),
         ("detached", ("別墅", "透天", "一戶建", "一戸建", "戸建", "detached", "villa")),
-        ("studio", ("套房", "ワンルーム", "1r", "1k", "studio")),
+        ("studio", ("套房", "ワンルーム", "1r", "1k", "1dk", "1ldk", "1room", "studio", "コンパクト", "単身", "單身", "单身", "小戶型", "小户型")),
         ("apartment", ("公寓", "マンション", "mansion", "apartment")),
         ("tower", ("大樓",)),
         ("midrise", ("華廈",)),
@@ -4424,7 +4433,25 @@ def _home_featured_property_type_hits(row: dict[str, Any]) -> set[str]:
         for t in ("別墅", "透天", "一戶建", "一戸建", "戸建", "detached", "villa", "中古一戸建て", "新築一戸建て")
     ):
         return {"別墅/透天"}
-    if any(t in extended_detail_text for t in ("套房", "ワンルーム", "1r", "1k", "1dk", "studio", "單身", "单身")):
+    if any(
+        t in extended_detail_text
+        for t in (
+            "套房",
+            "ワンルーム",
+            "1r",
+            "1k",
+            "1dk",
+            "1ldk",
+            "1room",
+            "studio",
+            "コンパクト",
+            "単身",
+            "單身",
+            "单身",
+            "小戶型",
+            "小户型",
+        )
+    ):
         return {"套房"}
 
     if "華廈" in focused:
@@ -4460,7 +4487,23 @@ def _home_featured_property_type_search_terms(property_type: str) -> tuple[str, 
     if any(t in normalized for t in ("公寓", "大樓", "華廈")):
         return ("公寓", "大樓", "華廈", "マンション", "mansion", "アパート", "apartment", "新築マンション", "中古マンション")
     if "套房" in normalized:
-        return ("套房", "ワンルーム", "1R", "1K", "1DK", "studio", "單身", "单身", "1房")
+        return (
+            "套房",
+            "ワンルーム",
+            "1R",
+            "1K",
+            "1DK",
+            "1LDK",
+            "1ROOM",
+            "studio",
+            "コンパクト",
+            "単身",
+            "單身",
+            "单身",
+            "小戶型",
+            "小户型",
+            "1房",
+        )
     if "辦公" in normalized:
         return ("辦公", "办公", "事務所", "オフィス", "office")
     if "店面" in normalized:
@@ -4494,6 +4537,8 @@ def _home_featured_fast_cached_gallery_urls(
         if not cached or cached in seen:
             continue
         if not _url_to_local_static_path(cached):
+            continue
+        if _case_image_visual_reject_reason(cached):
             continue
         seen.add(cached)
         out.append(cached)
@@ -4912,7 +4957,7 @@ def _home_featured_cases_cache_key(
 ) -> str:
     return json.dumps(
         {
-            "media_policy": "representative-v6-homepage-quality",
+            "media_policy": "representative-v7-yahoo-clean-cover",
             "text_policy": "jp-display-clean-v1",
             "limit": int(limit),
             "offset": int(offset),
@@ -5471,7 +5516,7 @@ _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS = 600.0
 _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v15"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v16-yahoo-clean-cover"
 _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # Representative card images are intentionally fixed/static. Keep the preload
 # file usable across restarts and daily traffic; external jobs can replace it
@@ -9540,6 +9585,10 @@ def _real_estate_image_score(u: str, *, profile: str = "building") -> int:
         score += 92
     if "athome.co.jp" in lu and "/image_files/path/" in lu:
         score += 96
+    if "realestate-pctr.c.yimg.jp" in lu and "/realestate-buy-image/bld_image/" in lu:
+        score += 150
+    elif "realestate-pctr.c.yimg.jp" in lu:
+        score -= 260
     if "%2fsale%2f" in lu or "/sale/" in lu:
         score += 36
     if any(t in lu for t in primary_tokens):
