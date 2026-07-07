@@ -7529,6 +7529,7 @@ class ChatSupportRequest(BaseModel):
     image_data_url: str = ""
     image_name: str = ""
     image_type: str = ""
+    support_entry: str = ""
 
 
 class SupportKeywordHintRequest(BaseModel):

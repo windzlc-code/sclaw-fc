@@ -1944,6 +1944,9 @@
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-telegram" type="checkbox"> 自動通知 Telegram</label>
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-line" type="checkbox"> 自動通知 LINE</label>
           </div>
+          <label class="muted">LINE 測試文案
+            <input id="admin-line-test-msg" type="text" value="SCLAW LINE 連線測試" autocomplete="off">
+          </label>
           <div class="admin-notify-primary-actions">
             <button type="button" onclick="saveAdminLineSettings()">儲存通知方式</button>
             <button type="button" class="secondary" onclick="testAdminLine()">測試 LINE</button>
@@ -1979,7 +1982,6 @@
             </div>
             <pre id="admin-line-webhook-status" class="muted admin-technical-info" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
           </div>
-          <input id="admin-line-test-msg" type="hidden" value="SCLAW LINE 連線測試">
           <p id="admin-line-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         </div>
         <div class="panel admin-telegram-accounts-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
@@ -1995,6 +1997,17 @@
             <button type="button" onclick="saveAdminTelegramAccounts()">儲存目前顧問</button>
             <button type="button" class="secondary" id="admin-tg-test-btn" onclick="testAdminTelegram()">測試 Telegram</button>
           </div>
+          <div class="admin-notify-test-row" aria-label="Telegram 測試">
+            <label class="muted">測試收件顧問
+              <select id="admin-tg-test-account" style="min-width:18rem;">
+                <option value="">（目前收件顧問）</option>
+              </select>
+            </label>
+            <label class="muted">Telegram 測試文案
+              <input id="admin-tg-test-msg" type="text" value="SCLAW 連線測試" autocomplete="off">
+            </label>
+            <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入 Telegram</button>
+          </div>
           <div class="admin-notify-setup-block admin-notify-accounts-block">
             <h5>Telegram 顧問帳號</h5>
             <div class="search-row-basic" style="margin:0.65rem 0 0.55rem;">
@@ -2002,14 +2015,7 @@
               <button type="button" onclick="saveAdminTelegramAccounts()">儲存帳號列表</button>
             </div>
             <div id="admin-tg-accounts-wrap" class="muted" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
-            <div class="admin-notify-test-row" aria-label="Telegram 重載">
-              <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入 Telegram</button>
-            </div>
           </div>
-          <select id="admin-tg-test-account" hidden aria-hidden="true">
-            <option value="">（目前收件顧問）</option>
-          </select>
-          <input id="admin-tg-test-msg" type="hidden" value="SCLAW 連線測試">
           <p id="admin-tg-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         </div>
         </div>
@@ -15242,7 +15248,7 @@
         const id = esc(String(a.id || ''));
         const label = esc(String(a.label || ''));
         const chat = esc(String(a.chat_id || ''));
-        const tokHint = a.bot_token_set ? '已設定' : '未設定';
+        const tokHint = a.bot_token_set ? esc(String(a.bot_token_masked || '已設定')) : '未設定';
         html += `<div class="panel slim admin-notify-account-row" style="margin:0;padding:8px 10px;" data-tg-acc="${id}">`;
         html += `<div class="search-row-basic" style="flex-wrap:wrap;gap:0.35rem;align-items:flex-end;">`;
         html += `<input type="hidden" class="admin-tg-acc-id" value="${id}">`;
@@ -15388,7 +15394,8 @@
         if (cid) cid.value = String(data.chat_id || '');
         if (tok) tok.value = '';
         if (clr) clr.checked = false;
-        if (msg) msg.textContent = `Telegram 連線狀態：${data.bot_token_set ? '已設定' : '未設定'}`;
+        const masked = data.bot_token_masked ? String(data.bot_token_masked) : '已設定';
+        if (msg) msg.textContent = `Telegram 連線狀態：${data.bot_token_set ? masked : '未設定'}`;
         renderAdminTelegramAccountsFromSnapshot(data);
         updateTelegramTabAutoStatusFromSnapshot(data, true);
       } catch (err) {
@@ -15424,7 +15431,8 @@
         if (tok) tok.value = '';
         const clr = document.getElementById('admin-tg-clear-token');
         if (clr) clr.checked = false;
-        if (msg) msg.textContent = `已儲存 Telegram 設定。連線狀態：${data.bot_token_set ? '已設定' : '未設定'}`;
+        const masked = data.bot_token_masked ? String(data.bot_token_masked) : '已設定';
+        if (msg) msg.textContent = `已儲存 Telegram 設定。連線狀態：${data.bot_token_set ? masked : '未設定'}`;
         updateTelegramTabAutoStatusFromSnapshot(data, true);
       } catch (err) {
         if (msg) msg.textContent = `儲存失敗：${formatApiError(err)}`;
@@ -15478,7 +15486,8 @@
         if (webhook) webhook.value = String(data.webhook_url || '');
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
         updateLineTabAutoStatusFromSnapshot(data);
-        if (msg) msg.textContent = `LINE 連線狀態：${data.channel_access_token_set ? '已設定' : '未設定'}`;
+        const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '已設定';
+        if (msg) msg.textContent = `LINE 連線狀態：${data.channel_access_token_set ? masked : '未設定'}`;
       } catch (err) {
         if (msg) msg.textContent = `載入 LINE 失敗：${formatApiError(err)}`;
         const cfgEl = document.getElementById('admin-line-config-line');
@@ -15519,7 +15528,8 @@
         if (clearSecret) clearSecret.checked = false;
         applyAdminLineNotifyChannels(data.notify_channels || payload.notify_channels);
         updateLineTabAutoStatusFromSnapshot(data);
-        if (msg) msg.textContent = `已儲存 LINE 設定。連線狀態：${data.channel_access_token_set ? '已設定' : '未設定'}`;
+        const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '已設定';
+        if (msg) msg.textContent = `已儲存 LINE 設定。連線狀態：${data.channel_access_token_set ? masked : '未設定'}`;
       } catch (err) {
         if (msg) msg.textContent = `儲存 LINE 失敗：${formatApiError(err)}`;
       }
