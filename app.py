@@ -7875,6 +7875,11 @@ def _visitor_path_where_clause(prefix: str = "") -> tuple[str, list[str]]:
     return f" AND ({column} = ? OR {column} LIKE ?)", [tracking_path, tracking_path + "/%"]
 
 
+def _visitor_human_event_where_clause(prefix: str = "") -> str:
+    column = f"{prefix}.device_type" if prefix else "device_type"
+    return f" AND COALESCE({column}, 'desktop') != 'bot'"
+
+
 def _visitor_client_ip(request: Request) -> str:
     for header in ("cf-connecting-ip", "x-real-ip", "x-forwarded-for"):
         raw = str(request.headers.get(header) or "").strip()
@@ -7904,9 +7909,50 @@ def _visitor_ip_label(ip: str) -> str:
     return text[:24]
 
 
+_VISITOR_CONFIRMED_BOT_UA_PARTS = (
+    "googlebot",
+    "adsbot-google",
+    "mediapartners-google",
+    "bingbot",
+    "bingpreview",
+    "slurp",
+    "duckduckbot",
+    "baiduspider",
+    "yandexbot",
+    "sogou spider",
+    "applebot",
+    "facebookexternalhit",
+    "twitterbot",
+    "linkedinbot",
+    "pinterestbot",
+    "telegrambot",
+    "ahrefsbot",
+    "semrushbot",
+    "mj12bot",
+    "dotbot",
+    "petalbot",
+    "bytespider",
+    "ccbot",
+    "gptbot",
+    "claudebot",
+    "perplexitybot",
+    "amazonbot",
+)
+_VISITOR_CONFIRMED_BOT_UA_RE = re.compile(r"(?:crawler|spider|slurp|bingpreview)", re.I)
+
+
+def _visitor_is_confirmed_bot_user_agent(user_agent: str) -> bool:
+    ua = str(user_agent or "").strip().lower()
+    if not ua:
+        return False
+    if any(part in ua for part in _VISITOR_CONFIRMED_BOT_UA_PARTS):
+        return True
+    return bool(_VISITOR_CONFIRMED_BOT_UA_RE.search(ua))
+
+
 def _visitor_device_type(user_agent: str) -> str:
     ua = str(user_agent or "").lower()
-    if any(x in ua for x in ("bot", "crawler", "spider", "slurp", "bingpreview")):
+    if _visitor_is_confirmed_bot_user_agent(ua):
         return "bot"
     if any(x in ua for x in ("ipad", "tablet")):
         return "tablet"
@@ -7945,6 +7991,8 @@ def _should_track_visitor_request(request: Request, status_code: int) -> bool:
     if any(lowered.endswith(suffix) for suffix in _VISITOR_TRACKING_EXCLUDED_SUFFIXES):
         return False
     if not _visitor_path_matches(path):
+        return False
+    if _visitor_is_confirmed_bot_user_agent(str(request.headers.get("user-agent") or "")):
         return False
     return True
 
@@ -14711,6 +14759,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
     today_text = today.isoformat()
     yesterday_text = yesterday.isoformat()
     path_sql, path_params = _visitor_path_where_clause()
+    human_sql = _visitor_human_event_where_clause()
     with get_conn() as conn:
         conn.execute("DELETE FROM site_visitor_events WHERE event_date < ?", (_visitor_retention_cutoff(today),))
         conn.commit()
@@ -14727,7 +14776,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone,
                 AVG(elapsed_ms) AS avg_elapsed_ms
               FROM site_visitor_events
-              WHERE event_date >= ?{path_sql}
+              WHERE event_date >= ?{path_sql}{human_sql}
               GROUP BY ip_hash
             )
             """,
@@ -14744,7 +14793,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date >= ?{path_sql}
+              WHERE event_date >= ?{path_sql}{human_sql}
               GROUP BY ip_hash
             )
             """,
@@ -14761,7 +14810,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date = ?{path_sql}
+              WHERE event_date = ?{path_sql}{human_sql}
               GROUP BY ip_hash
             )
             """,
@@ -14778,7 +14827,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date = ?{path_sql}
+              WHERE event_date = ?{path_sql}{human_sql}
               GROUP BY ip_hash
             )
             """,
@@ -14797,7 +14846,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date >= ?{path_sql}
+              WHERE event_date >= ?{path_sql}{human_sql}
               GROUP BY event_date, ip_hash
             )
             GROUP BY event_date
@@ -14851,7 +14900,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                     ip_hash,
                     MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
                   FROM site_visitor_events
-                  WHERE event_date BETWEEN ? AND ?{path_sql}
+                  WHERE event_date BETWEEN ? AND ?{path_sql}{human_sql}
                   GROUP BY ip_hash
                 )
                 """,
@@ -14985,6 +15034,7 @@ def api_admin_visitor_records(
     start_date = today - timedelta(days=range_days - 1)
     start_text = start_date.isoformat()
     path_sql, path_params = _visitor_path_where_clause()
+    human_sql = _visitor_human_event_where_clause()
     with get_conn() as conn:
         conn.execute("DELETE FROM site_visitor_events WHERE event_date < ?", (_visitor_retention_cutoff(today),))
         conn.commit()
@@ -14994,7 +15044,7 @@ def api_admin_visitor_records(
             FROM (
               SELECT event_date, ip_hash, COALESCE(visitor_kind, 'guest') AS visitor_kind
               FROM site_visitor_events
-              WHERE event_date >= ?{path_sql}
+              WHERE event_date >= ?{path_sql}{human_sql}
               GROUP BY event_date, ip_hash, COALESCE(visitor_kind, 'guest')
             )
             """,
@@ -15017,7 +15067,7 @@ def api_admin_visitor_records(
               COUNT(*) AS entry_count,
               GROUP_CONCAT(DISTINCT path) AS paths
             FROM site_visitor_events
-            WHERE event_date >= ?{path_sql}
+            WHERE event_date >= ?{path_sql}{human_sql}
             GROUP BY event_date, ip_hash, COALESCE(visitor_kind, 'guest')
             ORDER BY last_enter_at DESC, first_enter_at DESC
             LIMIT ? OFFSET ?
