@@ -12495,10 +12495,12 @@
           supportTelegramThreadActive = true;
           updateSupportTelegramStatusLine();
         }
-        const notifyLine = [
-          tgOk ? 'Telegram 已通知' : `Telegram 未發送${tgErr ? '：' + esc(tgErr) : ''}`,
-          lineOk ? 'LINE 已通知' : `LINE 未發送${lineErr ? '：' + esc(lineErr) : ''}`,
-        ].join('；');
+        const notifyLine = data.notify_pending
+          ? '表單已收件，顧問通知正在後台同步。'
+          : [
+              tgOk ? 'Telegram 已通知' : `Telegram 未發送${tgErr ? '：' + esc(tgErr) : ''}`,
+              lineOk ? 'LINE 已通知' : `LINE 未發送${lineErr ? '：' + esc(lineErr) : ''}`,
+            ].join('；');
         supportChatHistory.push({
           role: 'assistant',
           content: '',
@@ -12530,9 +12532,9 @@
     }
 
     function supportHumanLineQrUrl(rawUrl) {
-      const raw = String(rawUrl || '/static/human-handoff/line.png').trim() || '/static/human-handoff/line.png';
-      if (raw.indexOf('/static/human-handoff/line.png') >= 0 && raw.indexOf('?') < 0) {
-        return `${raw}?v=002apkmh-green-20260707`;
+      const raw = String(rawUrl || '/static/human-handoff/line-group.png').trim() || '/static/human-handoff/line-group.png';
+      if (raw.indexOf('/static/human-handoff/line-group.png') >= 0 && raw.indexOf('?') < 0) {
+        return `${raw}?v=line-group-20260708`;
       }
       return raw;
     }
@@ -12947,10 +12949,12 @@
           supportTelegramThreadActive = true;
           updateSupportTelegramStatusLine();
         }
-        const notifyLine = [
-          tgOk ? 'Telegram 已通知' : `Telegram 未發送${tgErr ? '：' + esc(tgErr) : ''}`,
-          lineOk ? 'LINE 已通知' : `LINE 未發送${lineErr ? '：' + esc(lineErr) : ''}`,
-        ].join('；');
+        const notifyLine = data.notify_pending
+          ? '表單已收件，顧問通知正在後台同步。'
+          : [
+              tgOk ? 'Telegram 已通知' : `Telegram 未發送${tgErr ? '：' + esc(tgErr) : ''}`,
+              lineOk ? 'LINE 已通知' : `LINE 未發送${lineErr ? '：' + esc(lineErr) : ''}`,
+            ].join('；');
         supportChatHistory.push({
           role: 'assistant',
           content: '',

@@ -30543,7 +30543,6 @@ def _claim_phone_login_followup(hid: int) -> dict[str, Any] | None:
                     followup_started_at = ?,
                     followup_last_error = ''
                 WHERE id = ?
-                  AND action_id = 'phone_login'
                   AND (
                     COALESCE(followup_status, '') IN ('', 'pending', 'retry')
                     OR (
@@ -30651,8 +30650,7 @@ def _recover_pending_phone_login_followups_once(*, limit: int = 12) -> int:
                 """
                 SELECT id
                 FROM human_handoff_requests
-                WHERE action_id = 'phone_login'
-                  AND (
+                WHERE (
                     COALESCE(followup_status, '') IN ('pending', 'retry')
                     OR (
                       COALESCE(followup_status, '') = 'running'
@@ -30905,7 +30903,7 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
     matched_scene_label = (payload.matched_scene_label or "").strip()[:160]
     context_message = (payload.context_message or "").strip()[:2000]
     conv_list: list = list(payload.conversation) if isinstance(payload.conversation, list) else []
-    is_phone_login = action_id == "phone_login"
+    async_followup = True
     weights = _compute_scenario_weights_for_handoff(conv_list, highlight_scene_id=matched_scene_id)
     weights_json = json.dumps(weights, ensure_ascii=False)[:120000]
     conv_json = _serialize_handoff_conversation(payload.conversation)
@@ -30940,7 +30938,7 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
                         questionnaire_json,
                         conv_json,
                         weights_json,
-                        "pending" if is_phone_login else "",
+                        "pending" if async_followup else "",
                     ),
                 )
                 hid = int(cur.lastrowid or 0)
@@ -30959,7 +30957,7 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
             raise HTTPException(status_code=503, detail=f"資料庫寫入失敗：{exc}") from exc
     if last_err is not None:
         raise HTTPException(status_code=503, detail=f"資料庫寫入失敗：{last_err}") from last_err
-    if is_phone_login:
+    if async_followup:
         try:
             threading.Thread(
                 target=_human_intake_phone_login_followup,
@@ -30980,10 +30978,10 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
                     "questionnaire_text": questionnaire_text,
                 },
                 daemon=True,
-                name=f"phone-login-followup-{hid or 0}",
+                name=f"human-intake-followup-{hid or 0}",
             ).start()
         except Exception as exc:
-            _log_backend_error("phone-login-followup-start", exc)
+            _log_backend_error("human-intake-followup-start", exc)
         return _mark_form_filled_response(
             JSONResponse(
                 {
@@ -30998,9 +30996,10 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
                     "line_sent": False,
                     "line_error": "",
                     "notify_channels": _support_notify_channels(),
-                    "line_qr_url": "/static/human-handoff/line.png",
-                    "wechat_qr_url": "/static/human-handoff/wechat.png",
-                    "fast_login": True,
+                    "line_qr_url": "/static/human-handoff/line-group.png",
+                    "line_group_qr_url": "/static/human-handoff/line-group.png",
+                    "wechat_qr_url": "",
+                    "fast_submit": True,
                     "sync_pending": True,
                     "notify_pending": True,
                 }
@@ -31125,8 +31124,9 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
                 "line_sent": line_sent,
                 "line_error": line_err,
                 "notify_channels": _support_notify_channels(),
-                "line_qr_url": "/static/human-handoff/line.png",
-                "wechat_qr_url": "/static/human-handoff/wechat.png",
+                "line_qr_url": "/static/human-handoff/line-group.png",
+                "line_group_qr_url": "/static/human-handoff/line-group.png",
+                "wechat_qr_url": "",
             }
         )
     )

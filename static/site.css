@@ -4827,9 +4827,17 @@ button:hover {
   margin-top: 0.75rem;
 }
 
+.support-human-qr-grid--single {
+  justify-content: center;
+}
+
 .support-human-qr-card {
   width: min(220px, 100%);
   text-align: center;
+}
+
+.support-human-qr-card--group {
+  width: min(280px, 100%);
 }
 
 .support-human-qr-card img {
@@ -4837,6 +4845,13 @@ button:hover {
   margin: 0.35rem auto 0;
   border-radius: 8px;
   border: 1px solid #e2e8f6;
+}
+
+.support-human-qr-card--group img {
+  width: min(240px, 100%);
+  height: auto;
+  object-fit: contain;
+  background: #fff;
 }
 
 .support-human-qr-hint {
@@ -30530,6 +30545,30 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
 
 #admin-tab-telegram .admin-notify-card h4 {
   margin-bottom: 0.35rem;
+}
+
+#admin-tab-telegram .admin-notify-setup-details {
+  margin: 0.65rem 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+#admin-tab-telegram .admin-notify-setup-details summary {
+  cursor: pointer;
+  color: #26364d;
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+#admin-tab-telegram .admin-notify-setup-details[open] summary {
+  margin-bottom: 0.65rem;
+}
+
+#admin-tab-telegram .admin-notify-account-row {
+  border-color: #e1e8f0 !important;
+  background: #ffffff !important;
 }
 
 #admin-tab-telegram .admin-notify-channel-toggle {
