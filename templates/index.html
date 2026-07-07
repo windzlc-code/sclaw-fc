@@ -15666,13 +15666,11 @@
             }
           );
           const data = await parseApiResponseSafe(res);
-          const me = data.getMe && typeof data.getMe === 'object' ? data.getMe : null;
-          const handle = me && me.username ? `@${me.username}` : me && me.first_name ? String(me.first_name) : '';
           const tgt = data.chat_id_target != null && data.chat_id_target !== undefined ? String(data.chat_id_target).trim() : '';
-          const who = handle ? `getMe 與發送成功（${esc(handle)}）` : 'getMe 與發送成功';
+          const who = 'Telegram 連線與發送成功';
           const dest = tgt ? `。已傳向收件顧問：<strong>${esc(tgt)}</strong>` : '';
           const tip =
-            '。請用<strong>同一個 Telegram 帳號</strong>開啟與此 Bot 的<strong>私訊</strong>查看；若聊天室列表沒有該 Bot，請先對它傳 <code>/start</code> 或按「開始」。';
+            '。請用顧問的 Telegram 查看是否收到測試訊息；若沒有收到，請先確認顧問已開啟對話。';
           if (msg) {
             msg.innerHTML = who + dest + tip;
             try {
