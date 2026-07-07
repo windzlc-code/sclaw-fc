@@ -39134,8 +39134,8 @@ body.site-home .home-featured-card-meta .home-featured-price {
   border: 0;
   background: transparent !important;
   color: #fff !important;
-  font-size: clamp(28px, 2.4vw, 42px);
-  font-weight: 980 !important;
+  font-size: clamp(21px, 1.72vw, 30px);
+  font-weight: 920 !important;
   line-height: 1.05;
   text-shadow: 0 3px 22px rgba(0, 0, 0, 0.52);
 }
@@ -39716,7 +39716,8 @@ body.site-home .home-featured-type-grid .home-featured-media-spec {
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-media-spec strong,
 body.site-home .home-featured-type-grid .home-featured-media-spec strong {
-  font-size: clamp(24px, 2vw, 34px);
+  font-size: clamp(18px, 1.42vw, 24px) !important;
+  font-weight: 920 !important;
 }
 
 body.site-home .home-featured-board--spotlight #home-featured-grid .home-featured-source,
@@ -39901,7 +39902,8 @@ body.site-home .home-featured-type-grid .home-featured-media-spec {
 }
 
 body.site-home .home-featured-type-grid .home-featured-media-spec strong {
-  font-size: clamp(20px, 1.55vw, 28px) !important;
+  font-size: clamp(18px, 1.42vw, 24px) !important;
+  font-weight: 920 !important;
 }
 
 body.site-home .home-featured-type-grid .home-featured-media-spec span {
