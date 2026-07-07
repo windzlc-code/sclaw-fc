@@ -30644,42 +30644,19 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
   margin-bottom: 0.35rem;
 }
 
-#admin-tab-telegram .admin-notify-setup-details {
+#admin-tab-telegram .admin-notify-setup-block {
   margin: 0.65rem 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-#admin-tab-telegram .admin-notify-setup-details summary {
-  cursor: pointer;
-  color: #26364d;
-  font-size: 0.88rem;
-  font-weight: 850;
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid #dbe5ef;
-  border-radius: 999px;
-  background: #f7fafc;
-}
-
-#admin-tab-telegram .admin-notify-setup-details[open] summary {
-  margin-bottom: 0.65rem;
-}
-
-#admin-tab-telegram .admin-notify-setup-details[open] {
   padding: 12px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #fbfdff;
 }
 
-#admin-tab-telegram .admin-notify-setup-details:not([open]) > :not(summary),
-#admin-tab-telegram .admin-notify-advanced:not([open]) > :not(summary) {
-  display: none !important;
+#admin-tab-telegram .admin-notify-setup-block h5 {
+  margin: 0 0 0.65rem;
+  color: #26364d;
+  font-size: 0.94rem;
+  font-weight: 850;
 }
 
 #admin-tab-telegram .admin-notify-account-row {

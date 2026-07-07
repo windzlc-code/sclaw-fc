@@ -113,15 +113,7 @@
           </button>
         </div>
         </div>
-        <div id="support-chat-image-preview" class="support-chat-image-preview" hidden></div>
         <div class="support-chat-input-row">
-          <input id="support-chat-image-input" type="file" accept="image/*" hidden onchange="handleSupportChatImageSelected(event)">
-          <button id="support-chat-attach-btn" class="support-chat-attach-btn" type="button" onclick="document.getElementById('support-chat-image-input')?.click()" aria-label="傳送圖片" title="傳送圖片">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M7.5 8.5a4.5 4.5 0 0 1 9 0v6.8a5.8 5.8 0 0 1-11.6 0V8.2a7.1 7.1 0 0 1 14.2 0v6.9" />
-              <path d="M9.1 14.7V8.6a2.9 2.9 0 0 1 5.8 0v6.3a2.9 2.9 0 0 1-5.8 0" />
-            </svg>
-          </button>
           <input id="support-chat-input" type="text" placeholder="輸入訊息…" maxlength="2000" autocomplete="off" enterkeyhint="send" inputmode="text" onkeydown="if(event.key==='Enter'){event.preventDefault();sendSupportChat();}">
           <button id="support-chat-send-btn" class="support-chat-send-btn-icon" type="button" onclick="sendSupportChat()" aria-label="送出訊息" title="送出訊息"><span aria-hidden="true">➤</span></button>
         </div>
