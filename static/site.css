@@ -30546,6 +30546,29 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
   margin: 0 !important;
 }
 
+#admin-tab-telegram .admin-notify-account-toolbar {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) repeat(3, max-content);
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 0.65rem;
+}
+
+#admin-tab-telegram .admin-notify-test-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(16rem, 1fr) max-content;
+  gap: 10px;
+  align-items: end;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e4ebf2;
+}
+
+#admin-tab-telegram .admin-notify-account-toolbar label,
+#admin-tab-telegram .admin-notify-test-row label {
+  margin: 0 !important;
+}
+
 #admin-tab-telegram .admin-notify-card input,
 #admin-tab-telegram .admin-notify-card select,
 #admin-tab-telegram .admin-notify-card textarea,
@@ -30599,7 +30622,9 @@ body.site-admin-standalone #admin-tab-telegram .admin-notify-advanced {
 
   #admin-tab-telegram .admin-notify-guide,
   #admin-tab-telegram .admin-notify-main-grid,
-  #admin-tab-telegram .admin-notify-form-grid {
+  #admin-tab-telegram .admin-notify-form-grid,
+  #admin-tab-telegram .admin-notify-account-toolbar,
+  #admin-tab-telegram .admin-notify-test-row {
     grid-template-columns: 1fr;
   }
 }
@@ -31307,7 +31332,7 @@ body.site-admin-standalone .admin-detail-lightbox {
 }
 
 body.site-admin-standalone .admin-detail-lightbox-inner {
-  width: min(920px, calc(100vw - 48px)) !important;
+  width: min(1120px, calc(100vw - 48px)) !important;
   height: min(82vh, 820px) !important;
   max-height: min(82vh, 820px) !important;
   overflow: hidden !important;
@@ -31339,7 +31364,7 @@ body.site-admin-standalone .admin-detail-lightbox-body {
 
 body.site-admin-standalone .admin-handoff-workspace {
   display: grid !important;
-  grid-template-columns: minmax(250px, 310px) minmax(520px, 1fr) !important;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) !important;
   gap: 16px !important;
   align-items: stretch !important;
   height: 100% !important;

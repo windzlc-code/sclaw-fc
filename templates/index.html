@@ -13887,7 +13887,7 @@
       if (hasTok && !fmtOk) {
         statusText = '設定格式需要修正，請重新貼上完整的機器人金鑰。';
       } else if (hasTok && hasChat) {
-        statusText = '已完成，可按「測試連線並發送」確認顧問是否收到訊息。';
+        statusText = '已完成，可在「Telegram 顧問 Bot」卡片按「測試 Telegram」確認顧問是否收到訊息。';
       } else if (hasTok || hasChat) {
         statusText = '尚未完整，請補齊顧問收件帳號後儲存。';
       }
@@ -18817,12 +18817,19 @@
       const preserveDraft = !!opts.preserveDraft;
       const previousDraft = preserveDraft ? captureAdminHandoffDraftState(id) : null;
       const previousThread = document.getElementById(`admin-handoff-thread-${id}`);
+      const previousMeta = document.getElementById(`admin-handoff-meta-${id}`);
       const previousScrollTop = previousThread ? Number(previousThread.scrollTop || 0) : 0;
       const previousScrollHeight = previousThread ? Number(previousThread.scrollHeight || 0) : 0;
       const previousClientHeight = previousThread ? Number(previousThread.clientHeight || 0) : 0;
       const stickToBottom = previousThread
         ? previousScrollTop + previousClientHeight >= previousScrollHeight - 80
         : true;
+      const previousMetaScrollTop = previousMeta ? Number(previousMeta.scrollTop || 0) : 0;
+      const previousMetaScrollHeight = previousMeta ? Number(previousMeta.scrollHeight || 0) : 0;
+      const previousMetaClientHeight = previousMeta ? Number(previousMeta.clientHeight || 0) : 0;
+      const metaStickToBottom = previousMeta
+        ? previousMetaScrollTop + previousMetaClientHeight >= previousMetaScrollHeight - 40
+        : false;
       adminHandoffCurrentId = id;
       try {
         const params = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
@@ -18855,7 +18862,7 @@
         let h = '';
         h += '<div class="admin-handoff-workspace">';
         h += '<aside class="admin-handoff-meta-column">';
-        h += '<div class="admin-handoff-meta-card">';
+        h += `<div class="admin-handoff-meta-card" id="admin-handoff-meta-${id}">`;
         h += '<div class="search-row-basic admin-handoff-detail-actions" style="flex-wrap:wrap;gap:0.35rem;align-items:center;margin:0 0 0.5rem;">';
         if (sessionId) {
           h += `<button type="button" class="secondary" onclick='copyTextWithFallback(${JSON.stringify(sessionId)})'>複製 Session</button>`;
@@ -18941,11 +18948,16 @@
         const nextChannel = document.getElementById(`admin-handoff-reply-channel-${id}`);
         const nextInput = document.getElementById(`admin-handoff-reply-input-${id}`);
         const nextThread = document.getElementById(`admin-handoff-thread-${id}`);
+        const nextMeta = document.getElementById(`admin-handoff-meta-${id}`);
         if (preserveDraft && previousDraft && nextChannel) nextChannel.value = previousDraft.channel || 'auto';
         if (preserveDraft && previousDraft && nextInput) nextInput.value = previousDraft.value || '';
         if (nextThread) {
           if (stickToBottom) nextThread.scrollTop = nextThread.scrollHeight;
           else nextThread.scrollTop = Math.max(0, previousScrollTop);
+        }
+        if (nextMeta && previousMeta) {
+          if (metaStickToBottom) nextMeta.scrollTop = nextMeta.scrollHeight;
+          else nextMeta.scrollTop = Math.max(0, previousMetaScrollTop);
         }
         if (preserveDraft && previousDraft) {
           if (previousDraft.inputFocused && nextInput) {
