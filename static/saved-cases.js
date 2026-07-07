@@ -6,8 +6,6 @@
   const SELECTED_CHANNEL = 'sclaw_support_selected_cases_channel_v1';
   const SAVED_CHANNEL = 'sclaw_support_saved_cases_channel_v1';
   const FILTER_PREF_KEY = 'sclaw_saved_cases_filter_prefs_v1';
-  const PHONE_KEY = 'sclaw_support_phone_login';
-  const LEGACY_PHONE_PROFILE_KEY = 'sclaw_support_phone_profile_v1';
   let selectedSyncChannel = null;
   let savedSyncChannel = null;
   let selectedLocalWritePending = false;
@@ -53,31 +51,8 @@
     return String(value == null ? '' : value).trim();
   }
 
-  function currentPhoneBucket() {
-    try {
-      const phoneRaw = text(localStorage.getItem(PHONE_KEY));
-      let phone = phoneRaw;
-      if (phoneRaw && /^[{[]/.test(phoneRaw)) {
-        try {
-          const data = JSON.parse(phoneRaw);
-          phone = text(data && (data.phone || data.normalizedPhone || data.phone_e164 || data.mobile));
-        } catch (_) {
-          phone = phoneRaw;
-        }
-      }
-      if (phone) return `phone:${phone.replace(/[^\d+]/g, '') || phone}`;
-      const raw = localStorage.getItem(LEGACY_PHONE_PROFILE_KEY) || '';
-      if (raw) {
-        const data = JSON.parse(raw);
-        const legacyPhone = text(data && (data.phone || data.normalizedPhone));
-        if (legacyPhone) return `phone:${legacyPhone.replace(/[^\d+]/g, '') || legacyPhone}`;
-      }
-    } catch (_) {}
-    return 'guest';
-  }
-
   function filterPrefsKey() {
-    return `${FILTER_PREF_KEY}:${currentPhoneBucket()}`;
+    return `${FILTER_PREF_KEY}:guest`;
   }
 
   function readFilterPrefs() {

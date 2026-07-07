@@ -2094,6 +2094,57 @@ def _is_truncated_listing_image_url(text: str) -> bool:
     return False
 
 
+def _is_unfetchable_athome_thumbnail_url(text: str) -> bool:
+    """Reject AtHome new-mansion thumbnail endpoints that commonly 404 via proxy.
+
+    AtHome sometimes exposes ``/cimages/.../thm/<id>`` entries without a real
+    image extension. They look like gallery images in scraped text but fail when
+    requested directly, so keeping them in card galleries creates fallback cards.
+    """
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if "athome.co.jp" not in host:
+        return False
+    if "/mansion/shinchiku/cimages/" not in path or "/thm/" not in path:
+        return False
+    return not any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+
+
+def _is_unfetchable_listing_image_url(text: str) -> bool:
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    if _is_unfetchable_athome_thumbnail_url(s):
+        return True
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path:
+        return not any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+    if "suumo." in host and "resizeimage" in path:
+        try:
+            q = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            src = unquote(str(q.get("src") or "")).lower()
+        except Exception:
+            src = ""
+        return bool(src) and not any(src.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+    if "athome.co.jp" in host and "/mansion/shinchiku/cimages/guidance/" in path:
+        # Guidance images are often access/guide assets and several direct
+        # original URLs 404. They are not suitable as fast-loading card photos.
+        return True
+    return False
+
+
 _LM_URL_KEYS = (
     "url",
     "src",
@@ -2170,6 +2221,8 @@ def _score_listing_image_url(u: str) -> int:
     if not _is_percent_encoding_valid(lu):
         return -999
     if _is_truncated_listing_image_url(lu):
+        return -999
+    if _is_unfetchable_listing_image_url(lu):
         return -999
     if is_non_image_portal_page_url(u):
         return -999
@@ -2337,6 +2390,8 @@ def _listing_image_candidates_scored(
         if not _is_percent_encoding_valid(s):
             return
         if _is_truncated_listing_image_url(s):
+            return
+        if _is_unfetchable_listing_image_url(s):
             return
         if not athome_detail_gallery_compatible and _is_non_listing_asset_url(s):
             return
@@ -3408,10 +3463,13 @@ def _apply_smart_structured_filters(
     rmax = max(0, int(layout_max_rooms or 0))
     if rmin > 0 and rmax > 0 and rmax < rmin:
         rmin, rmax = rmax, rmin
-    has_price = pmin > 0 or pmax > 0
+    price_filter_requested = pmin > 0 or pmax > 0
+    # 智慧查询价格只作为展示条件记录，不参与结果排除：
+    # 用户希望无论高价、低价、无价格都可展示，避免价格缺失造成有效案件消失。
+    has_price = False
     exact_zero = bool(layout_exact_zero)
     has_layout = exact_zero or rmin > 0 or rmax > 0
-    if not types and not has_price and not has_layout:
+    if not types and not price_filter_requested and not has_layout:
         return items, {
             "property_types": [],
             "price_min_man": 0,
@@ -3422,11 +3480,15 @@ def _apply_smart_structured_filters(
             "before_count": len(items),
             "after_count": len(items),
             "price_unknown_excluded": 0,
+            "price_unknown_included": 0,
+            "price_filter_ignored": False,
+            "price_filter_requested": False,
             "layout_unknown_excluded": 0,
         }
 
     out: list[dict[str, Any]] = []
     price_unknown_excluded = 0
+    price_unknown_included = 0
     layout_unknown_excluded = 0
     for it in items:
         if types and not _smart_item_matches_property_types(it, types):
@@ -3434,12 +3496,12 @@ def _apply_smart_structured_filters(
         if has_price:
             price = _smart_item_price_man(it)
             if price is None or price <= 0:
-                price_unknown_excluded += 1
-                continue
-            if pmin > 0 and price < pmin:
-                continue
-            if pmax > 0 and price > pmax:
-                continue
+                price_unknown_included += 1
+            else:
+                if pmin > 0 and price < pmin:
+                    continue
+                if pmax > 0 and price > pmax:
+                    continue
         if has_layout:
             rooms = _extract_room_count_from_layout_text(
                 " ".join(
@@ -3476,6 +3538,9 @@ def _apply_smart_structured_filters(
         "before_count": len(items),
         "after_count": len(out),
         "price_unknown_excluded": price_unknown_excluded,
+        "price_unknown_included": price_unknown_included,
+        "price_filter_ignored": bool(price_filter_requested),
+        "price_filter_requested": bool(price_filter_requested),
         "layout_unknown_excluded": layout_unknown_excluded,
     }
 
@@ -6281,17 +6346,51 @@ def search_portal_cases(
                       AND ({index_rec_sql})
                       AND ({_suumo_ms_guard})
                     """
+                    if requested_page_size > 0:
+                        index_where += """
+                          AND (
+                            TRIM(COALESCE(s.image_urls, '')) <> ''
+                            OR TRIM(COALESCE(s.thumbnail_url, '')) <> ''
+                            OR EXISTS (
+                              SELECT 1
+                              FROM content_items cmi
+                              WHERE cmi.source_item_id = s.id
+                                AND TRIM(COALESCE(cmi.listing_media_json, '')) NOT IN ('', '[]', '{}', 'null', 'None')
+                              LIMIT 1
+                            )
+                          )
+                        """
                     index_base_params = [*selected_types, *tx_params, *portal_params, *index_rec_params]
-                    count_row = conn.execute(
-                        f"""
-                        SELECT COUNT(DISTINCT pti.source_item_id) AS c
-                        FROM {PROPERTY_TYPE_INDEX_TABLE} pti INDEXED BY idx_jp_listing_type_type_time
-                        JOIN source_items s ON s.id = pti.source_item_id
-                        WHERE {index_where}
-                        """,
-                        index_base_params,
-                    ).fetchone()
-                    total_count = int((count_row["c"] if count_row else 0) or 0)
+                    total_count = 0
+                    total_count_exact = True
+                    fetch_page_lim = int(page_lim)
+                    source_page_off = int(page_off)
+                    if requested_page_size > 0:
+                        # For type-only homepage/workbench entry points, the first
+                        # page should be instant. Counting tens of thousands of
+                        # indexed rows is slower than fetching the visible cards, so
+                        # return a provisional window count and let the existing
+                        # async count endpoint fill the exact total if needed.
+                        total_count_exact = False
+                        # Fetch from the start of the indexed media stream through
+                        # the requested window, then slice after real gallery
+                        # extraction. Some rows have media metadata that later
+                        # filters out as non-displayable; slicing raw ids first can
+                        # put blank fallback cards on the page or duplicate cards
+                        # across page turns.
+                        source_page_off = 0
+                        fetch_page_lim = max(int(page_lim) + 1, int(page_off) * 20 + int(page_lim) * 30 + 1)
+                    else:
+                        count_row = conn.execute(
+                            f"""
+                            SELECT COUNT(DISTINCT pti.source_item_id) AS c
+                            FROM {PROPERTY_TYPE_INDEX_TABLE} pti INDEXED BY idx_jp_listing_type_type_time
+                            JOIN source_items s ON s.id = pti.source_item_id
+                            WHERE {index_where}
+                            """,
+                            index_base_params,
+                        ).fetchone()
+                        total_count = int((count_row["c"] if count_row else 0) or 0)
                     if len(selected_types) == 1:
                         source_id_sql = f"""
                         SELECT pti.source_item_id
@@ -6313,10 +6412,17 @@ def search_portal_cases(
                         """
                     source_id_rows = conn.execute(
                         source_id_sql,
-                        [*index_base_params, int(page_lim), int(page_off)],
+                        [*index_base_params, int(fetch_page_lim), int(source_page_off)],
                     ).fetchall()
-                    source_ids = [int(row["source_item_id"] or 0) for row in source_id_rows]
-                    source_ids = [sid for sid in source_ids if sid > 0]
+                    raw_source_ids = [int(row["source_item_id"] or 0) for row in source_id_rows]
+                    source_ids = []
+                    seen_source_ids: set[int] = set()
+                    for sid in raw_source_ids:
+                        if sid <= 0 or sid in seen_source_ids:
+                            continue
+                        seen_source_ids.add(sid)
+                        source_ids.append(sid)
+                    has_next_page = requested_page_size > 0 and len(source_ids) > int(page_off) + int(page_lim)
                     index_rows = []
                     if source_ids:
                         sid_marks = ",".join("?" for _ in source_ids)
@@ -6363,12 +6469,54 @@ def search_portal_cases(
                         """,
                             [*source_ids, *source_ids],
                         ).fetchall()
-                    index_items = _row_dicts_to_portal_case_items(index_rows)
-                    index_items = _prefer_complete_items_for_display(index_items, lim=int(page_lim))
-                    if multi_portal:
-                        index_items = _merge_multi_portal_items(index_items, lim=int(page_lim))
+                    index_limit = int(fetch_page_lim) if requested_page_size > 0 else int(page_lim)
+                    if requested_page_size > 0:
+                        fast_items = [_row_to_portal_case_item_filter_fast(row) for row in index_rows]
+                        if multi_portal:
+                            fast_items = _merge_multi_portal_items(fast_items, lim=index_limit)
+                        else:
+                            fast_items = _dedupe_portal_case_items(fast_items, lim=index_limit)
+                        display_items = [item for item in fast_items if _item_has_display_image(item)]
+                        slice_source = display_items if display_items else fast_items
+                        candidate_ids = [
+                            int(item.get("source_item_id") or 0)
+                            for item in slice_source[int(page_off) :]
+                            if int(item.get("source_item_id") or 0) > 0
+                        ]
+                        rows_by_sid = {
+                            int(dict(row).get("source_item_id") or 0): row
+                            for row in index_rows
+                            if int(dict(row).get("source_item_id") or 0) > 0
+                        }
+                        page_items: list[dict[str, Any]] = []
+                        fallback_items: list[dict[str, Any]] = []
+                        seen_page_keys: set[str] = set()
+                        for sid in candidate_ids:
+                            row = rows_by_sid.get(sid)
+                            if row is None:
+                                continue
+                            item = _row_to_portal_case_item(row)
+                            key = _portal_case_dedupe_key(item) or f"cid:{item.get('content_id')}"
+                            if key in seen_page_keys:
+                                continue
+                            seen_page_keys.add(key)
+                            if _item_has_display_image(item):
+                                page_items.append(item)
+                            else:
+                                fallback_items.append(item)
+                            if len(page_items) >= int(page_lim):
+                                break
+                        visible_count = len(slice_source)
+                        has_next_page = has_next_page or visible_count > int(page_off) + len(page_items)
+                        total_count = int(page_off) + len(page_items) + (1 if has_next_page else 0)
+                        index_items = page_items
                     else:
-                        index_items = _dedupe_portal_case_items(index_items, lim=int(page_lim))
+                        index_items = _row_dicts_to_portal_case_items(index_rows)
+                        if multi_portal:
+                            index_items = _merge_multi_portal_items(index_items, lim=index_limit)
+                        else:
+                            index_items = _dedupe_portal_case_items(index_items, lim=index_limit)
+                        index_items = _prefer_complete_items_for_display(index_items, lim=int(page_lim))
                     return {
                         "ok": True,
                         "transaction": tx_key,
@@ -6406,9 +6554,14 @@ def search_portal_cases(
                             "keyword_before_relax": "",
                         },
                         "count": total_count,
-                        "count_exact": True,
+                        "count_exact": bool(total_count_exact),
+                        "count_provisional": not bool(total_count_exact),
                         "truncation_note": False,
-                        "search_scope_note_zh": "已使用物件類型索引表，數量為全庫類型索引口徑。",
+                        "search_scope_note_zh": (
+                            "已使用物件類型索引表，先回傳本頁候選，精確總數背景校準。"
+                            if not total_count_exact
+                            else "已使用物件類型索引表，數量為全庫類型索引口徑。"
+                        ),
                         "broad_inventory_browse": bool(broad_inventory_browse),
                         "page_offset": page_offset if requested_page_size > 0 else 0,
                         "page_size": requested_page_size if requested_page_size > 0 else 0,
@@ -6482,6 +6635,7 @@ def search_portal_cases(
             scanned_rows = 0
             scanned_after_detail = 0
             price_unknown_excluded = 0
+            price_unknown_included = 0
             layout_unknown_excluded = 0
 
             types = _normalize_smart_property_types(smart_property_types)
@@ -6494,7 +6648,9 @@ def search_portal_cases(
             if rmin > 0 and rmax > 0 and rmax < rmin:
                 rmin, rmax = rmax, rmin
             exact_zero = bool(smart_layout_exact_zero)
-            has_price = pmin > 0 or pmax > 0
+            price_filter_requested = pmin > 0 or pmax > 0
+            # 价格条件不再限制智慧查询结果：仅保留在 meta 中，所有价格/无价格案件均可展示。
+            has_price = False
             has_layout = exact_zero or rmin > 0 or rmax > 0
             target_pass = max(lim, min(fetch_lim, max(int(lim * 1.25), 70)))
             type_only_scan = bool(types) and not has_price and not has_layout
@@ -6551,12 +6707,12 @@ def search_portal_cases(
                     if has_price:
                         price = _smart_item_price_man(it)
                         if price is None or price <= 0:
-                            price_unknown_excluded += 1
-                            continue
-                        if pmin > 0 and price < pmin:
-                            continue
-                        if pmax > 0 and price > pmax:
-                            continue
+                            price_unknown_included += 1
+                        else:
+                            if pmin > 0 and price < pmin:
+                                continue
+                            if pmax > 0 and price > pmax:
+                                continue
                     if has_layout:
                         rooms = _extract_room_count_from_layout_text(
                             " ".join(
@@ -6598,6 +6754,9 @@ def search_portal_cases(
                 "before_count": scanned_after_detail,
                 "after_count": matched_count if type_only_scan else len(collected),
                 "price_unknown_excluded": price_unknown_excluded,
+                "price_unknown_included": price_unknown_included,
+                "price_filter_ignored": bool(price_filter_requested),
+                "price_filter_requested": bool(price_filter_requested),
                 "layout_unknown_excluded": layout_unknown_excluded,
                 "scanned_rows": scanned_rows,
                 "scanned_after_detail": scanned_after_detail,

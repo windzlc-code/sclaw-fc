@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>來源案例詳情｜{{ site_name }}</title>
-  <meta name="description" content="日本不動產來源案例詳情與站內對照。{{ seo_description_suffix }}">
+  <title>站內明細｜{{ site_name }}</title>
+  <meta name="description" content="日本不動產站內房源明細。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
   <link rel="stylesheet" href="/static/site.css?v=20260701-selected-drawer-c">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
@@ -14,20 +14,18 @@
   <main class="container case-page-suumo">
     <header class="suumo-case-brandbar">
       <span class="suumo-case-brandbar-logo">站內明細</span>
-      <span class="suumo-case-brandbar-src">{{ item.source_name }} ｜ {{ item.source_category }} ｜ {{ item.access_status }}</span>
     </header>
 
     <section class="panel case-suumo-hero-card">
       <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="{{ case_return_to | default('/#query-dialog', true) }}">{{ case_return_label | default('返回查詢首頁', true) }}</a></p>
       <h1 class="suumo-case-catch">{% if item.title_display_hant|trim %}{{ item.title_display_hant|trim }}{% elif item.title_zh_hant|trim %}{{ item.title_zh_hant|trim }}{% else %}{{ item.title_original }}{% endif %}</h1>
-      <p class="suumo-case-itemurl"><a href="{{ item.item_url }}" target="_blank" rel="nofollow noopener">{{ item.item_url }}</a></p>
       {% set listing_panel = case_listing_panel %}
       {% set restrict_hero_to_property_urls = true %}
       {% set item_url = item.item_url %}
       {% set hero_fallback = ((item.case_media_images or [])|first) or '' %}
       {% set body_narrative_zh = item.body_zh_hant_display or item.body_zh_hant or '' %}
-      {% set body_narrative_jp = item.body_original_display or item.body_original or '' %}
-      {% set body_narrative = body_narrative_zh|trim if body_narrative_zh|trim else body_narrative_jp %}
+      {% set body_narrative_jp = '' %}
+      {% set body_narrative = body_narrative_zh|trim %}
       {% set source_item_id = item.source_item_id %}
       {% set translation_tab_href = '#case-zh' %}
       {% set more_tab_href = '#case-gallery' %}
@@ -60,9 +58,6 @@
         {% for cell in item.case_gallery_cells %}
           <figure class="case-image-cell{% if cell.is_agent %} case-image-cell--agent{% endif %}">
             <img class="zoomable-image" src="{{ cell.url|case_static_image_url }}" data-full-src="{{ cell.url }}" alt="相簿 {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
-            <figcaption class="case-image-cell-caption">
-              <a href="{{ cell.url }}" target="_blank" rel="nofollow noopener">另開原圖</a>
-            </figcaption>
           </figure>
         {% endfor %}
       </div>
@@ -87,35 +82,16 @@
     {% endif %}
     {% if _aux_imgs and not item.case_gallery_sections %}
     <details class="panel slim case-suumo-aux">
-      <summary class="muted">其他圖片（來源附圖）</summary>
+      <summary class="muted">其他圖片</summary>
       <div class="case-image-grid case-image-grid--suumo" style="margin-top:0.5rem;">
         {% for u in _aux_imgs %}
           <figure class="case-image-cell">
-            <img class="zoomable-image" src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="來源附圖 {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
-            <figcaption class="case-image-cell-caption"><a href="{{ u }}" target="_blank" rel="nofollow noopener">另開原圖</a></figcaption>
+            <img class="zoomable-image" src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="其他圖片 {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
           </figure>
         {% endfor %}
       </div>
     </details>
     {% endif %}
-
-    <details class="panel slim case-source-data">
-      <summary>來源資料</summary>
-      <p class="muted" style="margin:0.75rem 0 0;"><strong>案件時間：</strong>{{ item.published_at or item.crawled_at or item.last_checked_at or "-" }} ｜ <strong>最近檢查：</strong>{{ item.last_checked_at }}</p>
-      {% if item.access_note %}
-      <p class="muted" style="margin:0.35rem 0 0;"><strong>備註：</strong>{{ item.access_note }}</p>
-      {% endif %}
-      <table class="data-table">
-        <tr><th>來源名稱</th><td>{{ item.source_name }}</td></tr>
-        <tr><th>來源分類</th><td>{{ item.source_category }}</td></tr>
-        <tr><th>來源狀態</th><td>{{ item.access_status }}</td></tr>
-        <tr><th>目標</th><td>{{ item.intent_target or "-" }}</td></tr>
-        <tr><th>主題</th><td>{{ item.topic_category or "-" }}</td></tr>
-        <tr><th>關鍵字標籤</th><td>{{ item.keyword_tags or "-" }}</td></tr>
-        <tr><th>案件時間</th><td>{{ item.published_at or item.crawled_at or item.last_checked_at or "-" }}</td></tr>
-        <tr><th>整理更新時間</th><td>{{ item.updated_at or "-" }}</td></tr>
-      </table>
-    </details>
 
     {% if case_related_news %}
     <section class="panel case-related-lite" aria-label="相關文章">
@@ -127,7 +103,7 @@
           {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
           {% if n.thumb_url %}
           <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
-            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('.article-related-thumb')?.remove();">
           </a>
           {% endif %}
           <div class="article-related-card-head">
@@ -427,7 +403,7 @@
           const host = String(u.hostname || '').toLowerCase();
           const path = String(u.pathname || '').toLowerCase();
           if (host.includes('suumo.com') && path.includes('/jj/resizeimage')) {
-            // 放大預覽仍維持 resizeImage 端點，避免直接解碼 src 造成來源站拒絕。
+            // 放大預覽仍維持 resizeImage 端點，避免直接解碼外部圖片失敗。
             if (u.searchParams.has('src')) {
               u.searchParams.set('w', '1600');
               u.searchParams.set('h', '1200');
@@ -596,7 +572,7 @@
         fallback = document.createElement('div');
         fallback.className = 'portal-suumo-no-img portal-suumo-no-img--detail portal-suumo-no-img--hero-replace';
         fallback.hidden = true;
-        fallback.innerHTML = '<span class="portal-suumo-no-img-title">圖片載入失敗</span><span class="portal-suumo-no-img-hint">來源圖片無法載入或已過期；請開啟原站查看相簿。</span>';
+        fallback.innerHTML = '<span class="portal-suumo-no-img-title">圖片載入失敗</span><span class="portal-suumo-no-img-hint">圖片暫時無法載入，請稍後再試。</span>';
         figure.appendChild(fallback);
       }
 

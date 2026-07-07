@@ -3,67 +3,7 @@
       <div id="support-chat-backdrop" class="support-chat-backdrop" style="display: none;" onclick="toggleSupportChat(false)" aria-hidden="true"></div>
       <div id="support-selected-cases-drawer-backdrop" class="support-selected-cases-drawer-backdrop" style="display:none;" onclick="toggleSupportSelectedCasesDrawer(false)" aria-hidden="true"></div>
       <div id="support-saved-cases-drawer-backdrop" class="support-selected-cases-drawer-backdrop support-saved-cases-drawer-backdrop" style="display:none;" onclick="toggleSupportSavedCasesDrawer(false)" aria-hidden="true"></div>
-      <div id="support-phone-login-backdrop" class="support-phone-login-backdrop" style="display:none;" onclick="toggleSupportPhoneLoginModal(false)" aria-hidden="true"></div>
       {% include 'partials/purchase_tool.html' %}
-      <div id="support-phone-login-modal" class="support-phone-login-modal support-phone-login-modal--chat-gate" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="support-phone-login-title">
-        <div class="support-phone-login-head">
-          <div>
-            <span class="support-phone-login-icon support-phone-login-icon--modal" aria-hidden="true">
-              <svg viewBox="0 0 32 32" focusable="false">
-                <path d="M11.2 6.8h9.6a2.4 2.4 0 0 1 2.4 2.4v13.6a2.4 2.4 0 0 1-2.4 2.4h-9.6a2.4 2.4 0 0 1-2.4-2.4V9.2a2.4 2.4 0 0 1 2.4-2.4Z" />
-                <path d="M13.2 10h5.6M14 22h4" />
-                <path d="M12.8 15.2c1.1-1.2 2.1-1.8 3.2-1.8s2.1.6 3.2 1.8M12.4 18.4c1.2-1.1 2.4-1.7 3.6-1.7s2.4.6 3.6 1.7" />
-              </svg>
-            </span>
-            <strong id="support-phone-login-title">號碼登入</strong>
-            <p id="support-phone-login-subtitle" class="muted">輸入合規聯絡號碼後，即可使用線上客服與顧問接手。</p>
-          </div>
-          <button type="button" class="ui-close-btn" onclick="toggleSupportPhoneLoginModal(false)" aria-label="關閉號碼登入" title="關閉">×</button>
-        </div>
-        <div id="support-phone-login-form" class="support-phone-login-body">
-          <div class="support-phone-login-field">
-            <label for="support-phone-country">號碼所屬國家 / 地區</label>
-            <select id="support-phone-country" autocomplete="tel-country-code" onchange="refreshSupportPhoneLoginHint()">
-              <option value="tw">台灣 +886</option>
-              <option value="jp">日本 +81</option>
-              <option value="cn">中國大陸 +86</option>
-              <option value="hk">香港 +852</option>
-              <option value="mo">澳門 +853</option>
-              <option value="sg">新加坡 +65</option>
-              <option value="my">馬來西亞 +60</option>
-              <option value="kr">韓國 +82</option>
-              <option value="us">美國 / 加拿大 +1</option>
-              <option value="th">泰國 +66</option>
-            </select>
-          </div>
-          <div class="support-phone-login-field">
-            <label for="support-phone-login-input">聯絡電話</label>
-            <input id="support-phone-login-input" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="40" placeholder="例：0912 345 678" oninput="refreshSupportPhoneLoginHint()">
-          </div>
-          <p id="support-phone-login-format" class="support-phone-login-format muted">請選擇國家 / 地區後，輸入符合當地規範的手機或市話。</p>
-          <button id="support-phone-login-submit" type="button" class="primary" onclick="submitSupportPhoneLogin()">登入並送出</button>
-          <p id="support-phone-login-msg" class="muted" aria-live="polite"></p>
-        </div>
-        <div id="support-phone-login-profile" class="support-phone-login-profile" hidden>
-          <div class="support-phone-login-profile-card">
-            <span class="support-phone-login-profile-icon" aria-hidden="true">
-              <svg viewBox="0 0 32 32" focusable="false">
-                <path d="M11.2 6.8h9.6a2.4 2.4 0 0 1 2.4 2.4v13.6a2.4 2.4 0 0 1-2.4 2.4h-9.6a2.4 2.4 0 0 1-2.4-2.4V9.2a2.4 2.4 0 0 1 2.4-2.4Z" />
-                <path d="m12.8 16.4 2.3 2.4 4.4-5.1" />
-              </svg>
-            </span>
-            <div>
-              <span class="support-phone-login-profile-eyebrow">目前登入帳號</span>
-              <strong id="support-phone-login-profile-phone">--</strong>
-              <p id="support-phone-login-profile-meta" class="muted">線上客服已同步此號碼。</p>
-            </div>
-          </div>
-          <div class="support-phone-login-profile-actions">
-            <button type="button" class="primary" onclick="toggleSupportPhoneLoginModal(false); toggleSupportChat(true)">開啟線上客服</button>
-            <button type="button" class="secondary" onclick="logoutSupportPhoneLogin()">退出登入</button>
-          </div>
-        </div>
-      </div>
       <div id="support-human-intake-modal" class="support-human-intake-modal" style="display:none;" aria-hidden="true">
         <div class="support-human-intake-modal-backdrop" onclick="toggleSupportHumanIntakeModal(false)" aria-hidden="true"></div>
         <section class="support-human-intake-dialog" role="dialog" aria-modal="true" aria-labelledby="support-human-intake-modal-title" aria-describedby="support-human-intake-modal-note">
@@ -178,15 +118,6 @@
           <button id="support-chat-send-btn" class="support-chat-send-btn-icon" type="button" onclick="sendSupportChat()" aria-label="送出訊息" title="送出訊息"><span aria-hidden="true">➤</span></button>
         </div>
       </div>
-	      <button id="support-phone-login-toggle" type="button" class="support-phone-login-toggle floating-action-btn support-phone-login-toggle--standalone" onclick="toggleSupportPhoneLoginModal()" aria-label="號碼登入" aria-haspopup="dialog" aria-controls="support-phone-login-modal" aria-expanded="false" title="號碼登入" data-floating-label="號碼登入">
-        <span class="support-phone-login-icon" aria-hidden="true">
-          <svg viewBox="0 0 32 32" focusable="false">
-            <path d="M11.2 6.8h9.6a2.4 2.4 0 0 1 2.4 2.4v13.6a2.4 2.4 0 0 1-2.4 2.4h-9.6a2.4 2.4 0 0 1-2.4-2.4V9.2a2.4 2.4 0 0 1 2.4-2.4Z" />
-            <path d="M13.2 10h5.6M14 22h4" />
-            <path d="M12.8 15.2c1.1-1.2 2.1-1.8 3.2-1.8s2.1.6 3.2 1.8M12.4 18.4c1.2-1.1 2.4-1.7 3.6-1.7s2.4.6 3.6 1.7" />
-          </svg>
-        </span>
-	      </button>
 		      <button id="purchase-tool-toggle" type="button" class="purchase-tool-toggle floating-action-btn" onclick="window.location.href='/purchase-tools'" aria-label="開啟日本購房工具頁" title="日本購房工具" data-floating-label="購房工具">
 		        <span class="purchase-tool-toggle-icon" aria-hidden="true">
 		          <svg viewBox="0 0 32 32" focusable="false">
@@ -210,7 +141,7 @@
         </span>
         <span id="support-saved-cases-fab-count" class="support-selected-cases-fab-count" aria-hidden="true" hidden>0</span>
       </button>
-	    <button id="support-chat-toggle" type="button" class="support-chat-toggle support-chat-toggle--bottom floating-action-btn" onclick="toggleSupportChat()" aria-label="號碼登入後開啟線上客服對話" aria-controls="support-chat-panel" aria-expanded="false" title="線上客服" data-floating-label="線上客服">
+	    <button id="support-chat-toggle" type="button" class="support-chat-toggle support-chat-toggle--bottom floating-action-btn" onclick="toggleSupportChat()" aria-label="開啟線上客服對話" aria-controls="support-chat-panel" aria-expanded="false" title="線上客服" data-floating-label="線上客服">
 	      <span class="support-chat-toggle-bubble-icon" aria-hidden="true">
 	        <svg viewBox="0 0 32 32" focusable="false">
 	          <path d="M6.4 9.5a5.4 5.4 0 0 1 5.4-5.4h8.4a5.4 5.4 0 0 1 5.4 5.4v5.9a5.4 5.4 0 0 1-5.4 5.4h-5.4l-6.2 5v-5.4a5.4 5.4 0 0 1-2.2-4.4V9.5Zm6 2.5h8.1v-2.2h-8.1V12Zm0 4.2h6.2V14h-6.2v2.2Z" />
@@ -230,9 +161,6 @@
     var supportFallbackSelectedChannel = null;
     var supportFallbackSavedChannel = null;
     var supportFallbackOwnsFloatingCases = !(window.renderSupportSelectedCasesPanel || window.renderSupportSavedCasesState);
-    var phoneKey = 'sclaw_support_phone_login';
-    var phoneCountryKey = 'sclaw_support_phone_login_country';
-    var legacyPhoneProfileKey = 'sclaw_support_phone_profile_v1';
 
     function esc(value) {
       return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -285,18 +213,6 @@
       if (el) el.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
-    function hasSupportFallbackPhoneProfile() {
-      try {
-        if (String(localStorage.getItem(phoneKey) || '').trim()) return true;
-        var raw = localStorage.getItem(legacyPhoneProfileKey) || '';
-        if (!raw) return false;
-        var data = JSON.parse(raw);
-        return !!(data && String(data.phone || data.normalizedPhone || '').trim());
-      } catch (_) {
-        return false;
-      }
-    }
-
     function stableKey(item) {
       return String((item && (item.case_key || item.source_item_id || item.content_id || item.item_url || item.url || item.title)) || '');
     }
@@ -329,8 +245,252 @@
         .replace(/自動生成/gi, '整理回覆');
     }
 
-    function supportFallbackFormatText(value) {
+    function supportFallbackCompactReply(value) {
       var text = supportFallbackSanitizePublicCopy(value).trim();
+      if (!text) return '';
+      var blocks = text.split(/\n{2,}/).map(function (block) {
+        return String(block || '').trim();
+      }).filter(Boolean).filter(function (block) {
+        return !/^(?:若需要人工顧問|若想留資料|請輸入「人工」|（已同步給顧問|（顧問通知未送出)/.test(block);
+      });
+      var compact = blocks[0] || '';
+      if (blocks.length > 1) {
+        var candidate = blocks[0] + '\n\n' + blocks[1];
+        if (candidate.length <= 118) compact = candidate;
+      }
+      if (compact.length > 118) compact = compact.slice(0, 118).replace(/[，、；：]\S*$/, '').trim() + '…';
+      return compact;
+    }
+
+    function supportFallbackIntakeCtaHtml() {
+      return (
+        '<div class="support-chat-intake-cta">' +
+          '<span>如果想讓顧問後續接上，我可以先幫您把資料整理好。</span>' +
+          '<button type="button" onclick="openSupportHumanIntakeFromSalesMcp({ silent: true })">填寫諮詢表</button>' +
+        '</div>'
+      );
+    }
+
+    function supportFallbackToggleHumanIntakeModal(open, options) {
+      var modal = document.getElementById('support-human-intake-modal');
+      if (!modal) return;
+      if (modal.parentElement && modal.parentElement.id === 'support-chat-widget') {
+        document.body.appendChild(modal);
+      }
+      var on = !!open;
+      modal.style.display = on ? 'block' : 'none';
+      modal.setAttribute('aria-hidden', on ? 'false' : 'true');
+      document.body.classList.toggle('support-human-intake-modal-open', on);
+      if (!on) return;
+      options = options || {};
+      var title = document.getElementById('support-human-intake-modal-title');
+      var note = document.getElementById('support-human-intake-modal-note');
+      if (title) title.textContent = String(options.title || '日本不動產購買諮詢申請表');
+      if (note) note.textContent = String(options.note || '請填寫基本資料，送出後顧問再依資料回覆。');
+      window.setTimeout(function () {
+        var first = modal.querySelector('input, select, textarea, button');
+        if (first) {
+          try { first.focus({ preventScroll: true }); } catch (_) { first.focus(); }
+        }
+      }, 80);
+    }
+
+    function supportFallbackHumanIntakeFormHtml() {
+      return (
+        '<div class="support-human-intake" data-support-human-fallback-form="1">' +
+          '<div class="support-human-intake-heading"><strong>日本不動產購買諮詢申請表</strong><span class="muted">填寫聯絡方式後再送出給顧問。</span></div>' +
+          '<section class="support-human-section support-human-section--static"><h3>一、基本資料</h3><div class="support-human-section-body support-human-section-body--grid">' +
+            '<label class="muted support-human-field">姓名<input id="support-fallback-human-name" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名（必填）"></label>' +
+            '<div class="support-human-phone-row">' +
+              '<label class="muted support-human-field">電話所在地<select id="support-fallback-human-phone-region" autocomplete="tel-country-code"><option value="">請選擇電話所在地（有填電話時必選）</option><option value="+886">台灣 +886</option><option value="+852">香港 +852</option><option value="+853">澳門 +853</option><option value="+86">中國 +86</option><option value="+81">日本 +81</option><option value="+65">新加坡 +65</option><option value="+60">馬來西亞 +60</option><option value="+1">美國/加拿大 +1</option><option value="other">其他國家/地區</option></select></label>' +
+              '<label class="muted support-human-field">聯絡電話<input id="support-fallback-human-phone" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" placeholder="請填寫具體電話（選填，聯絡方式至少一項）"></label>' +
+            '</div>' +
+            '<label class="muted support-human-field">LINE ID<input id="support-fallback-human-line" type="text" maxlength="120" placeholder="例：line_id（選填，聯絡方式至少一項）"></label>' +
+            '<label class="muted support-human-field">微信 ID<input id="support-fallback-human-wechat" type="text" maxlength="120" placeholder="例：wechat_id（選填，聯絡方式至少一項）"></label>' +
+            '<label class="muted support-human-field">Email<input id="support-fallback-human-email" type="email" maxlength="160" autocomplete="email" placeholder="name@example.com（選填，聯絡方式至少一項）"></label>' +
+          '</div></section>' +
+          '<section class="support-human-section support-human-section--static"><h3>二、需求</h3><div class="support-human-section-body support-human-section-body--grid">' +
+            '<label class="muted support-human-field">購買目的<select id="support-fallback-human-purpose"><option value="">請選擇購買目的（必填）</option><option value="投資收租">投資收租</option><option value="自住 / 度假">自住 / 度假</option><option value="未來移居">未來移居</option><option value="資產配置">資產配置</option><option value="其他">其他</option></select></label>' +
+            '<input id="support-fallback-human-consent" type="hidden" value="1">' +
+          '</div></section>' +
+          '<div id="support-fallback-human-status" class="muted" aria-live="polite"></div>' +
+          '<div class="support-human-intake-submit-row support-human-intake-actions">' +
+            '<button type="button" class="secondary support-human-intake-submit-btn" onclick="submitSupportFallbackHumanIntake()">確認送出</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function supportFallbackField(id) {
+      var el = document.getElementById(id);
+      return String((el && el.value) || '').trim();
+    }
+
+    function supportFallbackNormalizePhone(region, rawPhone) {
+      var phone = String(rawPhone || '').trim();
+      var code = String(region || '').trim();
+      if (!phone) return { ok: true, full: '', message: '' };
+      if (!code) return { ok: false, full: '', message: '請先選擇電話所在地。' };
+      var cleaned = phone.replace(/[^\d+]/g, '');
+      if (code === 'other') {
+        if (!/^\+\d{7,15}$/.test(cleaned)) return { ok: false, full: '', message: '其他國家/地區請用國際格式，例如 +1 5551234567。' };
+        return { ok: true, full: cleaned, message: '' };
+      }
+      var digits = cleaned.replace(/^\+/, '').replace(/^0+/, '');
+      var rules = {
+        '+886': [8, 9, '台灣'], '+852': [8, 8, '香港'], '+853': [8, 8, '澳門'], '+86': [10, 11, '中國'],
+        '+81': [9, 10, '日本'], '+65': [8, 8, '新加坡'], '+60': [8, 10, '馬來西亞'], '+1': [10, 10, '美國/加拿大']
+      };
+      var rule = rules[code] || [6, 15, '所選地區'];
+      if (!/^\d+$/.test(digits) || digits.length < rule[0] || digits.length > rule[1]) {
+        return { ok: false, full: '', message: rule[2] + '電話格式不符合，請重新確認。' };
+      }
+      return { ok: true, full: code + ' ' + digits, message: '' };
+    }
+
+    function supportFallbackClearValidation() {
+      var form = document.querySelector('[data-support-human-fallback-form="1"]');
+      if (!form) return;
+      form.querySelectorAll('.support-human-field--invalid, .support-human-phone-row--invalid').forEach(function (el) {
+        el.classList.remove('support-human-field--invalid', 'support-human-phone-row--invalid');
+      });
+      form.querySelectorAll('.support-human-field-error').forEach(function (el) { el.remove(); });
+    }
+
+    function supportFallbackMarkError(ids, message) {
+      var list = Array.isArray(ids) ? ids : [ids];
+      var first = null;
+      var anchor = null;
+      list.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (!first) first = el;
+        var field = el.closest('.support-human-field');
+        if (field) {
+          field.classList.add('support-human-field--invalid');
+          anchor = field;
+        }
+        var row = el.closest('.support-human-phone-row');
+        if (row) {
+          row.classList.add('support-human-phone-row--invalid');
+          anchor = row;
+        }
+      });
+      if (anchor) {
+        var err = document.createElement('div');
+        err.className = 'support-human-field-error';
+        err.textContent = message;
+        anchor.appendChild(err);
+      }
+      if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+      if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    async function submitSupportFallbackHumanIntake() {
+      var status = document.getElementById('support-fallback-human-status');
+      var name = supportFallbackField('support-fallback-human-name');
+      var phoneRegion = supportFallbackField('support-fallback-human-phone-region');
+      var phoneLocal = supportFallbackField('support-fallback-human-phone');
+      var phoneNormalized = supportFallbackNormalizePhone(phoneRegion, phoneLocal);
+      var phone = phoneNormalized.full;
+      var email = supportFallbackField('support-fallback-human-email');
+      var line = supportFallbackField('support-fallback-human-line');
+      var wechat = supportFallbackField('support-fallback-human-wechat');
+      var q = {
+        form_version: 'jp_property_buy_intake_v2',
+        name: name,
+        contact_phone: phone,
+        contact_phone_region_code: phoneRegion,
+        contact_phone_local: phoneLocal,
+        contact_phone_valid: phoneNormalized.ok,
+        contact_phone_error: phoneNormalized.message,
+        contact_email: email,
+        contact_line: line,
+        contact_wechat: wechat,
+        contact_line_wechat: [line ? 'LINE：' + line : '', wechat ? '微信：' + wechat : ''].filter(Boolean).join('；'),
+        purchase_purpose: supportFallbackField('support-fallback-human-purpose'),
+        other_questions: supportFallbackField('support-fallback-human-note'),
+        consent_agreed: true
+      };
+      var required = [
+        [name, ['support-fallback-human-name'], '請填寫姓名。'],
+        [phoneNormalized.ok, ['support-fallback-human-phone-region', 'support-fallback-human-phone'], phoneNormalized.message],
+        [phone || email || line || wechat, ['support-fallback-human-phone', 'support-fallback-human-line', 'support-fallback-human-wechat', 'support-fallback-human-email'], '請至少填寫電話、LINE、微信或 Email 其中一項，方便顧問聯絡。'],
+        [q.purchase_purpose, ['support-fallback-human-purpose'], '請選擇購買目的。'],
+        [q.consent_agreed, [], '請確認表單聲明後才能送出。']
+      ];
+      supportFallbackClearValidation();
+      for (var i = 0; i < required.length; i += 1) {
+        if (!required[i][0]) {
+          if (status) status.textContent = required[i][2];
+          supportFallbackMarkError(required[i][1], required[i][2]);
+          return;
+        }
+      }
+      var payload = {
+        name: name,
+        phone: phone,
+        email: email,
+        note: q.other_questions,
+        budget_text: q.purchase_purpose ? '購買目的：' + q.purchase_purpose : '',
+        session_id: supportFallbackSalesSessionId(),
+        conversation: supportFallbackHistory.map(function (row) { return { role: row.role, content: String(row.content || '') }; }).slice(-20),
+        questionnaire: q
+      };
+      if (status) status.textContent = '送出中…';
+      try {
+        var res = await fetch('/api/support/human-intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.status === 404) {
+          res = await fetch('/api/human-handoff-intake', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok || data.ok === false) throw new Error(String(data.detail || data.message || '送出失敗'));
+        if (status) status.textContent = '已送出，顧問會依資料回覆。';
+        supportFallbackToggleHumanIntakeModal(false);
+        var lineUrl = esc(String(data.line_qr_url || '/static/human-handoff/line.png'));
+        var wxUrl = esc(String(data.wechat_qr_url || '/static/human-handoff/wechat.png'));
+        supportFallbackHistory.push({
+          role: 'assistant',
+          content: '',
+          contentHtml:
+            '<p>已收到您的申請資料，顧問會依內容回覆。您也可以掃描下方 LINE 二維碼加入專人客服，方便後續確認需求。</p>' +
+            '<div class="support-human-qr-grid">' +
+              '<div class="support-human-qr-card support-human-qr-card--line"><div class="muted">LINE 專人客服</div>' +
+                '<img src="' + lineUrl + '" width="200" height="200" alt="LINE QR" loading="lazy">' +
+                '<p class="muted support-human-qr-hint">掃描後可加入 LINE 好友／客服群。</p>' +
+              '</div>' +
+              '<div class="support-human-qr-card"><div class="muted">WeChat</div>' +
+                '<img src="' + wxUrl + '" width="200" height="200" alt="WeChat QR" loading="lazy">' +
+              '</div>' +
+            '</div>'
+        });
+        renderSupportFallbackChatMessages();
+      } catch (err) {
+        if (status) status.textContent = '送出失敗：' + (err && err.message ? err.message : String(err));
+      }
+    }
+
+    window.toggleSupportHumanIntakeModal = window.toggleSupportHumanIntakeModal || supportFallbackToggleHumanIntakeModal;
+    window.openSupportHumanIntakeFromSalesMcp = window.openSupportHumanIntakeFromSalesMcp || function () {
+      var body = document.getElementById('support-human-intake-modal-body');
+      if (body) body.innerHTML = supportFallbackHumanIntakeFormHtml();
+      supportFallbackToggleHumanIntakeModal(true, {
+        title: '日本不動產購買諮詢申請表',
+        note: '請填寫聯絡方式與需求，送出後顧問再依資料回覆。'
+      });
+    };
+    window.submitSupportFallbackHumanIntake = window.submitSupportFallbackHumanIntake || submitSupportFallbackHumanIntake;
+
+    function supportFallbackFormatText(value) {
+      var text = supportFallbackCompactReply(value).trim();
       if (!text) return '';
       return text.split(/\n{2,}/).map(function (block) {
         var lines = String(block || '').split('\n').map(function (line) { return esc(line.trim()); }).filter(Boolean);
@@ -338,7 +498,7 @@
       }).join('');
     }
 
-    var supportFallbackWelcomeText = '您好，這裡是日本不動產線上客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。您先告訴我想看的地區、預算或用途，我這邊先幫您收斂。';
+    var supportFallbackWelcomeText = '您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。';
     var supportFallbackHistory = [];
     var supportFallbackBootstrapPromise = null;
 
@@ -348,12 +508,7 @@
         '<div class="support-chat-welcome-card">' +
           '<strong>日本不動產線上客服</strong>' +
           '<p>' + intro + '</p>' +
-          '<div class="support-chat-suggestion-pills" aria-label="客服推薦選項">' +
-            '<button type="button" data-support-quick-prompt="我想查日本不動產案件，先從東京或大阪開始">查找案件</button>' +
-            '<button type="button" data-support-quick-prompt="我想了解日本買房，請先幫我整理需要準備哪些條件">買房諮詢</button>' +
-            '<button type="button" data-support-quick-prompt="我想比較已收藏案件的價格、交通和格局">比較收藏</button>' +
-            '<button type="button" data-support-quick-prompt="我想聯絡顧問，請先告訴我需要準備哪些資訊">聯絡顧問</button>' +
-          '</div>' +
+          supportFallbackIntakeCtaHtml() +
         '</div>'
       );
     }
@@ -374,6 +529,11 @@
     function renderSupportFallbackChatMessages() {
       var wrap = document.getElementById('support-chat-messages');
       if (!wrap) return;
+      supportFallbackHistory = supportFallbackHistory.filter(function (row) {
+        if (!row || row.role !== 'user') return true;
+        var text = String(row.content || '').trim();
+        return !/(我想填|想填|填寫|填写).{0,12}(客戶|客户|聯絡|联系|資料|资料|信息).{0,12}(表單|表单|開啟|开启)?/.test(text);
+      });
       if (!supportFallbackHistory.length) {
         supportFallbackHistory.push({
           role: 'assistant',
@@ -387,7 +547,8 @@
         var role = row.role === 'user' ? '您' : '線上客服';
         var rowClass = row.role === 'user' ? 'support-chat-row-user' : 'support-chat-row-assistant';
         var bubbleClass = row.role === 'user' ? 'support-chat-user' : 'support-chat-assistant support-chat-advisor-bubble';
-        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + supportFallbackFormatText(row.content || '') + '</div>');
+        var cta = row.role === 'user' || row.contentHtml ? '' : supportFallbackIntakeCtaHtml();
+        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + supportFallbackFormatText(row.content || '') + '</div>' + cta);
         if (row.contentHtml) body = supportFallbackSanitizePublicCopy(body);
         return '<div class="support-chat-row ' + rowClass + ' support-chat-row--enter"><div class="support-chat-bubble-col"><span class="support-chat-role">' + role + '</span>' + body + '</div></div>';
       }).join('');
@@ -550,34 +711,9 @@
     }
 
     function closeSupportFallbackPanels(keep) {
-      if (keep !== 'phone' && typeof window.toggleSupportPhoneLoginModal === 'function') window.toggleSupportPhoneLoginModal(false);
       if (keep !== 'selected' && typeof window.toggleSupportSelectedCasesDrawer === 'function') window.toggleSupportSelectedCasesDrawer(false);
       if (keep !== 'saved' && typeof window.toggleSupportSavedCasesDrawer === 'function') window.toggleSupportSavedCasesDrawer(false);
       if (keep !== 'chat' && typeof window.toggleSupportChat === 'function') window.toggleSupportChat(false);
-    }
-
-    if (typeof window.toggleSupportPhoneLoginModal !== 'function') {
-      window.toggleSupportPhoneLoginModal = function (force) {
-        var modal = document.getElementById('support-phone-login-modal');
-        var backdrop = document.getElementById('support-phone-login-backdrop');
-        var open = typeof force === 'boolean' ? force : !(modal && modal.style.display !== 'none' && modal.style.display !== '');
-        if (open) closeSupportFallbackPanels('phone');
-        if (modal && modal.parentElement !== document.body) {
-          document.body.appendChild(modal);
-        }
-        if (backdrop && backdrop.parentElement !== document.body) {
-          document.body.appendChild(backdrop);
-        }
-        setDisplay('support-phone-login-modal', open, 'block');
-        setDisplay('support-phone-login-backdrop', open, 'block');
-        if (modal) {
-          modal.classList.toggle('is-visible', open);
-          modal.setAttribute('aria-hidden', open ? 'false' : 'true');
-          modal.style.pointerEvents = open ? 'auto' : '';
-        }
-        setExpanded('support-phone-login-toggle', open);
-        document.body.classList.toggle('support-phone-login-open', open);
-      };
     }
 
     if (typeof window.toggleSupportSelectedCasesDrawer !== 'function') {
@@ -613,10 +749,6 @@
         var panel = document.getElementById('support-chat-panel');
         var widget = document.getElementById('support-chat-widget');
         var open = typeof force === 'boolean' ? force : !(panel && panel.style.display !== 'none' && panel.style.display !== '');
-        if (open && !hasSupportFallbackPhoneProfile()) {
-          if (typeof window.toggleSupportPhoneLoginModal === 'function') window.toggleSupportPhoneLoginModal(true);
-          return;
-        }
         if (open) closeSupportFallbackPanels('chat');
         setDisplay('support-chat-panel', open, 'flex');
         setDisplay('support-chat-backdrop', open, 'block');
@@ -687,35 +819,7 @@
     window.toggleSupportChatSpeech = window.toggleSupportChatSpeech || function () {};
     window.renderSupportKbHistoryList = window.renderSupportKbHistoryList || function () {};
     window.clearSupportKbHistory = window.clearSupportKbHistory || function () {};
-    window.refreshSupportPhoneLoginHint = window.refreshSupportPhoneLoginHint || function () {};
     window.refreshSupportFloatingCaseState = window.refreshSupportFloatingCaseState || refreshSupportFloatingCaseState;
-
-    window.submitSupportPhoneLogin = window.submitSupportPhoneLogin || function () {
-      var input = document.getElementById('support-phone-login-input');
-      var msg = document.getElementById('support-phone-login-msg');
-      var phone = input ? String(input.value || '').trim() : '';
-      if (!phone) {
-        if (msg) msg.textContent = '請先輸入聯絡電話。';
-        return;
-      }
-      try {
-        localStorage.setItem(phoneKey, phone);
-        var country = document.getElementById('support-phone-country');
-        localStorage.setItem(phoneCountryKey, String((country && country.value) || 'tw'));
-        localStorage.setItem(legacyPhoneProfileKey, JSON.stringify({ phone: phone, saved_at: new Date().toISOString() }));
-      } catch (_) {}
-      window.toggleSupportPhoneLoginModal(false);
-      window.toggleSupportChat(true);
-    };
-
-    window.logoutSupportPhoneLogin = window.logoutSupportPhoneLogin || function () {
-      try {
-        localStorage.removeItem(phoneKey);
-        localStorage.removeItem(phoneCountryKey);
-        localStorage.removeItem(legacyPhoneProfileKey);
-      } catch (_) {}
-      window.toggleSupportPhoneLoginModal(false);
-    };
 
     window.sendSupportChat = window.sendSupportChat || async function () {
       var input = document.getElementById('support-chat-input');
@@ -728,7 +832,18 @@
       var humanHandoffText = /(人工|真人|專人|专人|顧問|顾问|業務|业务|銷售|销售|仲介|經紀|经纪)/.test(text);
       setSupportFallbackThinking(true, humanHandoffText || /買房|买房|看屋|看房/.test(text) ? '正在整理顧問諮詢方向…' : '顧問正在整理回覆…');
       try {
-        var selectedCases = readList(selectedKey).slice(0, 20);
+        var suppressSelectedCases = !!window.__sclawSupportSuppressSelectedCasesOnce;
+        if (suppressSelectedCases) window.__sclawSupportSuppressSelectedCasesOnce = false;
+        var inlineCaseContext = null;
+        try {
+          if (window.__sclawSupportCaseContextOnce && typeof window.__sclawSupportCaseContextOnce === 'object') {
+            inlineCaseContext = window.__sclawSupportCaseContextOnce;
+            window.__sclawSupportCaseContextOnce = null;
+          }
+        } catch (_) {
+          window.__sclawSupportCaseContextOnce = null;
+        }
+        var selectedCases = inlineCaseContext ? [inlineCaseContext] : (suppressSelectedCases ? [] : readList(selectedKey).slice(0, 20));
         var history = supportFallbackHistory
           .filter(function (row) { return row && row.role && !row.supportWelcome; })
           .slice(0, -1)

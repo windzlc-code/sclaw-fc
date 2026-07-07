@@ -2,7 +2,7 @@
 {% set footer_support_onclick = site_footer_support_onclick | default('toggleSupportChat(true)', true) %}
 {% set footer_company = company_profile | default({}, true) %}
 {% set footer_company_name = footer_company.name | default(site_name, true) %}
-{% set footer_company_address = footer_company.address | default('東京都豊島区北大塚2-17-4 大塚キャリアビル B1', true) %}
+{% set footer_company_address = footer_company.address | default('東京都豐島區北大塚2-17-4 大塚Career大樓 B1', true) %}
 {% set footer_company_contact = footer_company.contact | default('mokushin.tokyo@gmail.com', true) %}
 {% set footer_company_reference_url = footer_company.reference_url | default('https://www.moon-bears.com/manus/app/views/services.php', true) %}
   <footer class="bh-site-footer{% if site_footer_extra_class is defined and site_footer_extra_class %} {{ site_footer_extra_class }}{% endif %}" aria-label="網站頁尾" style="--bh-enter-delay: 350ms;">
@@ -76,7 +76,7 @@
     <div class="bh-footer-company-strip" aria-label="公司聯絡方式">
       <span class="bh-footer-company-row">
         <span class="bh-footer-company-icon bh-footer-company-icon--address" aria-hidden="true"></span>
-        <span><strong>所在地：</strong>{{ footer_company_address }}</span>
+        <span><strong>地址：</strong>{{ footer_company_address }}</span>
       </span>
       {% if footer_company_contact %}
       <a class="bh-footer-company-row" href="mailto:{{ footer_company_contact }}">
@@ -88,7 +88,7 @@
 
     <section class="bh-footer-legal" aria-label="網站聲明">
       <p class="bh-footer-copyright">© 2026 {{ site_name }}. 日本不動產全球指定搜尋網。</p>
-      <p>本站整理日本公開房源、地區條件、購屋流程與顧問接手資訊，協助海外買家快速定位需求；實際房源狀態、價格、稅費與貸款條件以官方來源及顧問確認為準。</p>
+      <p>本站整理日本房源、地區條件、購屋流程與顧問接手資訊，協助海外買家快速定位需求；實際房源狀態、價格、稅費與貸款條件以顧問確認為準。</p>
       <p class="bh-footer-fineprint">使用本網站即表示同意本站服務條款與隱私政策；房源資料可能因平台更新、業者調整或成交狀態而變動，查詢結果僅供初步比較與諮詢參考。</p>
     </section>
   </footer>

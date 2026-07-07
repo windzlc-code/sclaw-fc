@@ -25,163 +25,8 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260707-visitor-dashboard-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260708-visitor-controls-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
-  <style id="phone-login-ui-overrides">
-    body.site-home .bh-site-titlebar-actions {
-      gap: 8px !important;
-      align-items: center !important;
-    }
-
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-      width: auto !important;
-      min-width: 108px !important;
-      height: 42px !important;
-      min-height: 42px !important;
-      padding: 0 14px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      gap: 8px !important;
-      border: 1px solid rgba(255, 255, 255, 0.42) !important;
-      border-radius: 999px !important;
-      background: rgba(255, 255, 255, 0.12) !important;
-      color: #fff !important;
-      box-shadow: 0 10px 24px rgba(5, 17, 30, 0.14) !important;
-      font-size: 14px !important;
-      font-weight: 900 !important;
-      line-height: 1 !important;
-      transform: none !important;
-    }
-
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-      border-color: rgba(255, 255, 255, 0.72) !important;
-      background: rgba(255, 255, 255, 0.2) !important;
-    }
-
-    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
-    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-      background: transparent !important;
-      border-color: rgba(255, 255, 255, 0.34) !important;
-      box-shadow: none !important;
-    }
-
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
-      border-color: rgba(209, 250, 229, 0.78) !important;
-      background: #2f7d68 !important;
-      color: #fff !important;
-      box-shadow: 0 12px 28px rgba(47, 125, 104, 0.26) !important;
-    }
-
-    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
-    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
-    body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
-      color: #d7fff1 !important;
-      background: transparent !important;
-      border: 1px solid rgba(150, 243, 214, 0.88) !important;
-      box-shadow: none !important;
-      outline: 1px solid rgba(150, 243, 214, 0.58) !important;
-      outline-offset: 0 !important;
-    }
-
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon,
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
-      display: block !important;
-      width: 20px !important;
-      height: 20px !important;
-      flex: 0 0 20px !important;
-    }
-
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
-      fill: none !important;
-      stroke: currentColor !important;
-      stroke-width: 2.1 !important;
-      stroke-linecap: round !important;
-      stroke-linejoin: round !important;
-    }
-
-    body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-text {
-      display: inline-block !important;
-      color: inherit !important;
-      line-height: 1 !important;
-      white-space: nowrap !important;
-    }
-
-    .support-phone-login-modal .support-phone-login-body .primary,
-    .support-phone-login-modal .support-phone-login-profile-actions .primary {
-      border-color: #3f566a !important;
-      background: #526b80 !important;
-      color: #fff !important;
-      box-shadow: 0 14px 28px rgba(82, 107, 128, 0.22) !important;
-    }
-
-    .support-phone-login-modal .support-phone-login-body input:focus,
-    .support-phone-login-modal .support-phone-login-body input:focus-visible,
-    .support-phone-login-modal .support-phone-login-body select:focus,
-    .support-phone-login-modal .support-phone-login-body select:focus-visible {
-      border-color: #526b80 !important;
-      box-shadow: 0 0 0 3px rgba(82, 107, 128, 0.16) !important;
-      outline: none !important;
-    }
-  </style>
-  <script>
-    (function () {
-      var pendingPhoneLoginOpen = false;
-      function setModalVisible(open) {
-        var modal = document.getElementById('support-phone-login-modal');
-        var backdrop = document.getElementById('support-phone-login-backdrop');
-        var floatingBtn = document.getElementById('support-phone-login-toggle');
-        var navBtn = document.getElementById('bh-nav-phone-login-btn');
-        if (!modal) {
-          pendingPhoneLoginOpen = !!open;
-          return false;
-        }
-        pendingPhoneLoginOpen = false;
-        if (backdrop && backdrop.parentElement !== document.body) document.body.appendChild(backdrop);
-        if (modal.parentElement !== document.body) document.body.appendChild(modal);
-        modal.style.display = open ? 'block' : 'none';
-        modal.setAttribute('aria-hidden', open ? 'false' : 'true');
-        document.body.classList.toggle('support-phone-login-open', !!open);
-        if (backdrop) {
-          backdrop.style.display = open ? 'block' : 'none';
-          backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
-        }
-        [floatingBtn, navBtn].forEach(function (btn) {
-          if (!btn) return;
-          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-          btn.classList.toggle('is-active', !!open);
-        });
-        if (open) {
-          window.setTimeout(function () {
-            var input = document.getElementById('support-phone-login-input');
-            try { if (input) input.focus({ preventScroll: true }); } catch (_) {}
-          }, 40);
-        }
-        return true;
-      }
-      window.toggleSupportPhoneLoginModal = window.toggleSupportPhoneLoginModal || function (force) {
-        var modal = document.getElementById('support-phone-login-modal');
-        var open = typeof force === 'boolean' ? force : !(modal && modal.style.display !== 'none');
-        setModalVisible(open);
-      };
-      document.addEventListener('click', function (event) {
-        var target = event.target && event.target.closest ? event.target.closest('#bh-nav-phone-login-btn, #support-phone-login-toggle') : null;
-        if (!target) return;
-        if (typeof window.setSupportPhoneLoginModalOpen === 'function') return;
-        event.preventDefault();
-        setModalVisible(true);
-      }, true);
-      document.addEventListener('DOMContentLoaded', function () {
-        if (pendingPhoneLoginOpen) setModalVisible(true);
-      });
-    })();
-  </script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
   <script>window.__SUPPORT_AVATAR_URL__={{ (support_avatar_url | default('', true)) | tojson }};</script>
@@ -966,8 +811,8 @@
       <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
         <div class="admin-tab-group" data-admin-group="daily">
           <button type="button" class="admin-tab-group-label" data-admin-group-toggle="daily" aria-expanded="true">日常操作</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="visitors">访客数据</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">房源案件</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="visitors">访客数据</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="cases">房源案件</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶諮詢</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
         </div>
@@ -991,20 +836,20 @@
       <nav class="admin-console-path" aria-label="後台路徑">
         <span>控制台</span>
         <span>後台管理</span>
-        <strong id="admin-console-path-current">案件管理</strong>
+        <strong id="admin-console-path-current">访客数据</strong>
       </nav>
       <section class="admin-console-hero" aria-live="polite">
         <div>
           <span class="admin-console-kicker">目前模組</span>
-          <h2 id="admin-console-title">案件管理</h2>
-          <p id="admin-console-desc">查詢、篩選與維護日本不動產案件資料。</p>
+          <h2 id="admin-console-title">访客数据</h2>
+          <p id="admin-console-desc">查看前端網站進入流量與獨立 IP 趨勢。</p>
         </div>
         <ol id="admin-console-steps" class="admin-console-steps" aria-label="目前模組操作步驟"></ol>
       </section>
       <nav class="admin-console-module-tabs admin-console-status" aria-label="目前模組頁籤">
-        <button type="button" id="admin-console-primary" data-admin-console-anchor="0" class="is-active">案件資料</button>
-        <button type="button" id="admin-console-secondary" data-admin-console-anchor="1">條件查詢</button>
-        <button type="button" id="admin-console-tertiary" data-admin-console-anchor="2">列表管理</button>
+        <button type="button" id="admin-console-primary" data-admin-console-anchor="0" class="is-active">流量總覽</button>
+        <button type="button" id="admin-console-secondary" data-admin-console-anchor="1" hidden></button>
+        <button type="button" id="admin-console-tertiary" data-admin-console-anchor="2" hidden></button>
         <button type="button" id="admin-console-quaternary" data-admin-console-anchor="3" hidden></button>
         <button type="button" id="admin-console-quinary" data-admin-console-anchor="4" hidden></button>
       </nav>
@@ -1037,19 +882,19 @@
           <button type="button" class="secondary" onclick="goAdminFlow('home-content')"><span class="admin-flow-index">03</span><span><strong>更新網站首頁</strong><small>影片輪播與首頁內容</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('support-hub')"><span class="admin-flow-index">04</span><span><strong>調整智能客服</strong><small>客服頭像、回覆素材與話術</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('telegram')"><span class="admin-flow-index">05</span><span><strong>設定通知通道</strong><small>LINE / Telegram 顧問接手</small></span></button>
-          <button type="button" class="secondary" onclick="goAdminFlow('visitors')"><span class="admin-flow-index">06</span><span><strong>查看访客数据</strong><small>普通游客、号码登录與历史累计</small></span></button>
+          <button type="button" class="secondary" onclick="goAdminFlow('visitors')"><span class="admin-flow-index">06</span><span><strong>查看访客数据</strong><small>普通游客、填单游客與历史累计</small></span></button>
           <button type="button" class="secondary" onclick="goAdminFlow('portal-matrix')"><span class="admin-flow-index">07</span><span><strong>檢查資料狀態</strong><small>七大門戶缺口與補齊進度</small></span></button>
         </div>
-        <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：案件管理</p>
+        <p id="admin-flow-hint" class="muted admin-flow-hint">目前分頁：访客数据</p>
       </div>
 
-      <div id="admin-tab-visitors" class="admin-tab-panel" role="tabpanel">
+      <div id="admin-tab-visitors" class="admin-tab-panel is-active" role="tabpanel">
         <div class="panel admin-visitor-panel" id="admin-visitor-overview">
           <div class="admin-panel-title-row admin-panel-title-row--compact">
             <h3 class="config-subhead">访客数据仪表盘</h3>
             <div class="admin-ui-chipline" aria-label="訪客統計摘要">
               <span>普通游客</span>
-              <span>号码登录</span>
+              <span>填单游客</span>
               <span>历史累计</span>
             </div>
           </div>
@@ -1064,29 +909,29 @@
                 <option value="365">近 1 年</option>
               </select>
             </label>
-            <button type="button" class="secondary" onclick="loadAdminVisitorDashboard()">重新載入</button>
-            <p id="admin-visitor-status" class="muted admin-visitor-status">登入後載入访客数据。</p>
-          </div>
-          <div class="admin-visitor-settings-row">
             <label class="muted">統計連結主路徑
               <input id="admin-visitor-tracking-url" type="text" placeholder="自動識別目前網站，例如 https://www.manuvip.com/">
             </label>
             <label class="muted">翻頁上限
               <input id="admin-visitor-max-pages" type="number" min="1" max="500" step="1" value="50">
             </label>
+            <button type="button" class="secondary" onclick="loadAdminVisitorDashboard()">重新載入</button>
             <button type="button" class="secondary" onclick="saveAdminVisitorSettings()">保存設定</button>
+            <p id="admin-visitor-status" class="muted admin-visitor-status">登入後載入访客数据。</p>
             <p id="admin-visitor-settings-hint" class="muted admin-visitor-status">主路徑下的子頁面會一起計入。</p>
           </div>
           <div id="admin-visitor-dashboard" class="admin-visitor-dashboard">
             <p class="muted">尚未載入數據。</p>
           </div>
-          <section class="admin-visitor-records-panel">
-            <div class="admin-visitor-card-head">
-              <h4>进入记录表格</h4>
-              <span>按同一 IP / 日期归并，统计真实进入次数</span>
+          <section class="admin-visitor-records-panel" id="admin-visitor-detail-panel">
+            <div class="admin-visitor-card-head admin-visitor-detail-head">
+              <div>
+                <h4 id="admin-visitor-detail-title">进入记录表格</h4>
+                <span id="admin-visitor-detail-subtitle">按同一 IP / 日期归并，区分普通游客与填单游客</span>
+              </div>
             </div>
             <div class="admin-visitor-records-toolbar">
-              <label class="muted">每頁顯示
+              <label class="muted" id="admin-visitor-record-page-size-wrap">每頁顯示
                 <select id="admin-visitor-record-page-size" onchange="loadAdminVisitorRecords(1)">
                   <option value="10">10 條</option>
                   <option value="20" selected>20 條</option>
@@ -1095,7 +940,7 @@
                 </select>
               </label>
               <button type="button" class="secondary" onclick="loadAdminVisitorRecords(1)">刷新记录</button>
-              <p id="admin-visitor-record-status" class="muted admin-visitor-status">等待載入记录。</p>
+              <p id="admin-visitor-detail-status" class="muted admin-visitor-status">等待載入记录。</p>
             </div>
             <div id="admin-visitor-records" class="admin-visitor-records">
               <p class="muted">尚未載入记录。</p>
@@ -1501,7 +1346,7 @@
       </div>
       </div>
 
-      <div id="admin-tab-cases" class="admin-tab-panel is-active" role="tabpanel">
+      <div id="admin-tab-cases" class="admin-tab-panel" role="tabpanel">
       <div class="panel">
         <div class="admin-panel-title-row admin-panel-title-row--compact">
           <h3 class="config-subhead">房源案件管理</h3>
@@ -2070,23 +1915,36 @@
       </div>
 
       <div id="admin-tab-telegram" class="admin-tab-panel" role="tabpanel">
-      <div class="panel">
-        <h3 class="config-subhead">LINE / Telegram 通知</h3>
-        <p class="muted">設定 LINE／Telegram 通知，讓人工留單與顧問回覆能即時送達。</p>
-        <div id="admin-tg-auto-status" class="muted" style="margin:0 0 0.75rem;padding:8px 10px;border-radius:6px;background:#f3f4f6;border:1px solid #e5e7eb;font-size:13px;line-height:1.55;">
+      <div class="panel admin-notify-panel">
+        <div class="admin-notify-head">
+          <div>
+            <h3 class="config-subhead">LINE / Telegram 通知通道</h3>
+            <p class="muted">用來接收站內留單、案件諮詢、加入對比與人工接手通知；顧問也可依 Session 回覆客戶。</p>
+          </div>
+          <button type="button" class="secondary" onclick="loadAdminTelegramSettings(); loadAdminLineSettings();">重新檢查通道</button>
+        </div>
+        <div class="admin-notify-guide" aria-label="通知通道使用流程">
+          <div><strong>1. 選通知方式</strong><span>勾選 Telegram / LINE 自動通知。</span></div>
+          <div><strong>2. 配置收件端</strong><span>LINE 填官方帳號；Telegram 設使用中的顧問 Bot。</span></div>
+          <div><strong>3. 測試推播</strong><span>先按測試，確認顧問端能收到。</span></div>
+          <div><strong>4. 回覆客戶</strong><span>顧問回覆通知或使用 <code>/reply Session 內容</code>。</span></div>
+        </div>
+        <div id="admin-tg-auto-status" class="muted admin-notify-status">
           <strong>連線自檢</strong>（切換本頁籤時自動更新）<br>
           <span id="admin-tg-api-line">後端 API：尚未檢測</span><br>
           <span id="admin-tg-api-hint" class="muted" style="font-size:12px;display:none;"></span>
           <span id="admin-tg-config-line">Telegram 通知：—</span><br>
           <span id="admin-line-config-line">LINE 通知：—</span>
         </div>
-        <div class="panel admin-telegram-line-panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
+        <div class="admin-notify-main-grid">
+        <div class="panel admin-telegram-line-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
           <h4 class="config-subhead" style="margin-top:0;">LINE 官方帳號</h4>
-          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">填入 LINE 設定後，可接收人工通知並回覆客戶。</p>
-          <div class="search-row-basic" style="align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.55rem;">
+          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">用於 LINE 顧問收件與回覆客戶。Staff User ID 必須是 <code>U</code> 開頭。</p>
+          <div class="admin-notify-channel-toggle" style="align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.55rem;">
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-telegram" type="checkbox"> 自動通知 Telegram</label>
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-line" type="checkbox"> 自動通知 LINE</label>
           </div>
+          <div class="admin-notify-form-grid">
           <label class="muted">Channel access token（留空不變）
             <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="LINE Messaging API long-lived token">
           </label>
@@ -2102,6 +1960,7 @@
           <label class="muted">顧問 LINE 收件 ID（U 開頭 user ID；不是 Channel ID）
             <input id="admin-line-staff-user-id" type="text" autocomplete="off" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
           </label>
+          </div>
           <p class="muted" style="margin:-0.35rem 0 0.45rem;font-size:12px;line-height:1.45;">請填 <code>U</code> 開頭 user ID，不是 Channel ID。</p>
           <label class="muted admin-technical-info">Webhook URL
             <input id="admin-line-webhook-url" type="url" autocomplete="off" placeholder="https://your-domain.com/api/line/webhook">
@@ -2119,26 +1978,38 @@
           <p id="admin-line-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
           <pre id="admin-line-webhook-status" class="muted admin-technical-info" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
         </div>
-        <div class="panel admin-telegram-accounts-panel" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
-          <h4 class="config-subhead" style="margin-top:0;">多顧問／多 Bot</h4>
-          <p class="muted" style="margin:0 0 0.5rem;line-height:1.5;">每列是一個 Bot／顧問收件帳號；預設通知只發給「使用中」帳號。</p>
+        <div class="panel admin-telegram-accounts-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
+          <h4 class="config-subhead" style="margin-top:0;">Telegram 顧問 Bot</h4>
+          <p class="muted" style="margin:0 0 0.5rem;line-height:1.5;">每列是一個 Bot／顧問收件帳號；一般通知會發給「使用中」帳號。</p>
           <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;font-size:13px;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;">
-            收不到通知時，先確認該列已設為「使用中」，再測試連線。
+            收不到通知時，先確認該列已設為「使用中」，再使用下方 Telegram 測試確認顧問是否收到。
           </p>
-          <div class="search-row-basic" style="align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">
+          <div class="admin-notify-account-toolbar">
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;">使用中
               <select id="admin-tg-active-account" style="min-width:13rem;" title="預設推播與一鍵通知（未另指定時）"></select>
             </label>
-          </div>
-          <div id="admin-tg-accounts-wrap" class="muted" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
-          <div class="search-row-basic" style="margin-top:0.5rem;">
             <button type="button" class="secondary" onclick="addAdminTelegramAccountRow()">新增一列</button>
             <button type="button" onclick="saveAdminTelegramAccounts()">儲存帳號列表</button>
+            <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入</button>
           </div>
+          <div id="admin-tg-accounts-wrap" class="muted" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+          <div class="admin-notify-test-row" aria-label="Telegram 測試">
+            <label class="muted">測試目標 Bot
+              <select id="admin-tg-test-account" style="min-width:18rem;">
+                <option value="">（使用中帳號）</option>
+              </select>
+            </label>
+            <label class="muted">測試訊息
+              <input id="admin-tg-test-msg" type="text" value="SCLAW 連線測試" autocomplete="off">
+            </label>
+            <button type="button" class="secondary" id="admin-tg-test-btn" onclick="testAdminTelegram()">測試 Telegram</button>
+          </div>
+          <p id="admin-tg-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         </div>
-        <div class="panel admin-telegram-quick-panel" style="margin:0 0 0.8rem;padding:10px 12px;border:1px solid #dbeafe;background:#f8fbff;">
-          <h4 class="config-subhead" style="margin-top:0;">一鍵通知（推薦）</h4>
-          <p class="muted" style="margin:0.25rem 0 0.45rem;">同步目前 Session，填入訊息，一鍵通知顧問。</p>
+        </div>
+        <div class="panel admin-telegram-quick-panel admin-notify-card admin-notify-card--quick" style="margin:0 0 0.8rem;padding:10px 12px;border:1px solid #dbeafe;background:#f8fbff;">
+          <h4 class="config-subhead" style="margin-top:0;">手動通知顧問</h4>
+          <p class="muted" style="margin:0.25rem 0 0.45rem;">用於臨時人工接手：先同步目前 Session，再選通知管道發送。</p>
           <div class="search-row-basic" style="grid-template-columns:auto 1fr;align-items:center;margin-top:0.2rem;">
             <button type="button" class="secondary" onclick="applyCurrentSupportSessionToTelegramComposer()">同步目前 Session</button>
             <span class="muted">目前 Session：<code id="admin-tg-quick-current-session">-</code></span>
@@ -2159,8 +2030,8 @@
           </div>
           <p id="admin-tg-quick-msg" class="muted" style="margin-top:0.45rem;"></p>
         </div>
-        <details class="panel slim" style="margin-top:0.35rem;">
-          <summary>進階設定（Token / Webhook / 除錯 / 手動綁定）</summary>
+        <details class="panel slim admin-notify-advanced" style="margin-top:0.35rem;">
+          <summary>進階設定與排障（Token / Webhook / 除錯 / 手動綁定）</summary>
           <div style="margin-top:0.65rem;">
         <label class="muted">Chat ID
           <input id="admin-tg-chat-id" type="text" autocomplete="off" placeholder="例：7601992552">
@@ -2171,20 +2042,11 @@
         <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
           <input id="admin-tg-clear-token" type="checkbox"> 清除 Token
         </label>
-        <label class="muted">測試訊息
-          <input id="admin-tg-test-msg" type="text" value="SCLAW 連線測試" autocomplete="off">
-        </label>
-        <label class="muted">測試／Webhook 註冊目標 Bot（空白＝使用中帳號；與「儲存 Telegram」寫入目標相同）
-          <select id="admin-tg-test-account" style="min-width:18rem;">
-            <option value="">（使用中帳號）</option>
-          </select>
-        </label>
+        <p class="muted" style="margin:0.5rem 0 0;font-size:12px;line-height:1.45;">Chat ID / Token 會寫入上方「測試目標 Bot」選定的帳號；未選時寫入使用中帳號。Telegram 測試也請在上方顧問 Bot 卡片內執行。</p>
         <div class="search-row-basic" style="margin-top:0.5rem;">
           <button type="button" onclick="saveAdminTelegramSettings()">儲存 Telegram</button>
           <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入</button>
-          <button type="button" class="secondary" id="admin-tg-test-btn" onclick="testAdminTelegram()">測試連線並發送</button>
         </div>
-        <p id="admin-tg-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         <h4 class="config-subhead" style="margin-top:1rem;">雙向溝通（Webhook）</h4>
         <p class="muted">註冊 Webhook 後，顧問回覆可同步回智能客服 Session。</p>
         <label class="muted">公開網址前綴（留空則用 SITE_URL）
@@ -2968,11 +2830,41 @@
       return target;
     }
 
+    function resetFigureFiltersForTypeOnlySearch() {
+      const setValue = (id, value = '') => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = value;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      window.__sclawGeoKeywordOverride = '';
+      window.__sclawGeoKeywordRegionHint = '';
+      window.__sclawGeoKeywordDisplayLabel = '';
+      if (typeof clearFigureMapSelection === 'function') {
+        try { clearFigureMapSelection(); } catch (_) {}
+      }
+      setValue('figure_geo_mode', 'region');
+      if (typeof applyFigureGeoMode === 'function') {
+        try { applyFigureGeoMode('region'); } catch (_) {}
+      }
+      setValue('figure_region', '');
+      setValue('figure_homes_pref', '');
+      setValue('figure_homes_city', '');
+      setValue('figure_keyword', '');
+      setValue('figure_price_preset', '');
+      setValue('figure_price_min', '');
+      setValue('figure_price_max', '');
+      setValue('figure_layout_preset', '');
+      setValue('figure_layout_min', '');
+      setValue('figure_layout_max', '');
+    }
+
     function openRoomExploreWorkbench(event, el) {
       if (event) {
         event.preventDefault();
         event.stopPropagation();
       }
+      resetFigureFiltersForTypeOnlySearch();
       const propertyType = setFigurePropertyTypeOnly(el?.getAttribute('data-room-property-type') || '');
       if (typeof setHomeInternalView === 'function') {
         setHomeInternalView('workbench', { targetId: 'query-dialog', persist: true, scroll: false, instant: true });
@@ -3015,7 +2907,7 @@
           void searchFigureTab(false);
         }
       };
-      window.setTimeout(runRoomExploreSearch, 180);
+      window.setTimeout(runRoomExploreSearch, 60);
       return propertyType;
     }
     window.openRoomExploreWorkbench = openRoomExploreWorkbench;
@@ -4582,11 +4474,11 @@
       },
       visitors: {
         desc: '查看前端網站進入流量與獨立 IP 趨勢。',
-        chips: ['普通游客', '號碼登入', '历史累计'],
+        chips: ['普通游客', '填单游客', '历史累计'],
         notice: '访客数据只記錄是否進入前端網站；不拆分頁面，後台、API 與靜態資源不計入，同一 IP 在統計範圍內只計為一位獨立訪客。',
         steps: [
           ['看總覽', '先看獨立訪客與今日變化。'],
-          ['分身份', '區分普通游客與號碼登入游客。'],
+          ['分身份', '區分普通游客與填单游客。'],
           ['看累計', '用歷史累計確認長期訪客量。'],
         ],
       },
@@ -7820,10 +7712,30 @@
 
     /** 客服氣泡：以口語正文為主，不再套用「結論：／重點：」模板（避免與後台場景標籤疊加）。 */
     function buildSupportConclusionText(rawText) {
-      const cleaned = normalizeSupportChatDisplayText(stripSupportChatInternalNoise(rawText));
+      const cleaned = compactSupportChatReplyText(normalizeSupportChatDisplayText(stripSupportChatInternalNoise(rawText)));
       if (!cleaned) return { displayText: '', voiceScript: '' };
       const voiceScript = cleaned.replace(/\s+/g, ' ').trim();
       return { displayText: cleaned, voiceScript };
+    }
+
+    function compactSupportChatReplyText(value) {
+      const text = String(value || '').trim();
+      if (!text) return '';
+      const blocks = text
+        .split(/\n{2,}/)
+        .map((block) => String(block || '').trim())
+        .filter(Boolean)
+        .filter((block) => !/^(?:若需要人工顧問|若想留資料|請輸入「人工」|（已同步給顧問|（顧問通知未送出)/.test(block));
+      let compact = blocks[0] || '';
+      if (blocks.length > 1) {
+        const candidate = `${blocks[0]}\n\n${blocks[1]}`;
+        if (candidate.length <= 118) compact = candidate;
+      }
+      const limit = 118;
+      if (compact.length > limit) {
+        compact = compact.slice(0, limit).replace(/[，、；：]\S*$/, '').trim() + '…';
+      }
+      return compact;
     }
 
     function speakSupportChatScript(text) {
@@ -9406,11 +9318,6 @@
       const widget = document.getElementById('support-chat-widget');
       if (!panel) return;
       const open = typeof force === 'boolean' ? force : !supportChatOpen;
-      if (open && !(options && options.skipPhoneGate) && !isSupportPhoneLoggedIn()) {
-        supportPhoneLoginReturnToChat = true;
-        setSupportPhoneLoginModalOpen(true, { returnToChat: true });
-        return;
-      }
       if (open) ensureSupportChatPanelInViewportLayer();
       if (open && !(options && options.skipExclusive)) closeFloatingPanelsExcept('support');
       if (supportChatPanelMotionTimer) {
@@ -10026,213 +9933,9 @@
       return generated;
     }
 
-    const SUPPORT_PHONE_LOGIN_KEY = 'sclaw_support_phone_login';
-    const SUPPORT_PHONE_LOGIN_COUNTRY_KEY = 'sclaw_support_phone_login_country';
-    const SUPPORT_PHONE_LOGIN_COOKIE = 'sclaw_phone_logged_in';
-    const SUPPORT_PHONE_COUNTRY_RULES = {
-      tw: { label: '台灣', dial: '+886', example: '0912 345 678', hint: '台灣手機需 09 開頭共 10 碼；市話需含區碼，例如 02 2345 6789。' },
-      jp: { label: '日本', dial: '+81', example: '090 1234 5678', hint: '日本手機通常 070 / 080 / 090 開頭共 11 碼；市話通常 10 碼。' },
-      cn: { label: '中國大陸', dial: '+86', example: '138 0013 8000', hint: '中國大陸手機需 1 開頭共 11 碼。' },
-      hk: { label: '香港', dial: '+852', example: '9123 4567', hint: '香港手機通常 5 / 6 / 9 開頭共 8 碼。' },
-      mo: { label: '澳門', dial: '+853', example: '6612 3456', hint: '澳門手機通常 6 開頭共 8 碼。' },
-      sg: { label: '新加坡', dial: '+65', example: '8123 4567', hint: '新加坡手機通常 8 / 9 開頭共 8 碼。' },
-      my: { label: '馬來西亞', dial: '+60', example: '012 345 6789', hint: '馬來西亞手機通常 01 開頭，去除符號後約 10-11 碼。' },
-      kr: { label: '韓國', dial: '+82', example: '010 1234 5678', hint: '韓國手機通常 010 開頭共 11 碼。' },
-      us: { label: '美國 / 加拿大', dial: '+1', example: '415 555 2671', hint: '美國 / 加拿大需 10 碼區號電話；不可使用 0 或 1 作為區號開頭。' },
-      th: { label: '泰國', dial: '+66', example: '081 234 5678', hint: '泰國手機通常 06 / 08 / 09 開頭共 10 碼。' },
-    };
-    let supportPhoneLoginReturnToChat = false;
-
-    function getSupportPhoneLoginValue() {
-      try {
-        return String(localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '').trim();
-      } catch (_) {
-        return '';
-      }
-    }
-
-    function isSupportPhoneLoggedIn() {
-      return !!getSupportPhoneLoginValue();
-    }
-
-    function syncSupportPhoneLoginCookie(logged) {
-      try {
-        const base = `${SUPPORT_PHONE_LOGIN_COOKIE}=`;
-        if (logged) {
-          document.cookie = `${base}1; Max-Age=31536000; Path=/; SameSite=Lax`;
-        } else {
-          document.cookie = `${base}; Max-Age=0; Path=/; SameSite=Lax`;
-        }
-      } catch (_) {}
-    }
-
-    function getSupportPhoneCountryLabel(countryKey) {
-      const key = String(countryKey || getSupportPhoneCountry()).trim().toLowerCase();
-      const rule = SUPPORT_PHONE_COUNTRY_RULES[key] || SUPPORT_PHONE_COUNTRY_RULES.tw;
-      return `${rule.label} ${rule.dial}`;
-    }
-
-    function renderSupportPhoneLoginModalState() {
-      const logged = isSupportPhoneLoggedIn();
-      const modal = document.getElementById('support-phone-login-modal');
-      const form = document.getElementById('support-phone-login-form');
-      const profile = document.getElementById('support-phone-login-profile');
-      const title = document.getElementById('support-phone-login-title');
-      const subtitle = document.getElementById('support-phone-login-subtitle');
-      const phoneEl = document.getElementById('support-phone-login-profile-phone');
-      const metaEl = document.getElementById('support-phone-login-profile-meta');
-      if (modal) modal.classList.toggle('is-logged-in', logged);
-      if (form) {
-        form.hidden = logged;
-        form.style.display = logged ? 'none' : 'grid';
-        form.setAttribute('aria-hidden', logged ? 'true' : 'false');
-      }
-      if (profile) {
-        profile.hidden = !logged;
-        profile.style.display = logged ? 'grid' : 'none';
-        profile.setAttribute('aria-hidden', logged ? 'false' : 'true');
-      }
-      if (title) title.textContent = logged ? '已登入' : '號碼登入';
-      if (subtitle) {
-        subtitle.textContent = logged
-            ? '此號碼已通過格式檢查，線上客服已同步。'
-          : '輸入合規聯絡號碼後，即可使用線上客服與顧問接手。';
-      }
-      if (logged) {
-        const phone = getSupportPhoneLoginValue();
-        let country = getSupportPhoneCountry();
-        try {
-          country = String(localStorage.getItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY) || country).trim().toLowerCase();
-        } catch (_) {}
-        if (phoneEl) phoneEl.textContent = phone || '--';
-        if (metaEl) metaEl.textContent = `${getSupportPhoneCountryLabel(country)}｜線上客服已同步此號碼。`;
-      }
-    }
-
-    function syncSupportPhoneLoginUiState() {
-      const logged = isSupportPhoneLoggedIn();
-      syncSupportPhoneLoginCookie(logged);
-      const navBtn = document.getElementById('bh-nav-phone-login-btn');
-      const navText = document.getElementById('bh-nav-phone-login-text');
-      const floatingBtn = document.getElementById('support-phone-login-toggle');
-      const label = logged ? '已登录' : '未登录';
-      if (navText) navText.textContent = label;
-      [navBtn, floatingBtn].forEach((btn) => {
-        if (!btn) return;
-        btn.classList.toggle('is-logged-in', logged);
-        btn.setAttribute('aria-label', label);
-        btn.setAttribute('title', label);
-      });
-      renderSupportPhoneLoginModalState();
-    }
-
-    function getSupportPhoneCountry() {
-      try {
-        const v = String(localStorage.getItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY) || '').trim().toLowerCase();
-        return SUPPORT_PHONE_COUNTRY_RULES[v] ? v : 'tw';
-      } catch (_) {
-        return 'tw';
-      }
-    }
-
-    function supportPhoneDigits(value) {
-      return String(value || '').replace(/[^\d]/g, '');
-    }
-
-    function validateSupportPhoneByCountry(countryKey, rawValue) {
-      const key = SUPPORT_PHONE_COUNTRY_RULES[countryKey] ? countryKey : 'tw';
-      const rule = SUPPORT_PHONE_COUNTRY_RULES[key];
-      const raw = String(rawValue || '').trim();
-      const digits = supportPhoneDigits(raw);
-      const fail = (detail) => ({
-        ok: false,
-        country: key,
-        label: rule.label,
-        dial: rule.dial,
-        digits,
-        message: `${rule.label}號碼格式不正確。${detail || rule.hint} 範例：${rule.example}`,
-      });
-      if (!digits) return fail('請先輸入電話號碼。');
-      let local = digits;
-      const dialDigits = rule.dial.replace(/[^\d]/g, '');
-      if (local.startsWith('00' + dialDigits)) local = local.slice(2 + dialDigits.length);
-      if (local.startsWith(dialDigits) && local.length > dialDigits.length + 5) local = local.slice(dialDigits.length);
-      switch (key) {
-        case 'tw':
-          if (/^09\d{8}$/.test(local) || /^9\d{8}$/.test(local) || /^0[2-8]\d{7,8}$/.test(local) || /^[2-8]\d{7,8}$/.test(local)) break;
-          return fail();
-        case 'jp':
-          if (/^0(?:70|80|90)\d{8}$/.test(local) || /^(?:70|80|90)\d{8}$/.test(local) || /^0[1-9]\d{8,9}$/.test(local) || /^[1-9]\d{8,9}$/.test(local)) break;
-          return fail();
-        case 'cn':
-          if (/^1[3-9]\d{9}$/.test(local)) break;
-          return fail();
-        case 'hk':
-          if (/^[569]\d{7}$/.test(local)) break;
-          return fail();
-        case 'mo':
-          if (/^6\d{7}$/.test(local)) break;
-          return fail();
-        case 'sg':
-          if (/^[89]\d{7}$/.test(local)) break;
-          return fail();
-        case 'my':
-          if (/^01[0-9]\d{7,8}$/.test(local) || /^1[0-9]\d{7,8}$/.test(local)) break;
-          return fail();
-        case 'kr':
-          if (/^010\d{8}$/.test(local) || /^10\d{8}$/.test(local)) break;
-          return fail();
-        case 'us':
-          if (/^[2-9]\d{2}[2-9]\d{6}$/.test(local)) break;
-          return fail();
-        case 'th':
-          if (/^0[689]\d{8}$/.test(local) || /^[689]\d{8}$/.test(local)) break;
-          return fail();
-        default:
-          return fail();
-      }
-      const normalizedLocal = local.replace(/^0+/, '');
-      return {
-        ok: true,
-        country: key,
-        label: rule.label,
-        dial: rule.dial,
-        local,
-        digits: local,
-        formatted: `${rule.dial} ${normalizedLocal}`,
-        message: `${rule.label}號碼格式正確，將以 ${rule.dial} 國際格式登入。`,
-      };
-    }
-
-    function refreshSupportPhoneLoginHint() {
-      const country = document.getElementById('support-phone-country');
-      const input = document.getElementById('support-phone-login-input');
-      const hint = document.getElementById('support-phone-login-format');
-      const msg = document.getElementById('support-phone-login-msg');
-      const key = String(country?.value || getSupportPhoneCountry()).trim().toLowerCase();
-      const rule = SUPPORT_PHONE_COUNTRY_RULES[key] || SUPPORT_PHONE_COUNTRY_RULES.tw;
-      if (hint) hint.textContent = `${rule.hint} 範例：${rule.example}`;
-      const raw = String(input?.value || '').trim();
-      if (!raw) {
-        if (input) input.classList.remove('is-invalid', 'is-valid');
-        return;
-      }
-      const result = validateSupportPhoneByCountry(key, raw);
-      if (input) {
-        input.classList.toggle('is-invalid', !result.ok);
-        input.classList.toggle('is-valid', result.ok);
-      }
-      if (msg) {
-        msg.textContent = result.ok ? result.message : result.message;
-        msg.classList.toggle('support-phone-login-msg--error', !result.ok);
-        msg.classList.toggle('support-phone-login-msg--ok', result.ok);
-      }
-    }
-
     function closeFloatingPanelsExcept(exceptKey) {
       const keep = String(exceptKey || '');
       if (keep !== 'purchase') setPurchaseToolModalOpen(false, { skipExclusive: true, restoreFocus: false });
-      if (keep !== 'phone') setSupportPhoneLoginModalOpen(false, { skipExclusive: true, restoreFocus: false });
       if (keep !== 'support') toggleSupportChat(false, { skipExclusive: true });
       if (keep !== 'selected') setSupportSelectedCasesDrawerOpen(false, { skipExclusive: true, restoreFocus: false });
       if (keep !== 'saved') setSupportSavedCasesDrawerOpen(false, { skipExclusive: true, restoreFocus: false });
@@ -10876,160 +10579,6 @@
       setPurchaseToolActivePane('loan');
       refreshPurchaseQuestionAnswers();
       calculatePurchaseTool();
-    }
-
-    function setSupportPhoneLoginModalOpen(open, options = {}) {
-      const shouldOpen = !!open;
-      const modal = document.getElementById('support-phone-login-modal');
-      const backdrop = document.getElementById('support-phone-login-backdrop');
-      const btn = document.getElementById('support-phone-login-toggle');
-      const navBtn = document.getElementById('bh-nav-phone-login-btn');
-      if (!modal) return;
-      if (backdrop && backdrop.parentElement !== document.body) {
-        document.body.appendChild(backdrop);
-      }
-      if (modal.parentElement !== document.body) {
-        document.body.appendChild(modal);
-      }
-      if (shouldOpen && options && options.returnToChat) supportPhoneLoginReturnToChat = true;
-      if (!shouldOpen && options && options.clearReturnToChat) supportPhoneLoginReturnToChat = false;
-      if (shouldOpen && !(options && options.skipExclusive)) closeFloatingPanelsExcept('phone');
-      modal.style.display = shouldOpen ? 'block' : 'none';
-      if (backdrop) {
-        backdrop.style.display = shouldOpen ? 'block' : 'none';
-        backdrop.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
-      }
-      if (btn) {
-        btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
-        btn.classList.toggle('is-active', shouldOpen);
-      }
-      if (navBtn) {
-        navBtn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
-        navBtn.classList.toggle('is-active', shouldOpen);
-      }
-      document.body.classList.toggle('support-phone-login-open', shouldOpen);
-      renderSupportPhoneLoginModalState();
-      if (shouldOpen) {
-        if (isSupportPhoneLoggedIn()) {
-          const msg = document.getElementById('support-phone-login-msg');
-          if (msg) {
-            msg.textContent = '';
-            msg.classList.remove('support-phone-login-msg--error', 'support-phone-login-msg--ok');
-          }
-          return;
-        }
-        const input = document.getElementById('support-phone-login-input');
-        const country = document.getElementById('support-phone-country');
-        const msg = document.getElementById('support-phone-login-msg');
-        try {
-          const cached = localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '';
-          const cachedCountry = localStorage.getItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY) || getSupportPhoneCountry();
-          if (country && SUPPORT_PHONE_COUNTRY_RULES[cachedCountry]) country.value = cachedCountry;
-          if (input && cached && !input.value) input.value = cached;
-        } catch (_) {}
-        refreshSupportPhoneLoginHint();
-        if (msg && !String(msg.textContent || '').trim()) {
-          msg.textContent = supportPhoneLoginReturnToChat
-            ? '請先完成號碼登入，登入後會自動開啟線上客服。'
-            : '請選擇號碼所屬國家 / 地區，並輸入符合當地規範的電話號碼。';
-        }
-        setTimeout(() => {
-          try {
-            if (input && typeof input.focus === 'function') input.focus({ preventScroll: true });
-          } catch (_) {}
-        }, 30);
-      } else if (options && options.restoreFocus !== false) {
-        try {
-          if (btn && typeof btn.focus === 'function') btn.focus({ preventScroll: true });
-        } catch (_) {}
-      }
-    }
-
-    function toggleSupportPhoneLoginModal(force) {
-      const modal = document.getElementById('support-phone-login-modal');
-      const open = typeof force === 'boolean' ? force : !(modal && modal.style.display !== 'none');
-      setSupportPhoneLoginModalOpen(open);
-    }
-
-    function logoutSupportPhoneLogin() {
-      supportPhoneLoginReturnToChat = false;
-      try {
-        localStorage.removeItem(SUPPORT_PHONE_LOGIN_KEY);
-      } catch (_) {}
-      syncSupportPhoneLoginCookie(false);
-      toggleSupportChat(false, { skipExclusive: true });
-      syncSupportPhoneLoginUiState();
-      const modal = document.getElementById('support-phone-login-modal');
-      if (modal && modal.style.display !== 'none') {
-        setSupportPhoneLoginModalOpen(true, { skipExclusive: true, restoreFocus: false, clearReturnToChat: true });
-        const msg = document.getElementById('support-phone-login-msg');
-        if (msg) {
-          msg.textContent = '已退出登入，請重新登入後使用線上客服。';
-          msg.classList.remove('support-phone-login-msg--ok');
-          msg.classList.add('support-phone-login-msg--error');
-        }
-      }
-    }
-
-    async function submitSupportPhoneLogin() {
-      const input = document.getElementById('support-phone-login-input');
-      const country = document.getElementById('support-phone-country');
-      const msg = document.getElementById('support-phone-login-msg');
-      const btn = document.getElementById('support-phone-login-submit');
-      const countryKey = String(country?.value || getSupportPhoneCountry()).trim().toLowerCase();
-      const validation = validateSupportPhoneByCountry(countryKey, input?.value || '');
-      refreshSupportPhoneLoginHint();
-      if (!validation.ok) {
-        if (msg) {
-          msg.textContent = validation.message;
-          msg.classList.add('support-phone-login-msg--error');
-          msg.classList.remove('support-phone-login-msg--ok');
-        }
-        if (input) input.classList.add('is-invalid');
-        if (input && typeof input.focus === 'function') input.focus();
-        return;
-      }
-      const phone = validation.formatted;
-      if (btn) btn.disabled = true;
-      if (msg) msg.textContent = '送出中…';
-      try {
-        const payload = {
-          name: '號碼登入訪客',
-          phone,
-          email: '',
-          note: `【號碼登入】來源：${validation.label}；原始輸入：${String(input?.value || '').trim()}。`,
-          action_id: 'phone_login',
-          session_id: getSupportSalesSessionId(),
-          conversation: [],
-        };
-        const res = await postSupportHumanIntake(payload);
-        const data = await parseApiResponseSafe(res);
-        try {
-          localStorage.setItem(SUPPORT_PHONE_LOGIN_KEY, phone);
-          localStorage.setItem(SUPPORT_PHONE_LOGIN_COUNTRY_KEY, validation.country);
-        } catch (_) {}
-        syncSupportPhoneLoginCookie(true);
-        syncSupportPhoneLoginUiState();
-        if (msg) {
-          msg.textContent = `已登入：${phone}${data.handoff_id ? `｜留單 #${data.handoff_id}` : ''}`;
-          msg.classList.add('support-phone-login-msg--ok');
-          msg.classList.remove('support-phone-login-msg--error');
-        }
-        const adminQ = document.getElementById('admin-handoff-q');
-        if (adminQ && !adminQ.value) adminQ.value = phone;
-        const shouldOpenChat = true;
-        markSupportHandoffSyncActive();
-        scheduleSyncHandoffConversationToBackend();
-        supportPhoneLoginReturnToChat = false;
-        window.setTimeout(() => {
-          setSupportPhoneLoginModalOpen(false, { skipExclusive: true, restoreFocus: false, clearReturnToChat: true });
-          if (shouldOpenChat) toggleSupportChat(true, { skipPhoneGate: true });
-        }, 260);
-      } catch (err) {
-        if (msg) msg.textContent = `送出失敗：${formatApiError(err)}`;
-      } finally {
-        if (btn) btn.disabled = false;
-      }
     }
 
     function supportCaseKeyFromItem(it) {
@@ -12417,6 +11966,31 @@
       );
     }
 
+    function supportChatIntakeCtaHtml() {
+      return (
+        '<div class="support-chat-intake-cta">' +
+        '<span>如果想讓顧問後續接上，我可以先幫您把資料整理好。</span>' +
+        '<button type="button" onclick="openSupportHumanIntakeFromSalesMcp({ silent: true })">填寫諮詢表</button>' +
+        '</div>'
+      );
+    }
+
+    function upsertSupportHumanIntakeLauncher(title, desc) {
+      const row = {
+        role: 'assistant',
+        content: '',
+        contentHtml: supportHumanIntakeLauncherHtml(title, desc),
+        supportHumanIntakeLauncher: true,
+      };
+      const idx = supportChatHistory.findIndex((item) => item && item.supportHumanIntakeLauncher);
+      if (idx >= 0) supportChatHistory[idx] = row;
+      else supportChatHistory.push(row);
+      if (supportChatHistory.length > 24) {
+        supportChatHistory = supportChatHistory.slice(-24);
+      }
+      return row;
+    }
+
     function supportAdvisorActionLauncherHtml(label) {
       return (
         '<div class="support-human-intake-launcher">' +
@@ -12458,11 +12032,10 @@
         note: '請完整填寫問卷與至少一項聯絡方式，確認後才會通知人工顧問。',
       });
       if (!options || !options.silent) {
-        supportChatHistory.push({
-          role: 'assistant',
-          content: '',
-          contentHtml: supportHumanIntakeLauncherHtml('已開啟真人顧問留單流程', '請在獨立視窗完成問卷；送出後人工顧問才會依資料回覆。'),
-        });
+        upsertSupportHumanIntakeLauncher(
+          '已開啟人工顧問留單流程',
+          '請在獨立視窗完成問卷；送出後人工顧問才會依資料回覆。'
+        );
       }
       renderSupportChatMessages();
       settleSupportMobileFormLayout();
@@ -12497,9 +12070,8 @@
       const mode = String(meta.mode || 'serving');
       if (!['queueing', 'handoff_ready'].includes(mode)) return '';
       const label = esc(String(meta.service_label || '值班顧問'));
-      const text = esc(String(meta.display_text || '').trim());
       const modeText = mode === 'handoff_ready'
-        ? '真人接手準備'
+        ? '人工接手準備'
         : mode === 'queueing'
           ? '排隊接待中'
           : '顧問接待中';
@@ -12512,7 +12084,6 @@
         `<span class="support-chat-service-label">${label}</span>` +
         `<span class="support-chat-service-dots" aria-hidden="true"><span></span><span></span><span></span></span>` +
         `<div class="support-chat-service-hint">${esc(queueHint)}</div>` +
-        (text ? `<div class="support-chat-service-text">${text}</div>` : '') +
         '</div>'
       );
     }
@@ -12525,7 +12096,7 @@
     }
 
     function waitSupportChatServiceQueue(ms = 520) {
-      const safeMs = Math.min(900, Math.max(0, Number(ms) || 0));
+      const safeMs = Math.min(1600, Math.max(0, Number(ms) || 0));
       return new Promise((resolve) => window.setTimeout(resolve, safeMs));
     }
 
@@ -12538,7 +12109,7 @@
     let supportChatBootstrapPromise = null;
     let supportChatBootstrapSid = '';
     let supportChatOpenWelcomeRow = null;
-    const SUPPORT_CHAT_DEFAULT_WELCOME_TEXT = '您好，這裡是日本不動產線上客服。我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。您先告訴我想看的地區、預算或用途，我這邊先幫您收斂。';
+    const SUPPORT_CHAT_DEFAULT_WELCOME_TEXT = '您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。';
 
     function sanitizeSupportChatPublicCopy(value) {
       return String(value || '')
@@ -12552,6 +12123,18 @@
         .replace(/人工智能/gi, '線上客服')
         .replace(/機器人/gi, '線上客服')
         .replace(/机器人/gi, '線上客服')
+        .replace(/像真人顧問一樣/g, '')
+        .replace(/像真人顾问一样/g, '')
+        .replace(/像真人一樣/g, '')
+        .replace(/像真人一样/g, '')
+        .replace(/真人顧問私訊口吻/g, '自然私訊口吻')
+        .replace(/真人顾问私讯口吻/g, '自然私訊口吻')
+        .replace(/真人顧問/g, '人工顧問')
+        .replace(/真人顾问/g, '人工顧問')
+        .replace(/真人接手/g, '人工接手')
+        .replace(/真人服務感/g, '服務感')
+        .replace(/預計約?\s*\d+\s*(分鐘|分钟|分鍾)內?/g, '幾秒內')
+        .replace(/約?\s*\d+\s*(分鐘|分钟|分鍾)內?/g, '幾秒內')
         .replace(/自動生成/gi, '整理回覆');
     }
 
@@ -12566,71 +12149,15 @@
         serviceBlock +
         '<strong>日本不動產線上客服</strong>' +
         `<p>${intro}</p>` +
-        '<div class="support-chat-suggestion-pills" aria-label="客服推薦選項">' +
-        '<button type="button" data-support-quick-prompt="我想查日本不動產案件，先從東京或大阪開始">查找案件</button>' +
-        '<button type="button" data-support-quick-prompt="我想了解日本買房，請先幫我整理需要準備哪些條件">買房諮詢</button>' +
-        '<button type="button" data-support-quick-prompt="我想比較已收藏案件的價格、交通和格局">比較收藏</button>' +
-        '<button type="button" data-support-quick-prompt="我想聯絡真人顧問，請先告訴我需要準備哪些資訊">聯絡顧問</button>' +
-        '</div>' +
+        supportChatIntakeCtaHtml() +
         '</div>'
       );
     }
 
     function supportChatSuggestedPromptsHtml(salesMeta, knowledgeMeta) {
-      if (!salesMeta || typeof salesMeta !== 'object') return '';
-      const picks = [];
-      const seen = new Set();
-      const push = (label, prompt) => {
-        const l = String(label || '').trim();
-        const p = String(prompt || '').trim();
-        if (!l || !p || seen.has(p) || picks.length >= 4) return;
-        seen.add(p);
-        picks.push({ label: l, prompt: p });
-      };
-
-      const purchaseDiscovery = !!(knowledgeMeta && knowledgeMeta.purchase_discovery_mode);
-      if (purchaseDiscovery) {
-        push('東京自住', '我想先看東京自住買房方向');
-        push('大阪收租', '我想了解大阪收租型買房方向');
-        push('先抓預算', '先幫我確認買房預算與貸款條件');
-        if (salesMeta.real_handoff_ready) {
-          push('安排看屋', '我準備買房，想安排看屋並接真人顧問');
-        }
-      }
-
-      const promptMap = {
-        browse_tokyo_cases: ['先看東京案件', '我想先看東京案件'],
-        buying_consult: ['先聊買房方向', '我想了解日本買房，先幫我整理方向'],
-        clarify_purchase_plan: ['顧問接待', '我想先讓顧問方式接待，慢慢整理需求'],
-        confirm_budget: ['先抓預算', '先幫我確認買房預算與貸款條件'],
-        ask_one_followup: ['補一個條件', '請先幫我補問一個最關鍵條件'],
-        confirm_one_requirement: ['補一個條件', '請先幫我確認一個最關鍵條件'],
-        narrow_region: ['縮小區域', '請先幫我縮小到區域或車站'],
-        risk_brief: ['先看風險', '我想先了解日本買房的稅費、風險與法規'],
-        handoff_human: ['真人接手', '我準備買房，想安排看屋並接真人顧問'],
-        lead_capture_after_requirements: ['整理需求', '等條件整理好後，再幫我轉真人顧問'],
-      };
-
-      const nextActions = Array.isArray(salesMeta.next_actions) ? salesMeta.next_actions : [];
-      nextActions.forEach((action) => {
-        const id = String((action && action.id) || '').trim();
-        const mapped = promptMap[id];
-        if (mapped) push(mapped[0], mapped[1]);
-      });
-
-      if (!picks.length && !purchaseDiscovery) {
-        push('查找案件', '我想先查日本不動產案件');
-        push('買房諮詢', '我想了解日本買房流程');
-        push('顧問接待', '我想先讓顧問方式接待，慢慢整理需求');
-      }
-      if (!picks.length) return '';
-      return (
-        '<div class="support-chat-suggestion-pills support-chat-suggestion-pills--inline" aria-label="客服推薦選項">' +
-        picks.map((item) => (
-          `<button type="button" data-support-quick-prompt="${esc(item.prompt)}">${esc(item.label)}</button>`
-        )).join('') +
-        '</div>'
-      );
+      void salesMeta;
+      void knowledgeMeta;
+      return '';
     }
 
     function ensureSupportChatWelcomeMessage() {
@@ -12657,7 +12184,12 @@
         __supportChatEnterAt: (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now(),
       };
       if (!Array.isArray(supportChatHistory) || !supportChatHistory.length) return;
-      const staleRe = /(排隊|工單|今天值班|顧問接待的方式|人工接待|值班顧問|真人顧問)/;
+      supportChatHistory = supportChatHistory.filter((row) => {
+        if (!row || row.role !== 'user') return true;
+        const text = String(row.content || '').trim();
+        return !/(我想填|想填|填寫|填写).{0,12}(客戶|客户|聯絡|联系|資料|资料|信息).{0,12}(表單|表单|開啟|开启)?/.test(text);
+      });
+      const staleRe = /(排隊|工單|今天值班|顧問接待的方式|人工接待|值班顧問|人工顧問|真人顧問)/;
       for (const row of supportChatHistory) {
         if (!row || !row.supportWelcome) continue;
         const blob = `${row.content || ''} ${row.contentHtml || ''} ${JSON.stringify(row.sales_mcp || {})}`;
@@ -12885,7 +12417,7 @@
           conversation: supportChatHandoffConversationPayload(),
         });
         const data = await parseApiResponseSafe(res);
-        const lineUrl = esc(String(data.line_qr_url || '/static/human-handoff/line.png'));
+        const lineUrl = esc(supportHumanLineQrUrl(data.line_qr_url));
         const wxUrl = esc(String(data.wechat_qr_url || '/static/human-handoff/wechat.png'));
         const tgOk = Boolean(data.telegram_sent);
         const tgErr = String(data.telegram_error || '').trim();
@@ -12903,11 +12435,12 @@
           role: 'assistant',
           content: '',
           contentHtml:
-            '<p>已收到您的資料。您可掃描 QR 加入專人（LINE／WeChat），也可以直接在這裡繼續對話；顧問回覆會顯示在此視窗。</p>' +
+            '<p>已收到您的資料。請掃描下方 LINE 二維碼加入專人客服，方便顧問後續與您確認需求；也可以直接在這裡繼續對話。</p>' +
             `<p class="muted">${notifyLine}</p>` +
             '<div class="support-human-qr-grid">' +
-            '<div class="support-human-qr-card"><div class="muted">LINE</div>' +
+            '<div class="support-human-qr-card support-human-qr-card--line"><div class="muted">LINE 專人客服</div>' +
             `<img src="${lineUrl}" width="200" height="200" alt="LINE QR" loading="lazy">` +
+            '<p class="muted support-human-qr-hint">掃描後可加入 LINE 好友／客服群。</p>' +
             '</div>' +
             '<div class="support-human-qr-card"><div class="muted">WeChat</div>' +
             `<img src="${wxUrl}" width="200" height="200" alt="WeChat QR" loading="lazy">` +
@@ -12931,10 +12464,18 @@
       });
     }
 
+    function supportHumanLineQrUrl(rawUrl) {
+      const raw = String(rawUrl || '/static/human-handoff/line.png').trim() || '/static/human-handoff/line.png';
+      if (raw.indexOf('/static/human-handoff/line.png') >= 0 && raw.indexOf('?') < 0) {
+        return `${raw}?v=002apkmh-green-20260707`;
+      }
+      return raw;
+    }
+
     function applySupportSalesAction(actionId) {
       const act = String(actionId || '');
       const labels = {
-        handoff_human: '轉真人顧問對接',
+        handoff_human: '轉人工顧問對接',
         confirm_budget: '確認預算與貸款條件',
         compare_cases: '進行候選案件比較',
         risk_brief: '輸出風險與法規說明',
@@ -12988,7 +12529,7 @@
         }
         supportChatHistory.push({
           role: 'assistant',
-          content: `${String(data.message || '已通知真人顧問團隊。')}${tgSuffix}${lineSuffix}`,
+          content: `${String(data.message || '已通知人工顧問團隊。')}${tgSuffix}${lineSuffix}`,
         });
         renderSupportChatMessages();
       } catch (err) {
@@ -13030,154 +12571,49 @@
         '<div class="support-human-intake-heading"><strong>日本不動產購買諮詢申請表</strong><span class="muted">請先完整填寫必填問卷與至少一項聯絡方式；確認送出後才會通知顧問，人工才會依資料回覆。</span></div>' +
         '<p class="muted support-human-intake-help">送出前會先整理需求；送出後會顯示 LINE／WeChat 專人 QR，並同步後台與 Telegram。</p>' +
         casesHtml +
-        `<details class="support-human-section" open>` +
-        `<summary>一、基本資料（必填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<div class="support-human-intake-grid">` +
-        `<label class="muted">姓名<input id="support-human-name-${seq}" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名"></label>` +
-        `<label class="muted">聯絡電話<input id="support-human-phone-${seq}" type="tel" maxlength="80" autocomplete="tel" placeholder="例：0900..."></label>` +
-        `</div>` +
-        `<label class="muted support-human-field">LINE / 微信<input id="support-human-linewx-${seq}" type="text" maxlength="160" placeholder="例：LINE ID / WeChat ID"></label>` +
-        `<label class="muted support-human-field">Email<input id="support-human-email-${seq}" type="email" maxlength="160" autocomplete="email" placeholder="例：name@example.com"></label>` +
-        `<label class="muted support-human-field">目前所在地` +
-        `<select id="support-human-location-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="台灣">台灣</option>` +
-        `<option value="香港">香港</option>` +
-        `<option value="新加坡">新加坡</option>` +
-        `<option value="中國">中國</option>` +
-        `<option value="其他">其他</option>` +
+        `<section class="support-human-section support-human-section--static">` +
+        `<h3>一、基本資料（必填）</h3>` +
+        `<div class="support-human-section-body support-human-section-body--grid">` +
+        `<label class="muted support-human-field">姓名<input id="support-human-name-${seq}" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名（必填）"></label>` +
+        `<div class="support-human-phone-row">` +
+        `<label class="muted support-human-field">電話所在地` +
+        `<select id="support-human-phone-region-${seq}" autocomplete="tel-country-code">` +
+        `<option value="">請選擇電話所在地（有填電話時必選）</option>` +
+        `<option value="+886" data-region="台灣">台灣 +886</option>` +
+        `<option value="+852" data-region="香港">香港 +852</option>` +
+        `<option value="+853" data-region="澳門">澳門 +853</option>` +
+        `<option value="+86" data-region="中國">中國 +86</option>` +
+        `<option value="+81" data-region="日本">日本 +81</option>` +
+        `<option value="+65" data-region="新加坡">新加坡 +65</option>` +
+        `<option value="+60" data-region="馬來西亞">馬來西亞 +60</option>` +
+        `<option value="+1" data-region="美國/加拿大">美國/加拿大 +1</option>` +
+        `<option value="other" data-region="其他">其他國家/地區</option>` +
         `</select></label>` +
-        `<label class="muted support-human-field">其他所在地（若選其他請填）<input id="support-human-location-other-${seq}" type="text" maxlength="120" placeholder="例：馬來西亞"></label>` +
-        `</div></details>` +
-        `<details class="support-human-section" open>` +
-        `<summary>二、購買目的（必填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<label class="muted support-human-field">主要目的` +
+        `<label class="muted support-human-field">聯絡電話<input id="support-human-phone-${seq}" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" placeholder="請填寫具體電話（選填，聯絡方式至少一項）"></label>` +
+        `</div>` +
+        `<label class="muted support-human-field">LINE ID<input id="support-human-line-${seq}" type="text" maxlength="120" placeholder="例：line_id（選填，聯絡方式至少一項）"></label>` +
+        `<label class="muted support-human-field">微信 ID<input id="support-human-wechat-${seq}" type="text" maxlength="120" placeholder="例：wechat_id（選填，聯絡方式至少一項）"></label>` +
+        `<label class="muted support-human-field">Email<input id="support-human-email-${seq}" type="email" maxlength="160" autocomplete="email" placeholder="name@example.com（選填，聯絡方式至少一項）"></label>` +
+        `</div></section>` +
+        `<section class="support-human-section support-human-section--static">` +
+        `<h3>二、需求（必填）</h3>` +
+        `<div class="support-human-section-body support-human-section-body--grid">` +
+        `<label class="muted support-human-field">購買目的` +
         `<select id="support-human-purpose-${seq}">` +
-        `<option value="">請選擇</option>` +
+        `<option value="">請選擇購買目的（必填）</option>` +
         `<option value="投資收租">投資收租</option>` +
         `<option value="自住 / 度假">自住 / 度假</option>` +
         `<option value="未來移居">未來移居</option>` +
         `<option value="資產配置">資產配置</option>` +
         `<option value="其他">其他</option>` +
         `</select></label>` +
-        `<label class="muted support-human-field">其他目的（若選其他請填）<input id="support-human-purpose-other-${seq}" type="text" maxlength="160"></label>` +
-        `</div></details>` +
-        `<details class="support-human-section" open>` +
-        `<summary>三、預算與資金（必填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<label class="muted support-human-field">預計總預算（日幣）` +
-        `<select id="support-human-budget-total-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="1000萬以下">1000萬以下</option>` +
-        `<option value="1000萬～3000萬">1000萬～3000萬</option>` +
-        `<option value="3000萬～6000萬">3000萬～6000萬</option>` +
-        `<option value="6000萬以上">6000萬以上</option>` +
-        `</select></label>` +
-        `<label class="muted support-human-field">可準備自備款（日幣）` +
-        `<select id="support-human-down-payment-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="300萬以下">300萬以下</option>` +
-        `<option value="300萬～800萬">300萬～800萬</option>` +
-        `<option value="800萬～1500萬">800萬～1500萬</option>` +
-        `<option value="1500萬以上">1500萬以上</option>` +
-        `</select></label>` +
-        `<label class="muted support-human-field">是否需要貸款` +
-        `<select id="support-human-loan-need-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="需要">需要</option>` +
-        `<option value="不需要">不需要</option>` +
-        `<option value="不確定（需評估）">不確定（需評估）</option>` +
-        `</select></label>` +
-        `<label class="muted support-human-field">收入來源` +
-        `<select id="support-human-income-source-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="上班族">上班族</option>` +
-        `<option value="自營 / 公司">自營 / 公司</option>` +
-        `<option value="投資收入">投資收入</option>` +
-        `<option value="其他">其他</option>` +
-        `</select></label>` +
-        `<label class="muted support-human-field">其他收入來源（若選其他請填）<input id="support-human-income-source-other-${seq}" type="text" maxlength="160"></label>` +
-        `<label class="muted support-human-field">年收入區間（選填）` +
-        `<select id="support-human-annual-income-${seq}">` +
-        `<option value="">不填寫</option>` +
-        `<option value="100萬台幣以下">100萬台幣以下</option>` +
-        `<option value="100萬～300萬">100萬～300萬</option>` +
-        `<option value="300萬以上">300萬以上</option>` +
-        `</select></label>` +
-        `</div></details>` +
-        `<details class="support-human-section" open>` +
-        `<summary>四、物件需求（必填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<label class="muted support-human-field">想投資地區` +
-        `<select id="support-human-target-region-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="東京">東京</option>` +
-        `<option value="大阪">大阪</option>` +
-        `<option value="福岡">福岡</option>` +
-        `<option value="其他">其他</option>` +
-        `</select></label>` +
-        `<label class="muted support-human-field">其他地區（若選其他請填）<input id="support-human-target-region-other-${seq}" type="text" maxlength="160"></label>` +
-        `<label class="muted support-human-field">物件類型` +
-        `<select id="support-human-property-type-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="套房（收租）">套房（收租）</option>` +
-        `<option value="一戶建">一戶建</option>` +
-        `<option value="商用不動產">商用不動產</option>` +
-        `<option value="尚未確定">尚未確定</option>` +
-        `</select></label>` +
-        `</div></details>` +
-        `<details class="support-human-section" open>` +
-        `<summary>五、購買時間（必填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<label class="muted support-human-field">購買時間` +
-        `<select id="support-human-purchase-time-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="1個月內">1個月內</option>` +
-        `<option value="3個月內">3個月內</option>` +
-        `<option value="半年內">半年內</option>` +
-        `<option value="先了解">先了解</option>` +
-        `</select></label>` +
-        `</div></details>` +
-        `<details class="support-human-section" open>` +
-        `<summary>六、看房意願（必填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<label class="muted support-human-field">看房意願` +
-        `<select id="support-human-viewing-intent-${seq}">` +
-        `<option value="">請選擇</option>` +
-        `<option value="可安排近期前往日本看房">可安排近期前往日本看房</option>` +
-        `<option value="先做貸款評估">先做貸款評估</option>` +
-        `<option value="暫不考慮">暫不考慮</option>` +
-        `</select></label>` +
-        `</div></details>` +
-        `<details class="support-human-section">` +
-        `<summary>七、其他需求或問題（選填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<label class="muted support-human-field"><textarea id="support-human-other-needs-${seq}" rows="4" maxlength="2000" placeholder="請輸入其他需求或問題…"></textarea></label>` +
-        `</div></details>` +
-        `<details class="support-human-section" open>` +
-        `<summary>八、聲明（必勾選）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<p class="muted" style="margin:0;line-height:1.45;">本人了解本次諮詢為不動產相關資訊與顧問服務，實際不動產買賣將由日本當地合法仲介公司辦理。<br>本服務不保證投資收益或貸款核准結果。</p>` +
-        `<label class="muted support-human-consent-label"><input id="support-human-consent-${seq}" type="checkbox"> 我已閱讀並同意</label>` +
-        `</div></details>` +
-        `<details class="support-human-section">` +
-        `<summary>十、進階（選填）</summary>` +
-        `<div class="support-human-section-body">` +
-        `<label class="muted support-human-field">是否希望先了解「可貸款金額評估」？` +
-        `<select id="support-human-loan-eval-${seq}">` +
-        `<option value="">不選擇</option>` +
-        `<option value="是">是</option>` +
-        `<option value="否">否</option>` +
-        `</select></label>` +
-        `</div></details>` +
+        `<label class="muted support-human-field">其他目的<input id="support-human-purpose-other-${seq}" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>` +
+        `<input id="support-human-consent-${seq}" type="hidden" value="1">` +
+        `</div></section>` +
         `<div id="support-human-preview-${seq}" class="support-human-preview" style="display:none;" aria-live="polite"></div>` +
         '<div class="support-human-intake-submit-row support-human-intake-actions">' +
-        '<button type="button" class="secondary support-human-intake-preview-btn" data-support-human-preview="1">預覽送出內容</button>' +
         '<button type="button" class="secondary support-human-intake-submit-btn" data-support-human-submit="1">確認送出</button>' +
         '</div>' +
-        '<p class="muted support-human-intake-microcopy">流程提醒：未完成問卷與聯絡資料前，不會進入人工回覆；送出後我們會先做初步評估，再由專業顧問與您聯繫。</p>' +
         '</div>'
       );
     }
@@ -13202,6 +12638,36 @@
       return pickLines;
     }
 
+    function normalizeSupportHumanPhone(phoneRegion, phoneLocal) {
+      const region = String(phoneRegion || '').trim();
+      const localRaw = String(phoneLocal || '').trim();
+      const local = localRaw.replace(/[^\d+]/g, '');
+      if (!localRaw) return { ok: true, full: '', local: '', region, message: '' };
+      if (!region) return { ok: false, full: '', local: localRaw, region, message: '請先選擇電話所在地。' };
+      if (region === 'other') {
+        const e164 = local.startsWith('+') ? local : '';
+        if (!/^\+\d{7,15}$/.test(e164)) return { ok: false, full: '', local: localRaw, region, message: '其他國家/地區請用國際格式，例如 +1 5551234567。' };
+        return { ok: true, full: e164, local: e164, region, message: '' };
+      }
+      const digits = local.replace(/^\+/, '').replace(/^0+/, '');
+      const rules = {
+        '+886': { min: 8, max: 9, label: '台灣' },
+        '+852': { min: 8, max: 8, label: '香港' },
+        '+853': { min: 8, max: 8, label: '澳門' },
+        '+86': { min: 10, max: 11, label: '中國' },
+        '+81': { min: 9, max: 10, label: '日本' },
+        '+65': { min: 8, max: 8, label: '新加坡' },
+        '+60': { min: 8, max: 10, label: '馬來西亞' },
+        '+1': { min: 10, max: 10, label: '美國/加拿大' },
+      };
+      const rule = rules[region] || { min: 6, max: 15, label: '所選地區' };
+      if (!/^\d+$/.test(digits) || digits.length < rule.min || digits.length > rule.max) {
+        const range = rule.min === rule.max ? `${rule.min} 位數字` : `${rule.min}-${rule.max} 位數字`;
+        return { ok: false, full: '', local: localRaw, region, message: `${rule.label}電話格式不符合，請填寫${range}。` };
+      }
+      return { ok: true, full: `${region} ${digits}`, local: digits, region, message: '' };
+    }
+
     function buildSupportHumanIntakePayloadFromForm(seq) {
       const n = Number(seq || 0);
       if (!Number.isFinite(n) || n <= 0) {
@@ -13217,68 +12683,47 @@
       };
       const b = (key) => {
         const el = document.getElementById(`support-human-${key}-${n}`);
+        if (el && el.type === 'hidden') return ['1', 'true', 'yes'].includes(String(el.value || '').trim().toLowerCase());
         return Boolean(el && el.checked);
       };
 
       const name = v('name', 120);
-      const phone = v('phone', 80);
+      const phoneRegion = v('phone-region', 20);
+      const phoneLocal = v('phone', 40);
+      const phoneNormalized = normalizeSupportHumanPhone(phoneRegion, phoneLocal);
+      const phone = phoneNormalized.full;
       const email = v('email', 160);
-      const linewx = v('linewx', 160);
-      const location = v('location', 40);
-      const location_other = v('location-other', 120);
+      const line = v('line', 120);
+      const wechat = v('wechat', 120);
       const purpose = v('purpose', 80);
       const purpose_other = v('purpose-other', 160);
-      const budget_total_yen = v('budget-total', 40);
-      const down_payment_yen = v('down-payment', 40);
-      const loan_need = v('loan-need', 40);
-      const income_source = v('income-source', 40);
-      const income_source_other = v('income-source-other', 160);
-      const annual_income_twd = v('annual-income', 40);
-      const target_region = v('target-region', 40);
-      const target_region_other = v('target-region-other', 160);
-      const property_type = v('property-type', 40);
-      const purchase_time = v('purchase-time', 40);
-      const viewing_intent = v('viewing-intent', 80);
       const other_questions = v('other-needs', 2000);
-      const loan_eval_interest = v('loan-eval', 20);
       const consent_agreed = b('consent');
 
       const pickLines = supportHumanIntakePickLinesFromFormRoot(formRoot);
       const interest_pick_summary = pickLines.join('\n').slice(0, 4000);
       const budget_text = [
-        budget_total_yen ? `總預算：${budget_total_yen}` : '',
-        down_payment_yen ? `自備款：${down_payment_yen}` : '',
-        loan_need ? `貸款：${loan_need}` : '',
-        target_region ? `地區：${target_region}${target_region === '其他' && target_region_other ? '（' + target_region_other + '）' : ''}` : '',
-        purchase_time ? `時間：${purchase_time}` : '',
+        purpose ? `購買目的：${purpose}${purpose === '其他' && purpose_other ? '（' + purpose_other + '）' : ''}` : '',
       ]
         .filter(Boolean)
         .join('；')
         .slice(0, 500);
 
       const questionnaire = {
-        form_version: 'jp_property_buy_intake_v1',
+        form_version: 'jp_property_buy_intake_v2',
         name,
         contact_phone: phone,
+        contact_phone_region_code: phoneRegion,
+        contact_phone_local: phoneLocal,
+        contact_phone_valid: phoneNormalized.ok,
+        contact_phone_error: phoneNormalized.message,
         contact_email: email,
-        contact_line_wechat: linewx,
-        current_location: location,
-        current_location_other: location_other,
+        contact_line: line,
+        contact_wechat: wechat,
+        contact_line_wechat: [line ? `LINE：${line}` : '', wechat ? `微信：${wechat}` : ''].filter(Boolean).join('；'),
         purchase_purpose: purpose,
         purchase_purpose_other: purpose_other,
-        budget_total_yen,
-        down_payment_yen,
-        loan_need,
-        income_source,
-        income_source_other,
-        annual_income_twd,
-        target_region,
-        target_region_other,
-        property_type,
-        purchase_time,
-        viewing_intent,
         other_questions,
-        loan_eval_interest,
         consent_agreed,
         interest_pick_summary,
       };
@@ -13299,27 +12744,60 @@
       return { ok: true, message: '', payload, previewReady };
     }
 
-    function validateSupportHumanIntakePayload(payload) {
-      if (!payload) return '資料異常，請重新開啟表單後再試一次。';
+    function clearSupportHumanIntakeValidation(seq) {
+      const formRoot = document.querySelector(`[data-support-human-form="${Number(seq || 0)}"]`);
+      if (!formRoot) return;
+      formRoot.querySelectorAll('.support-human-field--invalid, .support-human-phone-row--invalid').forEach((el) => {
+        el.classList.remove('support-human-field--invalid', 'support-human-phone-row--invalid');
+      });
+      formRoot.querySelectorAll('.support-human-field-error').forEach((el) => el.remove());
+    }
+
+    function markSupportHumanIntakeError(seq, keys, message) {
+      const n = Number(seq || 0);
+      const ids = Array.isArray(keys) ? keys : [keys];
+      let first = null;
+      let anchor = null;
+      ids.forEach((key) => {
+        const el = document.getElementById(`support-human-${key}-${n}`);
+        if (!el) return;
+        if (!first) first = el;
+        const field = el.closest('.support-human-field');
+        if (field) {
+          field.classList.add('support-human-field--invalid');
+          anchor = field;
+        }
+        const phoneRow = el.closest('.support-human-phone-row');
+        if (phoneRow) {
+          phoneRow.classList.add('support-human-phone-row--invalid');
+          anchor = phoneRow;
+        }
+      });
+      if (anchor) {
+        const err = document.createElement('div');
+        err.className = 'support-human-field-error';
+        err.textContent = message;
+        anchor.appendChild(err);
+      }
+      if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+      if (first) scrollSupportControlIntoView(first, 120);
+    }
+
+    function validateSupportHumanIntakePayload(payload, seq) {
+      clearSupportHumanIntakeValidation(seq);
+      const fail = (keys, message) => {
+        markSupportHumanIntakeError(seq, keys, message);
+        return message;
+      };
+      if (!payload) return fail([], '資料異常，請重新開啟表單後再試一次。');
       const q = payload.questionnaire || {};
-      if (!String(payload.name || '').trim()) return '請填寫姓名。';
-      if (!String(payload.phone || '').trim() && !String(payload.email || '').trim() && !String(q.contact_line_wechat || '').trim())
-        return '請至少填寫「聯絡電話、LINE/微信、Email」其中一項。';
-      if (!String(q.current_location || '').trim()) return '請選擇目前所在地。';
-      if (q.current_location === '其他' && !String(q.current_location_other || '').trim()) return '請填寫其他所在地。';
-      if (!String(q.purchase_purpose || '').trim()) return '請選擇購買目的。';
-      if (q.purchase_purpose === '其他' && !String(q.purchase_purpose_other || '').trim()) return '請填寫其他購買目的。';
-      if (!String(q.budget_total_yen || '').trim()) return '請選擇預計總預算（日幣）。';
-      if (!String(q.down_payment_yen || '').trim()) return '請選擇可準備自備款（日幣）。';
-      if (!String(q.loan_need || '').trim()) return '請選擇是否需要貸款。';
-      if (!String(q.income_source || '').trim()) return '請選擇收入來源。';
-      if (q.income_source === '其他' && !String(q.income_source_other || '').trim()) return '請填寫其他收入來源。';
-      if (!String(q.target_region || '').trim()) return '請選擇想投資地區。';
-      if (q.target_region === '其他' && !String(q.target_region_other || '').trim()) return '請填寫其他投資地區。';
-      if (!String(q.property_type || '').trim()) return '請選擇物件類型。';
-      if (!String(q.purchase_time || '').trim()) return '請選擇購買時間。';
-      if (!String(q.viewing_intent || '').trim()) return '請選擇看房意願。';
-      if (!q.consent_agreed) return '請勾選「我已閱讀並同意」後才能送出。';
+      if (!String(payload.name || '').trim()) return fail('name', '請填寫姓名。');
+      if (String(q.contact_phone_local || '').trim() && !q.contact_phone_valid) return fail(['phone-region', 'phone'], String(q.contact_phone_error || '聯絡電話格式不符合，請重新確認。'));
+      if (!String(payload.phone || '').trim() && !String(payload.email || '').trim() && !String(q.contact_line || '').trim() && !String(q.contact_wechat || '').trim())
+        return fail(['phone', 'line', 'wechat', 'email'], '請至少填寫「聯絡電話、LINE、微信、Email」其中一項，方便顧問聯絡。');
+      if (!String(q.purchase_purpose || '').trim()) return fail('purpose', '請選擇購買目的。');
+      if (q.purchase_purpose === '其他' && !String(q.purchase_purpose_other || '').trim()) return fail('purpose-other', '請填寫其他購買目的。');
+      if (!q.consent_agreed) return fail([], '請確認表單聲明後才能送出。');
       return '';
     }
 
@@ -13336,20 +12814,10 @@
       html += '<div class="support-human-preview-grid">';
       html += `<div><strong>姓名</strong>：${esc(payload.name || '-')}</div>`;
       html += `<div><strong>電話</strong>：${esc(payload.phone || '-')}</div>`;
-      html += `<div><strong>LINE/微信</strong>：${esc(q.contact_line_wechat || '-')}</div>`;
+      html += `<div><strong>LINE</strong>：${esc(q.contact_line || '-')}</div>`;
+      html += `<div><strong>微信</strong>：${esc(q.contact_wechat || '-')}</div>`;
       html += `<div><strong>Email</strong>：${esc(payload.email || '-')}</div>`;
-      html += `<div><strong>所在地</strong>：${esc(q.current_location || '-')}${q.current_location === '其他' && q.current_location_other ? '（' + esc(q.current_location_other) + '）' : ''}</div>`;
       html += `<div><strong>購買目的</strong>：${esc(q.purchase_purpose || '-')}${q.purchase_purpose === '其他' && q.purchase_purpose_other ? '（' + esc(q.purchase_purpose_other) + '）' : ''}</div>`;
-      html += `<div><strong>總預算</strong>：${esc(q.budget_total_yen || '-')}</div>`;
-      html += `<div><strong>自備款</strong>：${esc(q.down_payment_yen || '-')}</div>`;
-      html += `<div><strong>貸款</strong>：${esc(q.loan_need || '-')}</div>`;
-      html += `<div><strong>收入來源</strong>：${esc(q.income_source || '-')}${q.income_source === '其他' && q.income_source_other ? '（' + esc(q.income_source_other) + '）' : ''}</div>`;
-      if (q.annual_income_twd) html += `<div><strong>年收入</strong>：${esc(q.annual_income_twd)}</div>`;
-      html += `<div><strong>投資地區</strong>：${esc(q.target_region || '-')}${q.target_region === '其他' && q.target_region_other ? '（' + esc(q.target_region_other) + '）' : ''}</div>`;
-      html += `<div><strong>物件類型</strong>：${esc(q.property_type || '-')}</div>`;
-      html += `<div><strong>購買時間</strong>：${esc(q.purchase_time || '-')}</div>`;
-      html += `<div><strong>看房意願</strong>：${esc(q.viewing_intent || '-')}</div>`;
-      if (q.loan_eval_interest) html += `<div><strong>貸款金額評估</strong>：${esc(q.loan_eval_interest)}</div>`;
       html += '</div>';
       if (cases.length) {
         html += '<div style="margin-top:0.45rem;"><strong>有興趣案件</strong>：</div><ul class="support-human-preview-cases">';
@@ -13370,7 +12838,7 @@
         window.alert(built.message || '找不到留單表單，請重新開啟後再試一次。');
         return;
       }
-      const err = validateSupportHumanIntakePayload(built.payload);
+      const err = validateSupportHumanIntakePayload(built.payload, seq);
       if (err) {
         window.alert(err);
         return;
@@ -13396,21 +12864,16 @@
           supportHumanIntakeSubmitBusy = false;
           return;
         }
-        const err = validateSupportHumanIntakePayload(built.payload);
+        const err = validateSupportHumanIntakePayload(built.payload, seq);
         if (err) {
           window.alert(err);
-          supportHumanIntakeSubmitBusy = false;
-          return;
-        }
-        if (!built.previewReady) {
-          window.alert('請先按「預覽送出內容」確認後再送出。');
           supportHumanIntakeSubmitBusy = false;
           return;
         }
         const res = await postSupportHumanIntake(built.payload);
         const data = await parseApiResponseSafe(res);
         supportHumanHandoffStep = null;
-        const lineUrl = esc(String(data.line_qr_url || '/static/human-handoff/line.png'));
+        const lineUrl = esc(supportHumanLineQrUrl(data.line_qr_url));
         const wxUrl = esc(String(data.wechat_qr_url || '/static/human-handoff/wechat.png'));
         const tgOk = Boolean(data.telegram_sent);
         const tgErr = String(data.telegram_error || '').trim();
@@ -13428,11 +12891,12 @@
           role: 'assistant',
           content: '',
           contentHtml:
-            '<p>已收到完整問卷與聯絡方式，系統已通知人工顧問。您可掃描 QR 加入專人客服（LINE／WeChat），也可以直接在這裡繼續對話；顧問回覆會顯示在此視窗。</p>' +
+            '<p>已收到完整問卷與聯絡方式，系統已通知人工顧問。請掃描下方 LINE 二維碼加入專人客服，方便顧問後續與您確認需求。</p>' +
             `<p class="muted">${notifyLine}</p>` +
             '<div class="support-human-qr-grid">' +
-            '<div class="support-human-qr-card"><div class="muted">LINE</div>' +
+            '<div class="support-human-qr-card support-human-qr-card--line"><div class="muted">LINE 專人客服</div>' +
             `<img src="${lineUrl}" width="200" height="200" alt="LINE QR" loading="lazy">` +
+            '<p class="muted support-human-qr-hint">掃描後可加入 LINE 好友／客服群。</p>' +
             '</div>' +
             '<div class="support-human-qr-card"><div class="muted">WeChat</div>' +
             `<img src="${wxUrl}" width="200" height="200" alt="WeChat QR" loading="lazy">` +
@@ -13517,10 +12981,11 @@
             ? sanitizeSupportChatPublicCopy(row.contentHtml)
             : formatSupportChatRichText(sanitizeSupportChatPublicCopy(row.content || ''));
           const bubbleExtra = '';
+          const intakeCtaBlock = row.contentHtml || isStaffReply ? '' : supportChatIntakeCtaHtml();
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}</div></div>`;
-          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${suggestionBlock}${salesBlock}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
       wrap.innerHTML = html || '<p class="muted">尚無對話。</p>';
@@ -13559,7 +13024,13 @@
       const isHumanHandoffMsg = isSupportHumanHandoffMessage(msg);
       const geminiModel = (document.getElementById('seo-draft-gemini-model')?.value || '').trim();
       const ph = String(document.getElementById('seo-draft-gemini-model')?.placeholder || '').trim();
-      const pvo = seoLlmProviderPayload().llm_provider;
+      let llmProviderPayload = {};
+      try {
+        llmProviderPayload = typeof seoLlmProviderPayload === 'function' ? (seoLlmProviderPayload() || {}) : {};
+      } catch (_) {
+        llmProviderPayload = {};
+      }
+      const pvo = String(llmProviderPayload.llm_provider || '').trim();
       const provHint = pvo || (__llmStatusCache && __llmStatusCache.active_provider) || '預設';
       const thinkingLabel = isHumanHandoffMsg || /買房|买房|看屋|看房/.test(msg)
         ? '正在安排值班顧問整理需求…'
@@ -13574,8 +13045,22 @@
         .map((r) => ({ role: r.role, content: r.content }));
       let restoreInputDraft = false;
       let apiMessage = msg;
-      const selectedCasesForThisSend = supportSelectedCases.slice(0, 20);
-      if (selectedCasesForThisSend.length) {
+      const suppressSelectedCasesForThisSend = !!window.__sclawSupportSuppressSelectedCasesOnce;
+      if (suppressSelectedCasesForThisSend) window.__sclawSupportSuppressSelectedCasesOnce = false;
+      let inlineCaseContextForThisSend = null;
+      try {
+        if (window.__sclawSupportCaseContextOnce && typeof window.__sclawSupportCaseContextOnce === 'object') {
+          inlineCaseContextForThisSend = normalizeSupportSelectedCase(window.__sclawSupportCaseContextOnce);
+          window.__sclawSupportCaseContextOnce = null;
+        }
+      } catch (_) {
+        window.__sclawSupportCaseContextOnce = null;
+      }
+      const selectedCasesForThisSend = inlineCaseContextForThisSend
+        ? [inlineCaseContextForThisSend]
+        : (suppressSelectedCasesForThisSend ? [] : supportSelectedCases.slice(0, 20));
+      const appendSelectedCasePrefix = selectedCasesForThisSend.length && !inlineCaseContextForThisSend;
+      if (appendSelectedCasePrefix) {
         const lines = selectedCasesForThisSend.map((c) => {
           const sid = Number(c.source_item_id || 0);
           const t = String(c.title || '').trim().slice(0, 120);
@@ -13607,7 +13092,7 @@
             dialog_keyword: dlgKw,
             persona_region,
             gemini_model: geminiModel,
-            ...seoLlmProviderPayload(),
+            ...llmProviderPayload,
             knowledge_days: 72,
             knowledge_merged_max: 26,
             knowledge_zh_variant: getDialogKnowledgeZhVariant(),
@@ -13645,7 +13130,7 @@
             });
             renderSupportChatMessages();
             await waitSupportChatServiceQueue(
-              String(data.sales_mcp?.simulated_service?.mode || '') === 'handoff_ready' ? 520 : 420
+              Math.max(1000, Number(data.sales_mcp?.simulated_service?.wait_seconds || 0) * 1000)
             );
           }
           const reply = data.reply || data.detail || '（無回覆）';
@@ -13665,15 +13150,14 @@
             supportHumanHandoffStep = 'form';
             appendedHumanForm = true;
             openSupportHumanIntakeFromSalesMcp({ silent: true });
-            supportChatHistory.push({
-              role: 'assistant',
-              content: '',
-              contentHtml: supportHumanIntakeLauncherHtml('已切換為真人顧問留單流程', '請在獨立視窗完成問卷與聯絡方式；確認送出後才會通知人工顧問回覆。'),
-            });
+            upsertSupportHumanIntakeLauncher(
+              '已切換為人工顧問留單流程',
+              '請在獨立視窗完成問卷與聯絡方式；確認送出後才會通知人工顧問回覆。'
+            );
           }
           saveSupportKbHistoryFromResponse(data.knowledge);
           renderSupportKbHistoryList();
-          if (selectedCasesForThisSend.length) {
+          if (selectedCasesForThisSend.length && !inlineCaseContextForThisSend) {
             await clearSupportSelectedCasesAfterSend(selectedCasesForThisSend.length);
           } else {
             await persistSupportSelectedCasesRemote();
@@ -13813,7 +13297,7 @@
       const previousPassword = adminPanelPassword;
       adminPanelPassword = raw;
       try {
-        const res = await fetch('/api/admin/auth-check', {
+        const res = await adminFetchApi('/api/admin/auth-check', {
           method: 'GET',
           headers: adminApiHeaders(false),
         });
@@ -13851,7 +13335,7 @@
         1,
         Number(maxValue || 0),
         ...arr.map((it) => Number(it.guest_visitors || 0)),
-        ...arr.map((it) => Number(it.phone_visitors || 0))
+        ...arr.map((it) => Number(it.form_visitors || it.phone_visitors || 0))
       );
       const makePoints = (key) => arr.map((it, index) => {
         const value = Number(it[key] || 0);
@@ -13860,16 +13344,16 @@
         return { x, y, value, label: String(it.label || it.date || '') };
       });
       const guestPoints = makePoints('guest_visitors');
-      const phonePoints = makePoints('phone_visitors');
+      const formPoints = makePoints('form_visitors');
       const line = (points) => points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
       const circles = (points, cls) => points.map((p) => `<circle class="${cls}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5"><title>${esc(p.label)}：${adminVisitorNumber(p.value)}</title></circle>`).join('');
       return `<div class="admin-visitor-line-chart">
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="普通游客與號碼登入游客曲線圖" preserveAspectRatio="none">
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="普通游客與填单游客曲線圖" preserveAspectRatio="none">
           <line x1="${padX}" y1="${height - padY}" x2="${width - padX}" y2="${height - padY}" />
           <polyline class="is-guest" points="${line(guestPoints)}" />
-          <polyline class="is-phone" points="${line(phonePoints)}" />
+          <polyline class="is-phone" points="${line(formPoints)}" />
           ${circles(guestPoints, 'is-guest')}
-          ${circles(phonePoints, 'is-phone')}
+          ${circles(formPoints, 'is-phone')}
         </svg>
         <div class="admin-visitor-line-labels">${guestPoints.map((p) => `<span>${esc(p.label).replace('~', '<br>')}</span>`).join('')}</div>
       </div>`;
@@ -13877,22 +13361,22 @@
 
     function adminVisitorRenderPieChart(totals) {
       const guest = Math.max(0, Number(totals && totals.guest_visitors || 0));
-      const phone = Math.max(0, Number(totals && totals.phone_login_visitors || 0));
-      const total = guest + phone;
+      const form = Math.max(0, Number(totals && (totals.form_filled_visitors || totals.phone_login_visitors) || 0));
+      const total = guest + form;
       const guestPct = total > 0 ? (guest / total) * 100 : 0;
-      const phonePct = total > 0 ? 100 - guestPct : 0;
+      const formPct = total > 0 ? 100 - guestPct : 0;
       const guestText = total > 0 ? adminVisitorPercent(guestPct) : '0%';
-      const phoneText = total > 0 ? adminVisitorPercent(phonePct) : '0%';
+      const formText = total > 0 ? adminVisitorPercent(formPct) : '0%';
       const pieStyle = total > 0
         ? `background: conic-gradient(#2563eb 0 ${guestPct.toFixed(2)}%, #f59e0b ${guestPct.toFixed(2)}% 100%);`
         : 'background: #edf3f8;';
       return `<div class="admin-visitor-pie-wrap">
-        <div class="admin-visitor-pie" style="${pieStyle}" role="img" aria-label="普通游客 ${guestText}，号码登录游客 ${phoneText}">
+        <div class="admin-visitor-pie" style="${pieStyle}" role="img" aria-label="普通游客 ${guestText}，填单游客 ${formText}">
           <span><strong>${adminVisitorNumber(total)}</strong><small>区间访客</small></span>
         </div>
         <div class="admin-visitor-pie-stats">
           <div><i class="is-guest"></i><span>普通游客</span><strong>${adminVisitorNumber(guest)}</strong><em>${guestText}</em></div>
-          <div><i class="is-phone"></i><span>号码登录</span><strong>${adminVisitorNumber(phone)}</strong><em>${phoneText}</em></div>
+          <div><i class="is-phone"></i><span>填单游客</span><strong>${adminVisitorNumber(form)}</strong><em>${formText}</em></div>
         </div>
       </div>`;
     }
@@ -13928,7 +13412,7 @@
     }
 
     function adminVisitorKindLabel(kind) {
-      return String(kind || '') === 'phone_login' ? '号码登录' : '普通游客';
+      return ['form_filled', 'phone_login'].includes(String(kind || '')) ? '填单游客' : '普通游客';
     }
 
     function adminVisitorDeviceLabel(device) {
@@ -13950,7 +13434,7 @@
       const maxDaily = Math.max(
         1,
         ...buckets.map((it) => Number(it.guest_visitors || 0)),
-        ...buckets.map((it) => Number(it.phone_visitors || 0))
+        ...buckets.map((it) => Number(it.form_visitors || it.phone_visitors || 0))
       );
       const delta = Number(totals.unique_delta_vs_yesterday || 0);
       const deltaClass = delta >= 0 ? 'is-up' : 'is-down';
@@ -13959,42 +13443,42 @@
         const unique = Number(it.unique_visitors || 0);
         const entries = Number(it.entries || it.pageviews || 0);
         const guest = Number(it.guest_visitors || 0);
-        const phone = Number(it.phone_visitors || 0);
+        const form = Number(it.form_visitors || it.phone_visitors || 0);
         const guestH = guest > 0 ? Math.max(6, Math.round((guest / maxDaily) * 100)) : 0;
-        const phoneH = phone > 0 ? Math.max(6, Math.round((phone / maxDaily) * 100)) : 0;
+        const formH = form > 0 ? Math.max(6, Math.round((form / maxDaily) * 100)) : 0;
         const label = String(it.label || it.date || '').replace(/-/g, '/');
         const labelHtml = esc(label).replace('~', '<br>');
-        return `<span class="admin-visitor-daybar" title="${esc(label)}：普通 ${adminVisitorNumber(guest)} / 號碼登入 ${adminVisitorNumber(phone)} / 合計 ${adminVisitorNumber(unique)}">
+        return `<span class="admin-visitor-daybar" title="${esc(label)}：普通 ${adminVisitorNumber(guest)} / 填单 ${adminVisitorNumber(form)} / 合计 ${adminVisitorNumber(unique)}">
           <span class="admin-visitor-bar-pair">
             <i class="admin-visitor-bar-guest" style="height:${guestH}%"><b>${adminVisitorNumber(guest)}</b></i>
-            <i class="admin-visitor-bar-phone" style="height:${phoneH}%"><b>${adminVisitorNumber(phone)}</b></i>
+            <i class="admin-visitor-bar-phone" style="height:${formH}%"><b>${adminVisitorNumber(form)}</b></i>
           </span>
           <small>${labelHtml}</small>
         </span>`;
       }).join('');
       root.innerHTML = `
-        <div class="admin-visitor-range-note">統計區間：${esc(range.start_date || '-')} 至 ${esc(range.end_date || '-')}。只記錄是否進入前端網站；同一 IP 去重，並區分普通游客與號碼登入游客。</div>
+        <div class="admin-visitor-range-note">統計區間：${esc(range.start_date || '-')} 至 ${esc(range.end_date || '-')}。只記錄是否進入前端網站；同一 IP 去重，並區分普通游客與填单游客。</div>
         <section class="admin-visitor-kpis" aria-label="訪客核心數據">
           <article><span>历史累计</span><strong>${adminVisitorNumber(totals.historical_unique_visitors)}</strong><small>自记录以来</small></article>
           <article><span>区间访客</span><strong>${adminVisitorNumber(totals.unique_visitors)}</strong><small>${adminVisitorNumber(range.days || buckets.length)} 天 IP 去重</small></article>
-          <article><span>普通游客</span><strong>${adminVisitorNumber(totals.guest_visitors)}</strong><small>未号码登录</small></article>
-          <article><span>号码登录游客</span><strong>${adminVisitorNumber(totals.phone_login_visitors)}</strong><small>区间内已登录</small></article>
-          <article><span>今日号码登录</span><strong>${adminVisitorNumber(totals.today_phone_login_visitors)}</strong><small class="${Number(totals.phone_login_delta_vs_yesterday || 0) >= 0 ? 'is-up' : 'is-down'}">较昨日 ${Number(totals.phone_login_delta_vs_yesterday || 0) >= 0 ? '+' : ''}${adminVisitorNumber(totals.phone_login_delta_vs_yesterday)}</small></article>
+          <article><span>普通游客</span><strong>${adminVisitorNumber(totals.guest_visitors)}</strong><small>未填单访问</small></article>
+          <article><span>填单游客</span><strong>${adminVisitorNumber(totals.form_filled_visitors || totals.phone_login_visitors)}</strong><small>已提交前端表单</small></article>
+          <article><span>今日填单</span><strong>${adminVisitorNumber(totals.today_form_filled_visitors || totals.today_phone_login_visitors)}</strong><small class="${Number(totals.form_filled_delta_vs_yesterday || totals.phone_login_delta_vs_yesterday || 0) >= 0 ? 'is-up' : 'is-down'}">较昨日 ${Number(totals.form_filled_delta_vs_yesterday || totals.phone_login_delta_vs_yesterday || 0) >= 0 ? '+' : ''}${adminVisitorNumber(totals.form_filled_delta_vs_yesterday || totals.phone_login_delta_vs_yesterday)}</small></article>
         </section>
         <section class="admin-visitor-chart-grid">
           <article class="admin-visitor-card">
             <div class="admin-visitor-card-head"><h4>去重進入柱狀圖</h4><span>${adminVisitorNumber(buckets.length)} 段</span></div>
-            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>号码登录</span></div>
+            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>填单游客</span></div>
             <div class="admin-visitor-chart">${dayBars || '<p class="muted">沒有趨勢資料。</p>'}</div>
           </article>
           <article class="admin-visitor-card">
-            <div class="admin-visitor-card-head"><h4>訪客曲線圖</h4><span>普通 / 号码登录</span></div>
-            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>号码登录</span></div>
+            <div class="admin-visitor-card-head"><h4>訪客曲線圖</h4><span>普通 / 填单</span></div>
+            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>填单游客</span></div>
             ${adminVisitorRenderLineChart(buckets, maxDaily)}
           </article>
           <article class="admin-visitor-card admin-visitor-card--pie">
-            <div class="admin-visitor-card-head"><h4>游客结构饼图</h4><span>普通 / 号码登录</span></div>
-            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>号码登录</span></div>
+            <div class="admin-visitor-card-head"><h4>游客结构饼图</h4><span>普通 / 填单</span></div>
+            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>填单游客</span></div>
             ${adminVisitorRenderPieChart(totals)}
           </article>
         </section>
@@ -14012,7 +13496,7 @@
       }
       if (status) status.textContent = '載入中…';
       try {
-        const res = await fetch(`/api/admin/visitor-dashboard?days=${encodeURIComponent(days)}`, {
+        const res = await adminFetchApi(`/api/admin/visitor-dashboard?days=${encodeURIComponent(days)}`, {
           headers: adminApiHeaders(false),
         });
         const data = await parseApiResponseSafe(res);
@@ -14048,7 +13532,7 @@
       }
       if (status) status.textContent = '保存中…';
       try {
-        const res = await fetch('/api/admin/visitor-settings', {
+        const res = await adminFetchApi('/api/admin/visitor-settings', {
           method: 'PUT',
           headers: adminApiHeaders(true),
           body: JSON.stringify({ tracking_url: trackingUrl, max_pages: maxPages }),
@@ -14104,7 +13588,7 @@
     }
 
     async function loadAdminVisitorRecords(page = 1, showStatus = true) {
-      const status = document.getElementById('admin-visitor-record-status');
+      const status = document.getElementById('admin-visitor-detail-status');
       const root = document.getElementById('admin-visitor-records');
       const days = String(document.getElementById('admin-visitor-days')?.value || '14');
       const pageSize = String(document.getElementById('admin-visitor-record-page-size')?.value || '20');
@@ -14115,7 +13599,7 @@
       }
       if (showStatus && status) status.textContent = '记录載入中…';
       try {
-        const res = await fetch(`/api/admin/visitor-records?days=${encodeURIComponent(days)}&page=${encodeURIComponent(String(page || 1))}&page_size=${encodeURIComponent(pageSize)}`, {
+        const res = await adminFetchApi(`/api/admin/visitor-records?days=${encodeURIComponent(days)}&page=${encodeURIComponent(String(page || 1))}&page_size=${encodeURIComponent(pageSize)}`, {
           headers: adminApiHeaders(false),
         });
         const data = await parseApiResponseSafe(res);
@@ -14199,6 +13683,39 @@
       return last;
     }
 
+    async function adminFetchApi(path, init) {
+      const target = String(path || '');
+      let last = null;
+      try {
+        const first = await fetch(target, init);
+        last = first;
+        if (first.status !== 404 && first.status !== 405) return first;
+      } catch (_) {
+        // Probe below, then retry through the resolved API origin.
+      }
+      try {
+        await fetchSclawHealthProbe();
+      } catch (_) {}
+      try {
+        const retried = await fetch(target, init);
+        last = retried;
+        if (retried.status !== 404 && retried.status !== 405) return retried;
+      } catch (_) {}
+      const bases = collectSclawProbeBases();
+      const seen = new Set();
+      for (const base of bases) {
+        const b = String(base || '').replace(/\/$/, '');
+        if (!b || seen.has(b)) continue;
+        seen.add(b);
+        try {
+          const res = await fetch(b + target, init);
+          last = res;
+          if (res.status !== 404 && res.status !== 405) return res;
+        } catch (_) {}
+      }
+      return last || fetch(target, init);
+    }
+
     /** 後端基底 URL（由 FastAPI 渲染 meta；亦可於主控台設定 localStorage.SCLAW_API_BASE）。 */
     function collectSclawProbeBases() {
       const out = [];
@@ -14230,6 +13747,10 @@
         const proto = String(loc.protocol || '');
         const host = String(loc.hostname || '').toLowerCase();
         if ((proto === 'https:' || proto === 'http:') && host) {
+          if (host === '127.0.0.1' || host === 'localhost') {
+            push(`${proto}//${host}:8000`);
+            push(`${proto}//${host}:8011`);
+          }
           if (!host.startsWith('www.')) {
             push(`${proto}//www.${host}`);
           } else {
@@ -14538,7 +14059,7 @@
     }
 
     function switchAdminTab(tab) {
-      const t = String(tab || 'cases');
+      const t = String(tab || 'visitors');
       const drawer = document.getElementById('admin-drawer');
       if (!drawer) return;
       const previousTab = String(drawer.dataset.adminActiveTab || drawer.querySelector('.admin-tab-btn.is-active')?.getAttribute('data-admin-tab') || 'cases');
@@ -15389,7 +14910,7 @@
       const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
       const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || '');
       if (!activeTab) {
-        switchAdminTab('cases');
+        switchAdminTab('visitors');
       } else {
         syncAdminSidebarGroups(activeTab);
         updateAdminFlowHint(activeTab);
@@ -19025,16 +18546,95 @@
 
     function renderAdminHandoffQuestionnaireHtml(questionnaire) {
       const q = questionnaire && typeof questionnaire === 'object' ? questionnaire : {};
-      const rows = [
-        ['購買目的', q.purchase_purpose],
-        ['目標區域', q.target_region],
-        ['物件類型', q.property_type],
-        ['預算', q.budget_total_yen ? `${q.budget_total_yen} 日圓` : ''],
-        ['自備款', q.down_payment_yen ? `${q.down_payment_yen} 日圓` : ''],
-        ['貸款需求', q.loan_need],
-        ['購買時間', q.purchase_time],
-        ['看房意願', q.viewing_intent],
-      ].filter(([, value]) => String(value || '').trim());
+      const boolText = (value) => (value === true ? '是' : value === false ? '否' : value);
+      const compactValue = (value) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'boolean') return boolText(value);
+        if (Array.isArray(value)) return value.map((x) => String(boolText(x) || '').trim()).filter(Boolean).join('、');
+        if (typeof value === 'object') {
+          try {
+            return JSON.stringify(value);
+          } catch (_) {
+            return String(value || '');
+          }
+        }
+        return String(value || '').trim();
+      };
+      const maybeOther = (mainKey, otherKey) => {
+        const main = compactValue(q[mainKey]);
+        if (!main) return '';
+        const other = compactValue(q[otherKey]);
+        return main === '其他' && other ? `${main}（${other}）` : main;
+      };
+      const phoneText = compactValue(q.contact_phone) || (
+        compactValue(q.contact_phone_region_code) || compactValue(q.contact_phone_local)
+          ? `${compactValue(q.contact_phone_region_code)} ${compactValue(q.contact_phone_local)}`.trim()
+          : ''
+      );
+      const rows = [];
+      const pushRow = (label, value) => {
+        const text = compactValue(value);
+        if (String(text || '').trim()) rows.push([label, text]);
+      };
+      pushRow('姓名', q.name);
+      pushRow('LINE', q.contact_line);
+      pushRow('微信', q.contact_wechat);
+      if (!compactValue(q.contact_line) && !compactValue(q.contact_wechat)) pushRow('LINE/微信', q.contact_line_wechat);
+      pushRow('電話', phoneText);
+      pushRow('Email', q.contact_email);
+      pushRow('購買目的', maybeOther('purchase_purpose', 'purchase_purpose_other'));
+      pushRow('總預算（日幣）', q.budget_total_yen);
+      pushRow('自備款（日幣）', q.down_payment_yen);
+      pushRow('貸款需求', q.loan_need);
+      pushRow('收入來源', maybeOther('income_source', 'income_source_other'));
+      pushRow('年收入', q.annual_income_twd);
+      pushRow('目標區域', maybeOther('target_region', 'target_region_other'));
+      pushRow('物件類型', q.property_type);
+      pushRow('購買時間', q.purchase_time);
+      pushRow('看房意願', q.viewing_intent);
+      pushRow('貸款評估', q.loan_eval_interest);
+      pushRow('其他需求', q.other_questions);
+      pushRow('有興趣案件', q.interest_pick_summary);
+      const internalKeys = new Set([
+        'form_version',
+        'contact_phone_region_code',
+        'contact_phone_local',
+        'contact_phone_valid',
+        'contact_phone_error',
+        'purchase_purpose_other',
+        'income_source_other',
+        'target_region_other',
+        'consent_agreed',
+      ]);
+      const usedKeys = new Set([
+        ...internalKeys,
+        'name',
+        'contact_line',
+        'contact_wechat',
+        'contact_line_wechat',
+        'contact_phone',
+        'contact_email',
+        'purchase_purpose',
+        'budget_total_yen',
+        'down_payment_yen',
+        'loan_need',
+        'income_source',
+        'annual_income_twd',
+        'target_region',
+        'property_type',
+        'purchase_time',
+        'viewing_intent',
+        'loan_eval_interest',
+        'other_questions',
+        'interest_pick_summary',
+      ]);
+      Object.keys(q).forEach((key) => {
+        if (usedKeys.has(key)) return;
+        if (/_(?:valid|error)$/i.test(key)) return;
+        const value = compactValue(q[key]);
+        if (!value) return;
+        rows.push([key, value]);
+      });
       if (!rows.length) return '';
       return rows
         .map(([label, value]) => {
@@ -19277,12 +18877,6 @@
         h += `<div class="admin-handoff-meta-pair"><span>已選案件</span><strong>${interestedCases.length} 筆</strong></div>`;
         h += renderAdminHandoffQuestionnaireHtml(it.questionnaire);
         h += '</div>';
-        if (it.ai_handoff_summary) {
-          h += '<div class="admin-handoff-summary-card">';
-          h += '<span class="admin-handoff-section-kicker">系統整理</span>';
-          h += `<div class="admin-handoff-summary-text">${adminHandoffMultilineHtml(String(it.ai_handoff_summary || ''))}</div>`;
-          h += '</div>';
-        }
         if (it.note) {
           h += '<div class="admin-handoff-summary-card">';
           h += '<span class="admin-handoff-section-kicker">客戶備註</span>';
@@ -22545,8 +22139,8 @@
       }
       const drawer = document.getElementById('admin-drawer');
       const activeBtn = drawer ? drawer.querySelector('.admin-tab-btn.is-active') : null;
-      const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || 'cases');
-      switchAdminTab(activeTab || 'cases');
+      const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || 'visitors');
+      switchAdminTab(activeTab || 'visitors');
       const authMsg2 = document.getElementById('admin-auth-msg');
       if (authMsg2) {
         authMsg2.textContent = '已登入';
@@ -22729,8 +22323,8 @@
             }
             syncAdminAuthUi('已登入');
             const activeBtn2 = drawer.querySelector('.admin-tab-btn.is-active');
-            const activeTab2 = String(activeBtn2?.getAttribute('data-admin-tab') || 'cases');
-            switchAdminTab(activeTab2 || 'cases');
+            const activeTab2 = String(activeBtn2?.getAttribute('data-admin-tab') || 'visitors');
+            switchAdminTab(activeTab2 || 'visitors');
           });
         }
         const pwdInput = document.getElementById('admin-password-input');
@@ -22743,8 +22337,8 @@
         bindAdminConsoleToolbarOnce();
         applyAdminSimpleModeVisibility();
         const activeBtn = drawer.querySelector('.admin-tab-btn.is-active');
-        const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || 'cases');
-        switchAdminTab(activeTab || 'cases');
+        const activeTab = String(activeBtn?.getAttribute('data-admin-tab') || 'visitors');
+        switchAdminTab(activeTab || 'visitors');
       }
     }
 
@@ -22915,7 +22509,7 @@
       supportHumanHandoffStep = 'form';
       supportChatHistory.push({
         role: 'user',
-        content: `【${tag}】我要留單，請真人顧問後續跟進。`,
+        content: `【${tag}】我要留單，請人工顧問後續跟進。`,
       });
       supportChatHistory.push({
         role: 'assistant',
@@ -23814,12 +23408,10 @@
       if (cached && Array.isArray(cached.items)) {
         if (!cached.items.length) return null;
         if (!homeFeaturedTypeShouldExcludeSpotlight(type)) {
-          if (cached.items.length > 0 && cached.items.length < HOME_FEATURED_PAGE_SIZE) return null;
           return cached;
         }
         const filteredItems = homeFeaturedFilterTypeItems(cached.items, type);
         if (!filteredItems.length) return null;
-        if (filteredItems.length > 0 && filteredItems.length < HOME_FEATURED_PAGE_SIZE) return null;
         return {
           ...cached,
           items: filteredItems,
@@ -23835,7 +23427,6 @@
         offset: Number(storedPayload.next_offset || storedItems.length || 0),
         hasMore: storedPayload.has_more !== false && storedItems.length > 0,
       };
-      if (normalized.items.length > 0 && normalized.items.length < HOME_FEATURED_PAGE_SIZE) return null;
       homeFeaturedTypeCache.set(cacheKey, normalized);
       return normalized;
     }
@@ -28152,10 +27743,6 @@
     window.clearFilters = clearFilters;
     window.setFigureTransaction = setFigureTransaction;
     window.setSmartQueryMainTab = setSmartQueryMainTab;
-    window.toggleSupportPhoneLoginModal = toggleSupportPhoneLoginModal;
-    window.submitSupportPhoneLogin = submitSupportPhoneLogin;
-    window.refreshSupportPhoneLoginHint = refreshSupportPhoneLoginHint;
-    window.logoutSupportPhoneLogin = logoutSupportPhoneLogin;
     window.toggleSupportChat = toggleSupportChat;
     window.sendSupportChat = sendSupportChat;
     window.toggleSupportChatMenu = toggleSupportChatMenu;
@@ -28304,7 +27891,6 @@
     renderSupportSelectedCasesPanel();
     renderSupportSavedCasesState();
     installSupportSelectedCasesFloatingStateGuard();
-    syncSupportPhoneLoginUiState();
     bindSupportSelectedCasesSharedSync();
     bindSupportSavedCasesSharedSync();
     document.addEventListener('keydown', (e) => {
@@ -28312,7 +27898,6 @@
         if (!isAdminStandalonePage()) toggleAdminDrawer(false);
         toggleSupportSelectedCasesDrawer(false);
         toggleSupportSavedCasesDrawer(false);
-        toggleSupportPhoneLoginModal(false);
         toggleSupportHumanIntakeModal(false);
         toggleSupportChatHistoryPanel(false);
         setSupportChatMenuOpen(false);

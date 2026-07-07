@@ -128,7 +128,7 @@ COMPANY_PROFILE = {
         "媒合日本合法仲介：安排看屋與遠端溝通",
         "專業支援：協助對接流程與注意事項",
     ],
-    "address": "東京都豊島区北大塚2-17-4 大塚キャリアビル B1",
+    "address": "東京都豐島區北大塚2-17-4 大塚Career大樓 B1",
     "contact": "mokushin.tokyo@gmail.com",
     "reference_url": "https://www.moon-bears.com/manus/app/views/services.php",
 }
@@ -192,7 +192,7 @@ COMPANY_TABS = [
         "title": "聯絡資訊",
         "summary": "歡迎洽詢海外買家日本不動產需求、合作提案與夥伴交流。",
         "bullets": [
-            "地址：東京都豊島区北大塚2-17-4 大塚キャリアビル B1",
+            "地址：東京都豐島區北大塚2-17-4 大塚Career大樓 B1",
             "Email：mokushin.tokyo@gmail.com",
             "官方參考頁：https://www.moon-bears.com/manus/app/views/services.php",
         ],

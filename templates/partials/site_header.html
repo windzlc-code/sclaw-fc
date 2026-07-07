@@ -3,7 +3,6 @@
 {% set nav_workbench_onclick = site_nav_workbench_onclick | default('', true) %}
 {% set nav_query_onclick = site_nav_query_onclick | default('', true) %}
 {% set nav_process_onclick = site_nav_process_onclick | default('', true) %}
-{% set nav_login_onclick = site_nav_login_onclick | default('toggleSupportPhoneLoginModal(true)', true) %}
   <header class="bh-site-header" aria-label="日本不動產產品站導覽">
     <nav class="bh-site-nav" aria-label="首頁主導覽">
       <a class="bh-site-brand is-home-view-active" href="{{ nav_home_href }}" aria-label="{{ site_name }}" data-home-view-switch="home">
@@ -111,56 +110,11 @@
       </div>
       <div class="bh-site-titlebar-actions" aria-label="首頁工具列">
         {% include 'partials/site_language_switch.html' %}
-        <button id="bh-nav-phone-login-btn" type="button" class="bh-nav-phone-login-btn" onclick="{{ nav_login_onclick }}" aria-label="登录账号" aria-haspopup="dialog" aria-controls="support-phone-login-modal" title="登录账号">
-          <span class="bh-nav-phone-login-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <circle cx="12" cy="7.6" r="3.2"></circle>
-              <path d="M5.5 20c0-4 2.7-6.5 6.5-6.5s6.5 2.5 6.5 6.5"></path>
-            </svg>
-          </span>
-          <span id="bh-nav-phone-login-text" class="bh-nav-phone-login-text">登录账号</span>
-        </button>
       </div>
     </nav>
   </header>
   <script>
     (function () {
-      const SUPPORT_PHONE_LOGIN_KEY = 'sclaw_support_phone_login';
-
-      function getSupportPhoneLoginValue() {
-        try {
-          return String(window.localStorage.getItem(SUPPORT_PHONE_LOGIN_KEY) || '').trim();
-        } catch (_) {
-          return '';
-        }
-      }
-
-      function syncSharedPhoneLoginState() {
-        const logged = !!getSupportPhoneLoginValue();
-        const label = logged ? '已登录' : '登录账号';
-        const navBtn = document.getElementById('bh-nav-phone-login-btn');
-        const navText = document.getElementById('bh-nav-phone-login-text');
-        const floatingBtn = document.getElementById('support-phone-login-toggle');
-        if (navText) {
-          navText.textContent = label;
-          if (navText.firstChild) navText.firstChild.__sclawHantText = label;
-        }
-        [navBtn, floatingBtn].forEach((btn) => {
-          if (!btn) return;
-          btn.classList.toggle('is-logged-in', logged);
-          btn['sclawHantAttr_aria-label'] = label;
-          btn.sclawHantAttr_title = label;
-          btn.setAttribute('aria-label', label);
-          btn.setAttribute('title', label);
-        });
-      }
-
-      function scheduleSharedPhoneLoginStateSync() {
-        syncSharedPhoneLoginState();
-        window.setTimeout(syncSharedPhoneLoginState, 0);
-        window.setTimeout(syncSharedPhoneLoginState, 120);
-      }
-
       function cleanupSharedSmartQueryUi(reason) {
         if (typeof window.cleanupSmartQueryUiBeforeNavigation !== 'function') return;
         try {
@@ -583,17 +537,11 @@
           initSharedHeaderKeywordTabs();
           initSharedHeaderCaseSearch();
           initSharedHeaderHomeRouting();
-          scheduleSharedPhoneLoginStateSync();
         });
       } else {
         initSharedHeaderKeywordTabs();
         initSharedHeaderCaseSearch();
         initSharedHeaderHomeRouting();
-        scheduleSharedPhoneLoginStateSync();
       }
-      window.addEventListener('storage', (evt) => {
-        if (!evt || evt.key === SUPPORT_PHONE_LOGIN_KEY) syncSharedPhoneLoginState();
-      });
-      window.syncSharedPhoneLoginState = syncSharedPhoneLoginState;
     })();
   </script>

@@ -1,4 +1,4 @@
-{# SUUMO 式物件詳情：五頁籤（對齊原站流程）＋原站 CTA；listing_panel = { meta, fields, gallery_urls } #}
+{# 站內案件詳情：五頁籤；listing_panel = { meta, fields, gallery_urls } #}
 {% set f = listing_panel.fields %}
 {% set m = listing_panel.meta %}
 {% set g_prop = listing_panel.gallery_property_urls or [] %}
@@ -53,33 +53,24 @@
       {% if f.price_text_hant %}
       {{ f.price_text_hant }}{% if f.price_fx_hant %}<br><span class="portal-suumo-fx muted">{{ f.price_fx_hant }}</span>{% endif %}
       {% else %}
-      <span class="muted">{{ emdash }}（原頁未擷取到明示價格）</span>
+      <span class="muted">{{ emdash }}（暫無明示價格）</span>
       {% endif %}
     </p>
-    {% if f.address_line_jp %}
-    {% set addr_zh = m.address_line_zh_read %}
-    <p class="portal-suumo-line">{{ addr_zh or f.address_line_jp }}</p>
-    {% if addr_zh and addr_zh != f.address_line_jp %}
-    <p class="portal-suumo-line portal-suumo-line--jp muted" style="font-size:0.92em;line-height:1.45;margin:0.15rem 0 0;">原文：{{ f.address_line_jp }}</p>
+    {% set addr_zh = f.address_line_display_zh or m.address_line_zh_read %}
+    {% if addr_zh %}
+    <p class="portal-suumo-line">{{ addr_zh }}</p>
     {% endif %}
+    {% set transit_zh = f.access_line_display_zh or m.access_line_zh_read or m.transit_line_zh_read %}
+    {% if transit_zh %}
+    <p class="portal-suumo-line">{{ transit_zh }}</p>
     {% endif %}
-    {% set transit_raw = f.access_line_jp or m.transit_line_zh %}
-    {% if transit_raw %}
-    {% set transit_zh = m.access_line_zh_read or m.transit_line_zh_read %}
-    <p class="portal-suumo-line">{{ transit_zh or transit_raw }}</p>
-    {% if transit_zh and transit_zh != transit_raw %}
-    <p class="portal-suumo-line portal-suumo-line--jp muted" style="font-size:0.92em;line-height:1.45;margin:0.15rem 0 0;">原文：{{ transit_raw }}</p>
-    {% endif %}
-    {% endif %}
+    {% if m.transaction_label_zh or m.jp_region_display_zh %}
     <p class="portal-suumo-meta muted">
-      {% if m.transaction_label_zh %}{{ m.transaction_label_zh }} ｜ {% endif %}
-      {% if m.jp_region_display_zh %}{{ m.jp_region_display_zh }} ｜ {% endif %}
-      資料擷取自公開頁，以原站為準
+      {% if m.transaction_label_zh %}{{ m.transaction_label_zh }}{% endif %}
+      {% if m.transaction_label_zh and m.jp_region_display_zh %} ｜ {% endif %}
+      {% if m.jp_region_display_zh %}{{ m.jp_region_display_zh }}{% endif %}
     </p>
-  </div>
-
-  <div class="portal-suumo-cta-suumo portal-suumo-cta-suumo--integrated" role="group" aria-label="原站操作">
-    <a class="portal-suumo-cta portal-suumo-cta--orange" href="{{ item_url }}" target="_blank" rel="nofollow noopener noreferrer" title="資料請求、見學預約等請於原站操作">開啟原站洽詢</a>
+    {% endif %}
   </div>
 
   <div class="portal-suumo-media portal-suumo-media--top{% if g_sections %} portal-suumo-media--album{% endif %}">
@@ -178,6 +169,14 @@
         {{ inv.note }}
       </div>
       {% endif %}
+      {% if sid > 0 %}
+      <div class="portal-suumo-case-actions" data-case-detail-actions>
+        <button type="button" class="portal-suumo-case-action portal-suumo-case-action--consult" data-case-action="consult">諮詢客服</button>
+        <button type="button" class="portal-suumo-case-action portal-suumo-case-action--contact" data-case-action="contact">聯絡我們</button>
+        <button type="button" class="portal-suumo-case-action portal-suumo-case-action--save" data-case-action="save">收藏</button>
+        <button type="button" class="portal-suumo-case-action portal-suumo-case-action--compare" data-case-action="compare">加入對比</button>
+      </div>
+      {% endif %}
     </aside>
     </div>
     {% else %}
@@ -189,7 +188,7 @@
     <figure class="portal-suumo-herofig portal-suumo-herofig--empty" role="img" aria-label="暫無物件主圖">
       <div class="portal-suumo-no-img portal-suumo-no-img--detail">
         <span class="portal-suumo-no-img-title">暫無物件主圖</span>
-        <span class="portal-suumo-no-img-hint">資料庫未擷取到可用物件相片時會顯示此區；請開啟原站查看相簿。</span>
+        <span class="portal-suumo-no-img-hint">暫無可用物件相片。</span>
       </div>
     </figure>
     {% endif %}
@@ -227,29 +226,14 @@
       <section class="portal-suumo-tabpanel is-active" role="tabpanel" data-suumo-panel="tokucho">
         <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>物件特色</h4>
         {% if narrative_clean and narrative_clean.strip() %}
-        <div class="portal-suumo-narrative {% if nar_zh|trim and narrative_clean|trim == nar_zh|trim %}portal-suumo-narrative--zh{% else %}portal-suumo-narrative--jp{% endif %}">{{ narrative_clean|e }}</div>
-        {% if nar_zh|trim and nar_jp|trim and (nar_zh|trim != nar_jp|trim) %}
-        <details class="portal-suumo-jp-source" style="margin-top:0.65rem;">
-          <summary class="muted" style="cursor:pointer;font-size:0.9rem;">原文（日語，展開查看）</summary>
-          <div class="portal-suumo-narrative portal-suumo-narrative--jp portal-suumo-narrative--subsource" style="margin-top:0.45rem;">{{ nar_jp|e }}</div>
-        </details>
-        {% endif %}
-        {% elif f.staff_message_jp %}
-        <div class="portal-suumo-narrative">{{ f.staff_message_jp|e }}</div>
+        <div class="portal-suumo-narrative portal-suumo-narrative--zh">{{ narrative_clean|e }}</div>
         {% else %}
-        <p class="muted">站內尚無完整摘要時，請使用頁尾「原始資料」或<strong>開啟原站</strong>。</p>
+        <p class="muted">站內尚無完整中文摘要，請聯絡顧問確認房源狀態與交易條件。</p>
         {% endif %}
-        {% if f.staff_message_jp and narrative_clean and (f.staff_message_jp not in narrative_clean) %}
-        <div class="portal-suumo-subblock">
-          <p class="portal-suumo-subhead">顧問補充</p>
-          <p class="portal-suumo-narrative portal-suumo-narrative--sub">{{ f.staff_message_jp|e }}</p>
-        </div>
-        {% endif %}
-        <p class="muted portal-suumo-inline-links"><a href="{{ item_url }}" target="_blank" rel="nofollow noopener">開啟原站全文</a></p>
       </section>
 
       <section class="portal-suumo-tabpanel" role="tabpanel" data-suumo-panel="map" hidden>
-        {% set map_q_raw = (f.address_line_jp or m.address_line_zh_read or m.jp_region_display_zh or '')|trim %}
+        {% set map_q_raw = (f.address_line_display_zh or m.address_line_zh_read or m.jp_region_display_zh or '')|trim %}
         <h4 class="portal-suumo-tabpanel-title"><span class="portal-suumo-tabpanel-bar"></span>周邊環境與地圖</h4>
         <dl class="portal-suumo-dlcompact">
           <div><dt>地址</dt><dd>{% if m.address_line_zh_read %}{{ m.address_line_zh_read }}{% elif f.address_line_jp %}{{ f.address_line_jp }}{% else %}{{ emdash }}{% endif %}{% if m.address_line_zh_read and f.address_line_jp and m.address_line_zh_read != f.address_line_jp %}<br><span class="muted portal-suumo-cell-jp" style="font-size:0.9em">{{ f.address_line_jp }}</span>{% endif %}</dd></div>
@@ -257,7 +241,7 @@
         </dl>
         <div class="portal-suumo-map-placeholder">
           <p class="portal-suumo-map-placeholder-title">地圖與周邊環境</p>
-          <p class="muted">站內僅列摘要；街景與精確座標以<strong>原站</strong>為準。下列連結以<strong>站內地址</strong>為關鍵字，方便在常用地圖服務快速查看位置。</p>
+          <p class="muted">下列連結以<strong>站內地址</strong>為關鍵字，方便在常用地圖服務快速查看位置。</p>
           {% if map_q_raw %}
           <nav class="portal-suumo-map-ext-grid" aria-label="Google／高德／百度地圖（另開新分頁）">
             <a class="portal-suumo-cta portal-suumo-cta--map-ext portal-suumo-cta--map-google" href="https://www.google.com/maps/search/?api=1&amp;query={{ map_q_raw|urlencode }}" target="_blank" rel="nofollow noopener noreferrer" title="Google Maps 搜尋：{{ map_q_raw|e }}">Google 地圖</a>
@@ -266,9 +250,8 @@
           </nav>
           <p class="muted portal-suumo-map-query-hint">查詢用字串：<span class="portal-suumo-cell-jp">{{ map_q_raw|e }}</span></p>
           {% else %}
-          <p class="muted portal-suumo-map-query-hint">尚無可用地址欄位，請直接於原站查看互動地圖。</p>
+          <p class="muted portal-suumo-map-query-hint">尚無可用地址欄位。</p>
           {% endif %}
-          <a class="portal-suumo-cta portal-suumo-cta--ghost portal-suumo-map-origin-cta" href="{{ item_url }}" target="_blank" rel="nofollow noopener noreferrer">前往原站查看周邊地圖</a>
         </div>
       </section>
 
@@ -316,7 +299,6 @@
               </tr>
               <tr><th scope="row">目前狀態</th><td class="portal-suumo-cell-jp">{{ f.status_jp or emdash }}</td><th scope="row">交屋時間</th><td class="portal-suumo-cell-jp">{{ f.handover_jp or emdash }}</td></tr>
               <tr><th scope="row">物件編號</th><td colspan="3" class="portal-suumo-cell-jp">{{ f.property_no_jp or emdash }}</td></tr>
-              <tr><th scope="row">資料公開</th><td class="portal-suumo-cell-jp">{{ f.info_open_jp or emdash }}</td><th scope="row">下次更新</th><td class="portal-suumo-cell-jp">{{ f.next_update_jp or emdash }}</td></tr>
               <tr><th scope="row">類型</th><td>{{ f.building_type_zh or emdash }}</td><th scope="row">樓層（摘要）</th><td>{{ f.floor_text_hant or emdash }}</td></tr>
               {% if f.related_links_jp %}
               <tr>
@@ -349,12 +331,293 @@
         </div>
         {% endif %}
         {% if not m.jp_region_display_zh and not m.transit_line_zh and not f.company_guide_jp %}
-        <p class="muted">區域資訊詳細請以原站「區域資訊」與周邊設施為準。</p>
+        <p class="muted">暫無更多區域資訊。</p>
         {% endif %}
       </section>
   </div>
 
 </section>
+
+{% if sid > 0 %}
+<script id="portal-suumo-case-action-data" type="application/json">
+{{ {
+  "case_key": "sid:" ~ sid,
+  "source_item_id": sid,
+  "title": (item.title_display_hant if item is defined and item.title_display_hant else (item.title_zh_hant if item is defined and item.title_zh_hant else (f.building_name_display_zh or "日本不動產案件"))),
+  "price_text_hant": f.price_text_hant or "",
+  "layout_text_hant": f.layout_display_zh or f.layout_text_hant or "",
+  "area_text_hant": f.area_display_zh or f.area_text_hant or "",
+  "region": m.jp_region_display_zh or "",
+  "transit": f.access_line_display_zh or m.access_line_zh_read or m.transit_line_zh_read or "",
+  "address_hint_zh": f.address_line_display_zh or m.address_line_zh_read or "",
+  "building_type_zh": f.building_type_zh or "",
+  "thumb_url": (main_u|case_static_image_url if main_u else ""),
+  "gallery_urls": ([main_u|case_static_image_url] if main_u else []),
+  "image_count": (hero_strip|length),
+  "detail_url": "/case/" ~ sid,
+  "item_url": "/case/" ~ sid
+}|tojson }}
+</script>
+<script>
+(function () {
+  var root = document.getElementById('portal-suumo-detail');
+  if (!root || root.dataset.caseQuickActionsReady === '1') return;
+  root.dataset.caseQuickActionsReady = '1';
+
+  var selectedKey = 'sclaw_support_selected_cases_v1';
+  var savedKey = 'sclaw_support_saved_cases_v1';
+  var selectedChannelKey = 'sclaw_support_selected_cases_channel_v1';
+  var savedChannelKey = 'sclaw_support_saved_cases_channel_v1';
+  var salesSessionKey = 'sclaw_support_sales_session_v1';
+  var selectedChannel = null;
+  var savedChannel = null;
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch] || ch;
+    });
+  }
+
+  function readActionData() {
+    var el = document.getElementById('portal-suumo-case-action-data');
+    if (!el) return {};
+    try {
+      return JSON.parse(el.textContent || '{}') || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  var caseData = readActionData();
+
+  function stableKey(item) {
+    var sidVal = Number(item && item.source_item_id);
+    if (sidVal > 0) return 'sid:' + sidVal;
+    return String((item && (item.case_key || item.content_id || item.detail_url || item.item_url || item.title)) || '').trim();
+  }
+
+  function salesSessionId() {
+    try {
+      var cached = localStorage.getItem(salesSessionKey);
+      if (cached) return cached;
+      var generated = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(salesSessionKey, generated);
+      return generated;
+    } catch (_) {
+      return 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    }
+  }
+
+  function normalize(item) {
+    item = item || {};
+    var key = String(item.case_key || stableKey(item)).trim();
+    var title = String(item.title || '日本不動產案件').trim();
+    return {
+      case_key: key,
+      source_item_id: Number(item.source_item_id || 0),
+      title: title,
+      item_url: String(item.item_url || item.detail_url || '').trim(),
+      detail_url: String(item.detail_url || item.item_url || '').trim(),
+      region: String(item.region || '').trim(),
+      transit: String(item.transit || '').trim(),
+      address_hint_zh: String(item.address_hint_zh || '').trim(),
+      price_text_hant: String(item.price_text_hant || '').trim(),
+      layout_text_hant: String(item.layout_text_hant || '').trim(),
+      area_text_hant: String(item.area_text_hant || '').trim(),
+      building_type_zh: String(item.building_type_zh || '').trim(),
+      thumb_url: String(item.thumb_url || '').trim(),
+      gallery_urls: Array.isArray(item.gallery_urls) ? item.gallery_urls.filter(Boolean).slice(0, 8) : [],
+      image_count: Number(item.image_count || 0),
+      added_at: new Date().toISOString()
+    };
+  }
+
+  function readList(key) {
+    try {
+      var arr = JSON.parse(localStorage.getItem(key) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeList(key, list) {
+    var payload = Array.isArray(list) ? list : [];
+    var oldValue = '';
+    var newValue = '';
+    try {
+      oldValue = localStorage.getItem(key) || '';
+      newValue = JSON.stringify(payload);
+      localStorage.setItem(key, newValue);
+    } catch (_) {}
+    try {
+      window.dispatchEvent(new StorageEvent('storage', { key: key, oldValue: oldValue, newValue: newValue, storageArea: localStorage }));
+    } catch (_) {}
+    try {
+      if (key === selectedKey) {
+        window.dispatchEvent(new CustomEvent('sclaw:selected-cases-updated', { detail: { items: payload, source: 'case-detail' } }));
+        if (!selectedChannel && 'BroadcastChannel' in window) selectedChannel = new BroadcastChannel(selectedChannelKey);
+        if (selectedChannel) selectedChannel.postMessage({ type: 'selected-cases-updated', source: 'case-detail', items: payload });
+      } else if (key === savedKey) {
+        window.dispatchEvent(new CustomEvent('sclaw:saved-cases-updated', { detail: { items: payload, source: 'case-detail' } }));
+        if (!savedChannel && 'BroadcastChannel' in window) savedChannel = new BroadcastChannel(savedChannelKey);
+        if (savedChannel) savedChannel.postMessage({ type: 'saved-cases-updated', source: 'case-detail', items: payload });
+      }
+    } catch (_) {}
+    if (typeof window.refreshSupportFloatingCaseState === 'function') {
+      window.refreshSupportFloatingCaseState(key);
+    }
+  }
+
+  function containsCase(list, item) {
+    var key = stableKey(item).toLowerCase();
+    return list.some(function (it) { return stableKey(it).toLowerCase() === key; });
+  }
+
+  function setStatus(text) {
+    var wrap = root.querySelector('[data-case-detail-actions]');
+    if (!wrap) return;
+    var status = wrap.querySelector('.portal-suumo-case-actions-status');
+    if (!status) {
+      status = document.createElement('span');
+      status.className = 'portal-suumo-case-actions-status';
+      status.setAttribute('aria-live', 'polite');
+      wrap.appendChild(status);
+    }
+    status.textContent = text || '';
+  }
+
+  function refreshButtons() {
+    var normalized = normalize(caseData);
+    var savedOn = containsCase(readList(savedKey), normalized);
+    var selectedOn = containsCase(readList(selectedKey), normalized);
+    root.querySelectorAll('[data-case-action="save"]').forEach(function (btn) {
+      btn.classList.toggle('is-active', savedOn);
+      btn.textContent = savedOn ? '已收藏' : '收藏';
+    });
+    root.querySelectorAll('[data-case-action="compare"]').forEach(function (btn) {
+      btn.classList.toggle('is-active', selectedOn);
+      btn.textContent = selectedOn ? '已加入對比' : '加入對比';
+    });
+  }
+
+  function addToList(key, limit) {
+    var item = normalize(caseData);
+    var list = readList(key).filter(function (it) { return stableKey(it).toLowerCase() !== stableKey(item).toLowerCase(); });
+    list.unshift(item);
+    writeList(key, list.slice(0, limit || 60));
+    refreshButtons();
+  }
+
+  function contactNow() {
+    if (typeof window.openSupportHumanIntakeFromSalesMcp === 'function') {
+      window.openSupportHumanIntakeFromSalesMcp({ silent: true });
+      return;
+    }
+    if (typeof window.toggleSupportChat === 'function') window.toggleSupportChat(true);
+  }
+
+  function removeDraft() {
+    var old = document.getElementById('case-chat-draft-card');
+    if (old) old.remove();
+  }
+
+  function sendDraft(btn) {
+    var msg = btn && btn.getAttribute('data-case-chat-message');
+    var input = document.getElementById('support-chat-input');
+    if (input) input.value = msg || '';
+    removeDraft();
+    notifyCaseConsult(msg || '');
+    try { window.__sclawSupportSuppressSelectedCasesOnce = true; } catch (_) {}
+    try { window.__sclawSupportCaseContextOnce = normalize(caseData); } catch (_) {}
+    if (typeof window.sendSupportChat === 'function') window.sendSupportChat();
+  }
+
+  function notifyCaseConsult(message) {
+    try {
+      var item = normalize(caseData);
+      if (!item || (!item.title && !item.source_item_id && !item.item_url)) return;
+      fetch('/api/support/case-consult-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: salesSessionId(),
+          case: item,
+          message: message || ''
+        })
+      }).catch(function () {});
+    } catch (_) {}
+  }
+
+  function openConsultDraft() {
+    if (typeof window.toggleSupportChat === 'function') window.toggleSupportChat(true);
+    window.setTimeout(function () {
+      var panel = document.getElementById('support-chat-panel');
+      var inputRow = panel && panel.querySelector('.support-chat-input-row');
+      if (!panel || !inputRow) return;
+      var item = normalize(caseData);
+      var compact = function (value, limit) {
+        var text = String(value || '').replace(/\s+/g, ' ').trim();
+        var max = Math.max(12, Number(limit) || 48);
+        return text.length > max ? text.slice(0, max).replace(/[，、；：,.\\s]+$/g, '') + '…' : text;
+      };
+      var titleText = compact(item.title, 42);
+      var meta = [item.layout_text_hant, item.area_text_hant, item.region].filter(Boolean).join(' ｜ ');
+      var messageParts = ['想諮詢這個案件：' + titleText];
+      if (item.price_text_hant) messageParts.push('價格：' + compact(item.price_text_hant, 24));
+      if (meta) messageParts.push('條件：' + compact(meta, 52));
+      messageParts.push('請客服協助確認可諮詢方式。');
+      var message = messageParts.join('；');
+      removeDraft();
+      var card = document.createElement('div');
+      card.id = 'case-chat-draft-card';
+      card.className = 'case-chat-draft-card';
+      card.innerHTML =
+        '<div class="case-chat-draft-media">' +
+          (item.thumb_url ? '<img src="' + esc(item.thumb_url) + '" alt="' + esc(item.title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">' : '<span>暫無圖片</span>') +
+        '</div>' +
+        '<div class="case-chat-draft-main">' +
+          '<strong>' + esc(item.title) + '</strong>' +
+          (item.price_text_hant ? '<em>' + esc(item.price_text_hant) + '</em>' : '') +
+          (meta ? '<small>' + esc(meta) + '</small>' : '') +
+          '<div class="case-chat-draft-actions">' +
+            '<button type="button" class="primary" data-case-chat-message="' + esc(message) + '">發送諮詢</button>' +
+            '<button type="button" class="secondary" data-case-chat-cancel="1">取消</button>' +
+          '</div>' +
+        '</div>';
+      inputRow.parentNode.insertBefore(card, inputRow);
+      var sendBtn = card.querySelector('[data-case-chat-message]');
+      var cancelBtn = card.querySelector('[data-case-chat-cancel]');
+      if (sendBtn) sendBtn.addEventListener('click', function () { sendDraft(sendBtn); });
+      if (cancelBtn) cancelBtn.addEventListener('click', removeDraft);
+      try { card.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+    }, 80);
+  }
+
+  root.addEventListener('click', function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest('[data-case-action]') : null;
+    if (!btn) return;
+    var action = btn.getAttribute('data-case-action');
+    if (action === 'consult') {
+      openConsultDraft();
+    } else if (action === 'contact') {
+      contactNow();
+    } else if (action === 'save') {
+      addToList(savedKey, 60);
+      setStatus('已加入收藏');
+    } else if (action === 'compare') {
+      addToList(selectedKey, 20);
+      setStatus('已加入對比');
+    }
+  });
+
+  window.addEventListener('storage', refreshButtons);
+  window.addEventListener('sclaw:selected-cases-updated', refreshButtons);
+  window.addEventListener('sclaw:saved-cases-updated', refreshButtons);
+  refreshButtons();
+})();
+</script>
+{% endif %}
 
 <script>
 (function () {

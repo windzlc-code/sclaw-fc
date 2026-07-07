@@ -384,6 +384,101 @@ def _prewarm_inventory_stats_cache() -> None:
         return
 
 
+def _prewarm_portal_type_case_search_cache(*, force: bool = False) -> None:
+    """Warm the homepage property-type tabs without running broad keyword/region scans."""
+    if _portal_case_search_cache_ttl() <= 0:
+        return
+    try:
+        settings = load_crawl_settings()
+        allowed_tx = _allowed_portal_transactions(settings)
+        type_prewarm_values = ["公寓", "大樓", "華廈", "套房", "別墅/透天", "辦公", "店面", "土地", "其他"]
+        try:
+            type_prewarm_pages = max(1, min(8, int(os.getenv("SCLAW_PORTAL_TYPE_PREWARM_PAGES", "4") or 4)))
+        except Exception:
+            type_prewarm_pages = 4
+        raw_type_ages = os.getenv("SCLAW_PORTAL_TYPE_PREWARM_AGES", "0,180")
+        type_prewarm_ages: list[int] = []
+        for part in str(raw_type_ages or "").split(","):
+            try:
+                type_prewarm_ages.append(max(0, min(366, int(part.strip()))))
+            except Exception:
+                continue
+        if not type_prewarm_ages:
+            type_prewarm_ages = [0, 180]
+        type_prewarm_ages = list(dict.fromkeys(type_prewarm_ages))
+        for property_type in type_prewarm_values:
+            for max_age_days in type_prewarm_ages:
+                for page_idx in range(type_prewarm_pages):
+                    type_page_size = 12
+                    type_offset = page_idx * type_page_size
+                    cache_payload = {
+                    "tx": "buy",
+                    "portal": "all",
+                    "region": "",
+                    "keyword": "",
+                    "property_types": [property_type],
+                    "price_min_man": 0,
+                    "price_max_man": 0,
+                    "layout_min_rooms": 0,
+                    "layout_max_rooms": 0,
+                    "layout_exact_zero": False,
+                    "max_age_days": max_age_days,
+                    "limit": type_page_size,
+                    "jp_line_id": 0,
+                    "jp_station_id": 0,
+                    "walk_max": 0,
+                    "coverage_matrix_aligned": False,
+                    "offset": type_offset,
+                    "page_size": type_page_size,
+                    "detail_gate": "openable-v1",
+                    "media_policy": "detail-panel-gallery-v18-type-media-ignore-price",
+                    }
+                    cache_key = _portal_case_search_cache_key(cache_payload)
+                    if not force and _portal_case_search_cache_get(cache_key) is not None:
+                        continue
+                    data = search_portal_cases(
+                    transaction="buy",
+                    portal="all",
+                    region_hint="",
+                    keyword="",
+                    property_types=[property_type],
+                    price_min_man=0,
+                    price_max_man=0,
+                    layout_min_rooms=0,
+                    layout_max_rooms=0,
+                    layout_exact_zero=False,
+                    max_age_days=max_age_days,
+                    limit=type_page_size,
+                    offset=type_offset,
+                    page_size=type_page_size,
+                    jp_line_id=0,
+                    jp_station_id=0,
+                    walk_max=0,
+                    coverage_matrix_aligned=False,
+                    )
+                    items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
+                        list(data.get("items") or []),
+                        allow_live_fetch=False,
+                    )
+                    bf_meta["skipped_reason"] = "prewarm_type_fast_mode"
+                    items_bf, detail_gate_meta = _portal_case_filter_openable_detail_items(items_bf)
+                    items_bf = _portal_case_prioritize_displayable_media(items_bf)
+                    data["items"] = items_bf
+                    data["portal_thumb_backfill"] = bf_meta
+                    data["portal_detail_gate"] = detail_gate_meta
+                    data["portal_detail_enrich"] = {"enabled": False, "scheduled": 0, "reason": "prewarm_type_fast_mode"}
+                    data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
+                    data["allowed_transactions"] = allowed_tx
+                    data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
+                    data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
+                    _portal_case_search_cache_set(
+                        cache_key,
+                        json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+                    )
+    except Exception:
+        return
+
+
 def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
     """Warm common buy-search responses so first user searches avoid cold parse spikes."""
     if _portal_case_search_cache_ttl() <= 0:
@@ -444,6 +539,79 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
     try:
         settings = load_crawl_settings()
         allowed_tx = _allowed_portal_transactions(settings)
+        type_prewarm_values = ["公寓", "大樓", "華廈", "套房", "別墅/透天", "辦公", "店面", "土地", "其他"]
+        try:
+            type_prewarm_pages = max(1, min(8, int(os.getenv("SCLAW_PORTAL_TYPE_PREWARM_PAGES", "4") or 4)))
+        except Exception:
+            type_prewarm_pages = 4
+        for property_type in type_prewarm_values:
+            for page_idx in range(type_prewarm_pages):
+                type_page_size = 12
+                type_offset = page_idx * type_page_size
+                cache_payload = {
+                    "tx": "buy",
+                    "portal": "all",
+                    "region": "",
+                    "keyword": "",
+                    "property_types": [property_type],
+                    "price_min_man": 0,
+                    "price_max_man": 0,
+                    "layout_min_rooms": 0,
+                    "layout_max_rooms": 0,
+                    "layout_exact_zero": False,
+                    "max_age_days": 0,
+                    "limit": type_page_size,
+                    "jp_line_id": 0,
+                    "jp_station_id": 0,
+                    "walk_max": 0,
+                    "coverage_matrix_aligned": False,
+                    "offset": type_offset,
+                    "page_size": type_page_size,
+                    "detail_gate": "openable-v1",
+                    "media_policy": "detail-panel-gallery-v18-type-media-ignore-price",
+                }
+                cache_key = _portal_case_search_cache_key(cache_payload)
+                if not force and _portal_case_search_cache_get(cache_key) is not None:
+                    continue
+                data = search_portal_cases(
+                    transaction="buy",
+                    portal="all",
+                    region_hint="",
+                    keyword="",
+                    property_types=[property_type],
+                    price_min_man=0,
+                    price_max_man=0,
+                    layout_min_rooms=0,
+                    layout_max_rooms=0,
+                    layout_exact_zero=False,
+                    max_age_days=0,
+                    limit=type_page_size,
+                    offset=type_offset,
+                    page_size=type_page_size,
+                    jp_line_id=0,
+                    jp_station_id=0,
+                    walk_max=0,
+                    coverage_matrix_aligned=False,
+                )
+                items_bf, bf_meta = _portal_api_backfill_empty_thumbs(
+                    list(data.get("items") or []),
+                    allow_live_fetch=False,
+                )
+                bf_meta["skipped_reason"] = "prewarm_type_fast_mode"
+                items_bf, detail_gate_meta = _portal_case_filter_openable_detail_items(items_bf)
+                items_bf = _portal_case_prioritize_displayable_media(items_bf)
+                data["items"] = items_bf
+                data["portal_thumb_backfill"] = bf_meta
+                data["portal_detail_gate"] = detail_gate_meta
+                data["portal_detail_enrich"] = {"enabled": False, "scheduled": 0, "reason": "prewarm_type_fast_mode"}
+                data["portal_keys"] = list(SMART_QUERY_PORTAL_KEYS)
+                data["allowed_transactions"] = allowed_tx
+                data["smart_query_show_sell"] = bool(settings.get("smart_query_show_sell"))
+                data["smart_query_show_rent"] = bool(settings.get("smart_query_show_rent"))
+                _portal_case_search_cache_set(
+                    cache_key,
+                    json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+                )
         common_keyword_payloads = [
             {"region": "", "keyword": "中古", "property_types": [], "price_min_man": 0, "price_max_man": 0},
             {"region": "", "keyword": "新築", "property_types": [], "price_min_man": 0, "price_max_man": 0},
@@ -476,7 +644,7 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                     "offset": 0,
                     "page_size": page_size,
                     "detail_gate": "openable-v1",
-                    "media_policy": "detail-panel-gallery-v7",
+                    "media_policy": "detail-panel-gallery-v18-type-media-ignore-price",
                 }
                 cache_key = _portal_case_search_cache_key(cache_payload)
                 if not force and _portal_case_search_cache_get(cache_key) is not None:
@@ -542,7 +710,7 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                         "offset": 0,
                         "page_size": page_size,
                         "detail_gate": "openable-v1",
-                        "media_policy": "detail-panel-gallery-v7",
+                        "media_policy": "detail-panel-gallery-v18-type-media-ignore-price",
                     }
                     cache_key = _portal_case_search_cache_key(cache_payload)
                     if not force and _portal_case_search_cache_get(cache_key) is not None:
@@ -620,7 +788,7 @@ def _prewarm_portal_case_search_cache(*, force: bool = False) -> None:
                     "offset": 0,
                     "page_size": page_size,
                     "detail_gate": "openable-v1",
-                    "media_policy": "detail-panel-gallery-v7",
+                    "media_policy": "detail-panel-gallery-v18-type-media-ignore-price",
                 }
                 cache_key = _portal_case_search_cache_key(cache_payload)
                 if not force and _portal_case_search_cache_get(cache_key) is not None:
@@ -824,6 +992,7 @@ def _portal_case_search_exact_count_normalized_payload(
         "jp_station_id": int(jp_station_id or 0),
         "walk_max": int(walk_max or 0),
         "coverage_matrix_aligned": bool(coverage_matrix_aligned),
+        "price_policy": "ignore_price_filter_v1",
     }
 
 
@@ -1507,35 +1676,74 @@ def _case_image_download_to_cache(raw_url: Any) -> str:
     shard_dir.mkdir(parents=True, exist_ok=True)
     dest = shard_dir / f"{h}{_case_image_cache_ext(raw, '')}"
     tmp = dest.with_name(dest.name + ".tmp")
+    downloaded = False
     try:
         tmp.unlink(missing_ok=True)
-        cmd = [
-            "curl",
-            "--location",
-            "--fail",
-            "--silent",
-            "--show-error",
-            "--max-time",
-            f"{curl_max_time:.1f}",
-            "--connect-timeout",
-            f"{curl_connect_time:.1f}",
-            "--max-filesize",
-            str(max_bytes),
-            "--user-agent",
-            str(headers.get("User-Agent") or "Mozilla/5.0"),
-            "--header",
-            f"Accept: {headers['Accept']}",
-            "--output",
-            str(tmp),
-            raw,
-        ]
-        subprocess.run(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=max(2.0, curl_max_time + 1.0),
-            check=True,
-        )
+        referer = ""
+        try:
+            host = (urlparse(raw).netloc or "").lower()
+            if host:
+                referer = f"https://{host}/"
+        except Exception:
+            referer = ""
+        if shutil.which("curl"):
+            cmd = [
+                "curl",
+                "--location",
+                "--fail",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                f"{curl_max_time:.1f}",
+                "--connect-timeout",
+                f"{curl_connect_time:.1f}",
+                "--max-filesize",
+                str(max_bytes),
+                "--user-agent",
+                str(headers.get("User-Agent") or "Mozilla/5.0"),
+                "--header",
+                f"Accept: {headers['Accept']}",
+            ]
+            if referer:
+                cmd.extend(["--referer", referer])
+            cmd.extend(["--output", str(tmp), raw])
+            try:
+                subprocess.run(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=max(2.0, curl_max_time + 1.0),
+                    check=True,
+                )
+                downloaded = True
+            except Exception:
+                try:
+                    tmp.unlink(missing_ok=True)
+                except Exception:
+                    pass
+        if not downloaded:
+            http_headers = {
+                "User-Agent": str(headers.get("User-Agent") or "Mozilla/5.0"),
+                "Accept": headers["Accept"],
+            }
+            if referer:
+                http_headers["Referer"] = referer
+            with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(curl_max_time, connect=curl_connect_time)) as client:
+                with client.stream("GET", raw, headers=http_headers) as resp:
+                    resp.raise_for_status()
+                    content_type = str(resp.headers.get("content-type") or "").lower()
+                    if content_type and not content_type.startswith("image/") and "octet-stream" not in content_type:
+                        return ""
+                    size = 0
+                    with tmp.open("wb") as fh:
+                        for chunk in resp.iter_bytes(chunk_size=65536):
+                            if not chunk:
+                                continue
+                            size += len(chunk)
+                            if size > max_bytes:
+                                raise ValueError("image too large")
+                            fh.write(chunk)
+            downloaded = True
         if not tmp.exists() or tmp.stat().st_size <= 256 or tmp.stat().st_size > max_bytes:
             tmp.unlink(missing_ok=True)
             return ""
@@ -1616,7 +1824,7 @@ def case_static_image_url(raw_url: Any) -> str:
     return _case_image_proxy_url(raw)
 
 
-_CASE_REPRESENTATIVE_VISUAL_CACHE: dict[str, bool] = {}
+_CASE_REPRESENTATIVE_VISUAL_CACHE: dict[str, str] = {}
 _CASE_REPRESENTATIVE_VISUAL_CACHE_MAX = 5000
 
 
@@ -1631,7 +1839,7 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
     if not s:
         return "empty"
     if s in _CASE_REPRESENTATIVE_VISUAL_CACHE:
-        return "visual" if _CASE_REPRESENTATIVE_VISUAL_CACHE[s] else ""
+        return str(_CASE_REPRESENTATIVE_VISUAL_CACHE.get(s) or "")
     path = _url_to_local_static_path(s)
     if not path or not path.is_file():
         return ""
@@ -1690,11 +1898,18 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                         reason = "blank-placeholder"
     except Exception:
         reason = ""
-    reject = bool(reason)
     if len(_CASE_REPRESENTATIVE_VISUAL_CACHE) >= _CASE_REPRESENTATIVE_VISUAL_CACHE_MAX:
         _CASE_REPRESENTATIVE_VISUAL_CACHE.clear()
-    _CASE_REPRESENTATIVE_VISUAL_CACHE[s] = reject
+    _CASE_REPRESENTATIVE_VISUAL_CACHE[s] = str(reason or "")
     return reason
+
+
+def _case_image_proxy_reject_reason(static_url: Any) -> str:
+    """Only reject media that is unsafe/useless for rendering, not subjective card quality."""
+    reason = _case_image_visual_reject_reason(static_url)
+    if reason in {"empty", "invalid", "tiny", "extreme-ratio", "blank-placeholder"}:
+        return reason
+    return ""
 
 
 def _case_image_file_dimensions(path: Path) -> tuple[int, int] | None:
@@ -6786,7 +7001,7 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     cached_url = _case_image_cached_static_url(raw)
     path = _url_to_local_static_path(cached_url)
     if path:
-        reject_reason = _case_image_visual_reject_reason(cached_url)
+        reject_reason = _case_image_proxy_reject_reason(cached_url)
         if reject_reason and not (reject_reason == "access-map" and _is_yahoo_listing_image_url(raw)):
             return Response(
                 status_code=404,
@@ -6802,7 +7017,7 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     path = _url_to_local_static_path(cached_url)
     if not path:
         return Response(status_code=404, content="image unavailable")
-    reject_reason = _case_image_visual_reject_reason(cached_url)
+    reject_reason = _case_image_proxy_reject_reason(cached_url)
     if reject_reason and not (reject_reason == "access-map" and _is_yahoo_listing_image_url(raw)):
         return Response(
             status_code=404,
@@ -7642,6 +7857,12 @@ class SupportSelectedCaseNotifyRequest(BaseModel):
     trigger: str = "case_selected"
 
 
+class SupportCaseConsultNotifyRequest(BaseModel):
+    session_id: str = ""
+    case: dict[str, Any] = Field(default_factory=dict)
+    message: str = ""
+
+
 class SocialRadarAnalyzeRequest(BaseModel):
     """社群獲客雷達：由顧問貼上公開互動/匯出名單，系統做線索分級與 AI 導流文字。"""
 
@@ -7735,6 +7956,17 @@ def startup_event() -> None:
             "off",
         ):
             threading.Thread(target=_prewarm_inventory_stats_cache, daemon=True).start()
+        if (os.getenv("SCLAW_PORTAL_TYPE_SEARCH_PREWARM") or "1").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        ):
+            threading.Thread(
+                target=_prewarm_portal_type_case_search_cache,
+                daemon=True,
+                name="portal-type-case-prewarm",
+            ).start()
         if (os.getenv("SCLAW_PORTAL_SEARCH_PREWARM") or "0").strip().lower() not in (
             "0",
             "false",
@@ -7972,10 +8204,26 @@ def _visitor_retention_cutoff(today: date) -> str:
 
 
 def _visitor_kind(request: Request) -> str:
+    form_flag = str(request.cookies.get("sclaw_form_filled") or "").strip().lower()
+    if form_flag in {"1", "true", "yes", "form_filled"}:
+        return "form_filled"
     flag = str(request.cookies.get("sclaw_phone_logged_in") or "").strip().lower()
     if flag in {"1", "true", "yes", "phone_login"}:
-        return "phone_login"
+        return "form_filled"
     return "guest"
+
+
+def _mark_form_filled_response(resp: JSONResponse) -> JSONResponse:
+    """Keep frontend visitor statistics aligned after the user submits an intake form."""
+    resp.set_cookie(
+        "sclaw_form_filled",
+        "1",
+        max_age=60 * 60 * 24 * 365,
+        httponly=False,
+        samesite="lax",
+    )
+    resp.delete_cookie("sclaw_phone_logged_in")
+    return resp
 
 
 def _should_track_visitor_request(request: Request, status_code: int) -> bool:
@@ -8593,7 +8841,6 @@ def _site_standalone_context(request: Request) -> dict[str, Any]:
         "site_nav_workbench_onclick": "window.location.href='/#jp-map-hub'",
         "site_nav_query_onclick": "",
         "site_nav_process_onclick": "",
-        "site_nav_login_onclick": "window.location.href='/?open_support=1'",
         "site_footer_support_onclick": "window.location.href='/?open_support=1'",
     }
 
@@ -8661,6 +8908,134 @@ def _build_case_listing_zh_display(case_listing_panel: dict[str, Any]) -> str:
     return "\n".join(rows)[:900]
 
 
+_CASE_DETAIL_JP_PHRASE_MAP: tuple[tuple[str, str], ...] = (
+    ("原文：", ""),
+    ("原文:", ""),
+    ("資料請求", "资料咨询"),
+    ("見学予約", "预约看房"),
+    ("問合せ", "咨询"),
+    ("お問い合わせ", "咨询"),
+    ("会社情報", "公司信息"),
+    ("所在地", "地址"),
+    ("住所", "地址"),
+    ("沿線駅", "沿线车站"),
+    ("沿線・駅", "沿线车站"),
+    ("交通", "交通"),
+    ("徒歩", "步行"),
+    ("駅", "站"),
+    ("バス停", "公交站"),
+    ("バス", "公交"),
+    ("地下鉄", "地铁"),
+    ("東京メトロ", "东京Metro"),
+    ("湘南新宿ライン", "湘南新宿线"),
+    ("新高日圓寺", "新高圆寺"),
+    ("高日圓寺", "高圆寺"),
+    ("丸ノ内", "丸之内"),
+    ("メトロ", "Metro"),
+    ("都営", "都营"),
+    ("ライン", "线"),
+    ("線", "线"),
+    ("間取り", "格局"),
+    ("専有面積", "专有面积"),
+    ("バルコニー", "阳台"),
+    ("その他面積", "其他面积"),
+    ("築年月", "建筑年月"),
+    ("完成時期", "完成时间"),
+    ("階建", "层建筑"),
+    ("地上", "地上"),
+    ("地下", "地下"),
+    ("所在階", "所在楼层"),
+    ("建物構造", "建筑结构"),
+    ("鉄筋コンクリート", "钢筋混凝土"),
+    ("鉄骨鉄筋コンクリート", "钢骨钢筋混凝土"),
+    ("鉄骨", "钢结构"),
+    ("木造", "木造"),
+    ("管理費", "管理费"),
+    ("修繕積立金", "修缮积立金"),
+    ("駐車場", "停车场"),
+    ("現況", "当前状态"),
+    ("引渡し", "交屋"),
+    ("相談", "可商议"),
+    ("空室", "空房"),
+    ("居住中", "居住中"),
+    ("販売戸数", "在售户数"),
+    ("総戸数", "总户数"),
+    ("情報公開日", "资料公开日"),
+    ("次回更新予定", "下次更新"),
+    ("物件番号", "物件编号"),
+    ("管理会社", "管理公司"),
+    ("取引態様", "交易形态"),
+    ("用途地域", "用途地区"),
+    ("都市計画", "都市规划"),
+    ("所有権", "所有权"),
+    ("借地権", "借地权"),
+    ("新築", "新建"),
+    ("中古", "中古"),
+    ("マンション", "公寓"),
+    ("一戸建て", "一户建"),
+    ("戸建て", "一户建"),
+    ("アパート", "公寓"),
+    ("ワンルーム", "单间"),
+    ("リビング", "客厅"),
+    ("ダイニング", "餐厅"),
+    ("キッチン", "厨房"),
+    ("サービスルーム", "服务间"),
+    ("納戸", "储藏室"),
+    ("和室", "和室"),
+    ("洋室", "洋室"),
+    ("帖", "帖"),
+    ("畳", "畳"),
+)
+
+
+def _case_detail_strip_original_noise(value: Any) -> str:
+    s = str(value or "").replace("\ufffd", "").strip()
+    if not s:
+        return ""
+    s = re.sub(r"(?im)^\s*原文\s*[:：].*$", "", s)
+    s = re.sub(r"(?im)^\s*(?:來源原文|来源原文|日語原文|日语原文)\s*[:：].*$", "", s)
+    s = re.sub(r"\s*原文\s*[:：]\s*", " ", s)
+    s = re.sub(r"(?:\n\s*){3,}", "\n\n", s)
+    return s.strip()
+
+
+def _case_detail_to_zh_display(value: Any, *, max_len: int = 260) -> str:
+    s = _case_detail_strip_original_noise(value)
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s)
+    if len(s) > 120 and re.search(r"(?:お電話|お気軽|物件詳細|この会社|撮影風景|掲載開始日)", s):
+        return ""
+    s = s.replace("㎡", "m²")
+    for old, new in _CASE_DETAIL_JP_PHRASE_MAP:
+        s = s.replace(old, new)
+    s = re.sub(r"([0-9]+)\s*分", r"\1分钟", s)
+    s = re.sub(r"([0-9]+)\s*階", r"\1层", s)
+    s = re.sub(r"([0-9]+)\s*戸", r"\1户", s)
+    s = re.sub(r"([0-9]+)\s*年\s*([0-9]+)\s*月", r"\1年\2月", s)
+    if re.search(r"[ぁ-んァ-ヶ]", s):
+        s = re.sub(r"[ぁ-んァ-ヶー]+", "", s)
+    s = s.replace("新高日圓寺", "新高圆寺").replace("高日圓寺", "高圆寺")
+    s = s.replace("新高円寺", "新高圆寺").replace("高円寺", "高圆寺")
+    s = re.sub(r"\s*/\s*", " / ", s)
+    s = re.sub(r"\s+", " ", s).strip(" ：:-　")
+    if not s or s in {"—", "-", "－"}:
+        return ""
+    return s[: max(20, int(max_len or 260))]
+
+
+def _case_detail_first_zh(*values: Any, max_len: int = 260) -> str:
+    seen: set[str] = set()
+    for value in values:
+        s = _case_detail_to_zh_display(value, max_len=max_len)
+        key = re.sub(r"\s+", "", s).casefold()
+        if s and key not in seen:
+            return s
+        if key:
+            seen.add(key)
+    return ""
+
+
 _INDEX_HTML_CACHE_TTL_SECONDS = int(os.getenv("SCLAW_INDEX_HTML_CACHE_TTL", "60") or "60")
 _INDEX_HTML_CACHE_LOCK = threading.RLock()
 _INDEX_HTML_CACHE: tuple[float, bytes] | None = None
@@ -8721,6 +9096,15 @@ def purchase_tools_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="purchase_tools.html",
+        context=_site_standalone_context(request),
+    )
+
+
+@app.get("/support-intake")
+def support_intake_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="support_intake.html",
         context=_site_standalone_context(request),
     )
 
@@ -9168,12 +9552,58 @@ _SOURCE_IMAGE_HIGH_RES_W = 1600
 _SOURCE_IMAGE_HIGH_RES_H = 1200
 
 
+def _is_unfetchable_athome_thumbnail_url(text: str) -> bool:
+    """Reject AtHome cimages thumbnail entries that do not resolve as images."""
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if "athome.co.jp" not in host:
+        return False
+    if "/mansion/shinchiku/cimages/" not in path or "/thm/" not in path:
+        return False
+    return not any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+
+
+def _is_unfetchable_listing_image_url(text: str) -> bool:
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    if _is_unfetchable_athome_thumbnail_url(s):
+        return True
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path:
+        return not any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+    if "suumo." in host and "resizeimage" in path:
+        try:
+            q = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            src = unquote(str(q.get("src") or "")).lower()
+        except Exception:
+            src = ""
+        return bool(src) and not any(src.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+    if "athome.co.jp" in host and "/mansion/shinchiku/cimages/guidance/" in path:
+        return True
+    return False
+
+
 def _row_image_url_is_usable(u: str) -> bool:
     """可內嵌預覽的圖片：靜態副檔名，或 SUUMO 等 resize 端點且帶 query（無 query 只會回錯誤頁）。"""
     lu = (u or "").strip().lower()
     if not lu.startswith("http"):
         return False
     if _is_truncated_listing_image_url(lu):
+        return False
+    if _is_unfetchable_listing_image_url(lu):
         return False
     try:
         parsed = urlparse(u)
@@ -10223,6 +10653,7 @@ def _clean_case_body_for_display(text: str) -> str:
         return ""
     s = s.replace("\ufffd", "")
     s = re.sub(r"ヒント\s*[:：]\s*", "", s)
+    s = _case_detail_strip_original_noise(s)
     if re.search(r"(?:需授權或無法抽吸|需授权或无法抽吸)\s+JavaScript\s*被禁用", s):
         return ""
     s = re.sub(
@@ -10250,6 +10681,8 @@ def _clean_case_body_for_display(text: str) -> str:
         if not line:
             if out_lines and out_lines[-1] != "":
                 out_lines.append("")
+            continue
+        if re.match(r"^(?:原文|來源原文|来源原文|日語原文|日语原文)\s*[:：]", line):
             continue
         m_addr = re.match(r"^([-－*•・]\s*)?(所在地|住所)\s*[:：]\s*(.+)$", line)
         if m_addr:
@@ -10290,6 +10723,7 @@ def _clean_case_body_for_display(text: str) -> str:
     cleaned = sanitize_article_display_body(joined)
     cleaned = (cleaned or joined).replace("\ufffd", "")
     cleaned = re.sub(r"ヒント\s*[:：]\s*", "", cleaned)
+    cleaned = _case_detail_strip_original_noise(cleaned)
     return cleaned
 
 
@@ -11065,7 +11499,7 @@ def _support_lead_capture_blueprint(message: str, knowledge_meta: dict, *, human
         "ready": ready,
         "human_intent": bool(human_intent),
         "required_fields": fields,
-        "prompt": "請留下聯絡方式、預算與用途，系統會把本輪對話交給真人顧問。"
+        "prompt": "請留下聯絡方式、預算與用途，系統會把本輪對話交給人工顧問。"
         if ready
         else "先補預算、用途與地區後，再建立留單會更精準。",
     }
@@ -11178,7 +11612,7 @@ def _sales_pitch_for_stage(stage: str, message: str, intent_score: int | None = 
     if stage == "closing":
         return [
             "已進入高意願階段，先確認預算區間、貸款條件、預計成交時程。",
-            "建議立即安排真人顧問對接，先整理需求與風險重點，不在智能客服內加推案件。",
+            "建議立即安排人工顧問對接，先整理需求與風險重點，不在智能客服內加推案件。",
             f"可延伸話術：針對「{raw_msg[:30]}」先問 1 個關鍵條件，再交由顧問跟進。",
         ]
     if stage == "consideration":
@@ -11222,7 +11656,7 @@ def _build_sales_mcp_payload(
         {"id": "risk_brief", "label": "輸出風險與法規說明"},
     ]
     if should_notify:
-        next_actions.insert(0, {"id": "handoff_human", "label": "轉真人顧問對接"})
+        next_actions.insert(0, {"id": "handoff_human", "label": "轉人工顧問對接"})
     pitch_lines = list(_sales_pitch_for_stage(stage, message, score))
     if matched_scenario:
         label = str(matched_scenario.get("label") or "").strip()
@@ -11235,14 +11669,14 @@ def _build_sales_mcp_payload(
     matched_id = str(matched_scenario.get("id") or "").strip() if matched_scenario else ""
     matched_label = str(matched_scenario.get("label") or "").strip() if matched_scenario else ""
     notify_reason = (
-        "客戶已明確表示正在買房／安排看屋，可進入真人顧問接手流程"
+        "客戶已明確表示正在買房／安排看屋，可進入人工顧問接手流程"
         if direct_buy_intent
         else "客戶已明確要求人工／顧問／留單，需開啟正式問卷並取得聯絡方式"
         if human_intent and should_notify
         else (
             "客戶目前想找顧問，但尚未明確進入買房決策；先由模擬顧問接待並補一個關鍵條件"
             if human_intent
-            else ("客戶已送出有興趣的站內案件，先整理需求，暫不真人轉接" if selected_interest else "")
+            else ("客戶已送出有興趣的站內案件，先整理需求，暫不人工轉接" if selected_interest else "")
         )
     )
     lead_capture = _support_lead_capture_blueprint(message, knowledge_meta, human_intent=human_intent)
@@ -14748,6 +15182,61 @@ def _visitor_dashboard_date_label(start: date, end: date) -> str:
     return f"{start.strftime('%m-%d')}~{end.strftime('%m-%d')}"
 
 
+def _support_contact_user_where_clause(*, qualified_only: bool = True) -> str:
+    """Only count users who actually talked to support and left usable context/contact info."""
+    if not qualified_only:
+        return "1=1"
+    has_context = (
+        "(COALESCE(session_id, '') != '' AND "
+        "(COALESCE(context_message, '') != '' OR COALESCE(conversation_json, '') NOT IN ('', '[]')))"
+    )
+    has_info = (
+        "("
+        "COALESCE(name, '') != '' OR COALESCE(phone, '') != '' OR COALESCE(email, '') != '' OR "
+        "COALESCE(note, '') != '' OR COALESCE(opinion, '') != '' OR COALESCE(questionnaire_json, '') NOT IN ('', '{}')"
+        ")"
+    )
+    return f"{has_context} AND {has_info}"
+
+
+def _support_contact_user_totals(conn: sqlite3.Connection, *, start_text: str, today_text: str) -> dict[str, int]:
+    where_sql = _support_contact_user_where_clause()
+    all_row = conn.execute(
+        f"""
+        SELECT
+          COUNT(1) AS total,
+          COUNT(DISTINCT NULLIF(session_id, '')) AS sessions
+        FROM human_handoff_requests
+        WHERE {where_sql}
+        """
+    ).fetchone()
+    range_row = conn.execute(
+        f"""
+        SELECT
+          COUNT(1) AS total,
+          COUNT(DISTINCT NULLIF(session_id, '')) AS sessions
+        FROM human_handoff_requests
+        WHERE {where_sql} AND date(created_at) >= date(?)
+        """,
+        (start_text,),
+    ).fetchone()
+    today_row = conn.execute(
+        f"""
+        SELECT COUNT(1) AS total
+        FROM human_handoff_requests
+        WHERE {where_sql} AND date(created_at) = date(?)
+        """,
+        (today_text,),
+    ).fetchone()
+    return {
+        "historical_contacts": int(all_row["total"] or 0) if all_row else 0,
+        "historical_contact_sessions": int(all_row["sessions"] or 0) if all_row else 0,
+        "range_contacts": int(range_row["total"] or 0) if range_row else 0,
+        "range_contact_sessions": int(range_row["sessions"] or 0) if range_row else 0,
+        "today_contacts": int(today_row["total"] or 0) if today_row else 0,
+    }
+
+
 @app.get("/api/admin/visitor-dashboard")
 def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, ge=1, le=365)):
     _require_admin_password(request)
@@ -14767,13 +15256,13 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             f"""
             SELECT
               COUNT(*) AS visitors,
-              SUM(has_phone) AS phone_visitors,
-              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors,
+              SUM(has_form) AS form_visitors,
+              SUM(CASE WHEN has_form = 1 THEN 0 ELSE 1 END) AS guest_visitors,
               AVG(avg_elapsed_ms) AS avg_elapsed_ms
             FROM (
               SELECT
                 ip_hash,
-                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone,
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 1 ELSE 0 END) AS has_form,
                 AVG(elapsed_ms) AS avg_elapsed_ms
               FROM site_visitor_events
               WHERE event_date >= ?{path_sql}{human_sql}
@@ -14786,12 +15275,12 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             f"""
             SELECT
               COUNT(*) AS visitors,
-              SUM(has_phone) AS phone_visitors,
-              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+              SUM(has_form) AS form_visitors,
+              SUM(CASE WHEN has_form = 1 THEN 0 ELSE 1 END) AS guest_visitors
             FROM (
               SELECT
                 ip_hash,
-                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 1 ELSE 0 END) AS has_form
               FROM site_visitor_events
               WHERE event_date >= ?{path_sql}{human_sql}
               GROUP BY ip_hash
@@ -14803,12 +15292,12 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             f"""
             SELECT
               COUNT(*) AS visitors,
-              SUM(has_phone) AS phone_visitors,
-              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+              SUM(has_form) AS form_visitors,
+              SUM(CASE WHEN has_form = 1 THEN 0 ELSE 1 END) AS guest_visitors
             FROM (
               SELECT
                 ip_hash,
-                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 1 ELSE 0 END) AS has_form
               FROM site_visitor_events
               WHERE event_date = ?{path_sql}{human_sql}
               GROUP BY ip_hash
@@ -14820,12 +15309,12 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             f"""
             SELECT
               COUNT(*) AS visitors,
-              SUM(has_phone) AS phone_visitors,
-              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+              SUM(has_form) AS form_visitors,
+              SUM(CASE WHEN has_form = 1 THEN 0 ELSE 1 END) AS guest_visitors
             FROM (
               SELECT
                 ip_hash,
-                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 1 ELSE 0 END) AS has_form
               FROM site_visitor_events
               WHERE event_date = ?{path_sql}{human_sql}
               GROUP BY ip_hash
@@ -14833,18 +15322,23 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             """,
             (yesterday_text, *path_params),
         ).fetchone()
+        form_filled_totals = _support_contact_user_totals(
+            conn,
+            start_text=start_text,
+            today_text=today_text,
+        )
         daily_rows = conn.execute(
             f"""
             SELECT
               event_date,
               COUNT(*) AS visitors,
-              SUM(has_phone) AS phone_visitors,
-              SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+              SUM(has_form) AS form_visitors,
+              SUM(CASE WHEN has_form = 1 THEN 0 ELSE 1 END) AS guest_visitors
             FROM (
               SELECT
                 event_date,
                 ip_hash,
-                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+                MAX(CASE WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 1 ELSE 0 END) AS has_form
               FROM site_visitor_events
               WHERE event_date >= ?{path_sql}{human_sql}
               GROUP BY event_date, ip_hash
@@ -14863,7 +15357,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             "unique_visitors": int(row["visitors"] or 0),
             "visitors": int(row["visitors"] or 0),
             "guest_visitors": int(row["guest_visitors"] or 0),
-            "phone_visitors": int(row["phone_visitors"] or 0),
+            "form_visitors": int(row["form_visitors"] or 0),
         }
         for row in daily_rows
     }
@@ -14878,7 +15372,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 "pageviews": 0,
                 "unique_visitors": 0,
                 "guest_visitors": 0,
-                "phone_visitors": 0,
+                "form_visitors": 0,
             }
         )
 
@@ -14893,12 +15387,12 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 f"""
                 SELECT
                   COUNT(*) AS visitors,
-                  SUM(has_phone) AS phone_visitors,
-                  SUM(CASE WHEN has_phone = 1 THEN 0 ELSE 1 END) AS guest_visitors
+                  SUM(has_form) AS form_visitors,
+                  SUM(CASE WHEN has_form = 1 THEN 0 ELSE 1 END) AS guest_visitors
                 FROM (
                   SELECT
                     ip_hash,
-                    MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
+                    MAX(CASE WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 1 ELSE 0 END) AS has_form
                   FROM site_visitor_events
                   WHERE event_date BETWEEN ? AND ?{path_sql}{human_sql}
                   GROUP BY ip_hash
@@ -14910,7 +15404,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 "entries": int(row["visitors"] or 0) if row else 0,
                 "unique_visitors": int(row["visitors"] or 0) if row else 0,
                 "guest_visitors": int(row["guest_visitors"] or 0) if row else 0,
-                "phone_visitors": int(row["phone_visitors"] or 0) if row else 0,
+                "form_visitors": int(row["form_visitors"] or 0) if row else 0,
             }
             bucket_start = bucket_end + timedelta(days=1)
 
@@ -14921,7 +15415,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
         entries = int(row.get("entries") or 0)
         unique_count = int(row.get("unique_visitors") or 0)
         guest_count = int(row.get("guest_visitors") or 0)
-        phone_count = int(row.get("phone_visitors") or 0)
+        form_count = int(row.get("form_visitors") or 0)
         buckets.append(
             {
                 "label": _visitor_dashboard_date_label(bucket_start, bucket_end),
@@ -14931,7 +15425,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 "pageviews": entries,
                 "unique_visitors": unique_count,
                 "guest_visitors": guest_count,
-                "phone_visitors": phone_count,
+                "form_visitors": form_count,
             }
         )
         bucket_start = bucket_end + timedelta(days=1)
@@ -14939,19 +15433,19 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
     pageviews = int(totals_row["visitors"] or 0) if totals_row else 0
     unique_visitors = int(totals_row["visitors"] or 0) if totals_row else 0
     guest_visitors = int(totals_row["guest_visitors"] or 0) if totals_row else 0
-    phone_visitors = int(totals_row["phone_visitors"] or 0) if totals_row else 0
+    form_visitors = int(totals_row["form_visitors"] or 0) if totals_row else 0
     historical_unique = int(historical_row["visitors"] or 0) if historical_row else 0
     historical_guest = int(historical_row["guest_visitors"] or 0) if historical_row else 0
-    historical_phone = int(historical_row["phone_visitors"] or 0) if historical_row else 0
+    historical_form = int(historical_row["form_visitors"] or 0) if historical_row else 0
     avg_elapsed = float(totals_row["avg_elapsed_ms"] or 0) if totals_row else 0.0
     today_unique = int(today_row["visitors"] or 0) if today_row else 0
     today_guest = int(today_row["guest_visitors"] or 0) if today_row else 0
-    today_phone = int(today_row["phone_visitors"] or 0) if today_row else 0
+    today_form = int(today_row["form_visitors"] or 0) if today_row else 0
     today_entries = today_unique
     yesterday_unique = int(yesterday_row["visitors"] or 0) if yesterday_row else 0
-    yesterday_phone = int(yesterday_row["phone_visitors"] or 0) if yesterday_row else 0
+    yesterday_form = int(yesterday_row["form_visitors"] or 0) if yesterday_row else 0
     delta = today_unique - yesterday_unique
-    phone_delta = today_phone - yesterday_phone
+    form_delta = today_form - yesterday_form
 
     return JSONResponse(
         {
@@ -14965,26 +15459,110 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             "totals": {
                 "unique_visitors": unique_visitors,
                 "guest_visitors": guest_visitors,
-                "phone_login_visitors": phone_visitors,
+                "form_filled_visitors": form_visitors,
                 "pageviews": pageviews,
                 "entries": pageviews,
                 "today_unique_visitors": today_unique,
                 "today_guest_visitors": today_guest,
-                "today_phone_login_visitors": today_phone,
+                "today_form_filled_visitors": today_form,
                 "today_pageviews": today_entries,
                 "today_entries": today_entries,
                 "yesterday_unique_visitors": yesterday_unique,
-                "yesterday_phone_login_visitors": yesterday_phone,
+                "yesterday_form_filled_visitors": yesterday_form,
                 "unique_delta_vs_yesterday": delta,
-                "phone_login_delta_vs_yesterday": phone_delta,
+                "form_filled_delta_vs_yesterday": form_delta,
                 "historical_unique_visitors": historical_unique,
                 "historical_guest_visitors": historical_guest,
-                "historical_phone_login_visitors": historical_phone,
+                "historical_form_filled_visitors": historical_form,
+                "form_submit_visitors": form_filled_totals["range_contacts"],
+                "form_submit_sessions": form_filled_totals["range_contact_sessions"],
+                "today_form_submit_visitors": form_filled_totals["today_contacts"],
+                "historical_form_submit_visitors": form_filled_totals["historical_contacts"],
+                "historical_form_submit_sessions": form_filled_totals["historical_contact_sessions"],
                 "pages_per_unique_visitor": 1 if unique_visitors else 0,
                 "avg_elapsed_ms": round(avg_elapsed),
             },
             "daily": daily,
             "buckets": buckets,
+        }
+    )
+
+
+@app.get("/api/admin/support-contact-users")
+def api_admin_support_contact_users(
+    request: Request,
+    days: int = Query(default=14, ge=1, le=365),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=10, le=100),
+):
+    _require_admin_password(request)
+    range_days = _visitor_dashboard_days(days)
+    today = datetime.now(_VISITOR_TZ).date()
+    start_date = today - timedelta(days=range_days - 1)
+    start_text = start_date.isoformat()
+    where_sql = _support_contact_user_where_clause()
+    page_size = max(10, min(100, int(page_size or 20)))
+    with get_conn() as conn:
+        total_row = conn.execute(
+            f"""
+            SELECT COUNT(1) AS total
+            FROM human_handoff_requests
+            WHERE {where_sql} AND date(created_at) >= date(?)
+            """,
+            (start_text,),
+        ).fetchone()
+        total_records = int(total_row["total"] or 0) if total_row else 0
+        total_pages = (total_records + page_size - 1) // page_size if total_records else 0
+        current_page = max(1, min(int(page or 1), total_pages or 1))
+        offset = (current_page - 1) * page_size
+        rows = conn.execute(
+            f"""
+            SELECT
+              id, name, phone, email, note, action_id, session_id,
+              matched_scene_label, context_message, opinion,
+              COALESCE(LENGTH(conversation_json), 0) AS conversation_chars,
+              created_at
+            FROM human_handoff_requests
+            WHERE {where_sql} AND date(created_at) >= date(?)
+            ORDER BY created_at DESC, id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (start_text, page_size, offset),
+        ).fetchall()
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        d = dict(row)
+        contact_bits = [
+            str(d.get("phone") or "").strip(),
+            str(d.get("email") or "").strip(),
+        ]
+        contact_text = " / ".join([x for x in contact_bits if x]) or "已留其他資料"
+        items.append(
+            {
+                "id": int(d.get("id") or 0),
+                "created_at": str(d.get("created_at") or ""),
+                "name": str(d.get("name") or "").strip()[:80] or "未填稱呼",
+                "contact": contact_text[:160],
+                "phone": str(d.get("phone") or "").strip()[:60],
+                "email": str(d.get("email") or "").strip()[:120],
+                "action_id": str(d.get("action_id") or "").strip()[:80],
+                "session_id": str(d.get("session_id") or "").strip()[:120],
+                "matched_scene_label": str(d.get("matched_scene_label") or "").strip()[:120],
+                "note": str(d.get("note") or d.get("opinion") or d.get("context_message") or "").strip()[:180],
+                "conversation_chars": int(d.get("conversation_chars") or 0),
+            }
+        )
+    return JSONResponse(
+        {
+            "ok": True,
+            "range": {"days": range_days, "start_date": start_text, "end_date": today.isoformat()},
+            "pagination": {
+                "page": current_page,
+                "page_size": page_size,
+                "total_records": total_records,
+                "total_pages": total_pages,
+            },
+            "items": items,
         }
     )
 
@@ -15042,10 +15620,22 @@ def api_admin_visitor_records(
             f"""
             SELECT COUNT(*) AS total
             FROM (
-              SELECT event_date, ip_hash, COALESCE(visitor_kind, 'guest') AS visitor_kind
+              SELECT
+                event_date,
+                ip_hash,
+                CASE
+                  WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 'form_filled'
+                  ELSE 'guest'
+                END AS visitor_kind
               FROM site_visitor_events
               WHERE event_date >= ?{path_sql}{human_sql}
-              GROUP BY event_date, ip_hash, COALESCE(visitor_kind, 'guest')
+              GROUP BY
+                event_date,
+                ip_hash,
+                CASE
+                  WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 'form_filled'
+                  ELSE 'guest'
+                END
             )
             """,
             (start_text, *path_params),
@@ -15062,13 +15652,22 @@ def api_admin_visitor_records(
               MAX(event_time) AS last_enter_at,
               event_date,
               ip_label,
-              COALESCE(visitor_kind, 'guest') AS visitor_kind,
+              CASE
+                WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 'form_filled'
+                ELSE 'guest'
+              END AS visitor_kind,
               MAX(device_type) AS device_type,
               COUNT(*) AS entry_count,
               GROUP_CONCAT(DISTINCT path) AS paths
             FROM site_visitor_events
             WHERE event_date >= ?{path_sql}{human_sql}
-            GROUP BY event_date, ip_hash, COALESCE(visitor_kind, 'guest')
+            GROUP BY
+              event_date,
+              ip_hash,
+              CASE
+                WHEN COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login') THEN 'form_filled'
+                ELSE 'guest'
+              END
             ORDER BY last_enter_at DESC, first_enter_at DESC
             LIMIT ? OFFSET ?
             """,
@@ -17290,7 +17889,7 @@ def _process_line_customer_message(event: dict[str, Any], line_source_id: str, r
             _line_reply_or_push(
                 reply_token,
                 line_source_id,
-                f"已啟用 SCLAW LINE 智能客服。\nSession ID：{session_id}\n\n請直接輸入想了解的日本房產問題，或輸入「人工」轉真人顧問。",
+                f"已啟用 SCLAW LINE 線上客服。\nSession ID：{session_id}\n\n請直接輸入想了解的日本房產問題，或輸入「人工」轉人工顧問。",
             )
         except Exception:
             pass
@@ -17334,7 +17933,7 @@ def _process_line_event(event: dict[str, Any]) -> None:
             _line_reply_or_push(
                 reply_token,
                 line_source_id,
-                f"已加入 SCLAW LINE 智能客服。\nSession ID：{sid}\n\n請直接輸入問題，或輸入「人工」轉真人顧問。",
+                f"已加入 SCLAW LINE 線上客服。\nSession ID：{sid}\n\n請直接輸入問題，或輸入「人工」轉人工顧問。",
             )
         except Exception:
             pass
@@ -17826,6 +18425,7 @@ def _support_fill_simulated_template(
     *,
     queue_position: int = 0,
     wait_minutes: int = 0,
+    wait_seconds: int = 0,
     turn_index: int = 0,
 ) -> str:
     safe = str(template or "").strip()
@@ -17837,6 +18437,7 @@ def _support_fill_simulated_template(
         "title": str(advisor.get("title") or "").strip(),
         "queue": queue_position,
         "wait": wait_minutes,
+        "wait_seconds": wait_seconds,
         "turn": max(1, int(turn_index or 0)),
     }
 
@@ -17845,9 +18446,50 @@ def _support_fill_simulated_template(
             return "{" + str(key or "") + "}"
 
     try:
-        return safe.format_map(_SafeDict(values)).strip()
+        return _compact_support_service_copy(safe.format_map(_SafeDict(values)).strip())
     except Exception:
-        return safe
+        return _compact_support_service_copy(safe)
+
+
+def _sanitize_support_service_copy(text: str) -> str:
+    s = str(text or "")
+    if not s:
+        return ""
+    replacements = (
+        ("像真人顧問一樣", ""),
+        ("像真人顾问一样", ""),
+        ("像真人一樣", ""),
+        ("像真人一样", ""),
+        ("像真人顧問", ""),
+        ("像真人顾问", ""),
+        ("真人顧問私訊口吻", "自然私訊口吻"),
+        ("真人顾问私讯口吻", "自然私訊口吻"),
+        ("真人顧問私訊", "自然私訊"),
+        ("真人顾问私讯", "自然私訊"),
+        ("真人顧問", "人工顧問"),
+        ("真人顾问", "人工顧問"),
+        ("真人接手", "人工接手"),
+        ("真人需求", "人工需求"),
+        ("真人服務感", "服務感"),
+        ("真人銷售口吻", "自然客服口吻"),
+        ("真人私訊", "自然私訊"),
+    )
+    for old, new in replacements:
+        s = s.replace(old, new)
+    s = re.sub(r"(?:預計|预计)?\s*(?:約|约)?\s*\d+\s*(?:分鐘|分钟|分鍾)(?:內|内)?", "幾秒內", s)
+    s = re.sub(r"\s{2,}", " ", s)
+    return s.strip()
+
+
+def _compact_support_service_copy(text: str) -> str:
+    s = _sanitize_support_service_copy(text)
+    if not s:
+        return ""
+    parts = [p.strip() for p in re.split(r"(?<=[。！？!?])\s*", s) if p.strip()]
+    compact = " ".join(parts[:2]).strip() if parts else s
+    if len(compact) > 78:
+        compact = compact[:78].rstrip("，、；：,. ") + "…"
+    return compact
 
 
 def _support_has_direct_buying_commitment(message: str) -> bool:
@@ -17928,7 +18570,8 @@ def _build_support_simulated_service_meta(
     )
     advisor = _support_pick_simulated_advisor(advisor_seed)
     queue_position = 1 + _support_hash_pick_index(f"{session_id}:{message}:queue-position", 4)
-    wait_minutes = 1 + _support_hash_pick_index(f"{session_id}:{message}:queue-wait", 5)
+    wait_seconds = 1 + _support_hash_pick_index(f"{session_id}:{message}:queue-wait", 2)
+    wait_minutes = wait_seconds
     queue_text = _support_fill_simulated_template(
         _support_runtime_queue_templates()[
             _support_hash_pick_index(f"{session_id}:{message}:queue", len(_support_runtime_queue_templates()))
@@ -17936,6 +18579,7 @@ def _build_support_simulated_service_meta(
         advisor,
         queue_position=queue_position,
         wait_minutes=wait_minutes,
+        wait_seconds=wait_seconds,
         turn_index=turn_index,
     )
     service_text = _support_fill_simulated_template(
@@ -17945,6 +18589,7 @@ def _build_support_simulated_service_meta(
         advisor,
         queue_position=queue_position,
         wait_minutes=wait_minutes,
+        wait_seconds=wait_seconds,
         turn_index=turn_index,
     )
     handoff_text = _support_fill_simulated_template(
@@ -17954,6 +18599,7 @@ def _build_support_simulated_service_meta(
         advisor,
         queue_position=queue_position,
         wait_minutes=wait_minutes,
+        wait_seconds=wait_seconds,
         turn_index=turn_index,
     )
     display_text = handoff_text if real_handoff_ready else (queue_text if mode == "queueing" else service_text)
@@ -17970,22 +18616,19 @@ def _build_support_simulated_service_meta(
         "advisor_title": str(advisor.get("title") or "").strip(),
         "service_label": f"工號{advisor.get('code') or ''}｜{advisor.get('name') or ''}",
         "queue_position": queue_position,
-        "wait_minutes": wait_minutes,
+        "wait_minutes": 0,
+        "wait_seconds": wait_seconds,
         "turn_index": max(0, int(turn_index or 0)),
         "queue_text": queue_text,
         "service_text": service_text,
         "handoff_text": handoff_text,
-        "display_text": display_text,
+        "display_text": _compact_support_service_copy(display_text),
     }
 
 
 def _build_support_welcome_text(advisor: dict[str, str] | None = None) -> str:
     _ = advisor
-    return (
-        "您好，這裡是日本不動產線上客服。"
-        "我可以幫您查找站內案件、整理買房／租房條件，或比較已收藏物件。"
-        "您先告訴我想看的地區、預算或用途，我這邊先幫您收斂。"
-    )
+    return "您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。"
 
 
 def admin_support_crm_prompt_snapshot() -> dict[str, Any]:
@@ -18059,9 +18702,9 @@ def _support_coaching_with_tone(scenario_coaching: str, matched: dict | None) ->
     """智能客服：先場景語意與語氣，再交給模型結合知識庫。"""
     tone = (
         "【第一步｜後台場景與語氣】若下列有場景命中，請先順著場景結論方向理解使用者，不要硬套無關話術。"
-        "語氣務必口語化、有真人溫度，像熟朋友顧問在 LINE／私訊打字；可用「您」「我這邊先幫您對了一下站內案件」；"
+        "語氣務必口語化、親切、有溫度，像一般 LINE／私訊接待；可用「您」「我這邊先幫您對了一下站內案件」；"
         "避免公文腔、避免一次丟出過長清單。除非客戶直接問身份或技術來源，否則不要主動提 AI、模型、系統、自動生成。"
-        "若客戶直接追問是不是 AI／機器人／真人，請簡短回覆自己是網站線上客服，能先協助整理需求，若要顧問接手可安排；不可自稱真人。\n\n"
+        "若客戶直接追問是不是 AI／機器人／真人，請簡短回覆目前接待工號與名稱，能先協助整理需求，若要顧問接手可安排；不要展開身份辯論。\n\n"
     )
     body = (scenario_coaching or "").strip()
     if body:
@@ -18275,12 +18918,12 @@ def _support_concise_answer_body(text: str, *, max_lines: int = 3, max_chars: in
 
 def _support_message_explicit_case_request(message: str) -> bool:
     text = str(message or "").strip()
-    if not text or match_jp_real_estate_guidance(text):
+    if not text:
         return False
     if re.search(r"(找房|看房|找物件|看物件|找案件|看案件|推薦.*(?:房|物件|案件)|推荐.*(?:房|物件|案件))", text, re.I):
         return True
     has_case_word = re.search(r"(案件|物件|房源|房子|公寓|一戶建|一户建|マンション|房產|房地產|不動產|不动产)", text, re.I)
-    has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|比較|比较|比對|比对|清單|清单|連結|链接|URL|編號|编号|已選|已选|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
+    has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|諮詢|咨询|確認|确认|了解|瞭解|協助|协助|比較|比较|比對|比对|清單|清单|連結|链接|URL|編號|编号|已選|已选|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
     return bool(has_case_word and has_action)
 
 
@@ -18312,11 +18955,32 @@ def _build_offline_support_reply(message: str, knowledge_meta: dict, persona_reg
             selected_cases=list(knowledge_meta.get("selected_cases") or []),
             missing_fields=list((knowledge_meta.get("purchase_discovery") or {}).get("missing_fields") or []),
         )
+    selected_rows = [x for x in list(knowledge_meta.get("selected_cases") or []) if isinstance(x, dict)]
+    if prop_listing and selected_rows:
+        case = selected_rows[0]
+        title = str(case.get("title") or "這筆案件").strip()[:80]
+        price = str(case.get("price_text_hant") or "").strip()
+        layout = str(case.get("layout_text_hant") or "").strip()
+        area = str(case.get("area_text_hant") or "").strip()
+        region = str(case.get("jp_region_display_zh") or case.get("address_hint_zh") or "").strip()
+        meta = "｜".join(x for x in [price, layout, area, region] if x)
+        lines = [
+            f"收到，我看到您想諮詢的是「{title}」。",
+        ]
+        if meta:
+            lines.append(f"目前站內資料：{meta}。")
+        lines.extend(
+            [
+                "我會先按這筆案件幫您確認可諮詢狀態、價格條件與適合的聯絡方式。",
+                "您想先確認貸款稅費、租售收益，還是直接安排顧問跟進？",
+            ]
+        )
+        return sanitize_support_chat_visible_reply("\n".join(lines).strip())
     if wants_human and not direct_buy_intent:
         next_q = _support_single_followup_question(text, intent_ref=intent_ref)
         lines = [
             "可以，先由我這邊用顧問接待的方式陪您往下聊。",
-            "您如果還在了解方向，我先幫您把需求整理清楚；等您明確要買房或安排看屋時，我再直接接真人顧問。",
+            "您如果還在了解方向，我先幫您把需求整理清楚；等您明確要買房或安排看屋時，我再幫您接人工顧問。",
             "",
             next_q,
         ]
@@ -28908,9 +29572,7 @@ def _is_support_project_conversation_bridge(text: str) -> bool:
 def _build_support_greeting_reply(persona_region: str = "tw") -> str:
     _ = persona_region
     return (
-        "您好，這裡是日本不動產線上客服。"
-        "您可以直接說想看的地區、預算、用途，或貼一個案件給我，我先幫您整理重點。\n\n"
-        "如果只是先了解方向，我會一步步陪您收斂；等您需要顧問接手時，我再幫您把需求整理好。"
+        "您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。"
     )
 
 
@@ -28932,9 +29594,7 @@ def _build_support_identity_reply(
     service_label = f"工號{code}{name}" if code or name else "線上客服"
     role_hint = f"（{title}）" if title else ""
     return (
-        f"目前由{service_label}{role_hint}這邊先幫您整理。"
-        "您可以直接把想看的地區、預算或案件貼給我。\n\n"
-        "要不要先從地區或預算開始？"
+        f"目前由{service_label}{role_hint}為您接待。您可以把想了解的情況簡單說給我，我先幫您整理。"
     )
 
 
@@ -28957,19 +29617,18 @@ def _build_support_simulated_service_reply(
     title_hint = f"（{title}）" if title else ""
     mode = str(meta.get("mode") or "serving").strip()
     if not display:
-        display = f"目前由{label}{title_hint}這邊先幫您整理。"
+        display = f"目前由{label}{title_hint}為您接待。"
     elif label != "線上客服" and label not in display and (not name or name not in display):
-        display = f"目前由{label}{title_hint}先幫您整理。{display}"
+        display = f"目前由{label}{title_hint}為您接待。"
     if mode == "handoff_ready":
-        next_line = "我先幫您把需求收斂成顧問能接手的重點；請補充預算、地區或想看的案件。"
+        next_line = "請補充預算或地區。"
     elif mode == "queueing":
-        next_line = "排隊期間我會先用顧問接待的節奏幫您整理，不會直接丟不相關案件。"
+        next_line = ""
     else:
-        next_line = "您可以直接回地區、預算、用途，或貼案件給我看。"
+        next_line = "您把目前想看的方向補充一下，我會接著幫您整理。"
     if _is_support_identity_question(msg):
         return (
-            f"目前由{label}{title_hint}這邊先幫您整理。\n\n"
-            "您可以直接把想看的地區、預算或案件貼給我，我會先幫您收斂。"
+            f"目前由{label}{title_hint}為您接待。您可以直接說想看的地區或預算。"
         )
     return sanitize_support_chat_visible_reply(f"{display}\n\n{next_line}".strip())
 
@@ -28986,9 +29645,7 @@ def _build_support_light_chat_reply(
         return _build_support_identity_reply(persona_region, service_meta=service_meta)
     if _CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_SMALL_TALK_HINT.search(raw):
         return (
-            "可以，我先陪您慢慢聊，不急著丟案件。"
-            "您把想法直接打出來就好，我這邊會先幫您整理日本買房、租房、區域和預算方向。\n\n"
-            "您先回我一個重點就行，例如想看東京還是大阪、自住還是投資，或目前大概抓多少預算。"
+            "可以，我先幫您整理方向。您回地區、用途或預算其中一項就好。"
         )
     return _build_support_greeting_reply(persona_region)
 
@@ -29035,6 +29692,11 @@ def _support_keyword_preset_reply(
     selected = list(selected_cases or [])
     knowledge_meta = _support_fast_empty_knowledge_meta(raw, selected_cases=selected)
 
+    # When the user is consulting a specific case we should bypass broad
+    # keyword presets and let the normal case-aware support pipeline respond.
+    if selected and _support_message_explicit_case_request(raw):
+        return None
+
     def _payload(kind: str, reply: str, sales_mcp: dict[str, Any], *, intent_score: int = 0) -> dict[str, Any]:
         return {
             "kind": kind,
@@ -29058,13 +29720,8 @@ def _support_keyword_preset_reply(
         simulated = sales_mcp.get("simulated_service") if isinstance(sales_mcp, dict) else {}
         display = str((simulated or {}).get("display_text") or "").strip()
         if not display:
-            display = "我先幫您接入顧問留單流程。"
-        reply = (
-            f"{display}\n\n"
-            "可以，這類需求不用等系統慢慢整理。"
-            "請直接留下 LINE／WeChat／電話其中一項，再補一句預算、地區或用途，我會把這輪對話整理給真人顧問。\n\n"
-            "如果您還沒想好條件，也可以先回：地區、預算、用途，我先幫您收斂。"
-        )
+            display = "我先幫您接入顧問流程，先把需求整理清楚。"
+        reply = display
         return _payload("human_handoff", reply, sales_mcp, intent_score=int(sales_mcp.get("intent_score") or 82))
 
     flow_terms = ("買房流程", "买房流程", "購買流程", "购买流程", "怎麼買", "怎么买", "如何買", "如何买", "怎麼開始", "怎么开始")
@@ -29076,8 +29733,7 @@ def _support_keyword_preset_reply(
             {"id": "handoff_human", "label": "需要時轉顧問"},
         ]
         reply = (
-            "日本買房可以先抓 5 步：先定用途與預算，再篩地區和物件類型，接著確認稅費／貸款／管理費，最後才安排看屋與出價。\n\n"
-            "您先回我一個方向就好：自住、收租，還是先了解流程？我會照這個方向往下整理。"
+            "日本買房通常先確認用途和預算，再看地區、稅費與貸款。您偏自住還是收租？"
         )
         return _payload("buying_flow", reply, sales_mcp, intent_score=28)
 
@@ -29090,8 +29746,7 @@ def _support_keyword_preset_reply(
             {"id": "handoff_human", "label": "顧問核算"},
         ]
         reply = (
-            "日本房產成本通常要一起看：物件價格、登記與仲介相關費用、持有稅、管理費、修繕積立金，以及匯率和貸款條件。\n\n"
-            "如果您給我一個預算或案件價格，我可以先用客服口徑幫您拆出要確認的成本清單。"
+            "成本主要看稅費、登記費、管理費和修繕金。您有預算或案件價格嗎？"
         )
         return _payload("cost_loan", reply, sales_mcp, intent_score=34)
 
@@ -29104,9 +29759,7 @@ def _support_keyword_preset_reply(
             {"id": "compare_cases", "label": "比較已選案件"},
         ]
         reply = (
-            "可以，我先幫您把找房條件收斂。"
-            "請回覆：地區、總預算、用途（自住／收租）三個裡任兩個，我就能更快帶您去看站內案件。\n\n"
-            "例如：東京、5000萬日圓內、自住公寓。"
+            "可以，我先幫您收斂找房方向。您先說想看的城市、房型或大概價位其中幾項就好。"
         )
         return _payload("case_search", reply, sales_mcp, intent_score=30)
 
@@ -29374,8 +30027,8 @@ def _support_purchase_discovery_prompt_block(
         f"{selected_note}\n"
         "本輪禁止輸出案件列表、來源 URL、知識庫清單；請明確說明「先不急著丟案件」。\n"
         f"優先補問缺少欄位：{missing_note}。\n"
-        "回覆方式：繁體中文、真人顧問私訊口吻；先承接意願，再只問 1 個最重要問題，等客戶回答後下一輪再問下一題。\n"
-        "若客戶想找真人顧問，可引導輸入「人工」或留下 LINE／電話／WeChat，並說明會把需求整理成留單。"
+        "回覆方式：繁體中文、自然私訊口吻；先承接意願，再只問 1 個最重要問題，等客戶回答後下一輪再問下一題。\n"
+        "若客戶想找人工顧問，可引導輸入「人工」或留下 LINE／電話／WeChat，並說明會把需求整理成留單。"
     ).strip()
 
 
@@ -29390,22 +30043,22 @@ def _build_purchase_discovery_reply(
     selected_count = len(selected_cases or [])
     if direct_buy_intent:
         lines = [
-            "收到，您這邊已經明確要買房或安排看屋，我先幫您切進真人顧問接手流程。",
-            "在顧問正式接手前，我先替您補一個最關鍵的條件，這樣後面銜接會更快。",
+            "收到，我先幫您接入顧問流程。",
+            "先補一個關鍵條件，後面會更快。",
         ]
     else:
         lines = [
-            "收到，您有買房意願這點很明確，我先像真人顧問一樣幫您把條件收斂，不急著一次丟很多案件。",
+            "收到，我先幫您把買房條件收斂一下。",
         ]
     if selected_count:
-        lines.append(f"我也有看到您已選的 {selected_count} 筆案件，先只當背景整理，不再另外推薦新案件。")
+        lines.append(f"已看到您選的 {selected_count} 筆案件。")
     if missing_fields and not direct_buy_intent:
         lines.append("目前先補一個關鍵條件就好。")
     lines.extend(["", next_q])
     if direct_buy_intent:
-        lines.append("您填完後，我就把這輪需求直接交給真人顧問跟進。")
+        lines.append("填完後我再幫您銜接顧問。")
     else:
-        lines.append("等條件更明確，或您直接表示要買房／安排看屋時，我再幫您接真人顧問。")
+        lines.append("條件明確後我再幫您接顧問。")
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
 
 
@@ -29764,12 +30417,20 @@ def _format_support_human_questionnaire_text(questionnaire: dict[str, Any]) -> s
         return main
 
     lines: list[str] = []
-    linewx = s("contact_line_wechat")
-    if linewx:
-        lines.append(f"LINE/微信：{linewx}")
-    loc = maybe_other("current_location", "current_location_other")
-    if loc:
-        lines.append(f"所在地：{loc}")
+    line_id = s("contact_line")
+    if line_id:
+        lines.append(f"LINE：{line_id}")
+    wechat_id = s("contact_wechat")
+    if wechat_id:
+        lines.append(f"微信：{wechat_id}")
+    if not line_id and not wechat_id:
+        linewx = s("contact_line_wechat")
+        if linewx:
+            lines.append(f"LINE/微信：{linewx}")
+    phone_region = s("contact_phone_region_code")
+    phone_local = s("contact_phone_local")
+    if phone_region or phone_local:
+        lines.append(f"電話識別：{phone_region} {phone_local}".strip())
     purpose = maybe_other("purchase_purpose", "purchase_purpose_other")
     if purpose:
         lines.append(f"購買目的：{purpose}")
@@ -29835,29 +30496,22 @@ def _validate_support_human_intake_questionnaire(
 
     if not name.strip():
         raise HTTPException(status_code=400, detail="請先填寫姓名，人工顧問才會回覆。")
-    if not phone.strip() and not email.strip() and not s("contact_line_wechat"):
-        raise HTTPException(status_code=400, detail="請至少填寫電話、LINE/微信或 Email 其中一項，人工顧問才會回覆。")
+
+    contact_line = s("contact_line")
+    contact_wechat = s("contact_wechat")
+    if s("contact_phone_local") and not bool(q.get("contact_phone_valid")):
+        raise HTTPException(status_code=400, detail=s("contact_phone_error") or "聯絡電話格式不符合，請重新確認。")
+    if not phone.strip() and not email.strip() and not s("contact_line_wechat") and not contact_line and not contact_wechat:
+        raise HTTPException(status_code=400, detail="請至少填寫電話、LINE、微信或 Email 其中一項，人工顧問才會回覆。")
 
     required = [
-        ("current_location", "目前所在地"),
         ("purchase_purpose", "購買目的"),
-        ("budget_total_yen", "預計總預算（日幣）"),
-        ("down_payment_yen", "可準備自備款（日幣）"),
-        ("loan_need", "是否需要貸款"),
-        ("income_source", "收入來源"),
-        ("target_region", "想投資地區"),
-        ("property_type", "物件類型"),
-        ("purchase_time", "購買時間"),
-        ("viewing_intent", "看房意願"),
     ]
     for key, label in required:
         if not s(key):
             raise HTTPException(status_code=400, detail=f"請先完成問卷欄位：{label}。")
     other_pairs = [
-        ("current_location", "current_location_other", "其他所在地"),
         ("purchase_purpose", "purchase_purpose_other", "其他購買目的"),
-        ("income_source", "income_source_other", "其他收入來源"),
-        ("target_region", "target_region_other", "其他投資地區"),
     ]
     for main_key, other_key, label in other_pairs:
         if s(main_key) == "其他" and not s(other_key):
@@ -30327,25 +30981,27 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
             ).start()
         except Exception as exc:
             _log_backend_error("phone-login-followup-start", exc)
-        return JSONResponse(
-            {
-                "ok": True,
-                "handoff_id": hid,
-                "session_id": session_id,
-                "scenario_weights": weights,
-                "interested_cases": [],
-                "ai_handoff_summary": "",
-                "telegram_sent": False,
-                "telegram_error": "",
-                "line_sent": False,
-                "line_error": "",
-                "notify_channels": _support_notify_channels(),
-                "line_qr_url": "/static/human-handoff/line.png",
-                "wechat_qr_url": "/static/human-handoff/wechat.png",
-                "fast_login": True,
-                "sync_pending": True,
-                "notify_pending": True,
-            }
+        return _mark_form_filled_response(
+            JSONResponse(
+                {
+                    "ok": True,
+                    "handoff_id": hid,
+                    "session_id": session_id,
+                    "scenario_weights": weights,
+                    "interested_cases": [],
+                    "ai_handoff_summary": "",
+                    "telegram_sent": False,
+                    "telegram_error": "",
+                    "line_sent": False,
+                    "line_error": "",
+                    "notify_channels": _support_notify_channels(),
+                    "line_qr_url": "/static/human-handoff/line.png",
+                    "wechat_qr_url": "/static/human-handoff/wechat.png",
+                    "fast_login": True,
+                    "sync_pending": True,
+                    "notify_pending": True,
+                }
+            )
         )
     conv_prompt = _handoff_conversation_for_prompt(conv_list)
     interest_cases = _load_support_session_interest_cases(session_id, limit=20)
@@ -30452,22 +31108,24 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
             line_sent = True
         except Exception as exc:
             line_err = _sanitize_line_error_detail(exc)[:300]
-    return JSONResponse(
-        {
-            "ok": True,
-            "handoff_id": hid,
-            "session_id": session_id,
-            "scenario_weights": weights,
-            "interested_cases": interest_cases,
-            "ai_handoff_summary": ai_summary,
-            "telegram_sent": tg_sent,
-            "telegram_error": tg_err,
-            "line_sent": line_sent,
-            "line_error": line_err,
-            "notify_channels": _support_notify_channels(),
-            "line_qr_url": "/static/human-handoff/line.png",
-            "wechat_qr_url": "/static/human-handoff/wechat.png",
-        }
+    return _mark_form_filled_response(
+        JSONResponse(
+            {
+                "ok": True,
+                "handoff_id": hid,
+                "session_id": session_id,
+                "scenario_weights": weights,
+                "interested_cases": interest_cases,
+                "ai_handoff_summary": ai_summary,
+                "telegram_sent": tg_sent,
+                "telegram_error": tg_err,
+                "line_sent": line_sent,
+                "line_error": line_err,
+                "notify_channels": _support_notify_channels(),
+                "line_qr_url": "/static/human-handoff/line.png",
+                "wechat_qr_url": "/static/human-handoff/wechat.png",
+            }
+        )
     )
 
 
@@ -30573,7 +31231,13 @@ def _build_selected_case_notify_body(
     detail = str((latest or {}).get("article_url") or "—").strip()[:280]
     source = str((latest or {}).get("item_url") or "—").strip()[:280]
     thumb = str((latest or {}).get("thumb_url") or "").strip()[:280]
-    trigger_label = "客戶勾選案件" if trigger == "case_selected" else "客戶更新已選案件"
+    trigger_label = (
+        "客戶諮詢案件"
+        if trigger == "case_consult"
+        else "客戶勾選案件"
+        if trigger == "case_selected"
+        else "客戶更新已選案件"
+    )
     lines = [
         "【智能客服｜客戶意向案件】",
         f"動作：{trigger_label}",
@@ -30642,6 +31306,57 @@ def api_support_selected_cases_notify(payload: SupportSelectedCaseNotifyRequest)
             "session_id": sid,
             "count": len(rows),
             "latest_case": latest or {},
+            "telegram_sent": tg_sent,
+            "telegram_delivery_mode": tg_mode,
+            "telegram_error": tg_err,
+            "line_sent": line_sent,
+            "line_error": line_err,
+            "notify_channels": _support_notify_channels(),
+        }
+    )
+
+
+@app.post("/api/support/case-consult-notify")
+def api_support_case_consult_notify(payload: SupportCaseConsultNotifyRequest):
+    sid = _normalize_support_session_id(payload.session_id or "")
+    if not sid:
+        sid = f"sess-{uuid4().hex[:16]}"
+    rows = _sanitize_support_selected_cases([payload.case], max_items=1)
+    if not rows:
+        raise HTTPException(status_code=400, detail="missing case")
+    latest = rows[0]
+    body = _build_selected_case_notify_body(
+        session_id=sid,
+        trigger="case_consult",
+        selected_cases=rows,
+        latest_case=latest,
+    )
+    msg = str(payload.message or "").strip()
+    if msg:
+        body = (body + "\n\n客戶訊息：" + msg[:600])[:4900]
+    tg_sent = False
+    tg_err = ""
+    tg_mode = ""
+    line_sent = False
+    line_err = ""
+    if _support_notify_channel_enabled("telegram"):
+        try:
+            sent = _telegram_send_and_bridge(body[:3900], sid, "case_consult_notify")
+            tg_sent = True
+            tg_mode = str(sent.get("_delivery_mode") or "")
+        except Exception as exc:
+            tg_err = _sanitize_telegram_error_detail(exc)
+    if _support_notify_channel_enabled("line"):
+        try:
+            _line_send_and_bridge(body[:4900], sid, "case_consult_notify")
+            line_sent = True
+        except Exception as exc:
+            line_err = _sanitize_line_error_detail(exc)
+    return JSONResponse(
+        {
+            "ok": True,
+            "session_id": sid,
+            "case": latest,
             "telegram_sent": tg_sent,
             "telegram_delivery_mode": tg_mode,
             "telegram_error": tg_err,
@@ -30763,6 +31478,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     purchase_quick_mode = (
         _support_message_has_purchase_intent(msg)
         and not _support_message_is_guidance_question(msg)
+        and not selected_cases_input
         and bool(purchase_quick_missing)
         and sum(1 for ok in purchase_quick_dimensions.values() if ok) < 4
     )
@@ -30843,7 +31559,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "next_actions": [
                         {"id": "confirm_one_requirement", "label": "本輪只確認一個關鍵條件"},
                         {"id": "narrow_region", "label": "下一輪再縮小區域／車站"},
-                        {"id": "handoff_human", "label": "轉真人顧問對接"} if real_handoff_ready else {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
+                        {"id": "handoff_human", "label": "轉人工顧問對接"} if real_handoff_ready else {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"},
                     ],
                     "lead_capture": _support_lead_capture_blueprint(msg, knowledge_meta, human_intent=human_handoff_intent),
                     "sales_pitch": [],
@@ -31266,7 +31982,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             {"id": "confirm_one_requirement", "label": "本輪只確認一個關鍵條件"},
             {"id": "narrow_region", "label": "下一輪再縮小區域／車站"},
             (
-                {"id": "handoff_human", "label": "轉真人顧問對接"}
+                {"id": "handoff_human", "label": "轉人工顧問對接"}
                 if purchase_human_intent
                 else {"id": "lead_capture_after_requirements", "label": "條件成形後再留單給顧問"}
             ),
@@ -31365,18 +32081,18 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         if tg_high_intent_sent or tg_customer_followup_sent or line_high_intent_sent or line_customer_followup_sent:
             reply = (
                 str(reply or "").rstrip()
-                + "\n\n（已同步給顧問）若想留資料對接，輸入「人工」即可。"
+                + "\n\n已同步給顧問。"
             )
         elif intake_required_before_human:
             reply = (
                 str(reply or "").rstrip()
-                + "\n\n若需要人工顧問，請輸入「人工」並完整填寫問卷與聯絡方式；確認送出後人工才會回覆。"
+                + "\n\n需要對接時，請先填寫諮詢表與聯絡方式。"
             )
         else:
             err_show = (tg_high_intent_err or line_high_intent_err or "顧問即時通知未送出").strip()
             reply = (
                 str(reply or "").rstrip()
-                + "\n\n（顧問通知未送出）請輸入「人工」留單，或稍後再試。"
+                + "\n\n顧問通知暫未送出，請先填寫諮詢表與聯絡方式。"
             )
     bot_eval = _build_support_bot_self_eval(
         message=msg,
@@ -31554,7 +32270,7 @@ def api_sales_mcp_notify(payload: SalesMcpNotifyRequest):
     return JSONResponse(
         {
             "ok": True,
-            "message": "已通知後台，請安排真人顧問對接。",
+            "message": "已通知後台，請安排人工顧問對接。",
             "session_id": session_id,
             "telegram": tg_note,
             "line": line_note,
@@ -32651,7 +33367,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
             "offset": page_offset if page_size > 0 else 0,
             "page_size": page_size if page_size > 0 else 0,
             "detail_gate": "openable-v1",
-            "media_policy": "detail-panel-gallery-v10",
+            "media_policy": "detail-panel-gallery-v18-type-media-ignore-price",
         }
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
@@ -34320,23 +35036,75 @@ def _related_article_row_lite(row: Any) -> dict[str, Any]:
         src = _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or "")
         title = f"{src or '站內'} 案件 #{sid}" if sid > 0 else (src or "站內案件")
     d["seo_title"] = title
-    thumb = ""
-    try:
-        thumb = str(
-            _first_thumb(
-                str(d.get("image_urls") or ""),
-                str(d.get("body_original") or ""),
-                str(d.get("listing_media_json") or ""),
-                item_url=str(d.get("item_url") or ""),
-            )
-            or ""
-        ).strip()
-    except Exception:
-        thumb = ""
-    if not thumb:
-        thumb = str(d.get("hero_image_url") or d.get("thumbnail_url") or "").strip()
-    d["thumb_url"] = thumb
+    d["thumb_url"] = _related_article_thumb_url(d)
     return d
+
+
+def _related_article_thumb_url(row: dict[str, Any]) -> str:
+    """Pick a related-card thumbnail from the same clean gallery sources as case pages.
+
+    The previous lightweight path could select stale source thumbnails or remote
+    placeholders while the detail page still had a usable gallery. Prefer a
+    stored representative image and sanitized listing media before falling back.
+    """
+    candidates: list[str] = []
+
+    def push(value: Any) -> None:
+        s = str(value or "").strip()
+        if s and s not in candidates:
+            candidates.append(s)
+
+    try:
+        push(_case_stored_representative_static_url(row, []))
+    except Exception:
+        pass
+    try:
+        imgs, _vids = extract_media_urls_from_row(row)
+        for u in imgs[:6]:
+            push(u)
+    except Exception:
+        pass
+    try:
+        push(
+            _first_thumb(
+                str(row.get("image_urls") or ""),
+                str(row.get("body_original") or ""),
+                str(row.get("listing_media_json") or ""),
+                item_url=str(row.get("item_url") or ""),
+            )
+        )
+    except Exception:
+        pass
+    push(row.get("hero_image_url"))
+    push(row.get("thumbnail_url"))
+
+    for raw in candidates:
+        s = str(raw or "").strip()
+        if not s:
+            continue
+        local_path = _url_to_local_static_path(s)
+        if local_path:
+            if local_path.is_file():
+                return s
+            continue
+        if not s.lower().startswith(("http://", "https://")):
+            continue
+        norm = _normalize_listing_image_url_for_display(
+            s,
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )
+        if not norm or not _row_image_url_is_usable(norm):
+            continue
+        if is_likely_agent_portrait_image_url(norm):
+            continue
+        if not _is_case_property_gallery_image_url(norm):
+            continue
+        cached = _case_image_cached_static_url(norm)
+        cached_path = _url_to_local_static_path(cached)
+        if cached and cached_path and cached_path.is_file():
+            return cached
+    return ""
 
 
 def _related_articles_lite_fallback_rows(
@@ -35812,6 +36580,117 @@ def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:
         meta_out["transit_line_zh_read"] = fields.get("access_line_hant") or meta_out.get("access_line_zh_read") or ""
     if _portal_case_has_kana(meta_out.get("transit_line_zh")) and str(meta_out.get("transit_line_zh_read") or "").strip():
         meta_out["transit_line_zh"] = str(meta_out.get("transit_line_zh_read") or "").strip()
+    fields["building_name_display_zh"] = _case_detail_first_zh(
+        fields.get("building_name_hant"),
+        fields.get("title_display_hant"),
+        fields.get("building_name_jp"),
+        max_len=180,
+    )
+    fields["address_line_display_zh"] = _case_detail_first_zh(
+        fields.get("address_line_hant"),
+        meta_out.get("address_line_zh_read"),
+        fields.get("address_line_jp"),
+        max_len=220,
+    )
+    fields["access_line_display_zh"] = _case_detail_first_zh(
+        fields.get("access_line_hant"),
+        meta_out.get("access_line_zh_read"),
+        meta_out.get("transit_line_zh_read"),
+        fields.get("access_line_jp"),
+        meta_out.get("transit_line_zh"),
+        max_len=360,
+    )
+    fields["layout_display_zh"] = _case_detail_first_zh(
+        fields.get("layout_text_hant"),
+        fields.get("layout_line_jp"),
+        max_len=120,
+    )
+    fields["area_display_zh"] = _case_detail_first_zh(
+        fields.get("area_text_hant"),
+        fields.get("exclusive_area_jp"),
+        max_len=120,
+    )
+    fields["other_area_display_zh"] = _case_detail_first_zh(
+        fields.get("other_area_jp"),
+        fields.get("balcony_line_jp"),
+        max_len=140,
+    )
+    fields["built_ym_display_zh"] = _case_detail_first_zh(
+        fields.get("built_ym_jp"),
+        fields.get("age_text_hant"),
+        max_len=120,
+    )
+    fields["floor_structure_display_zh"] = _case_detail_first_zh(
+        fields.get("floor_structure_jp"),
+        fields.get("floor_text_hant"),
+        max_len=120,
+    )
+    fields["structure_display_zh"] = _case_detail_first_zh(fields.get("structure_jp"), max_len=140)
+    fields["parking_display_zh"] = _case_detail_first_zh(fields.get("parking_jp"), max_len=140)
+    fields["manage_fee_display_zh"] = _case_detail_first_zh(fields.get("manage_fee_jp"), max_len=120)
+    fields["reserve_fee_display_zh"] = _case_detail_first_zh(fields.get("reserve_fee_jp"), max_len=120)
+    fields["sales_units_display_zh"] = _case_detail_first_zh(fields.get("sales_units_jp"), max_len=80)
+    fields["total_units_display_zh"] = _case_detail_first_zh(fields.get("total_units_jp"), max_len=80)
+    fields["status_display_zh"] = _case_detail_first_zh(fields.get("status_jp"), max_len=120)
+    fields["handover_display_zh"] = _case_detail_first_zh(fields.get("handover_jp"), max_len=120)
+    fields["property_no_display_zh"] = _case_detail_first_zh(fields.get("property_no_jp"), max_len=100)
+    fields["info_open_display_zh"] = _case_detail_first_zh(fields.get("info_open_jp"), max_len=120)
+    fields["next_update_display_zh"] = _case_detail_first_zh(fields.get("next_update_jp"), max_len=120)
+    fields["related_links_display_zh"] = _case_detail_first_zh(fields.get("related_links_jp"), max_len=260)
+    fields["inquiry_contact_display_zh"] = _case_detail_first_zh(fields.get("inquiry_contact_jp"), max_len=300)
+    fields["building_name_jp"] = fields.get("building_name_display_zh") or ""
+    fields["address_line_jp"] = ""
+    fields["access_line_jp"] = ""
+    fields["layout_line_jp"] = fields.get("layout_display_zh") or ""
+    fields["exclusive_area_jp"] = fields.get("area_display_zh") or ""
+    fields["other_area_jp"] = fields.get("other_area_display_zh") or ""
+    fields["balcony_line_jp"] = ""
+    fields["built_ym_jp"] = fields.get("built_ym_display_zh") or ""
+    fields["floor_structure_jp"] = fields.get("floor_structure_display_zh") or ""
+    fields["structure_jp"] = fields.get("structure_display_zh") or ""
+    fields["parking_jp"] = fields.get("parking_display_zh") or ""
+    fields["manage_fee_jp"] = fields.get("manage_fee_display_zh") or ""
+    fields["reserve_fee_jp"] = fields.get("reserve_fee_display_zh") or ""
+    fields["sales_units_jp"] = fields.get("sales_units_display_zh") or ""
+    fields["total_units_jp"] = fields.get("total_units_display_zh") or ""
+    fields["status_jp"] = fields.get("status_display_zh") or ""
+    fields["handover_jp"] = fields.get("handover_display_zh") or ""
+    fields["property_no_jp"] = fields.get("property_no_display_zh") or ""
+    fields["info_open_jp"] = fields.get("info_open_display_zh") or ""
+    fields["next_update_jp"] = fields.get("next_update_display_zh") or ""
+    fields["related_links_jp"] = fields.get("related_links_display_zh") or ""
+    fields["inquiry_contact_jp"] = fields.get("inquiry_contact_display_zh") or ""
+    fields["company_guide_jp"] = ""
+    fields["staff_message_jp"] = ""
+    meta_out["transit_line_zh"] = ""
+    for _station_key in (
+        "access_line_hant",
+        "access_line_display_zh",
+        "access_line_jp",
+    ):
+        if fields.get(_station_key):
+            fields[_station_key] = (
+                str(fields.get(_station_key) or "")
+                .replace("新高日圓寺", "新高圆寺")
+                .replace("高日圓寺", "高圆寺")
+                .replace("新高円寺", "新高圆寺")
+                .replace("高円寺", "高圆寺")
+            )
+    for _station_key in ("access_line_zh_read", "transit_line_zh_read", "transit_line_zh"):
+        if meta_out.get(_station_key):
+            meta_out[_station_key] = (
+                str(meta_out.get(_station_key) or "")
+                .replace("新高日圓寺", "新高圆寺")
+                .replace("高日圓寺", "高圆寺")
+                .replace("新高円寺", "新高圆寺")
+                .replace("高円寺", "高圆寺")
+            )
+    if fields.get("feature_tags_hant"):
+        fields["feature_tags_hant"] = [
+            _case_detail_to_zh_display(x, max_len=30)
+            for x in (fields.get("feature_tags_hant") or [])
+            if _case_detail_to_zh_display(x, max_len=30)
+        ][:12]
     if borrowed_media:
         meta_out["borrowed_media_source_item_id"] = borrowed_media.get("source_item_id")
         meta_out["borrowed_media_source_name"] = borrowed_media.get("source_name")

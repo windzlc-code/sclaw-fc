@@ -4734,13 +4734,51 @@ button:hover {
   gap: 0.5rem;
 }
 
+.support-human-section-body--grid,
+.support-human-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 0.75rem;
+  row-gap: 0.62rem;
+}
+
+.support-human-section-body--grid .support-human-field,
+.support-human-two-column .support-human-section {
+  min-width: 0;
+}
+
+.support-human-section-body--consent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.support-human-consent-copy {
+  margin: 0;
+  line-height: 1.55;
+}
+
 .support-human-consent-label {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.4rem;
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.support-human-consent-label input {
+  flex: 0 0 auto;
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+  margin: 0;
+  accent-color: #2f7765;
+  cursor: pointer;
 }
 
 .support-human-preview {
@@ -4790,12 +4828,21 @@ button:hover {
 }
 
 .support-human-qr-card {
+  width: min(220px, 100%);
   text-align: center;
 }
 
 .support-human-qr-card img {
+  display: block;
+  margin: 0.35rem auto 0;
   border-radius: 8px;
   border: 1px solid #e2e8f6;
+}
+
+.support-human-qr-hint {
+  margin: 0.4rem 0 0;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .query-dialog-launcher {
@@ -7116,288 +7163,6 @@ a.support-chat-toggle {
   pointer-events: none;
 }
 
-.support-phone-login-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 9992;
-  background: rgba(12, 22, 42, 0.22);
-  pointer-events: auto;
-}
-
-.support-phone-login-modal {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 9993;
-  width: min(390px, calc(100vw - 36px));
-  max-height: min(82dvh, 540px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  border: 1px solid rgba(210, 222, 238, 0.95);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.99);
-  box-shadow: 0 24px 68px rgba(17, 31, 55, 0.24);
-  padding: 18px;
-}
-
-.support-phone-login-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
-.support-phone-login-head strong {
-  display: block;
-  color: #10254a;
-  font-size: 20px;
-  line-height: 1.25;
-}
-
-.support-phone-login-head p {
-  margin: 6px 0 0;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.support-phone-login-body {
-  display: grid;
-  gap: 10px;
-}
-
-.support-phone-login-field {
-  display: grid;
-  gap: 7px;
-}
-
-.support-phone-login-body label {
-  color: #40546f;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.support-phone-login-body input,
-.support-phone-login-body select {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #cfe0ff;
-  border-radius: 14px;
-  background: #f8fbff;
-  padding: 13px 14px;
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.support-phone-login-body select {
-  min-height: 48px;
-  appearance: auto;
-  color: #10254a;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.support-phone-login-body input.is-invalid {
-  border-color: rgba(220, 38, 38, 0.55);
-  background: #fff7f7;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
-}
-
-.support-phone-login-body input.is-valid {
-  border-color: rgba(22, 163, 74, 0.55);
-  background: #f6fff9;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.08);
-}
-
-.support-phone-login-format {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.support-phone-login-msg--error {
-  color: #b42318 !important;
-  font-weight: 800;
-}
-
-.support-phone-login-msg--ok {
-  color: #147a3d !important;
-  font-weight: 800;
-}
-
-.support-phone-login-body .primary {
-  border-radius: 999px;
-  border: 1px solid #3f566a;
-  background: #526b80;
-  color: #fff;
-  padding: 12px 16px;
-  font-weight: 900;
-  box-shadow: 0 14px 28px rgba(82, 107, 128, 0.22);
-}
-
-.support-phone-login-body .primary:hover,
-.support-phone-login-profile-actions .primary:hover {
-  filter: brightness(1.03);
-}
-
-.support-phone-login-profile[hidden] {
-  display: none !important;
-}
-
-.support-phone-login-profile {
-  display: grid;
-  gap: 14px;
-}
-
-.support-phone-login-profile-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 15px;
-  border: 1px solid rgba(210, 222, 238, 0.92);
-  border-radius: 16px;
-  background: #f8fafc;
-}
-
-.support-phone-login-profile-icon {
-  flex: 0 0 auto;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: #526b80;
-  border: 1px solid rgba(82, 107, 128, 0.24);
-  box-shadow: 0 12px 26px rgba(82, 107, 128, 0.18);
-}
-
-.support-phone-login-profile-icon svg {
-  width: 30px;
-  height: 30px;
-  fill: rgba(255, 255, 255, 0.12);
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.support-phone-login-profile-eyebrow {
-  display: block;
-  margin-bottom: 4px;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0;
-}
-
-.support-phone-login-profile-card strong {
-  display: block;
-  color: #10254a;
-  font-size: 18px;
-  line-height: 1.25;
-}
-
-.support-phone-login-profile-card p {
-  margin: 5px 0 0;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.support-phone-login-profile-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-}
-
-.support-phone-login-profile-actions .primary,
-.support-phone-login-profile-actions .secondary {
-  min-height: 46px;
-  border-radius: 999px;
-  padding: 11px 16px;
-  font-weight: 900;
-}
-
-.support-phone-login-profile-actions .primary {
-  border: 1px solid #3f566a;
-  background: #526b80;
-  color: #fff;
-  box-shadow: 0 14px 28px rgba(82, 107, 128, 0.22);
-}
-
-.support-phone-login-profile-actions .secondary {
-  border: 1px solid rgba(83, 101, 126, 0.22);
-  background: #fff;
-  color: #40546f;
-}
-
-.support-phone-login-toggle {
-  position: relative;
-  border-radius: 999px;
-  width: 54px;
-  height: 54px;
-  min-height: 54px;
-  padding: 0;
-  background: #fff;
-  color: #40586a;
-  cursor: pointer;
-  overflow: visible;
-  border: 2px solid #fff;
-  box-shadow: 0 8px 20px rgba(17, 50, 115, 0.22);
-  transition: transform 0.16s ease, box-shadow 0.2s ease, color 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.support-phone-login-toggle--standalone {
-  display: none !important;
-}
-
-.support-phone-login-toggle:hover {
-  transform: translateX(-2px) scale(1.04);
-  box-shadow: 0 10px 24px rgba(17, 50, 115, 0.3);
-}
-
-.support-phone-login-icon,
-.support-phone-login-icon svg {
-  display: block;
-  width: 34px;
-  height: 34px;
-}
-
-.support-phone-login-icon svg {
-  fill: #eef6ff;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.support-phone-login-icon--modal {
-  width: 44px;
-  height: 44px;
-  margin: 0 0 10px;
-  border-radius: 14px;
-  display: inline-grid;
-  place-items: center;
-  color: #40586a;
-  background: linear-gradient(180deg, #f2f8ff 0%, #ffffff 100%);
-  border: 1px solid #d9e8ff;
-  box-shadow: 0 10px 24px rgba(17, 50, 115, 0.1);
-}
-
-.support-phone-login-icon--modal svg {
-  width: 30px;
-  height: 30px;
-}
-
 .purchase-tool-modal {
   position: fixed;
   inset: 0;
@@ -8244,11 +8009,6 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) .
   display: inline-flex !important;
 }
 
-body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
-body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
-  display: none !important;
-}
-
 body.site-home.support-selected-cases-open .support-selected-cases-drawer,
 body.site-home.support-selected-cases-open .support-selected-cases-drawer-backdrop,
 body.site-home.support-saved-cases-open .support-saved-cases-drawer,
@@ -8279,12 +8039,6 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) .
 body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) .support-saved-cases-fab {
   display: inline-flex !important;
   pointer-events: auto !important;
-}
-
-body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
-body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
-  display: none !important;
-  pointer-events: none !important;
 }
 
 body.site-home.support-selected-cases-open .support-selected-cases-drawer,
@@ -9491,10 +9245,8 @@ body.selected-compare-body {
   .purchase-tool-actions .secondary {
     width: 100%;
   }
-
-  .support-phone-login-toggle,
-  .purchase-tool-toggle,
-  .support-chat-toggle {
+.purchase-tool-toggle,
+.support-chat-toggle {
     right: auto;
     top: auto;
     width: 52px;
@@ -10162,6 +9914,46 @@ body.selected-compare-body {
   background: #dfeef4;
   border-color: rgba(72, 102, 126, 0.42);
   transform: translateY(-1px);
+  outline: none;
+}
+
+.support-chat-intake-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid rgba(72, 102, 126, 0.14);
+  border-radius: 14px;
+  background: rgba(245, 249, 251, 0.92);
+  color: #52687a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.support-chat-intake-cta span {
+  flex: 1;
+  min-width: 0;
+}
+
+.support-chat-intake-cta button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #4f6f84;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(45, 75, 94, 0.18);
+}
+
+.support-chat-intake-cta button:hover,
+.support-chat-intake-cta button:focus-visible {
+  background: #3f5f74;
   outline: none;
 }
 
@@ -15782,6 +15574,176 @@ body.site-home .jp-map-hub--integrated-suite .jp-map-hub-smart-dock.panel {
   color: #19725d;
 }
 
+.portal-suumo-case-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(84, 114, 137, 0.16);
+}
+
+.portal-suumo-case-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.72rem 0.85rem;
+  border: 1px solid rgba(84, 114, 137, 0.28);
+  border-radius: 12px;
+  background: #fff;
+  color: #2f485b;
+  font-size: 0.94rem;
+  font-weight: 850;
+  line-height: 1.15;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.portal-suumo-case-action:hover,
+.portal-suumo-case-action:focus-visible {
+  border-color: rgba(84, 114, 137, 0.54);
+  background: #f4f8fb;
+  color: #2f485b;
+  filter: none;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.portal-suumo-case-action--consult,
+.portal-suumo-case-action--contact {
+  min-height: 52px;
+  font-size: 1rem;
+}
+
+.portal-suumo-case-action--consult {
+  border-color: #547289;
+  background: #547289;
+  color: #fff;
+}
+
+.portal-suumo-case-action--consult:hover,
+.portal-suumo-case-action--consult:focus-visible {
+  border-color: #45667d;
+  background: #45667d;
+  color: #fff;
+}
+
+.portal-suumo-case-action--contact {
+  border-color: rgba(25, 114, 93, 0.42);
+  background: #ecf7f3;
+  color: #14624f;
+}
+
+.portal-suumo-case-action--contact:hover,
+.portal-suumo-case-action--contact:focus-visible {
+  border-color: rgba(25, 114, 93, 0.56);
+  background: #dff2ec;
+  color: #14624f;
+}
+
+.portal-suumo-case-action--save.is-active,
+.portal-suumo-case-action--compare.is-active {
+  border-color: rgba(84, 114, 137, 0.24);
+  background: #edf3f7;
+  color: #547289;
+}
+
+.portal-suumo-case-actions-status {
+  grid-column: 1 / -1;
+  min-height: 1.1rem;
+  color: #547289;
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.case-chat-draft-card {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 0.75rem;
+  margin: 0.75rem 0.85rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(84, 114, 137, 0.18);
+  border-radius: 14px;
+  background: #f8fbfd;
+  box-shadow: 0 12px 26px rgba(28, 52, 73, 0.08);
+}
+
+.case-chat-draft-media {
+  overflow: hidden;
+  border-radius: 10px;
+  background: #edf3f6;
+  aspect-ratio: 4 / 3;
+}
+
+.case-chat-draft-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.case-chat-draft-media span {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: #6f7c88;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.case-chat-draft-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.case-chat-draft-main strong,
+.case-chat-draft-main small,
+.case-chat-draft-main em {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.case-chat-draft-main strong {
+  color: #17243a;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.case-chat-draft-main em {
+  color: #d4011f;
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.case-chat-draft-main small {
+  color: #607080;
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
+.case-chat-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+
+.case-chat-draft-actions button {
+  min-height: 34px;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
 .portal-suumo-invest-empty {
   padding: 1rem 1.05rem;
   border: 1px solid #d8e2d3;
@@ -20188,51 +20150,6 @@ body.site-home .bh-site-titlebar-actions .site-language-globe-btn {
   box-shadow: 0 12px 28px rgba(5, 17, 30, 0.18);
 }
 
-body.site-home .bh-nav-phone-login-btn {
-  height: 42px;
-  min-height: 42px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.46);
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  box-shadow: 0 12px 28px rgba(5, 17, 30, 0.18);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 14px 0 12px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1;
-  white-space: nowrap;
-  transition: transform 0.16s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-body.site-home .bh-nav-phone-login-btn:hover,
-body.site-home .bh-nav-phone-login-btn:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.86);
-  background: var(--bh-primary-soft-navy);
-  box-shadow: 0 14px 34px var(--bh-primary-soft-navy-glow);
-  outline: none;
-}
-
-body.site-home .bh-nav-phone-login-icon,
-body.site-home .bh-nav-phone-login-icon svg {
-  width: 22px;
-  height: 22px;
-  display: block;
-}
-
-body.site-home .bh-nav-phone-login-icon svg {
-  fill: rgba(255, 255, 255, 0.14);
-  stroke: currentColor;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 body.site-home .hero-video-brand-row .site-language-switch {
   pointer-events: auto;
 }
@@ -23016,13 +22933,6 @@ body.site-home:not(.site-admin-standalone) .bh-site-header {
     height: 40px !important;
     min-height: 40px !important;
   }
-
-  body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn {
-    min-width: 84px !important;
-    height: 40px !important;
-    min-height: 40px !important;
-    padding: 0 14px !important;
-  }
 }
 
 @media (max-width: 760px) {
@@ -23091,12 +23001,6 @@ body.site-home:not(.site-admin-standalone) .bh-site-header {
   body.site-home .bh-site-titlebar-actions .config-launcher {
     width: 38px !important;
     min-width: 38px !important;
-    height: 38px !important;
-    min-height: 38px !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn {
-    min-width: 84px !important;
     height: 38px !important;
     min-height: 38px !important;
   }
@@ -23447,11 +23351,9 @@ body.site-home.home-view-workbench:not(.site-admin-standalone) main.container {
     transform: translateY(0);
   }
 }
-
 body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle,
 body.site-home .bh-site-titlebar-actions .config-launcher,
 body.site-home .bh-site-titlebar-actions .site-language-switch,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
 body.site-home .bh-site-titlebar-actions .bh-site-nav-cta {
   position: static !important;
   flex: 0 0 auto;
@@ -23524,20 +23426,16 @@ body.site-home:not(.bh-scrolled) .bh-nav-keyword-tab {
   background: transparent;
   box-shadow: none;
 }
-
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .home-hero-sound-toggle,
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .config-launcher,
-body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-site-nav-cta,
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select-wrap,
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select {
   background: transparent !important;
   box-shadow: none !important;
 }
-
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .home-hero-sound-toggle,
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .config-launcher,
-body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-site-nav-cta,
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select-wrap {
   border-color: rgba(255, 255, 255, 0.34) !important;
@@ -23546,17 +23444,6 @@ body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select
 body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .site-language-select {
   color: rgba(255, 255, 255, 0.92) !important;
   border: 1px solid rgba(255, 255, 255, 0.24) !important;
-}
-
-body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
-body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
-body.site-home:not(.bh-scrolled) .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
-  color: #d7fff1 !important;
-  border: 1px solid rgba(150, 243, 214, 0.88) !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  outline: 1px solid rgba(150, 243, 214, 0.58) !important;
-  outline-offset: 0 !important;
 }
 
 body.site-home .hero-video-chrome,
@@ -23756,10 +23643,6 @@ body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-compac
     min-width: 128px;
   }
 
-  body.site-home .bh-nav-phone-login-btn {
-    min-width: 112px;
-  }
-
   body.site-home .bh-nav-keywords {
     width: auto;
     padding-inline: 0;
@@ -23858,10 +23741,8 @@ body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle {
     border-color 180ms ease,
     box-shadow 180ms ease;
 }
-
 body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle:hover,
 body.site-home .bh-site-titlebar-actions .config-launcher:hover,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
 body.site-home .bh-site-titlebar-actions .bh-site-nav-cta:hover,
 body.site-home .bh-search-dock-button:hover,
 body.site-home [data-query-action="smart-query-run"]:hover,
@@ -23872,10 +23753,8 @@ body.site-home .bh-hero-proof-row button:hover {
   transform: translateY(-2px) !important;
   filter: none;
 }
-
 body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle:active,
 body.site-home .bh-site-titlebar-actions .config-launcher:active,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:active,
 body.site-home .bh-site-titlebar-actions .bh-site-nav-cta:active,
 body.site-home .bh-search-dock-button:active,
 body.site-home [data-query-action="smart-query-run"]:active,
@@ -24340,22 +24219,6 @@ body.site-home #figure-results.figure-results-carousel-wrap .figure-case-actions
   body.site-home .bh-site-titlebar-actions .home-hero-sound-toggle {
     width: 136px;
     min-width: 136px;
-  }
-
-  body.site-home .bh-nav-phone-login-btn {
-    width: 42px;
-    min-width: 42px;
-    padding: 0;
-    gap: 0;
-  }
-
-  body.site-home .bh-nav-phone-login-text {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
   }
 
   body.site-home .hero-media-overlay,
@@ -27724,6 +27587,20 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel details[open] > :not(s
   grid-template-columns: minmax(180px, 240px) auto minmax(220px, 1fr) !important;
 }
 
+body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-panel .admin-visitor-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(180px, 240px) auto minmax(220px, 1fr) !important;
+  align-items: end !important;
+  gap: 8px !important;
+  padding: 8px 16px !important;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-panel .admin-visitor-toolbar > button.secondary {
+  justify-self: start !important;
+  margin-left: 0 !important;
+  min-height: 36px !important;
+}
+
 .admin-visitor-status {
   align-self: center;
   margin: 0;
@@ -27732,10 +27609,31 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel details[open] > :not(s
 .admin-visitor-settings-row,
 .admin-visitor-records-toolbar {
   display: grid;
-  grid-template-columns: minmax(280px, 1.5fr) minmax(120px, 0.45fr) auto minmax(220px, 1fr);
+  grid-template-columns: minmax(320px, 1.4fr) minmax(120px, 0.3fr) auto minmax(220px, 0.8fr);
   align-items: end;
-  gap: 10px;
-  margin: 10px 16px 0;
+  gap: 8px;
+  margin: 6px 16px 0;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-settings-row {
+  grid-template-columns: minmax(360px, 1fr) 150px auto minmax(240px, 0.82fr);
+  align-items: end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-settings-row > button.secondary {
+  align-self: end;
+  justify-self: start;
+  min-width: 86px;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-settings-row .admin-visitor-status {
+  align-self: center;
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .admin-visitor-settings-row label,
@@ -27777,7 +27675,7 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel details[open] > :not(s
 
 .admin-visitor-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -28361,6 +28259,31 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel details[open] > :not(s
   background: #fff;
 }
 
+.admin-visitor-detail-head {
+  gap: 14px;
+}
+
+.admin-visitor-detail-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-visitor-detail-switch button {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.admin-visitor-detail-switch button.is-active {
+  background: #4d6a82;
+  border-color: #4d6a82;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(38, 73, 103, 0.16);
+}
+
 .admin-visitor-records-toolbar {
   grid-template-columns: minmax(140px, 220px) auto minmax(220px, 1fr);
   margin: 0 0 12px;
@@ -28404,8 +28327,32 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel details[open] > :not(s
   word-break: break-all;
 }
 
+.admin-support-contact-panel {
+  margin-top: 2px;
+  background: #fbfdff;
+}
+
+.admin-visitor-record-primary {
+  min-width: 120px;
+}
+
+.admin-visitor-record-primary strong,
+.admin-visitor-record-primary span {
+  display: block;
+}
+
+.admin-visitor-record-primary span {
+  margin-top: 3px;
+  font-size: 11px;
+}
+
 @media (max-width: 960px) {
   .admin-visitor-panel .admin-visitor-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-panel .admin-visitor-toolbar,
+  body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-settings-row {
     grid-template-columns: 1fr !important;
   }
 
@@ -30197,123 +30144,6 @@ body.site-home #figure-results .market-item-card.figure-case-card.portal-suumo-c
   background: transparent !important;
 }
 
-/* 2026-06-19: mobile smart-query results must not inherit desktop 3-column paging. */
-@media (max-width: 760px) {
-  body.site-home #figure-results.figure-results-carousel-wrap {
-    position: relative !important;
-    left: 50% !important;
-    width: calc(100vw - 24px) !important;
-    max-width: 430px !important;
-    margin: 14px 0 0 !important;
-    transform: translateX(-50%) !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-shell {
-    width: 100% !important;
-    min-height: 0 !important;
-    overflow: visible !important;
-    border-radius: 18px !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-track {
-    display: block !important;
-    width: 100% !important;
-    min-height: 0 !important;
-    padding: 10px 46px 76px !important;
-    overflow: visible !important;
-    scroll-padding-inline: 46px !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-page {
-    display: grid !important;
-    width: 100% !important;
-    min-width: 100% !important;
-    min-height: 0 !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 14px !important;
-    padding: 0 !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card,
-  body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card.portal-suumo-card {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    flex: none !important;
-    justify-self: stretch !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-compact-card,
-  body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card--placeholder .portal-suumo-compact-card {
-    display: grid !important;
-    height: 448px !important;
-    min-height: 448px !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-rows: 226px minmax(0, 1fr) !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-media.figure-case-thumb,
-  body.site-home #figure-results.figure-results-carousel-wrap .portal-suumo-card-media > a,
-  body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card.portal-suumo-card .figure-case-thumb img,
-  body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card.portal-suumo-card .portal-suumo-card-heroimg,
-  body.site-home #figure-results.figure-results-carousel-wrap .market-item-card.figure-case-card .figure-case-thumb img {
-    width: 100% !important;
-    height: 226px !important;
-    min-height: 226px !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-controls {
-    inset: 0 !important;
-    pointer-events: none !important;
-  }
-
-  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-btn,
-  body.site-home #figure-results.figure-results-carousel-wrap .figure-results-carousel-indicator {
-    pointer-events: auto !important;
-  }
-
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) {
-    right: max(8px, env(safe-area-inset-right)) !important;
-    top: auto !important;
-    bottom: calc(82px + env(safe-area-inset-bottom)) !important;
-    gap: 7px !important;
-    padding: 7px 6px !important;
-    border-radius: 999px !important;
-    background: rgba(255, 255, 255, 0.86) !important;
-    box-shadow: 0 10px 28px rgba(31, 58, 48, 0.16) !important;
-    backdrop-filter: blur(12px) !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-chat-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-selected-cases-fab {
-    width: 42px !important;
-    min-width: 42px !important;
-    height: 42px !important;
-    min-height: 42px !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .support-chat-robot-icon,
-  body.site-home .support-chat-widget:not(.is-expanded) .support-chat-robot-icon svg {
-    width: 27px !important;
-    height: 27px !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .support-selected-cases-fab-icon {
-    font-size: 22px !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .support-selected-cases-fab-count {
-    top: -5px !important;
-    right: -5px !important;
-    min-width: 18px !important;
-    height: 18px !important;
-    padding: 0 5px !important;
-    font-size: 10px !important;
-  }
-}
-
 body.site-admin-standalone.site-admin-locked .admin-drawer .admin-mode-strip,
 body.site-admin-standalone.site-admin-locked .admin-drawer .admin-console-path,
 body.site-admin-standalone.site-admin-locked .admin-drawer .admin-console-hero,
@@ -30598,6 +30428,180 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
 
 body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-section-page.is-admin-section-active {
   display: grid !important;
+}
+
+/* Admin notification channels: make LINE / Telegram setup scannable. */
+#admin-tab-telegram .admin-notify-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 12px;
+}
+
+#admin-tab-telegram .admin-notify-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+#admin-tab-telegram .admin-notify-head h3 {
+  margin-top: 0;
+}
+
+#admin-tab-telegram .admin-notify-head p {
+  margin: 0.25rem 0 0;
+  line-height: 1.55;
+}
+
+#admin-tab-telegram .admin-notify-guide {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#admin-tab-telegram .admin-notify-guide > div {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #dbe5ef;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+#admin-tab-telegram .admin-notify-guide strong,
+#admin-tab-telegram .admin-notify-guide span {
+  display: block;
+}
+
+#admin-tab-telegram .admin-notify-guide strong {
+  color: #17243a;
+  font-size: 0.92rem;
+}
+
+#admin-tab-telegram .admin-notify-guide span {
+  margin-top: 0.35rem;
+  color: #5f6f82;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+#admin-tab-telegram .admin-notify-status {
+  display: grid;
+  gap: 6px;
+  margin: 0 !important;
+  padding: 12px 14px !important;
+  border: 1px solid #dfe6ef !important;
+  border-radius: 10px !important;
+  background: #f7f9fc !important;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+#admin-tab-telegram .admin-notify-status br {
+  display: none;
+}
+
+#admin-tab-telegram .admin-notify-status strong,
+#admin-tab-telegram .admin-notify-status span {
+  display: block;
+}
+
+#admin-tab-telegram .admin-notify-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+#admin-tab-telegram .admin-notify-card {
+  min-width: 0;
+  margin: 0 !important;
+  padding: 16px !important;
+  border: 1px solid #dfe6ef !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: 0 10px 24px rgba(24, 45, 70, 0.06);
+}
+
+#admin-tab-telegram .admin-notify-card--quick {
+  border-color: #cfe0f6 !important;
+  background: #f8fbff !important;
+}
+
+#admin-tab-telegram .admin-notify-card h4 {
+  margin-bottom: 0.35rem;
+}
+
+#admin-tab-telegram .admin-notify-channel-toggle {
+  display: flex;
+}
+
+#admin-tab-telegram .admin-notify-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 12px;
+}
+
+#admin-tab-telegram .admin-notify-form-grid label {
+  margin: 0 !important;
+}
+
+#admin-tab-telegram .admin-notify-card input,
+#admin-tab-telegram .admin-notify-card select,
+#admin-tab-telegram .admin-notify-card textarea,
+#admin-tab-telegram .admin-notify-advanced input,
+#admin-tab-telegram .admin-notify-advanced select,
+#admin-tab-telegram .admin-notify-advanced textarea {
+  max-width: 100%;
+}
+
+#admin-tab-telegram .admin-notify-advanced {
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  border: 1px solid #dfe6ef !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+}
+
+#admin-tab-telegram .admin-notify-advanced summary {
+  cursor: pointer;
+  color: #26364d;
+  font-weight: 850;
+}
+
+body.site-admin-standalone #admin-tab-telegram > .admin-notify-panel,
+body.site-admin-standalone #admin-tab-telegram .admin-notify-panel {
+  display: grid !important;
+  gap: 14px !important;
+  padding: 18px !important;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-notify-status,
+body.site-admin-standalone #admin-tab-telegram #admin-tg-auto-status.admin-notify-status {
+  display: grid !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  padding: 12px 14px !important;
+  border: 1px solid #dfe6ef !important;
+  border-radius: 10px !important;
+  background: #f7f9fc !important;
+}
+
+body.site-admin-standalone #admin-tab-telegram .admin-notify-card,
+body.site-admin-standalone #admin-tab-telegram .admin-notify-advanced {
+  border-radius: 12px !important;
+}
+
+@media (max-width: 980px) {
+  #admin-tab-telegram .admin-notify-head {
+    display: grid;
+  }
+
+  #admin-tab-telegram .admin-notify-guide,
+  #admin-tab-telegram .admin-notify-main-grid,
+  #admin-tab-telegram .admin-notify-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* 2026-06-15: global module pagination polish. */
@@ -31304,11 +31308,14 @@ body.site-admin-standalone .admin-detail-lightbox {
 
 body.site-admin-standalone .admin-detail-lightbox-inner {
   width: min(920px, calc(100vw - 48px)) !important;
+  height: min(82vh, 820px) !important;
   max-height: min(82vh, 820px) !important;
-  overflow: auto !important;
+  overflow: hidden !important;
   border-radius: 8px !important;
   background: #ffffff !important;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26) !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
 }
 
 body.site-admin-standalone .admin-detail-lightbox-head {
@@ -31326,18 +31333,23 @@ body.site-admin-standalone .admin-detail-lightbox-head .config-subhead {
 
 body.site-admin-standalone .admin-detail-lightbox-body {
   padding: 16px 18px 18px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 body.site-admin-standalone .admin-handoff-workspace {
   display: grid !important;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) !important;
-  gap: 18px !important;
-  align-items: start !important;
+  grid-template-columns: minmax(250px, 310px) minmax(520px, 1fr) !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+  height: 100% !important;
+  min-height: 0 !important;
 }
 
 body.site-admin-standalone .admin-handoff-meta-column,
 body.site-admin-standalone .admin-handoff-chat-column {
   min-width: 0 !important;
+  min-height: 0 !important;
 }
 
 body.site-admin-standalone .admin-handoff-meta-card,
@@ -31351,6 +31363,10 @@ body.site-admin-standalone .admin-handoff-chat-shell {
 
 body.site-admin-standalone .admin-handoff-meta-card {
   padding: 16px !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow: auto !important;
+  overscroll-behavior: contain !important;
 }
 
 body.site-admin-standalone .admin-handoff-detail-actions .secondary,
@@ -31391,13 +31407,13 @@ body.site-admin-standalone .admin-handoff-channel-chip {
 body.site-admin-standalone .admin-handoff-meta-grid {
   display: grid !important;
   grid-template-columns: 1fr !important;
-  gap: 10px !important;
+  gap: 8px !important;
 }
 
 body.site-admin-standalone .admin-handoff-meta-pair {
   display: grid !important;
   gap: 3px !important;
-  padding: 10px 12px !important;
+  padding: 9px 11px !important;
   border: 1px solid #edf2f8 !important;
   border-radius: 12px !important;
   background: #fbfdff !important;
@@ -31417,8 +31433,8 @@ body.site-admin-standalone .admin-handoff-meta-pair strong {
 }
 
 body.site-admin-standalone .admin-handoff-summary-card {
-  margin-top: 14px !important;
-  padding: 14px 16px !important;
+  margin-top: 12px !important;
+  padding: 12px 14px !important;
 }
 
 body.site-admin-standalone .admin-handoff-section-kicker {
@@ -31554,6 +31570,10 @@ body.site-admin-standalone .admin-handoff-edit-wide {
 
 body.site-admin-standalone .admin-handoff-chat-shell {
   overflow: hidden !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(360px, 1fr) auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
 }
 
 body.site-admin-standalone .admin-handoff-chat-shell-head {
@@ -31594,11 +31614,13 @@ body.site-admin-standalone .admin-handoff-chat-count {
 
 body.site-admin-standalone .admin-handoff-chat-thread {
   display: grid !important;
+  align-content: start !important;
   gap: 10px !important;
-  min-height: 420px !important;
-  max-height: 560px !important;
+  min-height: 0 !important;
+  max-height: none !important;
   padding: 18px !important;
   overflow: auto !important;
+  overscroll-behavior: contain !important;
   background: linear-gradient(180deg, #fbfdff 0%, #f5f8fc 100%) !important;
 }
 
@@ -31722,7 +31744,7 @@ body.site-admin-standalone .admin-handoff-chat-msg.is-channel-line .admin-handof
 }
 
 body.site-admin-standalone .admin-handoff-compose {
-  padding: 16px 18px 18px !important;
+  padding: 14px 18px 16px !important;
   border-top: 1px solid #e8eef7 !important;
   background: #ffffff !important;
 }
@@ -31733,19 +31755,29 @@ body.site-admin-standalone .admin-handoff-compose-row {
   gap: 10px !important;
 }
 
+body.site-admin-standalone .admin-handoff-compose-row:first-child {
+  align-items: center !important;
+}
+
+body.site-admin-standalone .admin-handoff-compose-row:first-child select {
+  max-width: 320px !important;
+}
+
 body.site-admin-standalone .admin-handoff-compose-row.is-editor {
   align-items: flex-end !important;
   margin-top: 10px !important;
 }
 
 body.site-admin-standalone .admin-handoff-compose-row.is-editor textarea {
-  min-height: 104px !important;
+  flex: 1 1 auto !important;
+  min-height: 118px !important;
 }
 
 body.site-admin-standalone .admin-handoff-compose-row.is-editor .primary {
-  min-width: 120px !important;
-  min-height: 44px !important;
-  padding: 0 16px !important;
+  align-self: stretch !important;
+  min-width: 132px !important;
+  min-height: 52px !important;
+  padding: 0 18px !important;
   font-size: 14px !important;
   font-weight: 800 !important;
 }
@@ -31764,6 +31796,16 @@ body.site-admin-standalone .admin-handoff-compose-note.is-success {
 @media (max-width: 1080px) {
   body.site-admin-standalone .admin-handoff-workspace {
     grid-template-columns: 1fr !important;
+    height: auto !important;
+    overflow: auto !important;
+    overscroll-behavior: contain !important;
+  }
+
+  body.site-admin-standalone .admin-handoff-meta-card,
+  body.site-admin-standalone .admin-handoff-chat-shell {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
   }
 
   body.site-admin-standalone .admin-handoff-edit-grid {
@@ -32131,9 +32173,8 @@ body.site-admin-standalone.site-admin-locked .admin-detail-lightbox {
     top: 68px;
   }
 }
-
-/* 2026-06-19: compact phone login icon, edge dock, and header-safe chat panel. */
-body.site-home .bh-nav-phone-login-btn {
+/* 2026-06-19: compact phone login icon,
+edge dock {
   position: relative !important;
   width: 42px !important;
   min-width: 42px !important;
@@ -32144,156 +32185,10 @@ body.site-home .bh-nav-phone-login-btn {
   border-radius: 50% !important;
 }
 
-body.site-home .bh-nav-phone-login-icon,
-body.site-home .bh-nav-phone-login-icon svg {
-  width: 22px !important;
-  height: 22px !important;
-}
-
-body.site-home .bh-nav-phone-login-btn.is-logged-in {
-  border-color: rgba(255, 255, 255, 0.52) !important;
-  background: #526b80 !important;
-  color: #ffffff !important;
-  box-shadow: 0 14px 34px rgba(82, 107, 128, 0.24) !important;
-}
-
 body.site-home .support-chat-widget:not(.is-expanded) {
   right: max(0px, env(safe-area-inset-right)) !important;
   margin-right: 0 !important;
   transform: translateX(0) !important;
-}
-
-.support-phone-login-toggle.is-logged-in,
-.support-phone-login-toggle.is-logged-in:hover {
-  color: #526b80;
-  border-color: rgba(82, 107, 128, 0.24);
-  background: #f3f8f9;
-}
-
-.support-phone-login-toggle.is-logged-in .support-phone-login-icon svg path:nth-child(2),
-.support-phone-login-toggle.is-logged-in .support-phone-login-icon svg path:nth-child(3) {
-  display: none;
-}
-
-.support-phone-login-modal {
-  left: 50% !important;
-  top: 50% !important;
-  right: auto !important;
-  bottom: auto !important;
-  transform: translate(-50%, -50%) !important;
-  margin: 0 !important;
-  box-sizing: border-box !important;
-}
-
-/* 2026-06-19: final phone-login state polish, kept at the end to beat older overrides. */
-.support-phone-login-modal .support-phone-login-body .primary,
-.support-phone-login-modal .support-phone-login-profile-actions .primary {
-  border-color: #3f566a !important;
-  background: #526b80 !important;
-  color: #ffffff !important;
-  box-shadow: 0 14px 28px rgba(82, 107, 128, 0.22) !important;
-}
-
-.support-phone-login-modal.is-logged-in .support-phone-login-body {
-  display: none !important;
-}
-
-.support-phone-login-modal.is-logged-in .support-phone-login-head {
-  margin-bottom: 12px !important;
-}
-
-.support-phone-login-modal.is-logged-in .support-phone-login-head p {
-  max-width: 270px;
-}
-
-body.site-home .bh-nav-phone-login-btn.is-logged-in,
-body.site-home .bh-nav-phone-login-btn.is-logged-in:hover,
-body.site-home .bh-nav-phone-login-btn.is-logged-in:focus-visible {
-  border-color: rgba(255, 255, 255, 0.52) !important;
-  background: #526b80 !important;
-  color: #ffffff !important;
-  box-shadow: 0 14px 34px rgba(82, 107, 128, 0.24) !important;
-}
-
-.support-phone-login-toggle.is-logged-in,
-.support-phone-login-toggle.is-logged-in:hover,
-.support-phone-login-toggle.is-logged-in:focus-visible {
-  color: #526b80 !important;
-  border-color: rgba(82, 107, 128, 0.28) !important;
-  background: #f3f8f9 !important;
-}
-
-/* 2026-06-19: switch header phone-login from icon to text and unify login control colors. */
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
-body.site-home .bh-nav-phone-login-btn,
-body.site-home .bh-nav-phone-login-btn:hover,
-body.site-home .bh-nav-phone-login-btn:focus-visible {
-  width: auto !important;
-  min-width: 86px !important;
-  height: 38px !important;
-  min-height: 38px !important;
-  padding: 0 15px !important;
-  gap: 0 !important;
-  border-radius: 999px !important;
-  border: 1px solid rgba(255, 255, 255, 0.46) !important;
-  background: #526b80 !important;
-  color: #ffffff !important;
-  box-shadow: 0 12px 28px rgba(5, 17, 30, 0.2) !important;
-  font-size: 13px !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-  transform: none !important;
-}
-
-body.site-home .bh-nav-phone-login-btn:hover,
-body.site-home .bh-nav-phone-login-btn:focus-visible {
-  border-color: rgba(255, 255, 255, 0.72) !important;
-  background: #3f566a !important;
-}
-
-body.site-home .bh-nav-phone-login-icon {
-  display: none !important;
-}
-
-body.site-home .bh-nav-phone-login-text {
-  display: inline !important;
-  color: inherit !important;
-  white-space: nowrap !important;
-}
-
-body.site-home .bh-nav-phone-login-btn.is-logged-in,
-body.site-home .bh-nav-phone-login-btn.is-logged-in:hover,
-body.site-home .bh-nav-phone-login-btn.is-logged-in:focus-visible {
-  min-width: 72px !important;
-  border-color: rgba(209, 250, 229, 0.78) !important;
-  background: #2f7d68 !important;
-  color: #ffffff !important;
-  box-shadow: 0 14px 30px rgba(47, 125, 104, 0.26) !important;
-}
-
-.support-phone-login-modal .support-phone-login-body input,
-.support-phone-login-modal .support-phone-login-body select {
-  border-color: rgba(82, 107, 128, 0.22) !important;
-  background: #f8fbfd !important;
-}
-
-.support-phone-login-modal .support-phone-login-body input:focus,
-.support-phone-login-modal .support-phone-login-body input:focus-visible,
-.support-phone-login-modal .support-phone-login-body select:focus,
-.support-phone-login-modal .support-phone-login-body select:focus-visible {
-  border-color: #526b80 !important;
-  box-shadow: 0 0 0 3px rgba(82, 107, 128, 0.16) !important;
-  outline: none !important;
-}
-
-.support-phone-login-modal .support-phone-login-body input.is-valid {
-  border-color: rgba(82, 107, 128, 0.58) !important;
-  background: #f3f8f9 !important;
-  box-shadow: 0 0 0 3px rgba(82, 107, 128, 0.12) !important;
-}
-
-.support-phone-login-msg--ok {
-  color: #2f7d68 !important;
 }
 
 body.site-home .support-chat-panel,
@@ -33404,15 +33299,15 @@ body.site-home .support-chat-panel,
 .support-human-intake-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(11, 20, 34, 0.54);
-  backdrop-filter: blur(4px);
+  background: rgba(11, 20, 34, 0.38);
+  backdrop-filter: none;
 }
 
 .support-human-intake-dialog {
   position: relative;
   z-index: 1;
-  width: min(920px, calc(100vw - 42px));
-  max-height: calc(100dvh - 72px);
+  width: min(980px, calc(100vw - 42px));
+  max-height: calc(100dvh - 52px);
   margin: max(28px, env(safe-area-inset-top)) auto max(28px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
@@ -33458,13 +33353,18 @@ body.site-home .support-chat-panel,
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 22px 26px 26px;
+  padding: 18px 26px 18px;
   -webkit-overflow-scrolling: touch;
 }
 
 .support-human-intake-modal .support-human-intake {
   margin: 0;
-  gap: 14px;
+  gap: 12px;
+}
+
+.support-human-intake-modal .support-human-intake-heading,
+.support-human-intake-modal .support-human-intake-help {
+  display: none;
 }
 
 .support-human-intake-modal .support-human-intake-heading strong {
@@ -33481,37 +33381,170 @@ body.site-home .support-chat-panel,
 
 .support-human-intake-modal .support-human-section {
   border-radius: 14px;
-  padding: 12px 14px 14px;
+  padding: 12px 14px;
   background: #fbfdff;
+}
+
+.support-human-section--static h3 {
+  margin: 0 0 12px;
+  color: #14243b;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.support-human-phone-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.42fr) minmax(220px, 0.58fr);
+  gap: 12px;
+  grid-column: auto;
+  min-width: 0;
+}
+
+.support-human-field--invalid input,
+.support-human-field--invalid select,
+.support-human-field--invalid textarea,
+.support-human-phone-row--invalid input,
+.support-human-phone-row--invalid select {
+  border-color: #e11d48 !important;
+  background: #fff7f8 !important;
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12) !important;
+}
+
+.support-human-field--invalid,
+.support-human-phone-row--invalid {
+  position: relative;
+}
+
+.support-human-field-error {
+  grid-column: 1 / -1;
+  margin-top: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(225, 29, 72, 0.2);
+  border-radius: 10px;
+  color: #9f1239;
+  background: #fff1f2;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.support-human-intake-modal .support-human-section-body--grid,
+.support-human-intake-modal .support-human-two-column {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+}
+
+.support-human-intake-modal .support-human-field,
+.support-human-intake-modal .support-human-intake-grid label {
+  font-weight: 750;
 }
 
 .support-human-intake-modal .support-human-intake input,
 .support-human-intake-modal .support-human-intake textarea,
 .support-human-intake-modal .support-human-intake select {
-  min-height: 42px;
-  border-radius: 10px;
-  font-size: 15px;
+  min-height: 40px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  font-size: 14.5px;
 }
 
 .support-human-intake-modal .support-human-intake textarea {
   min-height: 96px;
 }
 
+.support-human-intake-modal .support-human-case-cb,
+.support-human-intake-modal .support-human-consent-label input {
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.support-human-intake-modal .support-human-case-cb {
+  width: 15px;
+  min-width: 15px;
+  max-width: 15px;
+  height: 15px;
+  min-height: 15px;
+  max-height: 15px;
+}
+
 .support-human-intake-modal .support-human-intake-actions {
   position: sticky;
-  bottom: -26px;
-  margin: 10px -26px -26px;
-  padding: 14px 26px;
+  bottom: -18px;
+  margin: 6px -26px -18px;
+  padding: 12px 26px 14px;
   border-top: 1px solid rgba(207, 219, 235, 0.86);
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(8px);
+  background: #ffffff;
+  backdrop-filter: none;
+  justify-content: flex-start;
+}
+
+.support-intake-standalone {
+  padding-top: 132px;
+  padding-bottom: 64px;
+}
+
+.support-intake-standalone-card {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 30px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 22px 70px rgba(17, 39, 68, 0.12);
+}
+
+.support-intake-standalone .support-human-intake {
+  margin: 0;
+}
+
+.support-page-status {
+  min-height: 24px;
+  padding: 2px 0;
+  font-weight: 800;
+  color: #35546a;
 }
 
 .support-human-intake-modal .support-human-intake-preview-btn,
 .support-human-intake-modal .support-human-intake-submit-btn {
-  min-height: 44px;
+  min-height: 42px;
   border-radius: 999px;
-  padding: 0 18px;
+  padding: 0 22px;
+  font-size: 14px;
+}
+
+.support-human-intake-modal .support-human-intake-preview-btn {
+  border-color: rgba(82, 107, 128, 0.24);
+  background: #ffffff;
+  color: #36526b;
+}
+
+.support-human-intake-modal .support-human-intake-submit-btn {
+  border-color: #2f7765;
+  background: #2f7765;
+  color: #ffffff;
+}
+
+.support-human-intake-modal .support-human-intake-preview-btn:hover,
+.support-human-intake-modal .support-human-intake-preview-btn:focus-visible {
+  background: #eef6fa;
+}
+
+.support-human-intake-modal .support-human-intake-submit-btn:hover,
+.support-human-intake-modal .support-human-intake-submit-btn:focus-visible {
+  background: #265f51;
+  border-color: #265f51;
+}
+
+.support-human-intake-modal .support-human-consent-label {
+  justify-content: flex-end;
+  min-width: 150px;
+  color: #36526b;
+  font-weight: 850;
 }
 
 @media (max-width: 760px) {
@@ -33550,6 +33583,15 @@ body.site-home .support-chat-panel,
     padding: 18px;
   }
 
+  .support-human-intake-modal .support-human-section-body--grid,
+  .support-human-intake-modal .support-human-two-column,
+  .support-human-section-body--grid,
+  .support-human-two-column,
+  .support-human-phone-row,
+  .support-human-section-body--consent {
+    grid-template-columns: 1fr;
+  }
+
   .support-human-intake-launcher {
     flex-direction: column;
     align-items: stretch;
@@ -33557,8 +33599,18 @@ body.site-home .support-chat-panel,
 
   .support-human-intake-modal .support-human-intake-actions {
     bottom: -18px;
-    margin: 10px -18px -18px;
+    margin: 6px -18px -18px;
     padding: 12px 18px;
+  }
+
+  .support-human-intake-modal .support-human-intake-preview-btn,
+  .support-human-intake-modal .support-human-intake-submit-btn {
+    flex: 1 1 160px;
+  }
+
+  .support-human-intake-modal .support-human-consent-label {
+    justify-content: flex-start;
+    min-width: 0;
   }
 }
 
@@ -33659,735 +33711,10 @@ body.site-home .support-chat-panel,
   .support-chat-widget.is-expanded .support-chat-panel {
     pointer-events: auto !important;
   }
-
-  .support-chat-widget.is-expanded .support-chat-toggle,
-  .support-chat-widget.is-expanded .support-selected-cases-fab,
-  .support-chat-widget.is-expanded .purchase-tool-toggle,
-  .support-chat-widget.is-expanded .support-phone-login-toggle {
+.support-chat-widget.is-expanded .support-chat-toggle,
+.support-chat-widget.is-expanded .support-selected-cases-fab,
+.support-chat-widget.is-expanded .purchase-tool-toggle {
     display: none !important;
-  }
-}
-
-/* 2026-06-22d: mobile header final pass. Keep the title readable and remove
-   the accidental scroll frame from keyword navigation on narrow screens. */
-@media (max-width: 760px) {
-  html,
-  body.site-home {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  body.site-home .bh-site-header {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-    overflow: visible !important;
-  }
-
-  body.site-home .bh-site-nav {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
-    grid-template-areas:
-      "brand actions"
-      "links links" !important;
-    align-items: center !important;
-    gap: 7px 8px !important;
-    min-height: 0 !important;
-    padding: max(8px, env(safe-area-inset-top)) 10px 10px !important;
-    overflow: visible !important;
-  }
-
-  body.site-home .bh-site-brand {
-    grid-area: brand !important;
-    display: grid !important;
-    grid-template-columns: 34px minmax(0, 1fr) !important;
-    align-items: center !important;
-    gap: 8px !important;
-    min-width: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-    overflow: visible !important;
-  }
-
-  body.site-home .bh-site-brand > img,
-  body.site-home .bh-site-brand-logo {
-    width: 34px !important;
-    height: 34px !important;
-    min-width: 34px !important;
-    flex: 0 0 34px !important;
-  }
-
-  body.site-home .bh-site-brand span,
-  body.site-home .bh-site-brand-text {
-    display: block !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    width: 100% !important;
-    overflow: visible !important;
-  }
-
-  body.site-home .bh-site-brand strong,
-  body.site-home .bh-site-brand-text strong {
-    display: block !important;
-    max-width: none !important;
-    overflow: visible !important;
-    color: #fff !important;
-    font-size: clamp(13px, 3.45vw, 15.5px) !important;
-    font-weight: 950 !important;
-    line-height: 1.16 !important;
-    letter-spacing: 0 !important;
-    white-space: nowrap !important;
-    text-overflow: clip !important;
-    word-break: keep-all !important;
-    overflow-wrap: normal !important;
-  }
-
-  body.site-home .bh-site-brand small,
-  body.site-home .bh-site-brand-text small {
-    display: block !important;
-    max-width: none !important;
-    margin-top: 1px !important;
-    overflow: visible !important;
-    color: rgba(255, 255, 255, 0.72) !important;
-    font-size: 10px !important;
-    line-height: 1.15 !important;
-    white-space: normal !important;
-    text-overflow: clip !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions {
-    grid-area: actions !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    flex-wrap: nowrap !important;
-    gap: 6px !important;
-    min-width: 0 !important;
-    width: auto !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions .site-language-globe-btn,
-  body.site-home .bh-site-titlebar-actions .config-launcher,
-  body.site-home .bh-site-titlebar-actions .site-language-switch button {
-    width: 40px !important;
-    min-width: 40px !important;
-    height: 40px !important;
-    min-height: 40px !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-    touch-action: manipulation !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn {
-    min-width: 72px !important;
-    height: 40px !important;
-    min-height: 40px !important;
-    padding: 0 12px !important;
-    font-size: 13px !important;
-    border-radius: 999px !important;
-    background: rgba(82, 107, 128, 0.92) !important;
-    box-shadow: 0 8px 18px rgba(5, 17, 30, 0.16) !important;
-    touch-action: manipulation !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in {
-    background: #2f7d68 !important;
-    border-color: rgba(209, 250, 229, 0.72) !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-text {
-    position: static !important;
-    display: inline-block !important;
-    width: auto !important;
-    height: auto !important;
-    max-width: 4.5em !important;
-    overflow: hidden !important;
-    clip: auto !important;
-    white-space: nowrap !important;
-    text-overflow: clip !important;
-    line-height: 1 !important;
-  }
-
-  body.site-home .bh-site-nav-links.bh-nav-keywords,
-  body.site-home .bh-nav-keywords {
-    grid-area: links !important;
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
-    min-height: 0 !important;
-    overflow: visible !important;
-    overflow-x: visible !important;
-    overflow-y: visible !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    scrollbar-width: none !important;
-  }
-
-  body.site-home .bh-site-nav-links.bh-nav-keywords::-webkit-scrollbar,
-  body.site-home .bh-nav-keywords::-webkit-scrollbar,
-  body.site-home .bh-nav-keyword-tabs::-webkit-scrollbar {
-    width: 0 !important;
-    height: 0 !important;
-    display: none !important;
-  }
-
-  body.site-home .bh-nav-keyword-tabs {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 8px !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
-    min-height: 0 !important;
-    padding: 1px 0 0 !important;
-    overflow: visible !important;
-    overflow-x: visible !important;
-    overflow-y: visible !important;
-  }
-
-  body.site-home .bh-nav-keyword-tab {
-    flex: 1 1 calc((100% - 16px) / 3) !important;
-    width: calc((100% - 16px) / 3) !important;
-    min-width: 0 !important;
-    min-height: 44px !important;
-    height: 44px !important;
-    padding: 0 8px !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    border-radius: 14px !important;
-    background: rgba(255, 255, 255, 0.075) !important;
-    color: rgba(255, 255, 255, 0.95) !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-    font-size: 16px !important;
-    font-weight: 900 !important;
-    line-height: 44px !important;
-    text-align: center !important;
-    white-space: nowrap !important;
-    touch-action: manipulation !important;
-  }
-
-  body.site-home .bh-nav-keyword-tab::after {
-    display: none !important;
-  }
-
-  body.site-home .bh-nav-keyword-tab.is-active {
-    background: rgba(82, 107, 128, 0.94) !important;
-    border-color: rgba(255, 255, 255, 0.24) !important;
-  }
-
-  body.site-home .bh-nav-keyword-panels {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: var(--bh-mobile-header-height, 106px) !important;
-    width: 100vw !important;
-    max-width: 100vw !important;
-    overflow: visible !important;
-  }
-
-  body.site-home .bh-nav-keyword-panel {
-    grid-template-columns: 1fr !important;
-    max-height: min(54dvh, 360px) !important;
-    overflow-y: auto !important;
-    padding: 12px 14px 14px !important;
-    gap: 8px !important;
-  }
-
-  body.site-home .bh-nav-keyword-panel a {
-    min-height: 34px !important;
-    font-size: 15px !important;
-    line-height: 1.25 !important;
-  }
-
-  body.site-home .hero-media-overlay,
-  body.site-home .hero-media--video-carousel .hero-media-overlay,
-  body.site-home .hero-media[data-home-hero-theme="brand"] .hero-media-overlay,
-  body.site-home .hero-media[data-home-hero-theme="tech"] .hero-media-overlay {
-    padding-top: calc(var(--bh-mobile-header-height, 106px) + 78px) !important;
-  }
-
-  body.site-home .bh-hero-proof-row {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
-    width: min(330px, calc(100vw - 32px)) !important;
-  }
-
-  body.site-home .bh-hero-proof-row a,
-  body.site-home .bh-hero-proof-row button {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    min-height: 46px !important;
-    padding: 0 12px !important;
-    border-radius: 16px !important;
-    font-size: 15px !important;
-    font-weight: 900 !important;
-    line-height: 1.15 !important;
-    text-align: center !important;
-    touch-action: manipulation !important;
-  }
-
-  body.site-home .bh-hero-proof-row a:first-child {
-    grid-column: 1 / -1 !important;
-  }
-
-  body.site-home .bh-search-dock {
-    gap: 10px !important;
-    padding: 14px !important;
-  }
-
-  body.site-home .bh-search-dock-item {
-    min-height: 64px !important;
-    padding: 12px 14px !important;
-    border-radius: 15px !important;
-  }
-
-  body.site-home .bh-search-dock-item strong {
-    font-size: 15px !important;
-  }
-
-  body.site-home .bh-search-dock-item small {
-    font-size: 12.5px !important;
-    line-height: 1.35 !important;
-  }
-
-  body.site-home .bh-search-dock-button {
-    min-height: 52px !important;
-    border-radius: 14px !important;
-    font-size: 15px !important;
-    font-weight: 950 !important;
-  }
-
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-chat-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-selected-cases-fab {
-    width: 46px !important;
-    min-width: 46px !important;
-    height: 46px !important;
-    min-height: 46px !important;
-    touch-action: manipulation !important;
-  }
-
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) {
-    top: clamp(350px, calc(var(--bh-mobile-header-height, 150px) + 28dvh), 470px) !important;
-    bottom: auto !important;
-  }
-
-  body.site-home .support-chat-widget.is-expanded {
-    inset: 0 !important;
-    width: auto !important;
-    height: auto !important;
-    border: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    pointer-events: none !important;
-  }
-
-  body.site-home .support-chat-widget.is-expanded .support-chat-backdrop,
-  body.site-home .support-chat-backdrop {
-    display: none !important;
-    background: transparent !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    backdrop-filter: none !important;
-  }
-
-  body.site-home .support-chat-panel,
-  body.site-home .support-chat-widget.is-expanded .support-chat-panel,
-  .support-chat-widget.is-expanded .support-chat-panel {
-    left: 50% !important;
-    right: auto !important;
-    top: 43dvh !important;
-    bottom: auto !important;
-    transform: translateX(-50%) !important;
-    width: min(370px, calc(100vw - 22px)) !important;
-    height: calc(57dvh - max(12px, env(safe-area-inset-bottom))) !important;
-    min-height: 0 !important;
-    max-height: 430px !important;
-    border-radius: 22px !important;
-    pointer-events: auto !important;
-  }
-
-  body.site-home .support-chat-head {
-    min-height: 60px !important;
-    padding: 12px 14px !important;
-  }
-
-  body.site-home .support-chat-messages,
-  body.site-home .support-chat-bubble,
-  body.site-home .support-chat-assistant,
-  body.site-home .support-chat-user,
-  body.site-home .support-chat-input-row input {
-    font-size: 15px !important;
-  }
-
-  body.site-home .support-chat-input-row {
-    padding: 10px 12px !important;
-  }
-
-  body.site-home .support-chat-input-row input {
-    min-height: 44px !important;
-  }
-}
-
-/* 2026-06-23: mobile fit pass for touch targets and popover bounds. */
-@media (max-width: 820px) {
-  body.site-home {
-    --bh-mobile-panel-gap: max(12px, env(safe-area-inset-left), env(safe-area-inset-right));
-    --bh-mobile-action-size: 44px;
-    --bh-mobile-header-fallback: clamp(116px, 16dvh, 146px);
-  }
-
-  body.site-home .bh-site-header {
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-    z-index: 10020 !important;
-  }
-
-  body.site-home .bh-site-nav {
-    width: 100% !important;
-    max-width: 100vw !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
-    row-gap: 8px !important;
-    padding: max(8px, env(safe-area-inset-top)) 10px 10px !important;
-  }
-
-  body.site-home .bh-site-brand {
-    min-width: 0 !important;
-    grid-template-columns: 34px minmax(0, 1fr) !important;
-    gap: 8px !important;
-  }
-
-  body.site-home .bh-site-brand > img {
-    width: 34px !important;
-    height: 34px !important;
-  }
-
-  body.site-home .bh-site-brand strong {
-    max-width: 100% !important;
-    font-size: clamp(13.5px, 3.7vw, 16px) !important;
-    line-height: 1.15 !important;
-  }
-
-  body.site-home .bh-site-brand span {
-    font-size: clamp(10px, 2.8vw, 11.5px) !important;
-    line-height: 1.25 !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions {
-    gap: 8px !important;
-    align-self: center !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions .site-language-globe-btn,
-  body.site-home .site-language-globe-btn {
-    width: 42px !important;
-    min-width: 42px !important;
-    height: 42px !important;
-    min-height: 42px !important;
-  }
-
-  body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn {
-    min-width: 76px !important;
-    height: 42px !important;
-    min-height: 42px !important;
-    padding: 0 12px !important;
-    font-size: 13px !important;
-  }
-
-  body.site-home .bh-nav-keyword-tabs {
-    gap: 8px !important;
-  }
-
-  body.site-home .bh-nav-keyword-tab {
-    min-height: 42px !important;
-    height: 42px !important;
-    border-radius: 13px !important;
-    font-size: 15px !important;
-    line-height: 1.1 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  body.site-home .bh-nav-keyword-panels {
-    top: calc(var(--bh-mobile-header-height, var(--bh-mobile-header-fallback)) + 6px) !important;
-    z-index: 10010 !important;
-    padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-right)) !important;
-    pointer-events: none !important;
-  }
-
-  body.site-home .bh-nav-keyword-panel {
-    pointer-events: auto !important;
-    width: 100% !important;
-    max-height: min(50dvh, calc(100dvh - var(--bh-mobile-header-height, var(--bh-mobile-header-fallback)) - 18px)) !important;
-    padding: 10px !important;
-    border-radius: 16px !important;
-    border: 1px solid rgba(210, 223, 238, 0.96) !important;
-    background: rgba(250, 253, 255, 0.98) !important;
-    box-shadow: 0 20px 50px rgba(8, 20, 38, 0.24) !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  body.site-home .bh-nav-keyword-panel a {
-    min-height: 40px !important;
-    padding: 9px 11px !important;
-    border-radius: 12px !important;
-    font-size: 15px !important;
-    line-height: 1.25 !important;
-  }
-
-  body.site-home .site-language-menu {
-    position: fixed !important;
-    top: calc(max(10px, env(safe-area-inset-top)) + 56px) !important;
-    right: max(12px, env(safe-area-inset-right)) !important;
-    min-width: 156px !important;
-    padding: 8px !important;
-    border-radius: 14px !important;
-    z-index: 10060 !important;
-  }
-
-  body.site-home .site-language-menu button {
-    min-height: 40px !important;
-    padding: 11px 12px !important;
-    font-size: 15px !important;
-  }
-
-  body.site-home .hero-media-overlay,
-  body.site-home .hero-media--video-carousel .hero-media-overlay,
-  body.site-home .hero-media[data-home-hero-theme="brand"] .hero-media-overlay,
-  body.site-home .hero-media[data-home-hero-theme="tech"] .hero-media-overlay {
-    padding-top: calc(var(--bh-mobile-header-height, var(--bh-mobile-header-fallback)) + 34px) !important;
-  }
-
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) {
-    right: max(6px, env(safe-area-inset-right)) !important;
-    top: clamp(318px, calc(var(--bh-mobile-header-height, 136px) + 26dvh), 444px) !important;
-    gap: 11px !important;
-    padding: 8px 7px !important;
-    border-radius: 20px !important;
-  }
-
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
-    display: none !important;
-  }
-
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-chat-toggle,
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .support-selected-cases-fab {
-    width: var(--bh-mobile-action-size) !important;
-    min-width: var(--bh-mobile-action-size) !important;
-    height: var(--bh-mobile-action-size) !important;
-    min-height: var(--bh-mobile-action-size) !important;
-    border-radius: 999px !important;
-  }
-
-  body.site-home:not(.support-selected-cases-open):not(.support-saved-cases-open) .support-chat-widget:not(.is-expanded) .floating-action-btn svg {
-    width: 22px !important;
-    height: 22px !important;
-  }
-
-  body.site-home.support-selected-cases-open .support-chat-widget,
-  body.site-home.support-saved-cases-open .support-chat-widget {
-    pointer-events: none !important;
-  }
-
-  body.site-home.support-selected-cases-open .support-selected-cases-drawer,
-  body.site-home.support-selected-cases-open .support-selected-cases-drawer-backdrop,
-  body.site-home.support-saved-cases-open .support-saved-cases-drawer,
-  body.site-home.support-saved-cases-open .support-saved-cases-drawer-backdrop {
-    pointer-events: auto !important;
-  }
-
-  body.site-home .support-chat-panel,
-  body.site-home .support-chat-widget.is-expanded .support-chat-panel,
-  .support-chat-widget.is-expanded .support-chat-panel {
-    left: 50% !important;
-    right: auto !important;
-    top: 54dvh !important;
-    bottom: auto !important;
-    transform: translate(-50%, -50%) !important;
-    width: min(356px, calc(100vw - 34px)) !important;
-    height: min(40dvh, calc(100dvh - var(--bh-mobile-header-height, var(--bh-mobile-header-fallback)) - 64px - env(safe-area-inset-bottom))) !important;
-    min-height: 268px !important;
-    max-height: 340px !important;
-    border-radius: 20px !important;
-    overflow: hidden !important;
-  }
-
-  body.site-home .support-chat-head {
-    min-height: 56px !important;
-    padding: 10px 12px !important;
-  }
-
-  body.site-home .support-chat-menu-toggle,
-  body.site-home .support-chat-close,
-  body.site-home #support-chat-panel .ui-close-btn {
-    width: 40px !important;
-    min-width: 40px !important;
-    height: 40px !important;
-    min-height: 40px !important;
-  }
-
-  body.site-home .support-chat-input-row {
-    gap: 8px !important;
-    padding: 8px 10px 10px !important;
-  }
-
-  body.site-home .support-chat-input-row input {
-    min-height: 44px !important;
-    font-size: 15px !important;
-  }
-
-  body.site-home .support-chat-input-row button {
-    width: 48px !important;
-    min-width: 48px !important;
-    height: 48px !important;
-  }
-
-  body.site-home .support-phone-login-modal {
-    left: 50% !important;
-    top: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    width: min(390px, calc(100vw - 28px)) !important;
-    max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom))) !important;
-    padding: 14px !important;
-    border-radius: 20px !important;
-    z-index: 10070 !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  body.site-home .support-phone-login-modal .support-phone-login-close,
-  body.site-home .support-phone-login-modal .ui-close-btn {
-    width: 40px !important;
-    height: 40px !important;
-    min-width: 40px !important;
-    min-height: 40px !important;
-  }
-
-  body.site-home .support-phone-login-modal .support-phone-login-body input,
-  body.site-home .support-phone-login-modal .support-phone-login-body select,
-  body.site-home .support-phone-login-modal .support-phone-login-body .primary {
-    min-height: 46px !important;
-    font-size: 15px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer {
-    left: var(--bh-mobile-panel-gap) !important;
-    right: var(--bh-mobile-panel-gap) !important;
-    top: 50% !important;
-    bottom: auto !important;
-    width: auto !important;
-    max-height: calc(100dvh - max(30px, env(safe-area-inset-top)) - max(30px, env(safe-area-inset-bottom))) !important;
-    transform: translateY(-50%) !important;
-    border-radius: 16px !important;
-    z-index: 10065 !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-head-actions .ui-close-btn {
-    width: 40px !important;
-    min-width: 40px !important;
-    height: 40px !important;
-    min-height: 40px !important;
-  }
-
-  body.site-home .support-chat-menu {
-    position: absolute !important;
-    right: 12px !important;
-    top: 62px !important;
-    width: min(250px, calc(100% - 24px)) !important;
-    max-height: calc(100% - 78px) !important;
-    overflow-y: auto !important;
-    z-index: 9 !important;
-  }
-
-  body.site-home .support-chat-menu button {
-    min-height: 46px !important;
-    font-size: 14.5px !important;
-  }
-
-  body.site-home .support-chat-history-panel--popup {
-    left: 12px !important;
-    right: 12px !important;
-    top: 72px !important;
-    max-height: calc(100% - 84px) !important;
-    z-index: 8 !important;
-  }
-
-  body.site-home .support-chat-history-panel--popup .support-chat-history-list {
-    max-height: min(28dvh, 220px) !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-head {
-    padding: 16px 16px 12px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-head-main strong {
-    font-size: 19px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-head-actions .secondary,
-  body.site-home .support-selected-cases-drawer-head-actions .support-chat-close {
-    min-width: 44px !important;
-    min-height: 44px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-list {
-    padding: 0 16px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-actions {
-    padding: 14px 16px 16px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-actions .secondary,
-  body.site-home .support-selected-cases-drawer-actions .primary {
-    min-height: 46px !important;
-    font-size: 15px !important;
-  }
-
-  body.site-home .purchase-tool-dialog {
-    width: calc(100vw - 24px) !important;
-    max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom))) !important;
-    border-radius: 20px !important;
-  }
-
-  body.site-home .purchase-tool-dialog .purchase-tool-close,
-  body.site-home .purchase-tool-dialog .ui-close-btn {
-    width: 40px !important;
-    min-width: 40px !important;
-    height: 40px !important;
-    min-height: 40px !important;
-  }
-
-  body.site-home .purchase-tool-head {
-    padding: 16px !important;
-  }
-
-  body.site-home .purchase-tool-layout {
-    grid-template-columns: 1fr !important;
-    padding: 14px 16px 16px !important;
-  }
-
-  body.site-home .purchase-tool-tab,
-  body.site-home .purchase-tool-answer-row button,
-  body.site-home .purchase-tool-primary,
-  body.site-home .purchase-tool-actions .secondary {
-    min-height: 48px !important;
-    font-size: 15px !important;
   }
 }
 
@@ -34435,11 +33762,6 @@ body.site-home .support-chat-panel,
     max-height: 330px !important;
     transform: translateX(-50%) !important;
   }
-
-  body.site-home .support-phone-login-modal {
-    top: 50% !important;
-    transform: translate(-50%, -50%) !important;
-  }
 }
 
 @media (max-width: 820px) {
@@ -34458,33 +33780,6 @@ body.site-home .support-chat-panel,
     visibility: visible !important;
     transform: none !important;
     pointer-events: auto !important;
-  }
-
-  body.site-home .support-phone-login-backdrop {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 10080 !important;
-    pointer-events: auto !important;
-  }
-
-  body.site-home .support-phone-login-modal {
-    position: fixed !important;
-    inset: auto !important;
-    left: 50vw !important;
-    top: 50dvh !important;
-    width: min(390px, calc(100vw - 28px)) !important;
-    width: min(390px, calc(100dvw - 28px)) !important;
-    max-width: calc(100vw - 28px) !important;
-    max-width: calc(100dvw - 28px) !important;
-    max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom))) !important;
-    transform: translate3d(-50%, -50%, 0) !important;
-    box-sizing: border-box !important;
-    pointer-events: auto !important;
-    z-index: 10090 !important;
-  }
-
-  body.site-home.support-phone-login-open .support-chat-widget.is-expanded {
-    pointer-events: none !important;
   }
 
   body.site-home .hero-media,
@@ -34588,12 +33883,6 @@ body.site-home .support-chat-panel,
   body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) .support-saved-cases-fab {
     display: inline-flex !important;
     pointer-events: auto !important;
-  }
-
-  body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle,
-  body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
-    display: none !important;
-    pointer-events: none !important;
   }
 
   body.site-home.support-selected-cases-open .support-selected-cases-drawer,
@@ -35134,17 +34423,10 @@ body.site-home.home-view-workbench .bh-nav-keyword-tab.is-active {
   border-color: rgba(255, 255, 255, 0.36) !important;
   color: #ffffff !important;
 }
-
 body.site-home.home-view-workbench .bh-site-titlebar-actions .site-language-globe-btn,
-body.site-home.home-view-workbench .bh-site-titlebar-actions .config-launcher,
-body.site-home.home-view-workbench .bh-site-titlebar-actions .bh-nav-phone-login-btn {
+body.site-home.home-view-workbench .bh-site-titlebar-actions .config-launcher {
   background: rgba(255, 255, 255, 0.1) !important;
   box-shadow: 0 12px 28px rgba(5, 17, 30, 0.18) !important;
-}
-
-body.site-home.home-view-workbench .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in {
-  background: rgba(47, 125, 104, 0.9) !important;
-  color: #ecfff8 !important;
 }
 
 /* 2026-06-26: soften the workbench map surface and keep title keywords text-first. */
@@ -35961,10 +35243,6 @@ body.site-home .support-chat-widget:not(.is-expanded) {
   backdrop-filter: none !important;
   overflow: visible !important;
   pointer-events: none !important;
-}
-
-body.site-home .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
-  display: none !important;
 }
 
 body.site-home .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
@@ -37025,12 +36303,10 @@ body.site-home .support-chat-head-actions,
 body.site-home .support-selected-cases-drawer-head-actions {
   gap: 14px !important;
 }
-
 body.site-home .support-chat-head .support-chat-menu-toggle,
 body.site-home #support-chat-panel .support-chat-head .ui-close-btn,
 body.site-home .support-chat-head .ui-close-btn,
 body.site-home .support-chat-history-head .ui-close-btn,
-body.site-home .support-phone-login-modal .ui-close-btn,
 body.site-home .support-human-intake-modal .ui-close-btn,
 body.site-home .support-selected-cases-drawer-head-actions .ui-close-btn {
   width: 46px !important;
@@ -37055,17 +36331,14 @@ body.site-home .support-chat-head .support-chat-menu-toggle span {
   width: 5px !important;
   height: 5px !important;
 }
-
 body.site-home .support-chat-head .ui-close-btn,
 body.site-home #support-chat-panel .support-chat-head .ui-close-btn,
 body.site-home .support-chat-history-head .ui-close-btn,
-body.site-home .support-phone-login-modal .ui-close-btn,
 body.site-home .support-human-intake-modal .ui-close-btn,
 body.site-home .support-selected-cases-drawer-head-actions .ui-close-btn {
   font-size: 27px !important;
   font-weight: 850 !important;
 }
-
 body.site-home .support-chat-head .support-chat-menu-toggle:hover,
 body.site-home .support-chat-head .support-chat-menu-toggle:focus-visible,
 body.site-home .support-chat-head .support-chat-menu-toggle.is-active,
@@ -37076,8 +36349,6 @@ body.site-home .support-chat-head .ui-close-btn:hover,
 body.site-home .support-chat-head .ui-close-btn:focus-visible,
 body.site-home .support-chat-history-head .ui-close-btn:hover,
 body.site-home .support-chat-history-head .ui-close-btn:focus-visible,
-body.site-home .support-phone-login-modal .ui-close-btn:hover,
-body.site-home .support-phone-login-modal .ui-close-btn:focus-visible,
 body.site-home .support-human-intake-modal .ui-close-btn:hover,
 body.site-home .support-human-intake-modal .ui-close-btn:focus-visible,
 body.site-home .support-selected-cases-drawer-head-actions .ui-close-btn:hover,
@@ -37169,15 +36440,14 @@ body.site-home #support-chat-panel #support-chat-selected-cases-count {
     width: min(214px, calc(100% - 24px)) !important;
   }
 }
-
-/* 2026-06-27: final admin-only override, after homepage floating widget rules. */
+/* 2026-06-27: final admin-only override,
+after homepage floating widget rules. */
 body.site-admin-standalone #support-chat-widget,
 body.site-admin-standalone .support-chat-widget,
 body.site-admin-standalone #purchase-tool-toggle,
 body.site-admin-standalone #support-selected-cases-fab,
 body.site-admin-standalone #support-saved-cases-fab,
-body.site-admin-standalone #support-chat-toggle,
-body.site-admin-standalone #support-phone-login-toggle {
+body.site-admin-standalone #support-chat-toggle {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -41538,7 +40808,7 @@ body.site-case-standalone .case-standalone-back a:focus-visible {
 }
 
 body.site-case-standalone .suumo-case-catch {
-  font-size: clamp(1.2rem, 1.42vw, 1.48rem) !important;
+  font-size: clamp(1.34rem, 1.62vw, 1.72rem) !important;
   line-height: 1.45 !important;
   margin: 0.45rem 0 0.45rem !important;
 }
@@ -41549,9 +40819,9 @@ body.site-case-standalone .portal-suumo-listing {
 }
 
 body.site-case-standalone .portal-suumo-kvhead .portal-suumo-price {
-  font-size: clamp(2.05rem, 2.45vw, 2.65rem) !important;
-  line-height: 1.15 !important;
-  margin: 0.35rem 0 0.55rem !important;
+  font-size: clamp(1.58rem, 1.86vw, 2rem) !important;
+  line-height: 1.18 !important;
+  margin: 0.3rem 0 0.5rem !important;
 }
 
 body.site-case-standalone .portal-suumo-fx,
@@ -41561,13 +40831,13 @@ body.site-case-standalone .portal-suumo-kvhead .portal-suumo-fx {
 }
 
 body.site-case-standalone .portal-suumo-line {
-  font-size: clamp(1.04rem, 1.05vw, 1.18rem) !important;
+  font-size: clamp(1.12rem, 1.18vw, 1.26rem) !important;
   line-height: 1.55 !important;
   margin: 0.26rem 0 !important;
 }
 
 body.site-case-standalone .portal-suumo-meta {
-  font-size: 0.98rem !important;
+  font-size: 1.04rem !important;
   line-height: 1.55 !important;
   margin-top: 0.7rem !important;
 }
@@ -41701,310 +40971,6 @@ body.site-case-standalone .suumo-case-footnote {
 
   .portal-suumo-gallery-nav--next {
     right: 8px;
-  }
-}
-
-/* 2026-06-28: final mobile touch QA pass.
-   Keep desktop floating actions unchanged; narrow viewports use predictable
-   thumb-sized controls and bottom-sheet panels. */
-@media (max-width: 820px) {
-  html,
-  body {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  body.site-home {
-    --mobile-touch-size: 56px;
-    --mobile-panel-gap: max(10px, env(safe-area-inset-left), env(safe-area-inset-right));
-    --mobile-bottom-gap: max(12px, env(safe-area-inset-bottom));
-  }
-
-  body.site-home .support-chat-toggle.support-chat-toggle--bottom {
-    right: auto !important;
-    bottom: auto !important;
-    width: var(--mobile-touch-size) !important;
-    min-width: var(--mobile-touch-size) !important;
-    max-width: var(--mobile-touch-size) !important;
-    height: var(--mobile-touch-size) !important;
-    min-height: var(--mobile-touch-size) !important;
-    max-height: var(--mobile-touch-size) !important;
-    border-width: 2px !important;
-    z-index: 10030 !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) {
-    left: auto !important;
-    top: auto !important;
-    right: var(--mobile-panel-gap) !important;
-    bottom: var(--mobile-bottom-gap) !important;
-    width: var(--mobile-touch-size) !important;
-    height: auto !important;
-    max-height: calc(100dvh - var(--mobile-bottom-gap) - var(--mobile-touch-size) - 96px) !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    gap: 10px !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    overflow: visible !important;
-    pointer-events: none !important;
-    transform: none !important;
-    z-index: 10029 !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .support-phone-login-toggle {
-    display: none !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .purchase-tool-toggle,
-  body.site-home .support-chat-widget:not(.is-expanded) .support-selected-cases-fab,
-  body.site-home .support-chat-widget:not(.is-expanded) .support-saved-cases-fab,
-  body.site-home .support-chat-widget:not(.is-expanded) .support-chat-toggle {
-    position: relative !important;
-    display: inline-flex !important;
-    width: var(--mobile-touch-size) !important;
-    min-width: var(--mobile-touch-size) !important;
-    max-width: var(--mobile-touch-size) !important;
-    height: var(--mobile-touch-size) !important;
-    min-height: var(--mobile-touch-size) !important;
-    max-height: var(--mobile-touch-size) !important;
-    flex: 0 0 var(--mobile-touch-size) !important;
-    align-items: center !important;
-    justify-content: center !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 2px solid #fff !important;
-    border-radius: 999px !important;
-    background: #fff !important;
-    box-shadow: 0 12px 30px rgba(17, 50, 115, 0.22) !important;
-    pointer-events: auto !important;
-    touch-action: manipulation !important;
-    transform: none !important;
-  }
-
-  body.site-home .support-chat-toggle-bubble-icon,
-  body.site-home .support-chat-toggle-bubble-icon svg,
-  body.site-home .support-chat-widget:not(.is-expanded) .purchase-tool-toggle-icon,
-  body.site-home .support-chat-widget:not(.is-expanded) .purchase-tool-toggle svg {
-    width: 38px !important;
-    height: 38px !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .support-selected-cases-fab-icon {
-    width: 42px !important;
-    height: 42px !important;
-    font-size: 44px !important;
-    line-height: 0.86 !important;
-    padding-bottom: 3px !important;
-  }
-
-  body.site-home .support-chat-widget:not(.is-expanded) .support-saved-cases-fab-icon {
-    width: 44px !important;
-    height: 44px !important;
-    font-size: 43px !important;
-    line-height: 0.86 !important;
-    padding-top: 1px !important;
-  }
-
-  body.site-home .support-chat-widget.is-expanded {
-    position: fixed !important;
-    inset: 0 !important;
-    width: auto !important;
-    height: auto !important;
-    border: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    pointer-events: none !important;
-    z-index: 10040 !important;
-  }
-
-  body.site-home .support-chat-panel,
-  body.site-home .support-chat-widget.is-expanded .support-chat-panel,
-  .support-chat-widget.is-expanded .support-chat-panel {
-    left: var(--mobile-panel-gap) !important;
-    right: var(--mobile-panel-gap) !important;
-    top: auto !important;
-    bottom: var(--mobile-bottom-gap) !important;
-    transform: translate3d(0, 18px, 0) scale(0.98) !important;
-    width: auto !important;
-    max-width: none !important;
-    height: min(74dvh, 590px) !important;
-    min-height: min(360px, calc(100dvh - 28px)) !important;
-    max-height: calc(100dvh - max(18px, env(safe-area-inset-top)) - var(--mobile-bottom-gap)) !important;
-    border-radius: 20px !important;
-    overflow: hidden !important;
-    pointer-events: none !important;
-    transform-origin: right bottom !important;
-  }
-
-  body.site-home .support-chat-panel.is-chat-visible,
-  body.site-home .support-chat-widget.is-expanded .support-chat-panel.is-chat-visible {
-    pointer-events: auto !important;
-    transform: translate3d(0, 0, 0) scale(1) !important;
-  }
-
-  body.site-home #support-chat-panel .support-chat-head {
-    min-height: 50px !important;
-    padding: 4px 10px 4px 12px !important;
-  }
-
-  body.site-home .support-chat-head .support-chat-menu-toggle,
-  body.site-home #support-chat-panel .support-chat-head .ui-close-btn,
-  body.site-home .support-chat-head .ui-close-btn {
-    width: 44px !important;
-    min-width: 44px !important;
-    height: 44px !important;
-    min-height: 44px !important;
-  }
-
-  body.site-home #support-chat-panel .support-chat-menu {
-    right: 8px !important;
-    top: 52px !important;
-    width: min(238px, calc(100% - 16px)) !important;
-  }
-
-  body.site-home #support-chat-panel .support-chat-menu button {
-    min-height: 44px !important;
-    font-size: 14px !important;
-  }
-
-  body.site-home .support-chat-input-row input {
-    min-height: 46px !important;
-    font-size: 16px !important;
-  }
-
-  body.site-home .support-chat-input-row button,
-  body.site-home .support-chat-panel #support-chat-send-btn {
-    width: 48px !important;
-    min-width: 48px !important;
-    height: 48px !important;
-    min-height: 48px !important;
-  }
-
-  body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded),
-  body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) {
-    pointer-events: none !important;
-  }
-
-  body.site-home.support-selected-cases-open .support-selected-cases-drawer,
-  body.site-home.support-saved-cases-open .support-saved-cases-drawer {
-    left: var(--mobile-panel-gap) !important;
-    right: var(--mobile-panel-gap) !important;
-    top: auto !important;
-    bottom: var(--mobile-bottom-gap) !important;
-    width: auto !important;
-    max-width: none !important;
-    max-height: min(82dvh, calc(100dvh - max(24px, env(safe-area-inset-top)) - var(--mobile-bottom-gap))) !important;
-    transform: none !important;
-    border-radius: 18px !important;
-    pointer-events: auto !important;
-    z-index: 10065 !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-head {
-    min-height: 52px !important;
-    padding: 8px 12px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-head-actions,
-  body.site-home .support-chat-head-actions {
-    gap: 8px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-head-actions .secondary,
-  body.site-home .support-selected-cases-drawer-head-actions .ui-close-btn {
-    width: 44px !important;
-    min-width: 44px !important;
-    height: 44px !important;
-    min-height: 44px !important;
-  }
-
-  body.site-home .support-selected-cases-cart-item {
-    grid-template-columns: 104px minmax(0, 1fr) !important;
-    gap: 12px !important;
-    padding: 14px 0 !important;
-  }
-
-  body.site-home .support-selected-cases-card-thumb {
-    width: 104px !important;
-  }
-
-  body.site-home .support-selected-cases-cart-main {
-    padding-right: 0 !important;
-  }
-
-  body.site-home .support-selected-cases-cart-remove {
-    position: static !important;
-    width: fit-content !important;
-    min-height: 36px !important;
-    margin-top: 8px !important;
-    padding: 0 12px !important;
-  }
-
-  body.site-home .support-selected-cases-drawer-actions .primary,
-  body.site-home .support-selected-cases-drawer-actions .secondary {
-    min-height: 48px !important;
-    font-size: 15px !important;
-  }
-
-  body.site-home .support-phone-login-modal,
-  body.site-home .purchase-tool-dialog {
-    width: calc(100dvw - 20px) !important;
-    max-width: calc(100dvw - 20px) !important;
-    max-height: calc(100dvh - max(18px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))) !important;
-    border-radius: 20px !important;
-  }
-
-  .portal-suumo-gallery-nav {
-    width: 50px !important;
-    height: 112px !important;
-    font-size: 4rem !important;
-  }
-
-  .portal-suumo-gallery-nav--prev {
-    left: 8px !important;
-  }
-
-  .portal-suumo-gallery-nav--next {
-    right: 8px !important;
-  }
-
-  .portal-suumo-gallery-tab,
-  .portal-suumo-dtab,
-  .portal-suumo-cta,
-  .saved-cases-actions .primary,
-  .saved-cases-actions .secondary,
-  .saved-cases-card-actions .primary,
-  .saved-cases-card-actions .secondary,
-  .selected-compare-actions .primary,
-  .selected-compare-actions .secondary {
-    min-height: 44px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    touch-action: manipulation !important;
-  }
-
-  .portal-suumo-gallery-section-thumb {
-    flex-basis: 92px !important;
-  }
-
-  .portal-suumo-invest-card th,
-  .portal-suumo-invest-card td {
-    padding: 0.74rem 0.68rem !important;
-    font-size: 0.9rem !important;
-  }
-
-  .portal-suumo-specwrap,
-  .portal-suumo-tabpanels,
-  .selected-compare-section,
-  .saved-cases-section {
-    max-width: 100%;
-    overflow-x: auto;
   }
 }
 
@@ -42156,70 +41122,6 @@ body.site-home .bh-site-titlebar-actions .site-language-globe-btn {
   min-width: 42px !important;
   height: 42px !important;
   min-height: 42px !important;
-}
-
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-  width: auto !important;
-  min-width: 108px !important;
-  height: 42px !important;
-  min-height: 42px !important;
-  padding: 0 14px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
-  border-radius: 999px !important;
-  border: 1px solid rgba(255, 255, 255, 0.42) !important;
-  background: rgba(255, 255, 255, 0.12) !important;
-  color: #ffffff !important;
-  box-shadow: 0 10px 24px rgba(5, 17, 30, 0.14) !important;
-  font-size: 14px !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-  transform: none !important;
-}
-
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-  border-color: rgba(255, 255, 255, 0.72) !important;
-  background: rgba(255, 255, 255, 0.2) !important;
-  outline: none !important;
-}
-
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
-  display: block !important;
-  width: 20px !important;
-  height: 20px !important;
-  flex: 0 0 20px !important;
-}
-
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
-  fill: none !important;
-  stroke: currentColor !important;
-  stroke-width: 2.1 !important;
-  stroke-linecap: round !important;
-  stroke-linejoin: round !important;
-}
-
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-text {
-  display: inline-block !important;
-  width: auto !important;
-  color: inherit !important;
-  line-height: 1 !important;
-  white-space: nowrap !important;
-}
-
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:hover,
-body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn.is-logged-in:focus-visible {
-  min-width: 92px !important;
-  border-color: rgba(209, 250, 229, 0.68) !important;
-  background: rgba(47, 125, 104, 0.9) !important;
-  color: #ffffff !important;
-  box-shadow: 0 12px 26px rgba(47, 125, 104, 0.22) !important;
 }
 
 /* 2026-06-28: titlebar case search with database-backed recommendations. */
@@ -42912,24 +41814,6 @@ body.site-home .bh-title-search-empty {
     min-height: 38px !important;
     flex-basis: 38px !important;
   }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-    min-width: 94px !important;
-    height: 38px !important;
-    min-height: 38px !important;
-    padding: 0 10px !important;
-    gap: 6px !important;
-    font-size: 12px !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-icon,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
-    width: 17px !important;
-    height: 17px !important;
-    flex-basis: 17px !important;
-  }
 }
 
 @media (min-width: 900px) and (max-width: 979px) {
@@ -42983,109 +41867,6 @@ body.site-home .bh-title-search-empty {
     height: 36px !important;
     min-height: 36px !important;
     flex-basis: 36px !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-    min-width: 82px !important;
-    height: 36px !important;
-    min-height: 36px !important;
-    padding: 0 8px !important;
-    gap: 4px !important;
-    font-size: 11px !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-icon,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-icon svg {
-    width: 15px !important;
-    height: 15px !important;
-    flex-basis: 15px !important;
-  }
-}
-
-/* 2026-06-29: restore original titlebar visual weight, keeping only the search box addition. */
-@media (min-width: 1780px) {
-  body.site-home:not(.site-admin-standalone) .bh-site-nav {
-    grid-template-columns: 344px 420px 650px 164px !important;
-    grid-template-areas: "brand search links actions" !important;
-    column-gap: 24px !important;
-    row-gap: 0 !important;
-    justify-content: center !important;
-    align-items: center !important;
-    min-height: 92px !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-brand {
-    grid-area: brand !important;
-    width: 344px !important;
-    max-width: 344px !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-title-search {
-    grid-area: search !important;
-    width: 420px !important;
-    min-width: 0 !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-nav-keywords {
-    grid-area: links !important;
-    width: 650px !important;
-    min-width: 0 !important;
-    transform: none !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-nav-keyword-tabs {
-    width: 650px !important;
-    max-width: 650px !important;
-    gap: 18px !important;
-    justify-content: center !important;
-    flex-wrap: nowrap !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-nav-keyword-tab {
-    flex: 0 0 auto !important;
-    width: auto !important;
-    min-width: 0 !important;
-    min-height: 40px !important;
-    height: 40px !important;
-    padding: 0 12px !important;
-    gap: 6px !important;
-    font-size: 17px !important;
-    line-height: 1 !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-nav-keyword-tab-arrow {
-    width: 15px !important;
-    height: 15px !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions {
-    grid-area: actions !important;
-    width: 164px !important;
-    gap: 8px !important;
-    justify-content: flex-end !important;
-    align-self: center !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .site-language-switch,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .site-language-globe-btn {
-    width: 42px !important;
-    min-width: 42px !important;
-    height: 42px !important;
-    min-height: 42px !important;
-    flex-basis: 42px !important;
-  }
-
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn:hover,
-  body.site-home:not(.site-admin-standalone) .bh-site-titlebar-actions .bh-nav-phone-login-btn:focus-visible {
-    min-width: 108px !important;
-    height: 42px !important;
-    min-height: 42px !important;
-    padding: 0 14px !important;
-    gap: 8px !important;
-    font-size: 14px !important;
   }
 }
 
@@ -43736,12 +42517,6 @@ body.site-home #support-chat-widget.support-chat-widget:not(.is-expanded) #suppo
     --bh-mobile-header-height: clamp(154px, 27dvh, 190px);
   }
 
-  body.site-home .bh-site-titlebar-actions .bh-nav-phone-login-btn {
-    min-width: 74px !important;
-    padding: 0 8px !important;
-    font-size: 12px !important;
-  }
-
   body.site-home .hero-kicker {
     font-size: clamp(30px, 9vw, 40px) !important;
   }
@@ -43917,39 +42692,7 @@ body.site-home #support-chat-widget.support-chat-widget:not(.is-expanded) #suppo
   color: #555;
 }
 
-/* 2026-06-29: keep the shared phone login dialog viewport-centered on every inner page. */
-body .support-phone-login-backdrop {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 10080 !important;
-  pointer-events: auto !important;
-}
-
-body .support-phone-login-modal {
-  position: fixed !important;
-  left: 50vw !important;
-  top: 50dvh !important;
-  right: auto !important;
-  bottom: auto !important;
-  transform: translate(-50%, -50%) !important;
-  width: min(390px, calc(100vw - 32px)) !important;
-  max-width: calc(100vw - 32px) !important;
-  max-height: calc(100dvh - max(28px, env(safe-area-inset-top)) - max(28px, env(safe-area-inset-bottom))) !important;
-  margin: 0 !important;
-  box-sizing: border-box !important;
-  z-index: 10090 !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain !important;
-  -webkit-overflow-scrolling: touch !important;
-}
-
 @media (max-width: 640px) {
-  body .support-phone-login-modal {
-    width: min(390px, calc(100vw - 24px)) !important;
-    max-width: calc(100vw - 24px) !important;
-    padding: 14px !important;
-    border-radius: 20px !important;
-  }
 }
 
 /* 2026-06-29: AI media tools console must stay card-based after admin theme overrides. */
@@ -44286,5 +43029,74 @@ body.site-admin-standalone #admin-tab-cases #admin-media-review-summary,
   .admin-visitor-records-panel {
     margin: 0 0 12px;
     padding: 10px;
+  }
+}
+
+/* 2026-07-08: visitor dashboard default landing and compact controls. */
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(180px, 220px) minmax(360px, 1fr) 150px auto auto minmax(220px, 0.7fr) !important;
+  align-items: end !important;
+  gap: 8px !important;
+  padding: 6px 16px !important;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-toolbar label,
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-settings-row label {
+  display: grid;
+  gap: 4px;
+  line-height: 1.2;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-toolbar select,
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-settings-row input {
+  min-height: 38px;
+  height: 38px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-toolbar > button.secondary {
+  justify-self: start !important;
+  margin-left: 0 !important;
+  min-height: 36px !important;
+  align-self: end !important;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-toolbar #admin-visitor-settings-hint {
+  grid-column: 1 / -1;
+  margin: -2px 0 0;
+  line-height: 1.35;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-settings-row {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) 150px auto minmax(240px, 0.82fr);
+  align-items: end;
+  gap: 8px;
+  margin: 4px 16px 0;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-settings-row > button.secondary {
+  justify-self: start;
+  min-width: 86px;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-settings-row .admin-visitor-status {
+  align-self: center;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+@media (max-width: 960px) {
+  body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-toolbar,
+  body.site-admin-standalone .admin-drawer #admin-tab-visitors .admin-visitor-settings-row {
+    grid-template-columns: 1fr !important;
+    margin-right: 10px;
+    margin-left: 10px;
+    padding-right: 10px !important;
+    padding-left: 10px !important;
   }
 }
