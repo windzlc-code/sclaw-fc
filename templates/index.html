@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260707-home-price-font-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260707-visitor-dashboard-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <style id="phone-login-ui-overrides">
     body.site-home .bh-site-titlebar-actions {
@@ -966,9 +966,9 @@
       <div class="admin-tab-bar admin-tab-bar--grouped" role="tablist" id="admin-tab-bar" aria-label="後台功能分區">
         <div class="admin-tab-group" data-admin-group="daily">
           <button type="button" class="admin-tab-group-label" data-admin-group-toggle="daily" aria-expanded="true">日常操作</button>
+          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="visitors">访客数据</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core is-active" data-admin-tab="cases">房源案件</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="handoffs">客戶諮詢</button>
-          <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="visitors">访客数据</button>
           <button type="button" class="admin-tab-btn admin-tab-btn-core" data-admin-tab="knowledge">知識庫</button>
         </div>
         <div class="admin-tab-group" data-admin-group="support">
@@ -1067,9 +1067,40 @@
             <button type="button" class="secondary" onclick="loadAdminVisitorDashboard()">重新載入</button>
             <p id="admin-visitor-status" class="muted admin-visitor-status">登入後載入访客数据。</p>
           </div>
+          <div class="admin-visitor-settings-row">
+            <label class="muted">統計連結主路徑
+              <input id="admin-visitor-tracking-url" type="text" placeholder="自動識別目前網站，例如 https://www.manuvip.com/">
+            </label>
+            <label class="muted">翻頁上限
+              <input id="admin-visitor-max-pages" type="number" min="1" max="500" step="1" value="50">
+            </label>
+            <button type="button" class="secondary" onclick="saveAdminVisitorSettings()">保存設定</button>
+            <p id="admin-visitor-settings-hint" class="muted admin-visitor-status">主路徑下的子頁面會一起計入。</p>
+          </div>
           <div id="admin-visitor-dashboard" class="admin-visitor-dashboard">
             <p class="muted">尚未載入數據。</p>
           </div>
+          <section class="admin-visitor-records-panel">
+            <div class="admin-visitor-card-head">
+              <h4>进入记录表格</h4>
+              <span>按同一 IP / 日期归并，统计真实进入次数</span>
+            </div>
+            <div class="admin-visitor-records-toolbar">
+              <label class="muted">每頁顯示
+                <select id="admin-visitor-record-page-size" onchange="loadAdminVisitorRecords(1)">
+                  <option value="10">10 條</option>
+                  <option value="20" selected>20 條</option>
+                  <option value="50">50 條</option>
+                  <option value="100">100 條</option>
+                </select>
+              </label>
+              <button type="button" class="secondary" onclick="loadAdminVisitorRecords(1)">刷新记录</button>
+              <p id="admin-visitor-record-status" class="muted admin-visitor-status">等待載入记录。</p>
+            </div>
+            <div id="admin-visitor-records" class="admin-visitor-records">
+              <p class="muted">尚未載入记录。</p>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -13844,6 +13875,70 @@
       </div>`;
     }
 
+    function adminVisitorRenderPieChart(totals) {
+      const guest = Math.max(0, Number(totals && totals.guest_visitors || 0));
+      const phone = Math.max(0, Number(totals && totals.phone_login_visitors || 0));
+      const total = guest + phone;
+      const guestPct = total > 0 ? (guest / total) * 100 : 0;
+      const phonePct = total > 0 ? 100 - guestPct : 0;
+      const guestText = total > 0 ? adminVisitorPercent(guestPct) : '0%';
+      const phoneText = total > 0 ? adminVisitorPercent(phonePct) : '0%';
+      const pieStyle = total > 0
+        ? `background: conic-gradient(#2563eb 0 ${guestPct.toFixed(2)}%, #f59e0b ${guestPct.toFixed(2)}% 100%);`
+        : 'background: #edf3f8;';
+      return `<div class="admin-visitor-pie-wrap">
+        <div class="admin-visitor-pie" style="${pieStyle}" role="img" aria-label="普通游客 ${guestText}，号码登录游客 ${phoneText}">
+          <span><strong>${adminVisitorNumber(total)}</strong><small>区间访客</small></span>
+        </div>
+        <div class="admin-visitor-pie-stats">
+          <div><i class="is-guest"></i><span>普通游客</span><strong>${adminVisitorNumber(guest)}</strong><em>${guestText}</em></div>
+          <div><i class="is-phone"></i><span>号码登录</span><strong>${adminVisitorNumber(phone)}</strong><em>${phoneText}</em></div>
+        </div>
+      </div>`;
+    }
+
+    function adminVisitorCurrentOrigin() {
+      const origin = String(window.location && window.location.origin || '').trim();
+      return origin && origin !== 'null' ? origin : '';
+    }
+
+    function adminVisitorAbsoluteTrackingUrl(raw, path) {
+      const text = String(raw || '').trim();
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) return text;
+      const cleanPath = String(path || text || '/').trim() || '/';
+      const normalizedPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+      const origin = adminVisitorCurrentOrigin();
+      return origin ? `${origin}${normalizedPath}` : normalizedPath;
+    }
+
+    function syncAdminVisitorSettingsInputs(settings) {
+      const s = settings || {};
+      const urlInput = document.getElementById('admin-visitor-tracking-url');
+      const maxPagesInput = document.getElementById('admin-visitor-max-pages');
+      const hint = document.getElementById('admin-visitor-settings-hint');
+      if (urlInput && document.activeElement !== urlInput) {
+        urlInput.value = adminVisitorAbsoluteTrackingUrl(s.tracking_url || '/', s.tracking_path || '/');
+      }
+      if (maxPagesInput && document.activeElement !== maxPagesInput) maxPagesInput.value = String(s.max_pages || 50);
+      if (hint) {
+        const path = String(s.tracking_path || '/');
+        const displayUrl = adminVisitorAbsoluteTrackingUrl(s.tracking_url || '/', path);
+        hint.textContent = `目前統計：${displayUrl} ${path === '/' ? '（目前網站全部前端頁面）' : '及其子路徑'}`;
+      }
+    }
+
+    function adminVisitorKindLabel(kind) {
+      return String(kind || '') === 'phone_login' ? '号码登录' : '普通游客';
+    }
+
+    function adminVisitorDeviceLabel(device) {
+      const d = String(device || '').toLowerCase();
+      if (d === 'mobile') return '移动端';
+      if (d === 'tablet') return '平板';
+      if (d === 'bot') return '爬虫';
+      return '桌面端';
+    }
+
     function renderAdminVisitorDashboard(data) {
       const root = document.getElementById('admin-visitor-dashboard');
       if (!root) return;
@@ -13851,6 +13946,7 @@
       const daily = Array.isArray(data && data.daily) ? data.daily : [];
       const buckets = Array.isArray(data && data.buckets) && data.buckets.length ? data.buckets : daily;
       const range = data && data.range ? data.range : {};
+      syncAdminVisitorSettingsInputs(data && data.settings ? data.settings : {});
       const maxDaily = Math.max(
         1,
         ...buckets.map((it) => Number(it.guest_visitors || 0)),
@@ -13870,8 +13966,8 @@
         const labelHtml = esc(label).replace('~', '<br>');
         return `<span class="admin-visitor-daybar" title="${esc(label)}：普通 ${adminVisitorNumber(guest)} / 號碼登入 ${adminVisitorNumber(phone)} / 合計 ${adminVisitorNumber(unique)}">
           <span class="admin-visitor-bar-pair">
-            <i class="admin-visitor-bar-guest" style="height:${guestH}%">${guest > 0 ? `<b>${adminVisitorNumber(guest)}</b>` : ''}</i>
-            <i class="admin-visitor-bar-phone" style="height:${phoneH}%">${phone > 0 ? `<b>${adminVisitorNumber(phone)}</b>` : ''}</i>
+            <i class="admin-visitor-bar-guest" style="height:${guestH}%"><b>${adminVisitorNumber(guest)}</b></i>
+            <i class="admin-visitor-bar-phone" style="height:${phoneH}%"><b>${adminVisitorNumber(phone)}</b></i>
           </span>
           <small>${labelHtml}</small>
         </span>`;
@@ -13896,6 +13992,11 @@
             <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>号码登录</span></div>
             ${adminVisitorRenderLineChart(buckets, maxDaily)}
           </article>
+          <article class="admin-visitor-card admin-visitor-card--pie">
+            <div class="admin-visitor-card-head"><h4>游客结构饼图</h4><span>普通 / 号码登录</span></div>
+            <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>号码登录</span></div>
+            ${adminVisitorRenderPieChart(totals)}
+          </article>
         </section>
         `;
     }
@@ -13917,6 +14018,7 @@
         const data = await parseApiResponseSafe(res);
         renderAdminVisitorDashboard(data);
         if (status) status.textContent = `已載入近 ${esc(days)} 天访客数据。`;
+        await loadAdminVisitorRecords(1, false);
       } catch (err) {
         if (status) status.textContent = `載入失敗：${formatApiError(err)}`;
         if (root) root.innerHTML = '<p class="muted">访客数据暫時無法載入。</p>';
@@ -13934,6 +14036,95 @@
         <span class="muted">${disabled ? '無資料' : `第 ${current} / ${max} 頁`}</span>
         <button type="button" class="secondary" ${disabled || current >= max ? 'disabled' : ''} onclick="${fn}(${current + 1})">下一頁</button>
       </div>`;
+    }
+
+    async function saveAdminVisitorSettings() {
+      const status = document.getElementById('admin-visitor-settings-hint');
+      const trackingUrl = String(document.getElementById('admin-visitor-tracking-url')?.value || '').trim() || adminVisitorAbsoluteTrackingUrl('/', '/');
+      const maxPages = Number(document.getElementById('admin-visitor-max-pages')?.value || 50);
+      if (!adminPanelPassword) {
+        if (status) status.textContent = '請先登入後台。';
+        return;
+      }
+      if (status) status.textContent = '保存中…';
+      try {
+        const res = await fetch('/api/admin/visitor-settings', {
+          method: 'PUT',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({ tracking_url: trackingUrl, max_pages: maxPages }),
+        });
+        const data = await parseApiResponseSafe(res);
+        syncAdminVisitorSettingsInputs(data);
+        if (status) status.textContent = `已保存：${adminVisitorAbsoluteTrackingUrl(data.tracking_url || '/', data.tracking_path || '/')} ${data.tracking_path === '/' ? '（目前網站全部前端頁面）' : '及其子路徑'}`;
+        await loadAdminVisitorDashboard();
+      } catch (err) {
+        if (status) status.textContent = `保存失敗：${formatApiError(err)}`;
+      }
+    }
+
+    function renderAdminVisitorRecords(data) {
+      const root = document.getElementById('admin-visitor-records');
+      if (!root) return;
+      const items = Array.isArray(data && data.items) ? data.items : [];
+      const pageInfo = data && data.pagination ? data.pagination : {};
+      syncAdminVisitorSettingsInputs(data && data.settings ? data.settings : {});
+      if (!items.length) {
+        root.innerHTML = '<p class="muted admin-visitor-empty">目前沒有符合統計連結的进入记录。</p>';
+        return;
+      }
+      const rows = items.map((it, idx) => {
+        const page = Number(pageInfo.page || 1);
+        const pageSize = Number(pageInfo.page_size || items.length || 20);
+        const no = (page - 1) * pageSize + idx + 1;
+        const paths = Array.isArray(it.paths) && it.paths.length ? it.paths.join('、') : '-';
+        return `<tr>
+          <td>${adminVisitorNumber(no)}</td>
+          <td><strong>${esc(adminVisitorKindLabel(it.visitor_kind))}</strong></td>
+          <td>${esc(it.ip_label || '-')}</td>
+          <td>${esc(adminVisitorDeviceLabel(it.device_type))}</td>
+          <td>${esc(it.first_enter_at || '-')}</td>
+          <td>${esc(it.last_enter_at || '-')}</td>
+          <td>${adminVisitorNumber(it.entry_count || 0)}</td>
+          <td class="admin-visitor-record-paths">${esc(paths)}</td>
+        </tr>`;
+      }).join('');
+      const limited = pageInfo.has_more_beyond_limit
+        ? `<p class="muted admin-visitor-record-limit">记录超过当前翻页上限 ${adminVisitorNumber(pageInfo.max_pages)} 页，已按设置截断展示。</p>`
+        : '';
+      root.innerHTML = `
+        <div class="admin-visitor-record-summary">共 ${adminVisitorNumber(pageInfo.total_records || 0)} 组进入记录，当前第 ${adminVisitorNumber(pageInfo.page || 1)} / ${adminVisitorNumber(pageInfo.total_pages || 1)} 页。</div>
+        <div class="admin-table-scroll">
+          <table class="admin-visitor-record-table">
+            <thead><tr><th>#</th><th>游客类型</th><th>IP 去重标识</th><th>设备</th><th>首次进入</th><th>最近进入</th><th>进入次数</th><th>命中路径</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${adminPagerHtml(pageInfo.page || 1, pageInfo.total_pages || 0, 'loadAdminVisitorRecords')}
+        ${limited}`;
+    }
+
+    async function loadAdminVisitorRecords(page = 1, showStatus = true) {
+      const status = document.getElementById('admin-visitor-record-status');
+      const root = document.getElementById('admin-visitor-records');
+      const days = String(document.getElementById('admin-visitor-days')?.value || '14');
+      const pageSize = String(document.getElementById('admin-visitor-record-page-size')?.value || '20');
+      if (!adminPanelPassword) {
+        if (status) status.textContent = '請先登入後台。';
+        if (root) root.innerHTML = '<p class="muted">登入後載入记录。</p>';
+        return;
+      }
+      if (showStatus && status) status.textContent = '记录載入中…';
+      try {
+        const res = await fetch(`/api/admin/visitor-records?days=${encodeURIComponent(days)}&page=${encodeURIComponent(String(page || 1))}&page_size=${encodeURIComponent(pageSize)}`, {
+          headers: adminApiHeaders(false),
+        });
+        const data = await parseApiResponseSafe(res);
+        renderAdminVisitorRecords(data);
+        if (status) status.textContent = `已載入 ${adminVisitorNumber(data.pagination?.total_records || 0)} 组进入记录。`;
+      } catch (err) {
+        if (status) status.textContent = `记录載入失敗：${formatApiError(err)}`;
+        if (root) root.innerHTML = '<p class="muted">进入记录暫時無法載入。</p>';
+      }
     }
 
     let _adminDetailLightboxEsc = null;

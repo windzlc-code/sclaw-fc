@@ -7127,6 +7127,11 @@ class AdminChangePasswordBody(BaseModel):
     new_password: str = Field(min_length=4, max_length=256)
 
 
+class AdminVisitorSettingsPut(BaseModel):
+    tracking_url: str = Field(default="/", max_length=500)
+    max_pages: int = Field(default=50, ge=1, le=500)
+
+
 class AdminRepresentativeImageSelectPost(BaseModel):
     limit: int = Field(default=24, ge=1, le=80)
     offset: int = Field(default=0, ge=0, le=500000)
@@ -7811,6 +7816,63 @@ _VISITOR_TRACKING_EXCLUDED_SUFFIXES = (
     ".ttf",
 )
 _VISITOR_TZ = timezone(timedelta(hours=8))
+KV_VISITOR_TRACKING_URL = "visitor_tracking_url"
+KV_VISITOR_MAX_PAGES = "visitor_record_max_pages"
+
+
+def _normalize_visitor_tracking_path(raw: Any) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return "/"
+    if text.startswith("#"):
+        return "/"
+    if text.startswith("//"):
+        text = "https:" + text
+    if re.match(r"^[a-z][a-z0-9+.-]*://", text, re.I):
+        parsed = urlparse(text)
+        path = unquote(parsed.path or "/")
+    else:
+        parsed = urlparse(text)
+        path = unquote(parsed.path or text)
+    path = path.split("#", 1)[0].split("?", 1)[0].strip()
+    if not path.startswith("/"):
+        path = "/" + path
+    path = re.sub(r"/{2,}", "/", path)
+    if len(path) > 1:
+        path = path.rstrip("/")
+    return path[:240] or "/"
+
+
+def _visitor_tracking_url_raw() -> str:
+    return str(get_kv(KV_VISITOR_TRACKING_URL, "/") or "/").strip() or "/"
+
+
+def _visitor_tracking_path() -> str:
+    return _normalize_visitor_tracking_path(_visitor_tracking_url_raw())
+
+
+def _visitor_max_pages() -> int:
+    try:
+        value = int(get_kv(KV_VISITOR_MAX_PAGES, "50") or 50)
+    except (TypeError, ValueError):
+        value = 50
+    return max(1, min(500, value))
+
+
+def _visitor_path_matches(path: Any, tracking_path: str | None = None) -> bool:
+    target = _normalize_visitor_tracking_path(tracking_path or _visitor_tracking_path()).lower()
+    current = _normalize_visitor_tracking_path(path).lower()
+    if target == "/":
+        return True
+    return current == target or current.startswith(target + "/")
+
+
+def _visitor_path_where_clause(prefix: str = "") -> tuple[str, list[str]]:
+    tracking_path = _visitor_tracking_path()
+    column = f"{prefix}.path" if prefix else "path"
+    if tracking_path == "/":
+        return "", []
+    return f" AND ({column} = ? OR {column} LIKE ?)", [tracking_path, tracking_path + "/%"]
 
 
 def _visitor_client_ip(request: Request) -> str:
@@ -7882,6 +7944,8 @@ def _should_track_visitor_request(request: Request, status_code: int) -> bool:
         return False
     if any(lowered.endswith(suffix) for suffix in _VISITOR_TRACKING_EXCLUDED_SUFFIXES):
         return False
+    if not _visitor_path_matches(path):
+        return False
     return True
 
 
@@ -7892,7 +7956,7 @@ def _record_visitor_event(request: Request, status_code: int, elapsed_ms: int) -
         ip = _visitor_client_ip(request)
         now = datetime.now(_VISITOR_TZ)
         today = now.date()
-        path = "/"
+        path = _normalize_visitor_tracking_path(request.url.path or "/")
         user_agent = str(request.headers.get("user-agent") or "")[:420]
         referrer = str(request.headers.get("referer") or "")[:420]
         with get_conn() as conn:
@@ -14646,11 +14710,12 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
     start_text = start_date.isoformat()
     today_text = today.isoformat()
     yesterday_text = yesterday.isoformat()
+    path_sql, path_params = _visitor_path_where_clause()
     with get_conn() as conn:
         conn.execute("DELETE FROM site_visitor_events WHERE event_date < ?", (_visitor_retention_cutoff(today),))
         conn.commit()
         totals_row = conn.execute(
-            """
+            f"""
             SELECT
               COUNT(*) AS visitors,
               SUM(has_phone) AS phone_visitors,
@@ -14662,14 +14727,14 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone,
                 AVG(elapsed_ms) AS avg_elapsed_ms
               FROM site_visitor_events
-              WHERE event_date >= ?
+              WHERE event_date >= ?{path_sql}
               GROUP BY ip_hash
             )
             """,
-            (start_text,),
+            (start_text, *path_params),
         ).fetchone()
         historical_row = conn.execute(
-            """
+            f"""
             SELECT
               COUNT(*) AS visitors,
               SUM(has_phone) AS phone_visitors,
@@ -14679,14 +14744,14 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date >= ?
+              WHERE event_date >= ?{path_sql}
               GROUP BY ip_hash
             )
             """,
-            (_visitor_retention_cutoff(today),),
+            (_visitor_retention_cutoff(today), *path_params),
         ).fetchone()
         today_row = conn.execute(
-            """
+            f"""
             SELECT
               COUNT(*) AS visitors,
               SUM(has_phone) AS phone_visitors,
@@ -14696,14 +14761,14 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date = ?
+              WHERE event_date = ?{path_sql}
               GROUP BY ip_hash
             )
             """,
-            (today_text,),
+            (today_text, *path_params),
         ).fetchone()
         yesterday_row = conn.execute(
-            """
+            f"""
             SELECT
               COUNT(*) AS visitors,
               SUM(has_phone) AS phone_visitors,
@@ -14713,14 +14778,14 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date = ?
+              WHERE event_date = ?{path_sql}
               GROUP BY ip_hash
             )
             """,
-            (yesterday_text,),
+            (yesterday_text, *path_params),
         ).fetchone()
         daily_rows = conn.execute(
-            """
+            f"""
             SELECT
               event_date,
               COUNT(*) AS visitors,
@@ -14732,13 +14797,13 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                 ip_hash,
                 MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
               FROM site_visitor_events
-              WHERE event_date >= ?
+              WHERE event_date >= ?{path_sql}
               GROUP BY event_date, ip_hash
             )
             GROUP BY event_date
             ORDER BY event_date ASC
             """,
-            (start_text,),
+            (start_text, *path_params),
         ).fetchall()
 
     daily_map = {
@@ -14776,7 +14841,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
         while bucket_start <= today:
             bucket_end = min(today, bucket_start + timedelta(days=bucket_span - 1))
             row = conn.execute(
-                """
+                f"""
                 SELECT
                   COUNT(*) AS visitors,
                   SUM(has_phone) AS phone_visitors,
@@ -14786,11 +14851,11 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
                     ip_hash,
                     MAX(CASE WHEN COALESCE(visitor_kind, 'guest') = 'phone_login' THEN 1 ELSE 0 END) AS has_phone
                   FROM site_visitor_events
-                  WHERE event_date BETWEEN ? AND ?
+                  WHERE event_date BETWEEN ? AND ?{path_sql}
                   GROUP BY ip_hash
                 )
                 """,
-                (bucket_start.isoformat(), bucket_end.isoformat()),
+                (bucket_start.isoformat(), bucket_end.isoformat(), *path_params),
             ).fetchone()
             bucket_rows[(bucket_start.isoformat(), bucket_end.isoformat())] = {
                 "entries": int(row["visitors"] or 0) if row else 0,
@@ -14843,6 +14908,11 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
         {
             "ok": True,
             "range": {"days": range_days, "start_date": start_text, "end_date": today_text},
+            "settings": {
+                "tracking_url": _visitor_tracking_url_raw(),
+                "tracking_path": _visitor_tracking_path(),
+                "max_pages": _visitor_max_pages(),
+            },
             "totals": {
                 "unique_visitors": unique_visitors,
                 "guest_visitors": guest_visitors,
@@ -14866,6 +14936,129 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             },
             "daily": daily,
             "buckets": buckets,
+        }
+    )
+
+
+@app.get("/api/admin/visitor-settings")
+def api_admin_visitor_settings(request: Request):
+    _require_admin_password(request)
+    return JSONResponse(
+        {
+            "ok": True,
+            "tracking_url": _visitor_tracking_url_raw(),
+            "tracking_path": _visitor_tracking_path(),
+            "max_pages": _visitor_max_pages(),
+        }
+    )
+
+
+@app.put("/api/admin/visitor-settings")
+def api_admin_put_visitor_settings(payload: AdminVisitorSettingsPut, request: Request):
+    _require_admin_password(request)
+    raw_url = str(payload.tracking_url or "").strip() or "/"
+    tracking_path = _normalize_visitor_tracking_path(raw_url)
+    max_pages = max(1, min(500, int(payload.max_pages or 50)))
+    set_kv(KV_VISITOR_TRACKING_URL, raw_url[:500])
+    set_kv(KV_VISITOR_MAX_PAGES, str(max_pages))
+    return JSONResponse(
+        {
+            "ok": True,
+            "tracking_url": raw_url[:500],
+            "tracking_path": tracking_path,
+            "max_pages": max_pages,
+        }
+    )
+
+
+@app.get("/api/admin/visitor-records")
+def api_admin_visitor_records(
+    request: Request,
+    days: int = Query(default=14, ge=1, le=365),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=10, le=100),
+):
+    _require_admin_password(request)
+    range_days = _visitor_dashboard_days(days)
+    max_pages = _visitor_max_pages()
+    today = datetime.now(_VISITOR_TZ).date()
+    start_date = today - timedelta(days=range_days - 1)
+    start_text = start_date.isoformat()
+    path_sql, path_params = _visitor_path_where_clause()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM site_visitor_events WHERE event_date < ?", (_visitor_retention_cutoff(today),))
+        conn.commit()
+        total_row = conn.execute(
+            f"""
+            SELECT COUNT(*) AS total
+            FROM (
+              SELECT event_date, ip_hash, COALESCE(visitor_kind, 'guest') AS visitor_kind
+              FROM site_visitor_events
+              WHERE event_date >= ?{path_sql}
+              GROUP BY event_date, ip_hash, COALESCE(visitor_kind, 'guest')
+            )
+            """,
+            (start_text, *path_params),
+        ).fetchone()
+        total_records = int(total_row["total"] or 0) if total_row else 0
+        raw_total_pages = (total_records + page_size - 1) // page_size if total_records else 0
+        total_pages = min(max_pages, raw_total_pages) if raw_total_pages else 0
+        current_page = max(1, min(int(page or 1), total_pages or 1))
+        offset = (current_page - 1) * page_size
+        rows = conn.execute(
+            f"""
+            SELECT
+              MIN(event_time) AS first_enter_at,
+              MAX(event_time) AS last_enter_at,
+              event_date,
+              ip_label,
+              COALESCE(visitor_kind, 'guest') AS visitor_kind,
+              MAX(device_type) AS device_type,
+              COUNT(*) AS entry_count,
+              GROUP_CONCAT(DISTINCT path) AS paths
+            FROM site_visitor_events
+            WHERE event_date >= ?{path_sql}
+            GROUP BY event_date, ip_hash, COALESCE(visitor_kind, 'guest')
+            ORDER BY last_enter_at DESC, first_enter_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (start_text, *path_params, page_size, offset),
+        ).fetchall()
+
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        raw_paths = [p for p in str(row["paths"] or "").split(",") if p]
+        items.append(
+            {
+                "first_enter_at": str(row["first_enter_at"] or ""),
+                "last_enter_at": str(row["last_enter_at"] or ""),
+                "event_date": str(row["event_date"] or ""),
+                "ip_label": str(row["ip_label"] or ""),
+                "visitor_kind": str(row["visitor_kind"] or "guest"),
+                "device_type": str(row["device_type"] or "desktop"),
+                "entry_count": int(row["entry_count"] or 0),
+                "paths": raw_paths[:6],
+            }
+        )
+    return JSONResponse(
+        {
+            "ok": True,
+            "range": {"days": range_days, "start_date": start_text, "end_date": today.isoformat()},
+            "settings": {
+                "tracking_url": _visitor_tracking_url_raw(),
+                "tracking_path": _visitor_tracking_path(),
+                "max_pages": max_pages,
+            },
+            "pagination": {
+                "page": current_page,
+                "page_size": page_size,
+                "total_records": total_records,
+                "total_pages": total_pages,
+                "raw_total_pages": raw_total_pages,
+                "max_pages": max_pages,
+                "has_more_beyond_limit": raw_total_pages > max_pages,
+            },
+            "items": items,
         }
     )
 
