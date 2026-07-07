@@ -4215,6 +4215,7 @@
     let activeFigureSearchController = null;
     let smartQueryNavigationSeq = 0;
     let supportChatHistory = [];
+    let supportChatPendingImage = null;
     let supportTgPollTimer = null;
     let supportHandoffSyncTimer = null;
     let supportHandoffSyncActive = false;
@@ -4372,7 +4373,8 @@
     let adminHandoffReplyFlash = '';
     let adminHandoffDetailRefreshTimer = 0;
     let adminHandoffListRefreshTimer = 0;
-    const ADMIN_HANDOFF_DETAIL_REFRESH_MS = 2400;
+    let adminHandoffDetailSnapshotKey = '';
+    const ADMIN_HANDOFF_DETAIL_REFRESH_MS = 7000;
     const ADMIN_HANDOFF_LIST_REFRESH_MS = 4200;
     let adminCasesCrawlTaskId = '';
     let adminCasesCrawlPollTimer = 0;
@@ -12138,6 +12140,64 @@
         .replace(/自動生成/gi, '整理回覆');
     }
 
+    function supportChatImageHtml(image) {
+      const src = String((image && (image.data_url || image.url)) || '').trim();
+      if (!/^data:image\//i.test(src) && !/^https?:\/\//i.test(src) && src.charAt(0) !== '/') return '';
+      const label = String((image && image.name) || '聊天圖片').slice(0, 80);
+      return `<div class="support-chat-image-bubble"><img src="${esc(src)}" alt="${esc(label)}" loading="lazy" decoding="async"></div>`;
+    }
+
+    function renderSupportChatImagePreview() {
+      const wrap = document.getElementById('support-chat-image-preview');
+      if (!wrap) return;
+      if (!supportChatPendingImage) {
+        wrap.hidden = true;
+        wrap.innerHTML = '';
+        return;
+      }
+      wrap.hidden = false;
+      wrap.innerHTML = (
+        '<div class="support-chat-image-preview-card">' +
+        supportChatImageHtml(supportChatPendingImage) +
+        `<span>${esc(String(supportChatPendingImage.name || '已選圖片').slice(0, 48))}</span>` +
+        '<button type="button" onclick="clearSupportChatPendingImage()" aria-label="移除圖片" title="移除圖片">×</button>' +
+        '</div>'
+      );
+    }
+
+    function clearSupportChatPendingImage() {
+      supportChatPendingImage = null;
+      const input = document.getElementById('support-chat-image-input');
+      if (input) input.value = '';
+      renderSupportChatImagePreview();
+    }
+
+    function handleSupportChatImageSelected(event) {
+      const file = event && event.target && event.target.files ? event.target.files[0] : null;
+      if (!file) return;
+      if (!/^image\//i.test(String(file.type || ''))) {
+        alert('請選擇圖片檔。');
+        event.target.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('圖片請控制在 5MB 以內。');
+        event.target.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        supportChatPendingImage = {
+          name: file.name || 'image',
+          type: file.type || 'image/jpeg',
+          size: file.size || 0,
+          data_url: String(reader.result || ''),
+        };
+        renderSupportChatImagePreview();
+      };
+      reader.readAsDataURL(file);
+    }
+
     function supportChatWelcomeHtml(serviceMeta, welcomeText) {
       const serviceBlock = '';
       const intro = esc(String(
@@ -12963,7 +13023,8 @@
         renderedRows.push(row);
         if (row.role === 'user') {
           const metaHtml = supportTelegramDeliveryMetaHtml(row.telegramDelivery);
-          html += `<div class="support-chat-row support-chat-row-user${enterClass}"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}</div>${metaHtml}</div></div>`;
+          const userImageHtml = supportChatImageHtml(row.image || null);
+          html += `<div class="support-chat-row support-chat-row-user${enterClass}"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}${userImageHtml}</div>${metaHtml}</div></div>`;
         } else {
           const staffSource = String(row.staffSource || '').toLowerCase();
           const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
@@ -12980,11 +13041,12 @@
           const bodyHtml = row.contentHtml
             ? sanitizeSupportChatPublicCopy(row.contentHtml)
             : formatSupportChatRichText(sanitizeSupportChatPublicCopy(row.content || ''));
+          const assistantImageHtml = row.contentHtml ? '' : supportChatImageHtml(row.image || null);
           const bubbleExtra = '';
           const intakeCtaBlock = row.contentHtml || isStaffReply ? '' : supportChatIntakeCtaHtml();
           const advisorBlock = row.contentHtml
             ? bodyHtml
-            : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}</div></div>`;
+            : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}${assistantImageHtml}</div></div>`;
           html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
@@ -13008,20 +13070,23 @@
     async function sendSupportChat() {
       const input = document.getElementById('support-chat-input');
       const msg = (input?.value || '').trim();
-      if (!msg) return;
+      const pendingImage = supportChatPendingImage;
+      if (!msg && !pendingImage) return;
       if (supportChatTtsEnabled) primeSupportChatSpeechSynthesis();
 
-      if (msg === '恢復' || msg === '重置' || msg.toLowerCase() === '/reset') {
+      if (!pendingImage && (msg === '恢復' || msg === '重置' || msg.toLowerCase() === '/reset')) {
         if (input) input.value = '';
         resetSupportChatDefaults();
         return;
       }
 
       input.value = '';
-      supportChatHistory.push({ role: 'user', content: msg });
+      clearSupportChatPendingImage();
+      const visibleUserMsg = msg || '請幫我看這張圖片。';
+      supportChatHistory.push({ role: 'user', content: visibleUserMsg, image: pendingImage });
       renderSupportChatMessages();
       stopSupportChatSpeech();
-      const isHumanHandoffMsg = isSupportHumanHandoffMessage(msg);
+      const isHumanHandoffMsg = isSupportHumanHandoffMessage(visibleUserMsg);
       const geminiModel = (document.getElementById('seo-draft-gemini-model')?.value || '').trim();
       const ph = String(document.getElementById('seo-draft-gemini-model')?.placeholder || '').trim();
       let llmProviderPayload = {};
@@ -13032,9 +13097,11 @@
       }
       const pvo = String(llmProviderPayload.llm_provider || '').trim();
       const provHint = pvo || (__llmStatusCache && __llmStatusCache.active_provider) || '預設';
-      const thinkingLabel = isHumanHandoffMsg || /買房|买房|看屋|看房/.test(msg)
+      const thinkingLabel = pendingImage
+        ? '正在查看圖片…'
+        : (isHumanHandoffMsg || /買房|买房|看屋|看房/.test(visibleUserMsg)
         ? '正在安排值班顧問整理需求…'
-        : '顧問正在整理回覆…';
+        : '顧問正在整理回覆…');
       setSupportChatThinking(true, `${geminiModel || ph || 'model'}（${provHint}）`, thinkingLabel);
       const persona_region = document.getElementById('seo-draft-persona-region')?.value || 'tw';
       // 後端會把 message 再 append 一則 user，history 勿含本則以免重複
@@ -13044,7 +13111,7 @@
         .filter((r) => !r.staffSource && !r.supportSelectionNotice)
         .map((r) => ({ role: r.role, content: r.content }));
       let restoreInputDraft = false;
-      let apiMessage = msg;
+      let apiMessage = visibleUserMsg;
       const suppressSelectedCasesForThisSend = !!window.__sclawSupportSuppressSelectedCasesOnce;
       if (suppressSelectedCasesForThisSend) window.__sclawSupportSuppressSelectedCasesOnce = false;
       let inlineCaseContextForThisSend = null;
@@ -13081,7 +13148,10 @@
             message: apiMessage,
             history: hist,
             use_knowledge: !isHumanHandoffMsg,
-            knowledge_query: msg,
+            knowledge_query: msg || '圖片諮詢',
+            image_data_url: pendingImage && pendingImage.data_url ? pendingImage.data_url : '',
+            image_name: pendingImage && pendingImage.name ? pendingImage.name : '',
+            image_type: pendingImage && pendingImage.type ? pendingImage.type : '',
             sales_session_id: getSupportSalesSessionId(),
             selected_cases: selectedCasesForThisSend,
             figure_keyword: figKw,
@@ -13139,6 +13209,7 @@
           supportChatHistory.push({
             role: 'assistant',
             content: cooked.displayText || (typeof reply === 'string' ? reply : String(reply)),
+            image: data.reply_image_data_url ? { data_url: data.reply_image_data_url, name: '客服回傳圖片' } : null,
             knowledge: data.knowledge || null,
             llm: data.llm || null,
             sales_mcp: data.sales_mcp || null,
@@ -13169,7 +13240,13 @@
         supportChatHistory.push({ role: 'assistant', content: '連線失敗，請稍後再試。' });
       } finally {
         setSupportChatThinking(false);
-        if (restoreInputDraft && input) input.value = msg;
+        if (restoreInputDraft && input) {
+          input.value = msg;
+          if (pendingImage) {
+            supportChatPendingImage = pendingImage;
+            renderSupportChatImagePreview();
+          }
+        }
       }
       if (supportChatHistory.length > 24) {
         supportChatHistory = supportChatHistory.slice(-24);
@@ -18302,6 +18379,7 @@
         adminHandoffDetailRefreshTimer = 0;
       }
       closeAdminDetailLightbox();
+      adminHandoffDetailSnapshotKey = '';
       if (d) d.style.display = 'none';
       if (list) list.style.display = '';
       if (del) {
@@ -18858,6 +18936,34 @@
         const interestedCases = Array.isArray(it.interested_cases) ? it.interested_cases : [];
         const threadChannels = it.thread_channels && typeof it.thread_channels === 'object' ? it.thread_channels : {};
         const replyFlash = adminHandoffReplyFlash ? `<span class="admin-handoff-compose-note is-success">${esc(adminHandoffReplyFlash)}</span>` : '<span id="admin-handoff-reply-status-' + id + '" class="admin-handoff-compose-note"></span>';
+        const snapshotPayload = {
+          id: it.id || id,
+          name: it.name || '',
+          phone: it.phone || '',
+          email: it.email || '',
+          action_id: it.action_id || '',
+          matched_scene_id: it.matched_scene_id || '',
+          matched_scene_label: it.matched_scene_label || '',
+          note: it.note || '',
+          context_message: it.context_message || '',
+          opinion: it.opinion || '',
+          questionnaire: it.questionnaire || {},
+          interested_cases: interestedCases,
+          thread_channels: threadChannels,
+          staff_reply_count: Number(it.staff_reply_count || 0),
+          conversation: Array.isArray(it.conversation) ? it.conversation : [],
+          staff_inbox: Array.isArray(it.staff_inbox) ? it.staff_inbox : [],
+        };
+        let snapshotKey = '';
+        try {
+          snapshotKey = JSON.stringify(snapshotPayload);
+        } catch (_) {
+          snapshotKey = String(Date.now());
+        }
+        if (silentRefresh && preserveDraft && snapshotKey && snapshotKey === adminHandoffDetailSnapshotKey) {
+          scheduleAdminHandoffDetailRefresh(id);
+          return;
+        }
 
         let h = '';
         h += '<div class="admin-handoff-workspace">';
@@ -18945,6 +19051,7 @@
         const finalHtml = h || '<p class="muted">（無內容）</p>';
         const lbBody = document.getElementById('admin-detail-lightbox-body');
         if (lbBody) lbBody.innerHTML = finalHtml;
+        adminHandoffDetailSnapshotKey = snapshotKey;
         const nextChannel = document.getElementById(`admin-handoff-reply-channel-${id}`);
         const nextInput = document.getElementById(`admin-handoff-reply-input-${id}`);
         const nextThread = document.getElementById(`admin-handoff-thread-${id}`);
@@ -27757,6 +27864,8 @@
     window.setSmartQueryMainTab = setSmartQueryMainTab;
     window.toggleSupportChat = toggleSupportChat;
     window.sendSupportChat = sendSupportChat;
+    window.handleSupportChatImageSelected = handleSupportChatImageSelected;
+    window.clearSupportChatPendingImage = clearSupportChatPendingImage;
     window.toggleSupportChatMenu = toggleSupportChatMenu;
     window.openSupportChatMenuCases = openSupportChatMenuCases;
     window.openSupportChatForCaseFromCard = openSupportChatForCaseFromCard;

@@ -16,7 +16,7 @@ import unicodedata
 import wave
 from collections import deque
 from datetime import date, datetime, timedelta, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse
 from uuid import uuid4
@@ -7526,6 +7526,9 @@ class ChatSupportRequest(BaseModel):
     figure_layout: str = ""
     figure_property_types: list[str] = Field(default_factory=list)
     dialog_keyword: str = ""
+    image_data_url: str = ""
+    image_name: str = ""
+    image_type: str = ""
 
 
 class SupportKeywordHintRequest(BaseModel):
@@ -31432,16 +31435,141 @@ def api_ai_chat_support_bootstrap(session_id: str = Query("", description="客�
     )
 
 
+_SUPPORT_CHAT_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+
+
+def _decode_support_chat_image_payload(data_url: str, image_name: str = "", image_type: str = "") -> dict[str, Any] | None:
+    raw = (data_url or "").strip()
+    if not raw:
+        return None
+    m = re.match(r"^data:(image/[a-zA-Z0-9.+-]+);base64,(.+)$", raw, flags=re.S)
+    if not m:
+        raise HTTPException(status_code=400, detail="圖片格式不正確，請重新選擇圖片。")
+    mime_type = (m.group(1) or image_type or "image/jpeg").strip().lower()
+    if mime_type not in {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}:
+        raise HTTPException(status_code=400, detail="目前支援 JPG、PNG、WEBP、GIF 圖片。")
+    b64 = re.sub(r"\s+", "", m.group(2) or "")
+    try:
+        img_bytes = base64.b64decode(b64, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="圖片資料讀取失敗，請重新上傳。")
+    if not img_bytes:
+        raise HTTPException(status_code=400, detail="圖片資料為空。")
+    if len(img_bytes) > _SUPPORT_CHAT_IMAGE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="圖片請控制在 5MB 以內。")
+
+    meta: dict[str, Any] = {
+        "mime_type": mime_type,
+        "name": (image_name or "image").strip()[:120],
+        "size_bytes": len(img_bytes),
+        "width": 0,
+        "height": 0,
+        "format": "",
+        "orientation": "",
+    }
+    try:
+        from PIL import Image, ImageOps  # type: ignore
+
+        with Image.open(BytesIO(img_bytes)) as im0:
+            im = ImageOps.exif_transpose(im0)
+            w, h = im.size
+            meta.update(
+                {
+                    "width": int(w or 0),
+                    "height": int(h or 0),
+                    "format": str(im0.format or "").upper(),
+                    "mode": str(im.mode or ""),
+                    "orientation": "橫向" if w > h else ("直向" if h > w else "方形"),
+                }
+            )
+    except Exception:
+        meta["orientation"] = "圖片"
+    return {"data_url": raw, "meta": meta}
+
+
+def _support_chat_image_reply(meta: dict[str, Any], user_message: str) -> str:
+    w = int(meta.get("width") or 0)
+    h = int(meta.get("height") or 0)
+    orientation = str(meta.get("orientation") or "圖片")
+    fmt = str(meta.get("format") or meta.get("mime_type") or "圖片").replace("IMAGE/", "")
+    size_line = f"，尺寸約 {w}×{h}" if w and h else ""
+    image_label = "圖片" if orientation == "圖片" else f"{orientation}圖片"
+    ask = (user_message or "").strip()
+    if ask and ask != "請幫我看這張圖片。":
+        return f"收到圖片了。我這邊先看成一張{image_label}{size_line}。您剛提到「{ask[:42]}」，我可以依這張圖先幫您整理重點。"
+    return f"收到圖片了。我這邊先看成一張{image_label}{size_line}，格式是 {fmt}。如果這是房屋、格局或文件照片，我可以幫您整理可注意的地方。"
+
+
 @app.post("/api/ai/chat-support")
 def api_ai_chat_support(payload: ChatSupportRequest):
     msg = (payload.message or "").strip()
-    if not msg:
+    image_payload = _decode_support_chat_image_payload(
+        payload.image_data_url,
+        image_name=payload.image_name,
+        image_type=payload.image_type,
+    )
+    if not msg and not image_payload:
         raise HTTPException(status_code=400, detail="missing message")
+    if not msg:
+        msg = "請幫我看這張圖片。"
     session_id = _normalize_support_session_id(payload.sales_session_id or "")
     if not session_id:
         session_id = f"sess-{uuid4().hex[:16]}"
     support_turn_index = _support_user_turn_count(payload.history, msg)
     selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
+    if image_payload:
+        meta = image_payload["meta"]
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": _support_chat_image_reply(meta, msg),
+                "reply_image_data_url": image_payload["data_url"],
+                "image_meta": meta,
+                "knowledge": {
+                    "query": msg,
+                    "days": 0,
+                    "merged_max": 0,
+                    "row_count": 0,
+                    "keyword_hit_count": 0,
+                    "items": [],
+                    "skipped_lookup": True,
+                    "image_received": True,
+                    "image_meta": meta,
+                    "selected_cases": selected_cases_input,
+                    "selected_case_count": len(selected_cases_input),
+                },
+                "llm": {
+                    "provider": "",
+                    "enabled": False,
+                    "model": "",
+                    "fast_mode": True,
+                    "knowledge_skipped": True,
+                    "image_received": True,
+                },
+                "sales_mcp": {
+                    "session_id": session_id,
+                    "stage": "image_review",
+                    "intent_score": 18,
+                    "outcome": "image_received",
+                    "should_notify_human": False,
+                    "human_handoff_intent": False,
+                    "direct_buy_intent": False,
+                    "real_handoff_ready": False,
+                    "intake_required_before_human_reply": False,
+                    "case_intro": [],
+                    "next_actions": [],
+                    "sales_pitch": [],
+                    "simulated_service": {"active": False, "mode": "image_review"},
+                },
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
     preset = _support_keyword_preset_reply(
         msg,
         session_id=session_id,

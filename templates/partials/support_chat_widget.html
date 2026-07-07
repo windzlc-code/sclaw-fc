@@ -113,7 +113,15 @@
           </button>
         </div>
         </div>
+        <div id="support-chat-image-preview" class="support-chat-image-preview" hidden></div>
         <div class="support-chat-input-row">
+          <input id="support-chat-image-input" type="file" accept="image/*" hidden onchange="handleSupportChatImageSelected(event)">
+          <button id="support-chat-attach-btn" class="support-chat-attach-btn" type="button" onclick="document.getElementById('support-chat-image-input')?.click()" aria-label="傳送圖片" title="傳送圖片">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M7.5 8.5a4.5 4.5 0 0 1 9 0v6.8a5.8 5.8 0 0 1-11.6 0V8.2a7.1 7.1 0 0 1 14.2 0v6.9" />
+              <path d="M9.1 14.7V8.6a2.9 2.9 0 0 1 5.8 0v6.3a2.9 2.9 0 0 1-5.8 0" />
+            </svg>
+          </button>
           <input id="support-chat-input" type="text" placeholder="輸入訊息…" maxlength="2000" autocomplete="off" enterkeyhint="send" inputmode="text" onkeydown="if(event.key==='Enter'){event.preventDefault();sendSupportChat();}">
           <button id="support-chat-send-btn" class="support-chat-send-btn-icon" type="button" onclick="sendSupportChat()" aria-label="送出訊息" title="送出訊息"><span aria-hidden="true">➤</span></button>
         </div>
@@ -500,7 +508,64 @@
 
     var supportFallbackWelcomeText = '您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。';
     var supportFallbackHistory = [];
+    var supportFallbackPendingImage = null;
     var supportFallbackBootstrapPromise = null;
+
+    function supportFallbackImageHtml(image) {
+      var src = String((image && (image.data_url || image.url)) || '').trim();
+      if (!/^data:image\//i.test(src) && !/^https?:\/\//i.test(src) && src.charAt(0) !== '/') return '';
+      var label = esc(String((image && image.name) || '聊天圖片').slice(0, 80));
+      return '<div class="support-chat-image-bubble"><img src="' + esc(src) + '" alt="' + label + '" loading="lazy" decoding="async"></div>';
+    }
+
+    function renderSupportFallbackImagePreview() {
+      var wrap = document.getElementById('support-chat-image-preview');
+      if (!wrap) return;
+      if (!supportFallbackPendingImage) {
+        wrap.hidden = true;
+        wrap.innerHTML = '';
+        return;
+      }
+      wrap.hidden = false;
+      wrap.innerHTML = '<div class="support-chat-image-preview-card">' +
+        supportFallbackImageHtml(supportFallbackPendingImage) +
+        '<span>' + esc(String(supportFallbackPendingImage.name || '已選圖片').slice(0, 48)) + '</span>' +
+        '<button type="button" onclick="clearSupportChatPendingImage()" aria-label="移除圖片" title="移除圖片">×</button>' +
+        '</div>';
+    }
+
+    window.clearSupportChatPendingImage = window.clearSupportChatPendingImage || function () {
+      supportFallbackPendingImage = null;
+      var input = document.getElementById('support-chat-image-input');
+      if (input) input.value = '';
+      renderSupportFallbackImagePreview();
+    };
+
+    window.handleSupportChatImageSelected = window.handleSupportChatImageSelected || function (event) {
+      var file = event && event.target && event.target.files ? event.target.files[0] : null;
+      if (!file) return;
+      if (!/^image\//i.test(String(file.type || ''))) {
+        alert('請選擇圖片檔。');
+        event.target.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('圖片請控制在 5MB 以內。');
+        event.target.value = '';
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function () {
+        supportFallbackPendingImage = {
+          name: file.name || 'image',
+          type: file.type || 'image/jpeg',
+          size: file.size || 0,
+          data_url: String(reader.result || '')
+        };
+        renderSupportFallbackImagePreview();
+      };
+      reader.readAsDataURL(file);
+    };
 
     function supportFallbackWelcomeHtml(text) {
       var intro = esc(supportFallbackSanitizePublicCopy(text || supportFallbackWelcomeText).trim() || supportFallbackWelcomeText);
@@ -548,7 +613,9 @@
         var rowClass = row.role === 'user' ? 'support-chat-row-user' : 'support-chat-row-assistant';
         var bubbleClass = row.role === 'user' ? 'support-chat-user' : 'support-chat-assistant support-chat-advisor-bubble';
         var cta = row.role === 'user' || row.contentHtml ? '' : supportFallbackIntakeCtaHtml();
-        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + supportFallbackFormatText(row.content || '') + '</div>' + cta);
+        var imageHtml = supportFallbackImageHtml(row.image || null);
+        var textHtml = supportFallbackFormatText(row.content || '');
+        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + textHtml + imageHtml + '</div>' + cta);
         if (row.contentHtml) body = supportFallbackSanitizePublicCopy(body);
         return '<div class="support-chat-row ' + rowClass + ' support-chat-row--enter"><div class="support-chat-bubble-col"><span class="support-chat-role">' + role + '</span>' + body + '</div></div>';
       }).join('');
@@ -824,10 +891,12 @@
     window.sendSupportChat = window.sendSupportChat || async function () {
       var input = document.getElementById('support-chat-input');
       var text = input ? String(input.value || '').trim() : '';
-      if (!text) return;
+      var image = supportFallbackPendingImage;
+      if (!text && !image) return;
       input.value = '';
+      window.clearSupportChatPendingImage();
       supportFallbackHistory = supportFallbackHistory.filter(function (row) { return !(row && row.transientWelcome); });
-      supportFallbackHistory.push({ role: 'user', content: text });
+      supportFallbackHistory.push({ role: 'user', content: text || '請幫我看這張圖片。', image: image });
       renderSupportFallbackChatMessages();
       var humanHandoffText = /(人工|真人|專人|专人|顧問|顾问|業務|业务|銷售|销售|仲介|經紀|经纪)/.test(text);
       setSupportFallbackThinking(true, humanHandoffText || /買房|买房|看屋|看房/.test(text) ? '正在整理顧問諮詢方向…' : '顧問正在整理回覆…');
@@ -853,10 +922,13 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: text,
+            message: text || '請幫我看這張圖片。',
             history: history,
             use_knowledge: !humanHandoffText,
-            knowledge_query: text,
+            knowledge_query: text || '圖片諮詢',
+            image_data_url: image && image.data_url ? image.data_url : '',
+            image_name: image && image.name ? image.name : '',
+            image_type: image && image.type ? image.type : '',
             sales_session_id: supportFallbackSalesSessionId(),
             selected_cases: selectedCases,
             persona_region: 'tw',
@@ -877,7 +949,8 @@
           var reply = data && (data.reply || data.detail || '已收到，我這邊先幫您整理。');
           supportFallbackHistory.push({
             role: 'assistant',
-            content: supportFallbackSanitizePublicCopy(typeof reply === 'string' ? reply : String(reply))
+            content: supportFallbackSanitizePublicCopy(typeof reply === 'string' ? reply : String(reply)),
+            image: data && data.reply_image_data_url ? { data_url: data.reply_image_data_url, name: '客服回傳圖片' } : null
           });
         }
       } catch (_) {
