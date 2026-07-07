@@ -463,20 +463,16 @@
         if (!res.ok || data.ok === false) throw new Error(String(data.detail || data.message || '送出失敗'));
         if (status) status.textContent = '已送出，顧問會依資料回覆。';
         supportFallbackToggleHumanIntakeModal(false);
-        var lineUrl = esc(String(data.line_qr_url || '/static/human-handoff/line.png'));
-        var wxUrl = esc(String(data.wechat_qr_url || '/static/human-handoff/wechat.png'));
+        var lineUrl = esc(String(data.line_group_qr_url || data.line_qr_url || '/static/human-handoff/line-group.png'));
         supportFallbackHistory.push({
           role: 'assistant',
           content: '',
           contentHtml:
-            '<p>已收到您的申請資料，顧問會依內容回覆。您也可以掃描下方 LINE 二維碼加入專人客服，方便後續確認需求。</p>' +
-            '<div class="support-human-qr-grid">' +
-              '<div class="support-human-qr-card support-human-qr-card--line"><div class="muted">LINE 專人客服</div>' +
+            '<p>已收到您的申請資料。顧問會依內容整理回覆，您也可以先掃描下方二維碼加入 LINE 群，方便後續確認需求與接收提醒。</p>' +
+            '<div class="support-human-qr-grid support-human-qr-grid--single">' +
+              '<div class="support-human-qr-card support-human-qr-card--line support-human-qr-card--group"><div class="muted">LINE 客服群</div>' +
                 '<img src="' + lineUrl + '" width="200" height="200" alt="LINE QR" loading="lazy">' +
-                '<p class="muted support-human-qr-hint">掃描後可加入 LINE 好友／客服群。</p>' +
-              '</div>' +
-              '<div class="support-human-qr-card"><div class="muted">WeChat</div>' +
-                '<img src="' + wxUrl + '" width="200" height="200" alt="WeChat QR" loading="lazy">' +
+                '<p class="muted support-human-qr-hint">請加入 LINE 群，顧問可更快確認您的需求。</p>' +
               '</div>' +
             '</div>'
         });

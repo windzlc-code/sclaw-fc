@@ -1918,50 +1918,53 @@
       <div class="panel admin-notify-panel">
         <div class="admin-notify-head">
           <div>
-            <h3 class="config-subhead">LINE / Telegram 通知通道</h3>
-            <p class="muted">用來接收站內留單、案件諮詢、加入對比與人工接手通知；顧問也可依 Session 回覆客戶。</p>
+            <h3 class="config-subhead">通知通道</h3>
+            <p class="muted">用來接收站內留單、案件諮詢、加入對比與人工接手通知。日常只需要確認通道已啟用，並按測試確認顧問端能收到。</p>
           </div>
-          <button type="button" class="secondary" onclick="loadAdminTelegramSettings(); loadAdminLineSettings();">重新檢查通道</button>
+          <button type="button" class="secondary" onclick="loadAdminTelegramSettings(); loadAdminLineSettings();">刷新通道狀態</button>
         </div>
         <div class="admin-notify-guide" aria-label="通知通道使用流程">
-          <div><strong>1. 選通知方式</strong><span>勾選 Telegram / LINE 自動通知。</span></div>
-          <div><strong>2. 配置收件端</strong><span>LINE 填官方帳號；Telegram 設使用中的顧問 Bot。</span></div>
-          <div><strong>3. 測試推播</strong><span>先按測試，確認顧問端能收到。</span></div>
-          <div><strong>4. 回覆客戶</strong><span>顧問回覆通知或使用 <code>/reply Session 內容</code>。</span></div>
+          <div><strong>1. 選通知方式</strong><span>勾選要使用的顧問通知管道。</span></div>
+          <div><strong>2. 選收件顧問</strong><span>設定目前要接收通知的顧問帳號。</span></div>
+          <div><strong>3. 測試通知</strong><span>按測試，確認顧問手機能收到訊息。</span></div>
+          <div><strong>4. 開始使用</strong><span>客戶留單或請求人工時會自動通知。</span></div>
         </div>
         <div id="admin-tg-auto-status" class="muted admin-notify-status">
-          <strong>連線自檢</strong>（切換本頁籤時自動更新）<br>
-          <span id="admin-tg-api-line">後端 API：尚未檢測</span><br>
+          <strong>目前狀態</strong>（切換本頁籤時自動更新）<br>
+          <span id="admin-tg-api-line">服務狀態：尚未檢測</span><br>
           <span id="admin-tg-api-hint" class="muted" style="font-size:12px;display:none;"></span>
           <span id="admin-tg-config-line">Telegram 通知：—</span><br>
           <span id="admin-line-config-line">LINE 通知：—</span>
         </div>
         <div class="admin-notify-main-grid">
         <div class="panel admin-telegram-line-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
-          <h4 class="config-subhead" style="margin-top:0;">LINE 官方帳號</h4>
-          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">用於 LINE 顧問收件與回覆客戶。Staff User ID 必須是 <code>U</code> 開頭。</p>
+          <h4 class="config-subhead" style="margin-top:0;">LINE 顧問通知</h4>
+          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">適合顧問用 LINE 收到留單提醒。一般使用只需要勾選通知並測試是否收到。</p>
           <div class="admin-notify-channel-toggle" style="align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.55rem;">
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-telegram" type="checkbox"> 自動通知 Telegram</label>
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-line" type="checkbox"> 自動通知 LINE</label>
           </div>
-          <div class="admin-notify-form-grid">
-          <label class="muted">Channel access token（留空不變）
-            <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="LINE Messaging API long-lived token">
-          </label>
-          <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
-            <input id="admin-line-clear-token" type="checkbox"> 清除 Channel access token
-          </label>
-          <label class="muted">Channel secret（留空不變）
-            <input id="admin-line-channel-secret" type="password" autocomplete="new-password" placeholder="LINE Channel secret">
-          </label>
-          <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
-            <input id="admin-line-clear-secret" type="checkbox"> 清除 Channel secret
-          </label>
-          <label class="muted">顧問 LINE 收件 ID（U 開頭 user ID；不是 Channel ID）
-            <input id="admin-line-staff-user-id" type="text" autocomplete="off" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-          </label>
-          </div>
-          <p class="muted" style="margin:-0.35rem 0 0.45rem;font-size:12px;line-height:1.45;">請填 <code>U</code> 開頭 user ID，不是 Channel ID。</p>
+          <details class="admin-notify-setup-details">
+            <summary>首次配置 / 更換 LINE 收件資料</summary>
+            <div class="admin-notify-form-grid">
+            <label class="muted">LINE 授權碼（留空不變）
+              <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="貼上 LINE 後台提供的授權碼">
+            </label>
+            <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
+              <input id="admin-line-clear-token" type="checkbox"> 清除已儲存授權碼
+            </label>
+            <label class="muted">LINE 驗證碼（留空不變）
+              <input id="admin-line-channel-secret" type="password" autocomplete="new-password" placeholder="貼上 LINE 後台提供的驗證碼">
+            </label>
+            <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
+              <input id="admin-line-clear-secret" type="checkbox"> 清除已儲存驗證碼
+            </label>
+            <label class="muted">顧問 LINE 收件 ID
+              <input id="admin-line-staff-user-id" type="text" autocomplete="off" placeholder="U 開頭的 LINE 收件 ID">
+            </label>
+            </div>
+            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">這裡只在首次接 LINE 或更換顧問收件人時使用。</p>
+          </details>
           <label class="muted admin-technical-info">Webhook URL
             <input id="admin-line-webhook-url" type="url" autocomplete="off" placeholder="https://your-domain.com/api/line/webhook">
           </label>
@@ -1969,8 +1972,8 @@
             <input id="admin-line-test-msg" type="text" value="SCLAW LINE 連線測試" autocomplete="off">
           </label>
           <div class="search-row-basic" style="margin-top:0.5rem;">
-            <button type="button" onclick="saveAdminLineSettings()">儲存 LINE</button>
-            <button type="button" class="secondary" onclick="loadAdminLineSettings()">重新載入</button>
+            <button type="button" onclick="saveAdminLineSettings()">儲存 LINE 設定</button>
+            <button type="button" class="secondary" onclick="loadAdminLineSettings()">重新載入 LINE</button>
             <button type="button" class="secondary" onclick="testAdminLine()">測試 LINE 推播</button>
             <button type="button" class="secondary admin-technical-info" onclick="loadAdminLineWebhookInfo()">查詢 Webhook</button>
             <button type="button" class="admin-technical-info" onclick="registerAdminLineWebhook()">設定 LINE Webhook</button>
@@ -1979,24 +1982,30 @@
           <pre id="admin-line-webhook-status" class="muted admin-technical-info" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
         </div>
         <div class="panel admin-telegram-accounts-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #c7e9d4;background:#f6fff9;">
-          <h4 class="config-subhead" style="margin-top:0;">Telegram 顧問 Bot</h4>
-          <p class="muted" style="margin:0 0 0.5rem;line-height:1.5;">每列是一個 Bot／顧問收件帳號；一般通知會發給「使用中」帳號。</p>
+          <h4 class="config-subhead" style="margin-top:0;">Telegram 顧問通知</h4>
+          <p class="muted" style="margin:0 0 0.5rem;line-height:1.5;">一般通知會發給目前選中的顧問帳號。新增或更換 Bot 時，再打開下方帳號管理。</p>
           <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;font-size:13px;padding:8px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;">
             收不到通知時，先確認該列已設為「使用中」，再使用下方 Telegram 測試確認顧問是否收到。
           </p>
           <div class="admin-notify-account-toolbar">
-            <label class="muted" style="display:flex;align-items:center;gap:0.35rem;">使用中
+            <label class="muted" style="display:flex;align-items:center;gap:0.35rem;">目前收件顧問
               <select id="admin-tg-active-account" style="min-width:13rem;" title="預設推播與一鍵通知（未另指定時）"></select>
             </label>
-            <button type="button" class="secondary" onclick="addAdminTelegramAccountRow()">新增一列</button>
-            <button type="button" onclick="saveAdminTelegramAccounts()">儲存帳號列表</button>
-            <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入</button>
+            <button type="button" onclick="saveAdminTelegramAccounts()">儲存目前顧問</button>
+            <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入 Telegram</button>
           </div>
-          <div id="admin-tg-accounts-wrap" class="muted" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+          <details class="admin-notify-setup-details admin-notify-accounts-details">
+            <summary>管理 Telegram 顧問帳號</summary>
+            <div class="search-row-basic" style="margin:0.65rem 0 0.55rem;">
+              <button type="button" class="secondary" onclick="addAdminTelegramAccountRow()">新增顧問帳號</button>
+              <button type="button" onclick="saveAdminTelegramAccounts()">儲存帳號列表</button>
+            </div>
+            <div id="admin-tg-accounts-wrap" class="muted" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+          </details>
           <div class="admin-notify-test-row" aria-label="Telegram 測試">
-            <label class="muted">測試目標 Bot
+            <label class="muted">測試收件顧問
               <select id="admin-tg-test-account" style="min-width:18rem;">
-                <option value="">（使用中帳號）</option>
+                <option value="">（目前收件顧問）</option>
               </select>
             </label>
             <label class="muted">測試訊息
@@ -12477,8 +12486,7 @@
           conversation: supportChatHandoffConversationPayload(),
         });
         const data = await parseApiResponseSafe(res);
-        const lineUrl = esc(supportHumanLineQrUrl(data.line_qr_url));
-        const wxUrl = esc(String(data.wechat_qr_url || '/static/human-handoff/wechat.png'));
+        const lineUrl = esc(supportHumanLineQrUrl(data.line_group_qr_url || data.line_qr_url));
         const tgOk = Boolean(data.telegram_sent);
         const tgErr = String(data.telegram_error || '').trim();
         const lineOk = Boolean(data.line_sent);
@@ -12495,15 +12503,12 @@
           role: 'assistant',
           content: '',
           contentHtml:
-            '<p>已收到您的資料。請掃描下方 LINE 二維碼加入專人客服，方便顧問後續與您確認需求；也可以直接在這裡繼續對話。</p>' +
+            '<p>已收到您的資料。請掃描下方二維碼加入 LINE 群，顧問會在群內或依您留下的聯絡方式跟進；也可以直接在這裡繼續對話。</p>' +
             `<p class="muted">${notifyLine}</p>` +
-            '<div class="support-human-qr-grid">' +
-            '<div class="support-human-qr-card support-human-qr-card--line"><div class="muted">LINE 專人客服</div>' +
+            '<div class="support-human-qr-grid support-human-qr-grid--single">' +
+            '<div class="support-human-qr-card support-human-qr-card--line support-human-qr-card--group"><div class="muted">LINE 客服群</div>' +
             `<img src="${lineUrl}" width="200" height="200" alt="LINE QR" loading="lazy">` +
-            '<p class="muted support-human-qr-hint">掃描後可加入 LINE 好友／客服群。</p>' +
-            '</div>' +
-            '<div class="support-human-qr-card"><div class="muted">WeChat</div>' +
-            `<img src="${wxUrl}" width="200" height="200" alt="WeChat QR" loading="lazy">` +
+            '<p class="muted support-human-qr-hint">請加入 LINE 群，方便顧問更快確認需求。</p>' +
             '</div>' +
             '</div>',
         });
@@ -12933,8 +12938,7 @@
         const res = await postSupportHumanIntake(built.payload);
         const data = await parseApiResponseSafe(res);
         supportHumanHandoffStep = null;
-        const lineUrl = esc(supportHumanLineQrUrl(data.line_qr_url));
-        const wxUrl = esc(String(data.wechat_qr_url || '/static/human-handoff/wechat.png'));
+        const lineUrl = esc(supportHumanLineQrUrl(data.line_group_qr_url || data.line_qr_url));
         const tgOk = Boolean(data.telegram_sent);
         const tgErr = String(data.telegram_error || '').trim();
         const lineOk = Boolean(data.line_sent);
@@ -12951,15 +12955,12 @@
           role: 'assistant',
           content: '',
           contentHtml:
-            '<p>已收到完整問卷與聯絡方式，系統已通知人工顧問。請掃描下方 LINE 二維碼加入專人客服，方便顧問後續與您確認需求。</p>' +
+            '<p>已收到完整問卷與聯絡方式。請掃描下方二維碼加入 LINE 群，顧問會依您填寫的資料跟進，也方便後續確認需求。</p>' +
             `<p class="muted">${notifyLine}</p>` +
-            '<div class="support-human-qr-grid">' +
-            '<div class="support-human-qr-card support-human-qr-card--line"><div class="muted">LINE 專人客服</div>' +
+            '<div class="support-human-qr-grid support-human-qr-grid--single">' +
+            '<div class="support-human-qr-card support-human-qr-card--line support-human-qr-card--group"><div class="muted">LINE 客服群</div>' +
             `<img src="${lineUrl}" width="200" height="200" alt="LINE QR" loading="lazy">` +
-            '<p class="muted support-human-qr-hint">掃描後可加入 LINE 好友／客服群。</p>' +
-            '</div>' +
-            '<div class="support-human-qr-card"><div class="muted">WeChat</div>' +
-            `<img src="${wxUrl}" width="200" height="200" alt="WeChat QR" loading="lazy">` +
+            '<p class="muted support-human-qr-hint">請加入 LINE 群，方便顧問更快確認需求。</p>' +
             '</div>' +
             '</div>',
         });
@@ -13904,7 +13905,7 @@
         apiHintEl.style.display = 'none';
         apiHintEl.textContent = '';
       }
-      apiEl.textContent = '後端 API：檢測中…';
+      apiEl.textContent = '服務狀態：檢測中…';
       const pr = await fetchSclawHealthProbe();
       const ok = Boolean(pr.ok);
       if (pr.ok) {
@@ -13912,10 +13913,9 @@
         try {
           j = pr.res ? await pr.res.clone().json() : {};
         } catch (_) {}
-        apiEl.textContent =
-          '後端 API：已開通（' + (pr.path || '') + (j && j.service ? '，' + j.service : '') + '）';
+        apiEl.textContent = '服務狀態：已開通';
       } else if (pr.reason === 'file-protocol') {
-        apiEl.textContent = '後端 API：未開通（網頁以檔案方式開啟，無法呼叫 API）';
+        apiEl.textContent = '服務狀態：未開通（請用正式網站或本機服務開啟後台）';
         if (apiHintEl) {
           apiHintEl.style.display = 'block';
           apiHintEl.innerHTML =
@@ -13924,7 +13924,7 @@
       } else {
         const st = pr.res ? pr.res.status : 0;
         apiEl.textContent =
-          '後端 API：未開通（' +
+          '服務狀態：未開通（' +
           (st ? 'HTTP ' + st : '無回應') +
           '）。請先釋放埠 8000，再在專案目錄啟動 uvicorn（見下方）。';
         if (apiHintEl) {
@@ -15148,7 +15148,7 @@
       if (!wrap) return;
       if (!accounts.length) {
         wrap.innerHTML =
-          '<p class="muted" style="margin:0;">尚無多帳號列（若已由舊版匯入，按「儲存帳號列表」後會顯示）。可「新增一列」或僅用下方單一 Chat ID／Token。</p>';
+          '<p class="muted" style="margin:0;">尚未新增顧問帳號。請按「新增顧問帳號」後填入收件資料，再儲存。</p>';
         return;
       }
       let html = '';
@@ -15157,15 +15157,15 @@
         const label = esc(String(a.label || ''));
         const chat = esc(String(a.chat_id || ''));
         const tokHint = a.bot_token_set ? esc(String(a.bot_token_masked || '已設定')) : '未設定';
-        html += `<div class="panel slim" style="margin:0;padding:8px 10px;" data-tg-acc="${id}">`;
+        html += `<div class="panel slim admin-notify-account-row" style="margin:0;padding:8px 10px;" data-tg-acc="${id}">`;
         html += `<div class="search-row-basic" style="flex-wrap:wrap;gap:0.35rem;align-items:flex-end;">`;
-        html += `<label class="muted">內部 id <input type="text" class="admin-tg-acc-id" value="${id}" readonly style="width:9rem;font-family:monospace;font-size:12px;"/></label>`;
-        html += `<label class="muted">顯示名稱 <input type="text" class="admin-tg-acc-label" value="${label}" placeholder="例如：顧問A群" style="width:10rem;"/></label>`;
-        html += `<label class="muted">Chat ID <input type="text" class="admin-tg-acc-chat" value="${chat}" placeholder="8293834928" style="width:11rem;"/></label>`;
-        html += `<label class="muted">Token（留空不變） <input type="password" class="admin-tg-acc-token" autocomplete="new-password" style="width:14rem;"/></label>`;
-        html += `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-clear"/> 清除 Token</label>`;
+        html += `<input type="hidden" class="admin-tg-acc-id" value="${id}">`;
+        html += `<label class="muted">顧問名稱 <input type="text" class="admin-tg-acc-label" value="${label}" placeholder="例如：顧問A群" style="width:10rem;"/></label>`;
+        html += `<label class="muted">Telegram 收件 ID <input type="text" class="admin-tg-acc-chat" value="${chat}" placeholder="數字 ID" style="width:11rem;"/></label>`;
+        html += `<label class="muted">Telegram 授權碼（留空不變） <input type="password" class="admin-tg-acc-token" autocomplete="new-password" style="width:14rem;"/></label>`;
+        html += `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-clear"/> 清除已儲存授權碼</label>`;
         html += `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-remove"/> 刪除此列</label>`;
-        html += `<span class="muted" style="font-size:12px;">已存 Token：${tokHint}</span>`;
+        html += `<span class="muted" style="font-size:12px;">授權碼狀態：${tokHint}</span>`;
         html += `</div></div>`;
       }
       wrap.innerHTML = html;
@@ -15176,21 +15176,21 @@
       if (!wrap) return;
       const id = _randTgAccId();
       const div = document.createElement('div');
-      div.className = 'panel slim';
+      div.className = 'panel slim admin-notify-account-row';
       div.style.margin = '0';
       div.style.padding = '8px 10px';
       div.setAttribute('data-tg-acc', id);
       div.innerHTML =
         `<div class="search-row-basic" style="flex-wrap:wrap;gap:0.35rem;align-items:flex-end;">` +
-        `<label class="muted">內部 id <input type="text" class="admin-tg-acc-id" value="${esc(id)}" readonly style="width:9rem;font-family:monospace;font-size:12px;"/></label>` +
-        `<label class="muted">顯示名稱 <input type="text" class="admin-tg-acc-label" value="" placeholder="新顧問" style="width:10rem;"/></label>` +
-        `<label class="muted">Chat ID <input type="text" class="admin-tg-acc-chat" value="" style="width:11rem;"/></label>` +
-        `<label class="muted">Token <input type="password" class="admin-tg-acc-token" autocomplete="new-password" style="width:14rem;"/></label>` +
-        `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-clear"/> 清除 Token</label>` +
+        `<input type="hidden" class="admin-tg-acc-id" value="${esc(id)}">` +
+        `<label class="muted">顧問名稱 <input type="text" class="admin-tg-acc-label" value="" placeholder="新顧問" style="width:10rem;"/></label>` +
+        `<label class="muted">Telegram 收件 ID <input type="text" class="admin-tg-acc-chat" value="" style="width:11rem;"/></label>` +
+        `<label class="muted">Telegram 授權碼 <input type="password" class="admin-tg-acc-token" autocomplete="new-password" style="width:14rem;"/></label>` +
+        `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-clear"/> 清除已儲存授權碼</label>` +
         `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-remove"/> 刪除此列</label>` +
         `</div>`;
       const p = wrap.querySelector('p.muted');
-      if (p && p.textContent && p.textContent.indexOf('尚無多帳號列') >= 0) wrap.innerHTML = '';
+      if (p && p.textContent && p.textContent.indexOf('尚未新增顧問帳號') >= 0) wrap.innerHTML = '';
       wrap.appendChild(div);
     }
 
@@ -15291,7 +15291,7 @@
       if (msg) msg.textContent = '載入中…';
       const apiOk = await refreshTelegramTabBackendHealthOnly();
       if (!apiOk) {
-        if (msg) msg.textContent = '後端 API 未就緒，無法載入 Telegram 設定。請確認僅一個 uvicorn 佔用埠並重新整理。';
+        if (msg) msg.textContent = '通知服務暫時無法連線，請重新整理後再試。';
         return;
       }
       try {
@@ -15303,7 +15303,7 @@
         if (tok) tok.value = '';
         if (clr) clr.checked = false;
         const masked = data.bot_token_masked ? String(data.bot_token_masked) : '未設定';
-        if (msg) msg.textContent = `Bot Token：${data.bot_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `Telegram 授權狀態：${data.bot_token_set ? masked : '未設定'}`;
         renderAdminTelegramAccountsFromSnapshot(data);
         updateTelegramTabAutoStatusFromSnapshot(data, true);
       } catch (err) {
@@ -15340,7 +15340,7 @@
         const clr = document.getElementById('admin-tg-clear-token');
         if (clr) clr.checked = false;
         const masked = data.bot_token_masked ? String(data.bot_token_masked) : '未設定';
-        if (msg) msg.textContent = `已儲存。Bot Token：${data.bot_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `已儲存 Telegram 設定。授權狀態：${data.bot_token_set ? masked : '未設定'}`;
         updateTelegramTabAutoStatusFromSnapshot(data, true);
       } catch (err) {
         if (msg) msg.textContent = `儲存失敗：${formatApiError(err)}`;
@@ -15395,7 +15395,7 @@
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
         updateLineTabAutoStatusFromSnapshot(data);
         const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '未設定';
-        if (msg) msg.textContent = `LINE Token：${data.channel_access_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `LINE 授權狀態：${data.channel_access_token_set ? masked : '未設定'}`;
       } catch (err) {
         if (msg) msg.textContent = `載入 LINE 失敗：${formatApiError(err)}`;
         const cfgEl = document.getElementById('admin-line-config-line');
@@ -15437,7 +15437,7 @@
         applyAdminLineNotifyChannels(data.notify_channels || payload.notify_channels);
         updateLineTabAutoStatusFromSnapshot(data);
         const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '未設定';
-        if (msg) msg.textContent = `已儲存 LINE。Token：${data.channel_access_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `已儲存 LINE 設定。授權狀態：${data.channel_access_token_set ? masked : '未設定'}`;
       } catch (err) {
         if (msg) msg.textContent = `儲存 LINE 失敗：${formatApiError(err)}`;
       }
@@ -15534,7 +15534,7 @@
         try {
           const apiOk = await refreshTelegramTabBackendHealthOnly();
           if (!apiOk) {
-            if (msg) msg.textContent = '測試略過：後端 API 未就緒（請先確認 /api/health、/sclaw-ping 或 /health）。';
+            if (msg) msg.textContent = '測試略過：通知服務暫時無法連線，請重新整理後再試。';
             return;
           }
           const resSnap = await fetchSclawApiFirstOk(['/api/telegram/settings', '/api/admin/telegram-settings'], {
