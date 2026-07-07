@@ -6896,7 +6896,7 @@ def _load_admin_panel_password() -> str:
     env_p = (os.getenv("ADMIN_PANEL_PASSWORD") or "").strip()
     if env_p:
         return env_p
-    return "77887788"
+    return "123456"
 
 
 def _lvr_proxy_headers() -> dict[str, str]:
@@ -14600,6 +14600,12 @@ def _require_admin_password(request: Request) -> None:
     admin_password = str(request.headers.get("x-admin-password") or "").strip()
     if admin_password != ADMIN_PANEL_PASSWORD:
         raise HTTPException(status_code=401, detail="後台管理密碼錯誤")
+
+
+@app.get("/api/admin/auth-check")
+def api_admin_auth_check(request: Request):
+    _require_admin_password(request)
+    return JSONResponse({"ok": True})
 
 
 def _visitor_dashboard_days(raw_days: int | None) -> int:

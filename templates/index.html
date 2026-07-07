@@ -13776,6 +13776,25 @@
       return headers;
     }
 
+    async function verifyAdminPanelPassword(pwd) {
+      const raw = String(pwd || '').trim();
+      if (!raw) return false;
+      const previousPassword = adminPanelPassword;
+      adminPanelPassword = raw;
+      try {
+        const res = await fetch('/api/admin/auth-check', {
+          method: 'GET',
+          headers: adminApiHeaders(false),
+        });
+        if (res.ok) return true;
+        adminPanelPassword = previousPassword;
+        return false;
+      } catch (_) {
+        adminPanelPassword = previousPassword;
+        return false;
+      }
+    }
+
     function adminVisitorNumber(value) {
       const n = Number(value || 0);
       if (!Number.isFinite(n)) return '0';
@@ -22315,7 +22334,19 @@
         if (authMsg) authMsg.textContent = '請輸入密碼';
         return;
       }
-      adminPanelPassword = pwd;
+      if (authMsg) authMsg.textContent = '驗證中…';
+      const verified = await verifyAdminPanelPassword(pwd);
+      if (!verified) {
+        adminPanelPassword = '';
+        try {
+          localStorage.removeItem(ADMIN_PASSWORD_CACHE_KEY);
+        } catch (_) {
+          // ignore
+        }
+        if (authMsg) authMsg.textContent = '密碼錯誤，請重新輸入。';
+        syncAdminAuthUi('密碼錯誤，請重新輸入。');
+        return;
+      }
       try {
         localStorage.setItem(ADMIN_PASSWORD_CACHE_KEY, pwd);
       } catch (_) {
@@ -22478,18 +22509,44 @@
         launcher.classList.toggle('is-active', shouldOpen);
       }
       if (shouldOpen) {
+        let cachedAdminPassword = '';
         if (!adminPanelPassword) {
           try {
-            adminPanelPassword = localStorage.getItem(ADMIN_PASSWORD_CACHE_KEY) || '';
+            cachedAdminPassword = localStorage.getItem(ADMIN_PASSWORD_CACHE_KEY) || '';
           } catch (_) {
-            adminPanelPassword = '';
+            cachedAdminPassword = '';
           }
+        }
+        if (cachedAdminPassword) {
+          verifyAdminPanelPassword(cachedAdminPassword).then((verified) => {
+            if (!verified) {
+              adminPanelPassword = '';
+              try {
+                localStorage.removeItem(ADMIN_PASSWORD_CACHE_KEY);
+              } catch (_) {
+                // ignore
+              }
+              const pwdInput2 = document.getElementById('admin-password-input');
+              if (pwdInput2) pwdInput2.value = '';
+              syncAdminAuthUi('密碼已失效，請重新登入。');
+              return;
+            }
+            try {
+              localStorage.setItem(ADMIN_PASSWORD_CACHE_KEY, cachedAdminPassword);
+            } catch (_) {
+              // ignore
+            }
+            syncAdminAuthUi('已登入');
+            const activeBtn2 = drawer.querySelector('.admin-tab-btn.is-active');
+            const activeTab2 = String(activeBtn2?.getAttribute('data-admin-tab') || 'cases');
+            switchAdminTab(activeTab2 || 'cases');
+          });
         }
         const pwdInput = document.getElementById('admin-password-input');
         if (pwdInput && adminPanelPassword && !pwdInput.value) {
           pwdInput.value = adminPanelPassword;
         }
-        syncAdminAuthUi(adminPanelPassword ? '已登入' : '');
+        syncAdminAuthUi(adminPanelPassword ? '已登入' : cachedAdminPassword ? '驗證中…' : '');
         bindAdminTabBarOnce();
         bindAdminConsoleHeroOnce();
         bindAdminConsoleToolbarOnce();

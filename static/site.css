@@ -2488,6 +2488,7 @@ body.site-home .bh-footer-directory {
 body.site-home .bh-footer-logo-column {
   display: grid;
   align-content: start;
+  justify-items: center;
   gap: 14px;
   min-width: 0;
 }
@@ -2507,6 +2508,7 @@ body.site-home .bh-footer-logo-column p {
   font-size: 15px;
   font-weight: 850;
   line-height: 1.42;
+  text-align: center;
   white-space: nowrap;
 }
 

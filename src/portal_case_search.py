@@ -5730,18 +5730,18 @@ def search_portal_cases(
             fetch_lim = min(6000, max(lim, lim * 4, 1000))
         else:
             fetch_lim = lim
+    has_only_type_filter = bool(smart_property_types) and not (
+        smart_price_min > 0
+        or smart_price_max > 0
+        or smart_layout_min > 0
+        or smart_layout_max > 0
+        or smart_layout_exact_zero
+        or has_transit_filter
+        or (region_hint or "").strip()
+        or (kw_base or "").strip()
+    )
     if requested_page_size > 0 and has_smart_structured_filters:
         visible_target = max(1, page_offset + requested_page_size)
-        has_only_type_filter = bool(smart_property_types) and not (
-            smart_price_min > 0
-            or smart_price_max > 0
-            or smart_layout_min > 0
-            or smart_layout_max > 0
-            or smart_layout_exact_zero
-            or has_transit_filter
-            or (region_hint or "").strip()
-            or (kw_base or "").strip()
-        )
         if has_only_type_filter:
             fetch_lim = min(2400, max(fetch_lim, 2400, visible_target * 400))
         else:
@@ -6248,6 +6248,174 @@ def search_portal_cases(
             else:
                 kw_sql = type_candidate_sql
                 kw_params = list(type_candidate_params)
+        if has_only_type_filter:
+            try:
+                from src.jp_listing_property_type_index import (
+                    PROPERTY_TYPE_INDEX_TABLE,
+                    ensure_jp_listing_property_type_index_schema,
+                    property_type_index_ready,
+                )
+
+                ensure_jp_listing_property_type_index_schema(conn)
+                if property_type_index_ready(conn):
+                    selected_types = _normalize_smart_property_types(smart_property_types)
+                    type_marks = ",".join("?" for _ in selected_types)
+                    page_lim = requested_page_size if requested_page_size > 0 else lim
+                    page_off = page_offset if requested_page_size > 0 else 0
+                    index_rec_sql = rec_sql
+                    index_rec_params = list(rec_params)
+                    if int(max_age_days or 0) > 0:
+                        index_rec_sql = (
+                            "date(COALESCE("
+                            "NULLIF(TRIM(s.published_at), ''), "
+                            "NULLIF(TRIM(s.last_checked_at), ''), "
+                            "NULLIF(TRIM(s.crawled_at), ''), "
+                            "datetime('now')"
+                            ")) >= date('now', ?)"
+                        )
+                        index_rec_params = [f"-{int(max_age_days or 0)} days"]
+                    index_where = f"""
+                      pti.property_type IN ({type_marks})
+                      AND ({tx_sql})
+                      AND ({portal_sql})
+                      AND ({index_rec_sql})
+                      AND ({_suumo_ms_guard})
+                    """
+                    index_base_params = [*selected_types, *tx_params, *portal_params, *index_rec_params]
+                    count_row = conn.execute(
+                        f"""
+                        SELECT COUNT(DISTINCT pti.source_item_id) AS c
+                        FROM {PROPERTY_TYPE_INDEX_TABLE} pti INDEXED BY idx_jp_listing_type_type_time
+                        JOIN source_items s ON s.id = pti.source_item_id
+                        WHERE {index_where}
+                        """,
+                        index_base_params,
+                    ).fetchone()
+                    total_count = int((count_row["c"] if count_row else 0) or 0)
+                    if len(selected_types) == 1:
+                        source_id_sql = f"""
+                        SELECT pti.source_item_id
+                        FROM {PROPERTY_TYPE_INDEX_TABLE} pti INDEXED BY idx_jp_listing_type_type_time
+                        JOIN source_items s ON s.id = pti.source_item_id
+                        WHERE {index_where}
+                        ORDER BY pti.source_last_checked_at DESC, pti.source_item_id DESC
+                        LIMIT ? OFFSET ?
+                        """
+                    else:
+                        source_id_sql = f"""
+                        SELECT pti.source_item_id
+                        FROM {PROPERTY_TYPE_INDEX_TABLE} pti INDEXED BY idx_jp_listing_type_type_time
+                        JOIN source_items s ON s.id = pti.source_item_id
+                        WHERE {index_where}
+                        GROUP BY pti.source_item_id
+                        ORDER BY MAX(pti.source_last_checked_at) DESC, pti.source_item_id DESC
+                        LIMIT ? OFFSET ?
+                        """
+                    source_id_rows = conn.execute(
+                        source_id_sql,
+                        [*index_base_params, int(page_lim), int(page_off)],
+                    ).fetchall()
+                    source_ids = [int(row["source_item_id"] or 0) for row in source_id_rows]
+                    source_ids = [sid for sid in source_ids if sid > 0]
+                    index_rows = []
+                    if source_ids:
+                        sid_marks = ",".join("?" for _ in source_ids)
+                        order_case = "CASE s.id " + " ".join(f"WHEN ? THEN {idx}" for idx, _ in enumerate(source_ids)) + " END"
+                        index_rows = conn.execute(
+                            f"""
+                        SELECT
+                          c.id,
+                          c.seo_slug,
+                          c.title_zh_hant,
+                          c.title_zh_hans,
+                          substr(COALESCE(c.body_zh_hant,''),1,420) AS body_zh_hant,
+                          substr(COALESCE(c.body_zh_hans,''),1,420) AS body_zh_hans,
+                          c.region_code,
+                          c.keyword_type,
+                          c.topic_category,
+                          COALESCE(c.case_transaction_override, '') AS case_transaction_override,
+                          COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+                          COALESCE(c.case_transit_override, '') AS case_transit_override,
+                          COALESCE(c.jp_station_id, 0) AS jp_station_id,
+                          COALESCE(c.walk_min, 0) AS walk_min,
+                          COALESCE(jst.station_name, '') AS jp_bind_station_name,
+                          COALESCE(jln.line_name, '') AS jp_bind_line_name,
+                          COALESCE(c.featured_weight, 0) AS featured_weight,
+                          COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+                          c.updated_at,
+                          s.id AS source_item_id,
+                          s.source_name,
+                          s.item_url,
+                          s.title_original,
+                          substr(COALESCE(s.body_original,''),1,3200) AS body_original,
+                          substr(COALESCE(s.image_urls,''),1,8000) AS image_urls,
+                          s.published_at,
+                          s.crawled_at,
+                          s.last_checked_at,
+                          COALESCE(s.content_kind, '') AS content_kind
+                        FROM source_items s
+                        JOIN content_items c ON c.source_item_id = s.id
+                        LEFT JOIN jp_trans_station jst ON jst.station_id = c.jp_station_id
+                        LEFT JOIN jp_trans_line jln ON jln.line_id = jst.line_id
+                        WHERE s.id IN ({sid_marks})
+                        GROUP BY s.id
+                        ORDER BY {order_case}
+                        """,
+                            [*source_ids, *source_ids],
+                        ).fetchall()
+                    index_items = _row_dicts_to_portal_case_items(index_rows)
+                    index_items = _prefer_complete_items_for_display(index_items, lim=int(page_lim))
+                    if multi_portal:
+                        index_items = _merge_multi_portal_items(index_items, lim=int(page_lim))
+                    else:
+                        index_items = _dedupe_portal_case_items(index_items, lim=int(page_lim))
+                    return {
+                        "ok": True,
+                        "transaction": tx_key,
+                        "portal": portal,
+                        "region_hint": region_hint,
+                        "keyword": kw_display,
+                        "property_types": smart_property_types,
+                        "price_min_man": smart_price_min,
+                        "price_max_man": smart_price_max,
+                        "layout_min_rooms": smart_layout_min,
+                        "layout_max_rooms": smart_layout_max,
+                        "layout_exact_zero": smart_layout_exact_zero,
+                        "structured_filter_meta": {
+                            "property_types": selected_types,
+                            "price_min_man": 0,
+                            "price_max_man": 0,
+                            "layout_min_rooms": 0,
+                            "layout_max_rooms": 0,
+                            "layout_exact_zero": False,
+                            "before_count": total_count,
+                            "after_count": total_count,
+                            "property_type_index_used": True,
+                            "candidate_window_truncated": False,
+                        },
+                        "max_age_days": int(max_age_days) if int(max_age_days or 0) > 0 else 0,
+                        "limit": lim,
+                        "fetch_limit": int(page_lim),
+                        "portal_keys": portal_keys,
+                        "portal_keys_resolved": portal_keys,
+                        "coverage_matrix_aligned": False,
+                        "portal_merge_mode": "property_type_index",
+                        "transit_filter_meta": {
+                            "strict_bound": bool(strict_transit_bound),
+                            "keyword_relaxed": False,
+                            "keyword_before_relax": "",
+                        },
+                        "count": total_count,
+                        "count_exact": True,
+                        "truncation_note": False,
+                        "search_scope_note_zh": "已使用物件類型索引表，數量為全庫類型索引口徑。",
+                        "broad_inventory_browse": bool(broad_inventory_browse),
+                        "page_offset": page_offset if requested_page_size > 0 else 0,
+                        "page_size": requested_page_size if requested_page_size > 0 else 0,
+                        "items": index_items,
+                    }
+            except Exception:
+                pass
         fts_content_rowid_floor = 0
         fts_source_rowid_floor = 0
         try:

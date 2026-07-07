@@ -694,6 +694,12 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_case_representative_url_status "
             "ON case_representative_images(representative_url, status)"
         )
+        try:
+            from src.jp_listing_property_type_index import ensure_jp_listing_property_type_index_schema
+
+            ensure_jp_listing_property_type_index_schema(conn)
+        except sqlite3.OperationalError:
+            pass
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_seo_slug ON content_items(seo_slug)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_source_item ON content_items(source_item_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_content_intent_target ON content_items(intent_target)")
