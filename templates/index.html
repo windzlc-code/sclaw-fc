@@ -4554,11 +4554,7 @@
         { label: '知識庫', selector: '.admin-knowledge-stack' },
       ],
       telegram: [
-        { label: '連線自檢', selector: '#admin-tg-auto-status' },
-        { label: 'LINE 設定', selector: '.admin-telegram-line-panel' },
-        { label: '顧問帳號', selector: '.admin-telegram-accounts-panel' },
-        { label: '一鍵通知', selector: '.admin-telegram-quick-panel' },
-        { label: '進階通知', selector: '#admin-tab-telegram details.panel' },
+        { label: '通知通道', selector: '.admin-notify-panel' },
       ],
       'home-content': [
         { label: '首頁影片', selector: '.admin-home-hero-layout' },
@@ -12106,7 +12102,7 @@
     }
 
     function waitSupportChatServiceQueue(ms = 520) {
-      const safeMs = Math.min(1600, Math.max(0, Number(ms) || 0));
+      const safeMs = Math.min(10000, Math.max(0, Number(ms) || 0));
       return new Promise((resolve) => window.setTimeout(resolve, safeMs));
     }
 

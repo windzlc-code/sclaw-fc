@@ -29691,7 +29691,7 @@ def _build_support_selected_case_fast_reply(
     meta = (sales_mcp or {}).get("simulated_service") if isinstance(sales_mcp, dict) else {}
     code = str((meta or {}).get("advisor_code") or "").strip()
     name = str((meta or {}).get("advisor_name") or "").strip()
-    title = str((meta or {}).get("advisor_title") or "").strip()
+    title = "線上客服專員"
     service_label = f"工號{code}{name}" if code or name else "線上客服"
     title_hint = f"（{title}）" if title else ""
     case_title = str(case.get("title") or "這筆案件").strip()[:80]
@@ -29716,6 +29716,28 @@ def _build_support_selected_case_fast_reply(
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
 
 
+def _normalize_selected_case_fast_service_meta(meta: dict[str, Any] | None) -> dict[str, Any]:
+    base = dict(meta or {})
+    code = str(base.get("advisor_code") or "").strip()
+    name = str(base.get("advisor_name") or "").strip()
+    generic_title = "線上客服專員"
+    base["active"] = True
+    base["mode"] = "queueing"
+    base["advisor_title"] = generic_title
+    base["wait_minutes"] = 0
+    base["wait_seconds"] = 10
+    base["service_label"] = f"工號{code}｜{name}" if code or name else "線上客服"
+    if code or name:
+        base["display_text"] = f"目前由工號{code}{name}（{generic_title}）先為您接待。"
+        base["queue_text"] = f"工號{code}{name}正在接待，請稍候。"
+        base["service_text"] = f"工號{code}{name}為您服務。"
+    else:
+        base["display_text"] = f"目前由線上客服（{generic_title}）先為您接待。"
+        base["queue_text"] = "線上客服正在接待，請稍候。"
+        base["service_text"] = "線上客服為您服務。"
+    return base
+
+
 def _support_keyword_preset_reply(
     message: str,
     *,
@@ -29737,6 +29759,9 @@ def _support_keyword_preset_reply(
         knowledge_meta["property_listing_intent"] = True
         knowledge_meta["managed_case_count"] = len(selected)
         sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
+        sales_mcp["simulated_service"] = _normalize_selected_case_fast_service_meta(
+            sales_mcp.get("simulated_service") if isinstance(sales_mcp, dict) else None
+        )
         reply = _build_support_selected_case_fast_reply(
             raw,
             selected_cases=selected,

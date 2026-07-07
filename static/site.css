@@ -5664,23 +5664,21 @@ body.site-company-profile main.case-page-suumo {
 .company-luxe-contact {
   position: relative;
   overflow: hidden;
-  padding: clamp(36px, 5vw, 72px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: clamp(30px, 4vw, 48px);
+  border: 1px solid rgba(207, 221, 231, 0.9);
   border-radius: 8px;
   background:
-    radial-gradient(circle at 14% 16%, rgba(122, 189, 180, 0.18), transparent 30%),
-    radial-gradient(circle at 92% 8%, rgba(255, 255, 255, 0.12), transparent 28%),
-    linear-gradient(135deg, rgba(16, 39, 67, 0.99), rgba(55, 91, 118, 0.98)),
-    #102743;
-  color: #fff;
-  box-shadow: 0 34px 80px rgba(16, 39, 67, 0.22);
+    radial-gradient(circle at 12% 8%, rgba(123, 189, 180, 0.13), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(247, 250, 252, 0.96));
+  color: #17243a;
+  box-shadow: 0 20px 54px rgba(32, 49, 73, 0.1);
 }
 
 .company-luxe-contact::before {
   content: "";
   position: absolute;
-  inset: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  inset: 14px;
+  border: 1px solid rgba(207, 221, 231, 0.46);
   border-radius: 8px;
   pointer-events: none;
 }
@@ -5692,21 +5690,21 @@ body.site-company-profile main.case-page-suumo {
   bottom: clamp(18px, 4vw, 58px);
   width: 168px;
   height: 168px;
-  border: 1px solid rgba(231, 251, 248, 0.2);
+  border: 1px solid rgba(123, 189, 180, 0.18);
   border-radius: 50%;
   box-shadow:
-    inset 0 0 0 28px rgba(231, 251, 248, 0.025),
-    inset 0 0 0 58px rgba(231, 251, 248, 0.02);
-  opacity: 0.72;
+    inset 0 0 0 28px rgba(123, 189, 180, 0.035),
+    inset 0 0 0 58px rgba(123, 189, 180, 0.025);
+  opacity: 0.78;
   pointer-events: none;
 }
 
 .company-luxe-contact .company-luxe-section-head h2 {
-  color: #fff;
+  color: #102743;
 }
 
 .company-luxe-contact .company-luxe-section-head p {
-  color: rgba(255, 255, 255, 0.78);
+  color: #5a7085;
 }
 
 .company-luxe-contact-grid {
@@ -5725,18 +5723,15 @@ body.site-company-profile main.case-page-suumo {
   align-content: start;
   min-width: 0;
   padding: clamp(22px, 2.8vw, 34px);
-  border: 1px solid rgba(231, 251, 248, 0.16);
+  border: 1px solid rgba(207, 221, 231, 0.88);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+  background: rgba(255, 255, 255, 0.9);
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 16px 34px rgba(32, 49, 73, 0.06);
 }
 
 .company-luxe-contact-card--primary {
-  background:
-    linear-gradient(180deg, rgba(231, 251, 248, 0.16), rgba(255, 255, 255, 0.07));
+  background: linear-gradient(180deg, #ffffff, #f7fafc);
 }
 
 .company-luxe-contact-kicker {
@@ -5745,10 +5740,10 @@ body.site-company-profile main.case-page-suumo {
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(231, 251, 248, 0.18);
+  border: 1px solid rgba(123, 189, 180, 0.2);
   border-radius: 999px;
-  background: rgba(231, 251, 248, 0.08);
-  color: rgba(231, 251, 248, 0.88);
+  background: #eef7f5;
+  color: #2b7067;
   font-size: 0.78rem;
   font-weight: 950;
   letter-spacing: 0;
@@ -5757,7 +5752,7 @@ body.site-company-profile main.case-page-suumo {
 .company-luxe-contact-card h3,
 .company-luxe-source-card h3 {
   margin: 0;
-  color: #fff;
+  color: #102743;
   font-size: clamp(1.28rem, 1.6vw, 1.7rem);
   line-height: 1.24;
   font-weight: 950;
@@ -5765,7 +5760,7 @@ body.site-company-profile main.case-page-suumo {
 
 .company-luxe-contact-card p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.76);
+  color: #5a7085;
   font-size: 0.98rem;
   line-height: 1.62;
   font-weight: 760;
@@ -5782,19 +5777,19 @@ body.site-company-profile main.case-page-suumo {
   min-height: 82px;
   padding: 16px;
   border-radius: 8px;
-  background: rgba(9, 25, 43, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f2f7fa;
+  border: 1px solid rgba(207, 221, 231, 0.78);
 }
 
 .company-luxe-contact-lines strong {
-  color: rgba(231, 251, 248, 0.72);
+  color: #607588;
   font-size: 0.82rem;
   font-weight: 950;
 }
 
 .company-luxe-contact-lines span,
 .company-luxe-contact-lines a {
-  color: #fff;
+  color: #102743;
   font-size: 1.02rem;
   line-height: 1.5;
   font-weight: 880;
@@ -5808,7 +5803,7 @@ body.site-company-profile main.case-page-suumo {
 
 .company-luxe-contact-card a,
 .company-luxe-source-card a {
-  color: #e7fbf8;
+  color: #255b7a;
   font-weight: 950;
   text-decoration: none;
 }
@@ -5826,7 +5821,7 @@ body.site-company-profile main.case-page-suumo {
   display: flex;
   align-items: center;
   padding: 0 0 0 28px;
-  color: rgba(255, 255, 255, 0.88);
+  color: #263b50;
   font-size: 0.98rem;
 }
 
@@ -5850,12 +5845,12 @@ body.site-company-profile main.case-page-suumo {
   min-height: 106px;
   padding: 14px;
   border-radius: 8px;
-  background: rgba(9, 25, 43, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f2f7fa;
+  border: 1px solid rgba(207, 221, 231, 0.78);
 }
 
 .company-luxe-source-card strong {
-  color: rgba(255, 255, 255, 0.84);
+  color: #102743;
   font-size: 0.94rem;
   font-weight: 950;
 }
@@ -30578,6 +30573,11 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #fbfdff;
+}
+
+#admin-tab-telegram .admin-notify-setup-details:not([open]) > :not(summary),
+#admin-tab-telegram .admin-notify-advanced:not([open]) > :not(summary) {
+  display: none !important;
 }
 
 #admin-tab-telegram .admin-notify-account-row {
