@@ -29691,7 +29691,7 @@ def _build_support_selected_case_fast_reply(
     meta = (sales_mcp or {}).get("simulated_service") if isinstance(sales_mcp, dict) else {}
     code = str((meta or {}).get("advisor_code") or "").strip()
     name = str((meta or {}).get("advisor_name") or "").strip()
-    title = "線上客服專員"
+    title = str((meta or {}).get("advisor_title") or "").strip()
     service_label = f"工號{code}{name}" if code or name else "線上客服"
     title_hint = f"（{title}）" if title else ""
     case_title = str(case.get("title") or "這筆案件").strip()[:80]
@@ -29720,19 +29720,18 @@ def _normalize_selected_case_fast_service_meta(meta: dict[str, Any] | None) -> d
     base = dict(meta or {})
     code = str(base.get("advisor_code") or "").strip()
     name = str(base.get("advisor_name") or "").strip()
-    generic_title = "線上客服專員"
+    title = str(base.get("advisor_title") or "").strip()
     base["active"] = True
     base["mode"] = "queueing"
-    base["advisor_title"] = generic_title
     base["wait_minutes"] = 0
     base["wait_seconds"] = 10
     base["service_label"] = f"工號{code}｜{name}" if code or name else "線上客服"
     if code or name:
-        base["display_text"] = f"目前由工號{code}{name}（{generic_title}）先為您接待。"
+        base["display_text"] = f"目前由工號{code}{name}{f'（{title}）' if title else ''}先為您接待。"
         base["queue_text"] = f"工號{code}{name}正在接待，請稍候。"
         base["service_text"] = f"工號{code}{name}為您服務。"
     else:
-        base["display_text"] = f"目前由線上客服（{generic_title}）先為您接待。"
+        base["display_text"] = "目前由線上客服先為您接待。"
         base["queue_text"] = "線上客服正在接待，請稍候。"
         base["service_text"] = "線上客服為您服務。"
     return base
