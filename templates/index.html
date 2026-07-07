@@ -15239,7 +15239,7 @@
         const id = esc(String(a.id || ''));
         const label = esc(String(a.label || ''));
         const chat = esc(String(a.chat_id || ''));
-        const tokHint = a.bot_token_set ? esc(String(a.bot_token_masked || '已設定')) : '未設定';
+        const tokHint = a.bot_token_set ? '已設定' : '未設定';
         html += `<div class="panel slim admin-notify-account-row" style="margin:0;padding:8px 10px;" data-tg-acc="${id}">`;
         html += `<div class="search-row-basic" style="flex-wrap:wrap;gap:0.35rem;align-items:flex-end;">`;
         html += `<input type="hidden" class="admin-tg-acc-id" value="${id}">`;
@@ -15306,7 +15306,7 @@
         if (hasRows) {
           return {
             ok: false,
-            text: '偵測到帳號列但內部 id 為空（頁面可能過舊）。請強制重新整理 Ctrl+F5 後再儲存。',
+            text: '偵測到帳號列資料不完整（頁面可能過舊）。請強制重新整理 Ctrl+F5 後再儲存。',
           };
         }
         return { ok: false, text: '帳號列表為空。請至少保留一列，或僅用下方「儲存 Telegram」單欄模式。' };
@@ -15385,8 +15385,7 @@
         if (cid) cid.value = String(data.chat_id || '');
         if (tok) tok.value = '';
         if (clr) clr.checked = false;
-        const masked = data.bot_token_masked ? String(data.bot_token_masked) : '未設定';
-        if (msg) msg.textContent = `Telegram 授權狀態：${data.bot_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `Telegram 連線狀態：${data.bot_token_set ? '已設定' : '未設定'}`;
         renderAdminTelegramAccountsFromSnapshot(data);
         updateTelegramTabAutoStatusFromSnapshot(data, true);
       } catch (err) {
@@ -15422,8 +15421,7 @@
         if (tok) tok.value = '';
         const clr = document.getElementById('admin-tg-clear-token');
         if (clr) clr.checked = false;
-        const masked = data.bot_token_masked ? String(data.bot_token_masked) : '未設定';
-        if (msg) msg.textContent = `已儲存 Telegram 設定。授權狀態：${data.bot_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `已儲存 Telegram 設定。連線狀態：${data.bot_token_set ? '已設定' : '未設定'}`;
         updateTelegramTabAutoStatusFromSnapshot(data, true);
       } catch (err) {
         if (msg) msg.textContent = `儲存失敗：${formatApiError(err)}`;
@@ -15477,8 +15475,7 @@
         if (webhook) webhook.value = String(data.webhook_url || '');
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
         updateLineTabAutoStatusFromSnapshot(data);
-        const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '未設定';
-        if (msg) msg.textContent = `LINE 授權狀態：${data.channel_access_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `LINE 連線狀態：${data.channel_access_token_set ? '已設定' : '未設定'}`;
       } catch (err) {
         if (msg) msg.textContent = `載入 LINE 失敗：${formatApiError(err)}`;
         const cfgEl = document.getElementById('admin-line-config-line');
@@ -15519,8 +15516,7 @@
         if (clearSecret) clearSecret.checked = false;
         applyAdminLineNotifyChannels(data.notify_channels || payload.notify_channels);
         updateLineTabAutoStatusFromSnapshot(data);
-        const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '未設定';
-        if (msg) msg.textContent = `已儲存 LINE 設定。授權狀態：${data.channel_access_token_set ? masked : '未設定'}`;
+        if (msg) msg.textContent = `已儲存 LINE 設定。連線狀態：${data.channel_access_token_set ? '已設定' : '未設定'}`;
       } catch (err) {
         if (msg) msg.textContent = `儲存 LINE 失敗：${formatApiError(err)}`;
       }
@@ -15643,19 +15639,19 @@
           if (!gate.bot_token_set) {
             if (msg)
               msg.textContent =
-                '無法測試：資料庫內尚無 Bot Token。請在「Bot Token」貼上 BotFather 提供的內容，按「儲存 Telegram」，再按測試。（不會用輸入框內尚未儲存的文字呼叫 getMe。）';
+                '無法測試：Telegram 尚未完成收件設定。請打開「管理 Telegram 顧問帳號」確認顧問收件資料已儲存，再按測試。';
             return;
           }
           if (gate.bot_token_format_ok === false) {
             if (msg)
               msg.textContent =
-                '無法測試：已儲存的 Token 格式不正確。Telegram 正確格式須為「數字:英數底線」（例：7123456789:AAH…）。請到 @BotFather → /mybots → 選 Bot → API Token 整段複製後再「儲存 Telegram」。';
+                '無法測試：Telegram 授權資料格式不正確。請重新貼上完整授權碼並儲存後再測試。';
             return;
           }
           if (!String(gate.chat_id || '').trim()) {
             if (msg)
               msg.textContent =
-                '無法發送測試訊息：尚未儲存 Chat ID。請填數字 Chat ID 後按「儲存 Telegram」，再測試。';
+                '無法發送測試訊息：尚未儲存顧問收件 ID。請在「管理 Telegram 顧問帳號」補上收件 ID 後再測試。';
             return;
           }
           const bodyObj = { message: testMsg };
@@ -15674,7 +15670,7 @@
           const handle = me && me.username ? `@${me.username}` : me && me.first_name ? String(me.first_name) : '';
           const tgt = data.chat_id_target != null && data.chat_id_target !== undefined ? String(data.chat_id_target).trim() : '';
           const who = handle ? `getMe 與發送成功（${esc(handle)}）` : 'getMe 與發送成功';
-          const dest = tgt ? `。已傳向 Chat ID：<strong>${esc(tgt)}</strong>` : '';
+          const dest = tgt ? `。已傳向收件顧問：<strong>${esc(tgt)}</strong>` : '';
           const tip =
             '。請用<strong>同一個 Telegram 帳號</strong>開啟與此 Bot 的<strong>私訊</strong>查看；若聊天室列表沒有該 Bot，請先對它傳 <code>/start</code> 或按「開始」。';
           if (msg) {

@@ -5766,6 +5766,49 @@ body.site-company-profile main.case-page-suumo {
   font-weight: 760;
 }
 
+.company-luxe-contact-note {
+  margin: 0;
+  color: #5a7085;
+  font-size: 0.98rem;
+  line-height: 1.68;
+  font-weight: 760;
+}
+
+.company-luxe-contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.company-luxe-contact-actions--stacked {
+  display: grid;
+}
+
+.company-luxe-contact-actions a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid rgba(37, 91, 122, 0.22);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #255b7a;
+  font-size: 0.94rem;
+  font-weight: 950;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(32, 49, 73, 0.05);
+}
+
+.company-luxe-contact-actions a:first-child {
+  border-color: rgba(43, 112, 103, 0.28);
+  background: #eef7f5;
+  color: #2b7067;
+}
+
 .company-luxe-contact-lines {
   display: grid;
   gap: 10px;
