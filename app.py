@@ -29678,6 +29678,44 @@ def _support_fast_empty_knowledge_meta(message: str, *, selected_cases: list[dic
     }
 
 
+def _build_support_selected_case_fast_reply(
+    message: str,
+    *,
+    selected_cases: list[dict] | None = None,
+    sales_mcp: dict[str, Any] | None = None,
+) -> str:
+    rows = [x for x in list(selected_cases or []) if isinstance(x, dict)]
+    if not rows:
+        return "您好，這裡是線上客服，我先幫您接住這筆案件需求。您想先確認價格條件、稅費貸款，還是安排後續顧問跟進？"
+    case = rows[0]
+    meta = (sales_mcp or {}).get("simulated_service") if isinstance(sales_mcp, dict) else {}
+    code = str((meta or {}).get("advisor_code") or "").strip()
+    name = str((meta or {}).get("advisor_name") or "").strip()
+    title = str((meta or {}).get("advisor_title") or "").strip()
+    service_label = f"工號{code}{name}" if code or name else "線上客服"
+    title_hint = f"（{title}）" if title else ""
+    case_title = str(case.get("title") or "這筆案件").strip()[:80]
+    price = str(case.get("price_text_hant") or "").strip()
+    layout = str(case.get("layout_text_hant") or "").strip()
+    area = str(case.get("area_text_hant") or "").strip()
+    region = str(case.get("jp_region_display_zh") or case.get("region") or case.get("address_hint_zh") or "").strip()
+    meta_line = "｜".join(x for x in [price, layout, area, region] if x)
+    next_q = _support_single_followup_question(message, intent_ref=46)
+    lines = [
+        f"您好，這裡是{service_label}{title_hint}，我先為您接待。",
+        f"已收到您想諮詢的「{case_title}」。",
+    ]
+    if meta_line:
+        lines.append(f"目前案件資料：{meta_line}。")
+    lines.extend(
+        [
+            "我先幫您按這筆案件整理重點，接下來可以直接為您確認總價條件、稅費貸款，或評估是否適合自住／投資。",
+            next_q,
+        ]
+    )
+    return sanitize_support_chat_visible_reply("\n".join(lines).strip())
+
+
 def _support_keyword_preset_reply(
     message: str,
     *,
@@ -29695,10 +29733,31 @@ def _support_keyword_preset_reply(
     selected = list(selected_cases or [])
     knowledge_meta = _support_fast_empty_knowledge_meta(raw, selected_cases=selected)
 
-    # When the user is consulting a specific case we should bypass broad
-    # keyword presets and let the normal case-aware support pipeline respond.
     if selected and _support_message_explicit_case_request(raw):
-        return None
+        knowledge_meta["property_listing_intent"] = True
+        knowledge_meta["managed_case_count"] = len(selected)
+        sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
+        reply = _build_support_selected_case_fast_reply(
+            raw,
+            selected_cases=selected,
+            sales_mcp=sales_mcp,
+        )
+        return {
+            "kind": "selected_case_consult_fast_track",
+            "reply": reply,
+            "knowledge": knowledge_meta,
+            "llm": {
+                "provider": "",
+                "enabled": False,
+                "model": "",
+                "fast_mode": True,
+                "knowledge_skipped": True,
+                "keyword_preset": True,
+                "keyword_preset_kind": "selected_case_consult_fast_track",
+            },
+            "sales_mcp": sales_mcp,
+            "intent_score": int(sales_mcp.get("intent_score") or 42),
+        }
 
     def _payload(kind: str, reply: str, sales_mcp: dict[str, Any], *, intent_score: int = 0) -> dict[str, Any]:
         return {
