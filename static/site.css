@@ -5711,18 +5711,18 @@ body.site-company-profile main.case-page-suumo {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(320px, 1.08fr) minmax(250px, 0.82fr) minmax(270px, 0.9fr);
-  gap: 18px;
+  grid-template-columns: minmax(420px, 1.18fr) minmax(230px, 0.72fr) minmax(250px, 0.82fr);
+  gap: 14px;
   align-items: stretch;
 }
 
 .company-luxe-contact-card,
 .company-luxe-source-card {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   align-content: start;
   min-width: 0;
-  padding: clamp(22px, 2.8vw, 34px);
+  padding: clamp(18px, 2.2vw, 28px);
   border: 1px solid rgba(207, 221, 231, 0.88);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
@@ -5811,14 +5811,15 @@ body.site-company-profile main.case-page-suumo {
 
 .company-luxe-contact-lines {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .company-luxe-contact-lines section {
   display: grid;
-  gap: 8px;
-  min-height: 82px;
-  padding: 16px;
+  gap: 5px;
+  min-height: 64px;
+  padding: 12px;
   border-radius: 8px;
   background: #f2f7fa;
   border: 1px solid rgba(207, 221, 231, 0.78);
@@ -5826,17 +5827,22 @@ body.site-company-profile main.case-page-suumo {
 
 .company-luxe-contact-lines strong {
   color: #607588;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 950;
 }
 
 .company-luxe-contact-lines span,
 .company-luxe-contact-lines a {
   color: #102743;
-  font-size: 1.02rem;
-  line-height: 1.5;
+  font-size: 0.94rem;
+  line-height: 1.38;
   font-weight: 880;
   overflow-wrap: anywhere;
+}
+
+.company-luxe-contact-lines section:first-child,
+.company-luxe-contact-lines section:last-child {
+  grid-column: 1 / -1;
 }
 
 .company-luxe-contact-lines ~ p,
@@ -5860,12 +5866,53 @@ body.site-company-profile main.case-page-suumo {
 }
 
 .company-luxe-contact-card--summary li {
-  min-height: 44px;
+  min-height: 36px;
   display: flex;
   align-items: center;
   padding: 0 0 0 28px;
   color: #263b50;
+  font-size: 0.94rem;
+}
+
+.company-luxe-line-qr-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-top: 2px;
+  padding: 12px;
+  border: 1px solid rgba(43, 112, 103, 0.2);
+  border-radius: 8px;
+  background: #f4fbf8;
+  color: #102743;
+  text-decoration: none;
+}
+
+.company-luxe-line-qr-card img {
+  width: 96px;
+  height: 96px;
+  display: block;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.company-luxe-line-qr-card span {
+  display: grid;
+  gap: 5px;
+}
+
+.company-luxe-line-qr-card strong {
+  color: #14624f;
   font-size: 0.98rem;
+  line-height: 1.35;
+  font-weight: 950;
+}
+
+.company-luxe-line-qr-card small {
+  color: #607588;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  font-weight: 760;
 }
 
 .company-luxe-contact-card--summary li::before {
@@ -5994,6 +6041,7 @@ body.site-company-profile main.case-page-suumo {
 
   .company-luxe-pillars,
   .company-luxe-story__copy ul,
+  .company-luxe-contact-lines,
   .company-luxe-service-line,
   .company-luxe-source-card > div,
   .company-luxe-catalog-grid,
@@ -6004,6 +6052,15 @@ body.site-company-profile main.case-page-suumo {
   .company-luxe-story,
   .company-luxe-contact {
     padding: 18px;
+  }
+
+  .company-luxe-line-qr-card {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+
+  .company-luxe-line-qr-card img {
+    width: 82px;
+    height: 82px;
   }
 }
 
