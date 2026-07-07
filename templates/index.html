@@ -13132,6 +13132,13 @@
       } catch (_) {
         window.__sclawSupportCaseContextOnce = null;
       }
+      let supportEntryForThisSend = '';
+      try {
+        supportEntryForThisSend = String(window.__sclawSupportConsultEntryOnce || '').trim();
+        window.__sclawSupportConsultEntryOnce = '';
+      } catch (_) {
+        window.__sclawSupportConsultEntryOnce = '';
+      }
       const selectedCasesForThisSend = inlineCaseContextForThisSend
         ? [inlineCaseContextForThisSend]
         : (suppressSelectedCasesForThisSend ? [] : supportSelectedCases.slice(0, 20));
@@ -13163,6 +13170,7 @@
             image_type: pendingImage && pendingImage.type ? pendingImage.type : '',
             sales_session_id: getSupportSalesSessionId(),
             selected_cases: selectedCasesForThisSend,
+            support_entry: supportEntryForThisSend,
             figure_keyword: figKw,
             figure_region: figReg,
             figure_price: cond.priceLabel,

@@ -929,6 +929,13 @@
         } catch (_) {
           window.__sclawSupportCaseContextOnce = null;
         }
+        var supportEntry = '';
+        try {
+          supportEntry = String(window.__sclawSupportConsultEntryOnce || '').trim();
+          window.__sclawSupportConsultEntryOnce = '';
+        } catch (_) {
+          window.__sclawSupportConsultEntryOnce = '';
+        }
         var selectedCases = inlineCaseContext ? [inlineCaseContext] : (suppressSelectedCases ? [] : readList(selectedKey).slice(0, 20));
         var history = supportFallbackHistory
           .filter(function (row) { return row && row.role && !row.supportWelcome; })
@@ -948,6 +955,7 @@
             image_type: image && image.type ? image.type : '',
             sales_session_id: supportFallbackSalesSessionId(),
             selected_cases: selectedCases,
+            support_entry: supportEntry,
             persona_region: 'tw',
             knowledge_days: 72,
             knowledge_merged_max: 26,

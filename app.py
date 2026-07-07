@@ -29744,6 +29744,7 @@ def _support_keyword_preset_reply(
     session_id: str,
     turn_index: int = 0,
     selected_cases: list[dict] | None = None,
+    support_entry: str = "",
 ) -> dict[str, Any] | None:
     """Return high-confidence canned replies before slow RAG/LLM paths."""
     raw = str(message or "").strip()
@@ -29753,9 +29754,10 @@ def _support_keyword_preset_reply(
         return None
     compact = re.sub(r"\s+", "", raw).lower()
     selected = list(selected_cases or [])
+    entry = str(support_entry or "").strip().lower()
     knowledge_meta = _support_fast_empty_knowledge_meta(raw, selected_cases=selected)
 
-    if selected and _support_message_explicit_case_request(raw):
+    if entry == "detail-case-consult" and selected and _support_message_explicit_case_request(raw):
         knowledge_meta["property_listing_intent"] = True
         knowledge_meta["managed_case_count"] = len(selected)
         sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
@@ -31659,8 +31661,11 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         session_id=session_id,
         turn_index=support_turn_index,
         selected_cases=selected_cases_input,
+        support_entry=str(payload.support_entry or "").strip(),
     )
     if preset:
+        if selected_cases_input:
+            session_id, _ = _replace_support_session_interest_cases(session_id, selected_cases_input)
         return JSONResponse(
             {
                 "ok": True,

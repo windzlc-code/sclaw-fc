@@ -530,6 +530,7 @@
     notifyCaseConsult(msg || '');
     try { window.__sclawSupportSuppressSelectedCasesOnce = true; } catch (_) {}
     try { window.__sclawSupportCaseContextOnce = normalize(caseData); } catch (_) {}
+    try { window.__sclawSupportConsultEntryOnce = 'detail-case-consult'; } catch (_) {}
     if (typeof window.sendSupportChat === 'function') window.sendSupportChat();
   }
 
