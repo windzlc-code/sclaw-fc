@@ -5711,18 +5711,18 @@ body.site-company-profile main.case-page-suumo {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(420px, 1.18fr) minmax(230px, 0.72fr) minmax(250px, 0.82fr);
-  gap: 14px;
+  grid-template-columns: minmax(320px, 1.08fr) minmax(250px, 0.82fr) minmax(270px, 0.9fr);
+  gap: 18px;
   align-items: stretch;
 }
 
 .company-luxe-contact-card,
 .company-luxe-source-card {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   align-content: start;
   min-width: 0;
-  padding: clamp(18px, 2.2vw, 28px);
+  padding: clamp(22px, 2.8vw, 34px);
   border: 1px solid rgba(207, 221, 231, 0.88);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
@@ -5876,8 +5876,9 @@ body.site-company-profile main.case-page-suumo {
 
 .company-luxe-line-qr-card {
   display: grid;
-  gap: 10px;
-  justify-items: center;
+  grid-template-columns: minmax(96px, 128px) minmax(0, 1fr);
+  gap: 12px;
+  justify-items: start;
   align-items: center;
   margin-top: 2px;
   padding: 12px;
@@ -5889,7 +5890,7 @@ body.site-company-profile main.case-page-suumo {
 }
 
 .company-luxe-line-qr-card img {
-  width: min(100%, 176px);
+  width: min(100%, 128px);
   height: auto;
   aspect-ratio: 1 / 1;
   display: block;
@@ -5900,7 +5901,7 @@ body.site-company-profile main.case-page-suumo {
 .company-luxe-line-qr-card span {
   display: grid;
   gap: 5px;
-  text-align: center;
+  text-align: left;
 }
 
 .company-luxe-line-qr-card strong {
@@ -6057,11 +6058,12 @@ body.site-company-profile main.case-page-suumo {
   }
 
   .company-luxe-line-qr-card {
-    justify-items: center;
+    grid-template-columns: 96px minmax(0, 1fr);
+    justify-items: start;
   }
 
   .company-luxe-line-qr-card img {
-    width: min(100%, 132px);
+    width: 96px;
     height: auto;
   }
 }
