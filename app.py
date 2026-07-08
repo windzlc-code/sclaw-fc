@@ -9673,6 +9673,49 @@ def _case_detail_first_zh(*values: Any, max_len: int = 260) -> str:
     return ""
 
 
+def _case_detail_compact_access_line(value: Any, *, max_items: int = 2, max_len: int = 150) -> str:
+    s = unicodedata.normalize("NFKC", str(value or ""))
+    s = re.sub(r"\s+", " ", s).strip(" ：:-　")
+    if not s:
+        return ""
+
+    pieces: list[str] = []
+    numbered = re.split(r"\s*(?=(?:\(\d+\)|（\d+）|\d+[.．、]))", s)
+    if len([p for p in numbered if p.strip()]) > 1:
+        pieces = numbered
+    elif "/" in s or "／" in s:
+        pieces = re.split(r"\s*[／/]\s*", s)
+    elif len(s) > max_len and len(re.findall(r"(?:站|駅)\s*(?:步行|徒歩|歩|巴士|バス)\s*\d{1,3}\s*(?:分钟|分)", s)) > 1:
+        marked = re.sub(
+            r"((?:分钟|分))\s+(?=[A-Za-z0-9\u4e00-\u9fffＪＲJR].{0,24}(?:線|线|鐵|铁|JR|ＪＲ))",
+            r"\1||",
+            s,
+        )
+        pieces = marked.split("||")
+
+    clean_parts: list[str] = []
+    seen: set[str] = set()
+    for part in pieces:
+        p = re.sub(r"^\s*(?:\(\d+\)|（\d+）|\d+[.．、])\s*", "", str(part or "")).strip(" 、，,;；/")
+        p = re.sub(r"\s+", " ", p).strip()
+        if not p:
+            continue
+        key = re.sub(r"\s+", "", p).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        clean_parts.append(p)
+
+    if len(clean_parts) > max_items:
+        summary = " / ".join(clean_parts[:max(1, int(max_items or 2))]).strip()
+        return f"{summary} 等多條路線"[:max_len].rstrip()
+    if clean_parts:
+        s = " / ".join(clean_parts)
+    if len(s) > max_len:
+        return s[: max(20, int(max_len or 150))].rstrip(" 、，,;；/") + "…"
+    return s
+
+
 _INDEX_HTML_CACHE_TTL_SECONDS = int(os.getenv("SCLAW_INDEX_HTML_CACHE_TTL", "60") or "60")
 _INDEX_HTML_CACHE_LOCK = threading.RLock()
 _INDEX_HTML_CACHE: tuple[float, bytes] | None = None
@@ -37802,6 +37845,10 @@ def _build_portal_listing_panel(row: dict[str, Any]) -> dict[str, Any]:
         meta_out.get("transit_line_zh"),
         max_len=360,
     )
+    fields["access_line_hant"] = _case_detail_compact_access_line(fields.get("access_line_hant"), max_len=150)
+    fields["access_line_display_zh"] = _case_detail_compact_access_line(fields.get("access_line_display_zh"), max_len=150)
+    meta_out["access_line_zh_read"] = _case_detail_compact_access_line(meta_out.get("access_line_zh_read"), max_len=150)
+    meta_out["transit_line_zh_read"] = _case_detail_compact_access_line(meta_out.get("transit_line_zh_read"), max_len=150)
     fields["layout_display_zh"] = _case_detail_first_zh(
         fields.get("layout_text_hant"),
         fields.get("layout_line_jp"),
