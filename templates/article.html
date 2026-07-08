@@ -17,7 +17,7 @@
   <main class="container case-page-suumo article-page-v2">
     <header class="suumo-case-brandbar article-case-brandbar">
       <span class="suumo-case-brandbar-logo">站內文章</span>
-      <span class="suumo-case-brandbar-src">{{ item.source_name }} ｜ {{ item.topic_category }} ｜ {{ item.access_status }}</span>
+      <span class="suumo-case-brandbar-src">中文整理 ｜ {{ item.topic_category }} ｜ 站內閱讀</span>
     </header>
     <header class="article-case-hero panel">
       {% if brand_name %}
@@ -26,12 +26,10 @@
       <p class="muted case-standalone-back" style="margin:0 0 0.5rem;"><a href="/">返回查詢首頁</a></p>
       <h1 class="article-case-title">{{ item.seo_title }}</h1>
       <p class="article-case-meta muted">
-        來源 <strong>{{ item.source_name }}</strong>
         {% if item.content_kind == 'social_video_knowledge' %}
           <span class="social-source-badge social-source-badge--tiktok" title="TikTok 影片文案與字幕知識來源">TK 社媒知識</span>
         {% endif %}
-        {% if item.access_status == "restricted" %}｜<span class="article-warn">來源頁可能需登入／授權</span>{% endif %}
-        ｜站內更新 {{ item.updated_at or '-' }}
+        站內更新 {{ item.updated_at or '-' }}
       </p>
       {% set listing_panel = article_listing_panel %}
       {% set hero_fallback = article_hero_thumb %}
@@ -46,12 +44,94 @@
       {% endif %}
     </header>
 
+    <section class="panel article-dual-block article-cn-summary" id="article-summary">
+      <h2 class="article-section-title">站內整理</h2>
+      <div data-site-lang-pane="hant">
+        <div class="article-ai-conclusion">
+          <strong>重點結論</strong>
+          <p>{{ ai_pack_hant.conclusion }}</p>
+        </div>
+        <div class="article-ai-grid">
+          <div class="article-dual-cell">
+            <h3 class="article-dual-head">先看重點</h3>
+            <ul class="article-tight-list">
+              {% for p in ai_pack_hant.must_know %}
+              <li>{{ p }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="article-dual-cell">
+            <h3 class="article-dual-head">建議動作</h3>
+            <ul class="article-tight-list">
+              {% for p in ai_pack_hant.action %}
+              <li>{{ p }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="article-dual-cell">
+            <h3 class="article-dual-head">注意事項</h3>
+            <ul class="article-tight-list">
+              {% for p in ai_pack_hant.risk %}
+              <li>{{ p }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div data-site-lang-pane="hans">
+        <div class="article-ai-conclusion">
+          <strong>重点结论</strong>
+          <p>{{ ai_pack_hans.conclusion }}</p>
+        </div>
+        <div class="article-ai-grid">
+          <div class="article-dual-cell">
+            <h3 class="article-dual-head">先看重点</h3>
+            <ul class="article-tight-list">
+              {% for p in ai_pack_hans.must_know %}
+              <li>{{ p }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="article-dual-cell">
+            <h3 class="article-dual-head">建议动作</h3>
+            <ul class="article-tight-list">
+              {% for p in ai_pack_hans.action %}
+              <li>{{ p }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="article-dual-cell">
+            <h3 class="article-dual-head">注意事项</h3>
+            <ul class="article-tight-list">
+              {% for p in ai_pack_hans.risk %}
+              <li>{{ p }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% set article_body_hant = (item.body_zh_hant_display if not article_body_zh_warn_hant else item.seo_description)|trim %}
+    {% set article_body_hans = (item.body_zh_hans_display if not article_body_zh_warn_hans else item.seo_description)|trim %}
+    {% if article_body_hant or article_body_hans %}
+    <section class="panel article-translation-body article-cn-body" id="article-content">
+      <h2 class="article-section-title">文章內容</h2>
+      <div class="prose-block" data-site-lang-pane="hant">
+        {{ (article_body_hant or item.seo_description or ai_pack_hant.conclusion)|e|replace('\n', '<br>')|safe }}
+      </div>
+      <div class="prose-block" data-site-lang-pane="hans">
+        {{ (article_body_hans or item.seo_description or ai_pack_hans.conclusion)|e|replace('\n', '<br>')|safe }}
+      </div>
+    </section>
+    {% endif %}
+
     <section class="panel article-bottom-hub" id="article-more">
       <h2 class="article-section-title">相關案件與新聞連結</h2>
       <p class="muted">優先顯示與日本不動產物件／行情關聯較高的站內條目，方便在站內延伸閱讀。</p>
-      {% if related_news %}
+      {% set related_cards = (related_news or [])[:8] %}
       <div class="article-related-cards">
-        {% for n in related_news %}
+        {% for n in related_cards %}
         <article class="article-related-card">
           {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
           <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
@@ -77,16 +157,27 @@
           </p>
         </article>
         {% endfor %}
+        {% for _ in range(8 - (related_cards|length)) %}
+        <article class="article-related-card article-related-card--placeholder" aria-hidden="true">
+          <span class="article-related-thumb article-related-thumb--placeholder is-empty">
+            <span class="article-related-thumb-fallback">站內資料整理中</span>
+          </span>
+          <div class="article-related-card-head">
+            <span class="article-badge-note">整理中</span>
+            <span class="muted">tw</span>
+          </div>
+          <h3 class="article-related-title">相關日本房產內容準備中</h3>
+          <p class="muted article-related-meta">正在補齊同區域、同主題的站內資料。</p>
+          <p class="article-related-actions"><span class="muted">即將補入</span></p>
+        </article>
+        {% endfor %}
       </div>
-      {% else %}
-      <p class="muted">目前尚無相近主題條目；請回首頁擴大查詢或改點下方關鍵字。</p>
-      {% endif %}
 
     </section>
 
     {% if is_restricted %}
     <section class="panel fallback-note">
-      <h2 class="article-section-title">來源受限時的閱讀順序</h2>
+      <h2 class="article-section-title">內容不完整時的閱讀順序</h2>
       <ul>
         {% for line in fallback_guide_hant %}
         <li>{{ line }}</li>

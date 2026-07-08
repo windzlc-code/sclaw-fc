@@ -316,9 +316,9 @@ def build_seo_title(title_zh_hant: str, region_name: str) -> str:
 
 
 def build_seo_description(title_zh_hant: str, source_name: str) -> str:
+    _ = source_name
     return (
         f"{title_zh_hant}：整合日本官方與主流平台資訊，提供制度、稅務、流程與地區趨勢。"
-        f"資料來源含 {source_name}。"
     )[:160]
 
 

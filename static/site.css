@@ -11852,6 +11852,11 @@ body.site-lang-hans [data-site-lang-pane="hant"] {
   overflow: hidden;
 }
 
+.article-related-card--placeholder {
+  color: #647789;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbfc 100%);
+}
+
 .article-related-thumb {
   display: block;
   width: calc(100% + 24px);
@@ -11892,6 +11897,13 @@ body.site-lang-hans [data-site-lang-pane="hant"] {
 
 .article-related-thumb.is-empty .article-related-thumb-fallback {
   display: grid;
+}
+
+.article-related-thumb--placeholder .article-related-thumb-fallback {
+  color: #6f8494;
+  background:
+    linear-gradient(135deg, rgba(237, 244, 247, 0.92) 0%, rgba(248, 251, 252, 0.98) 58%, rgba(217, 229, 235, 0.92) 100%),
+    repeating-linear-gradient(135deg, rgba(82, 107, 128, 0.08) 0 1px, transparent 1px 12px);
 }
 
 .article-related-card-head {
@@ -15770,6 +15782,7 @@ body.site-home .jp-map-hub--integrated-suite .jp-map-hub-smart-dock.panel {
 }
 
 .portal-suumo-case-action--contact {
+  grid-column: 1 / -1;
   border-color: rgba(25, 114, 93, 0.42);
   background: #ecf7f3;
   color: #14624f;
@@ -41271,6 +41284,8 @@ body.site-article .portal-suumo-gallery-section-grid {
 
 body.site-article .portal-suumo-invest-card--actions-only {
   align-self: center;
+  justify-self: center;
+  width: min(380px, 100%);
   padding: 1rem;
   border-color: rgba(84, 114, 137, 0.16);
   background: rgba(255, 255, 255, 0.88);

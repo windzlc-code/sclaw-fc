@@ -195,6 +195,7 @@ from src.source_registry import (
 )
 from src.suumo_faq_seed import SUUMO_FAQ_URL, seed_suumo_faq_knowledge
 from src.text_utils import (
+    build_schema_json,
     body_zh_field_is_corrupt_jp_placeholder,
     format_ai_pack_line_html,
     is_disclaimer_or_template_noise,
@@ -35654,6 +35655,13 @@ def _related_article_thumb_url(row: dict[str, Any]) -> str:
         cached_path = _url_to_local_static_path(cached)
         if cached and cached_path and cached_path.is_file():
             return cached
+        # Yahoo signed image URLs often expire quickly. Do not block article-page
+        # rendering on synchronous fetch here; if a cached local copy does not
+        # already exist, skip to the next candidate instead of stalling the page.
+        if _is_yahoo_listing_image_url(norm):
+            continue
+        # Other portal images can be fetched lazily through the existing cache
+        # proxy, which keeps article-page render latency predictable.
         _case_image_prefetch([norm], limit=1)
         return norm
     return ""
@@ -35824,6 +35832,75 @@ def _related_articles_lite_for_item(
         if len(out) >= rel_limit:
             break
     return out
+
+
+def _article_body_has_listing_detail(text: str) -> bool:
+    s = sanitize_article_display_body(str(text or ""))
+    if not s:
+        return False
+    if not re.match(r"^\s*日本房[產产]案源", s):
+        return False
+    required_tokens = ("物件名：", "價格：", "所在地：", "交通：")
+    return len(s) >= 80 and all(tok in s for tok in required_tokens)
+
+
+def _article_summary_text_clean(text: str) -> str:
+    s = sanitize_article_display_body(str(text or ""))
+    if not s:
+        return ""
+    s = re.sub(r"[。．]\s*(?:資料來源含|资料来源含)[^。．]*", "。", s)
+    s = re.sub(r"(?im)^\s*(?:資料來源|资料来源|來源|来源)\s*[:：].*$", "", s)
+    s = re.sub(r"\s{2,}", " ", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    s = s.replace("。。", "。").replace("．．", "．")
+    return s.strip()
+
+
+def _article_listing_detail_body(fields: dict[str, Any], *, locale: str = "hant") -> str:
+    if not isinstance(fields, dict):
+        return ""
+
+    def _text(*keys: str) -> str:
+        for key in keys:
+            value = str(fields.get(key) or "").strip()
+            if value and value not in {"—", "-", "None"}:
+                return value
+        return ""
+
+    lines = [
+        ("案件名稱", _text("title_display_hant")),
+        ("售價", _text("price_text_hant")),
+        ("格局", _text("layout_text_hant")),
+        ("面積", _text("area_text_hant", "exclusive_area_jp")),
+        ("地址", _text("address_line_hant")),
+        ("交通", _text("access_line_hant")),
+        ("樓層", _text("floor_text_hant", "floor_structure_jp")),
+        ("類型", _text("building_type_zh")),
+        ("建築年月", _text("built_ym_hant", "built_ym_jp")),
+        ("總戶數", _text("total_units_jp")),
+    ]
+    out = [f"{label}：{value}" for label, value in lines if value]
+    if locale == "hans":
+        out = [
+            line.replace("案件名稱", "案件名称")
+            .replace("售價", "售价")
+            .replace("格局", "格局")
+            .replace("面積", "面积")
+            .replace("地址", "地址")
+            .replace("交通", "交通")
+            .replace("樓層", "楼层")
+            .replace("類型", "类型")
+            .replace("建築年月", "建筑年月")
+            .replace("總戶數", "总户数")
+            .replace("萬", "万")
+            .replace("樓", "楼")
+            .replace("縣", "县")
+            .replace("戶", "户")
+            .replace("臺", "台")
+            .replace("站 步行", "站 步行")
+            for line in out
+        ]
+    return "\n".join(out).strip()
 
 
 def _article_route_scope_where(scope: str) -> str:
@@ -37312,8 +37389,11 @@ def article_page(request: Request, slug: str):
         return Response(status_code=404, content="Not Found")
     item = _normalize_article_item(dict(row))
     item["article_path"] = _standard_article_path(item.get("seo_slug"), item.get("source_item_id"))
+    item["seo_description"] = _article_summary_text_clean(str(item.get("seo_description") or ""))
     item["body_zh_hant"] = sanitize_article_display_body(str(item.get("body_zh_hant") or ""))
     item["body_zh_hans"] = sanitize_article_display_body(str(item.get("body_zh_hans") or ""))
+    item["body_zh_hant_display"] = _clean_case_body_for_display(str(item.get("body_zh_hant") or ""))
+    item["body_zh_hans_display"] = _clean_case_body_for_display(str(item.get("body_zh_hans") or ""))
     rel_limit = 40 if _infer_kyushu_okinawa_geo_focus(item) else 10
     with get_conn() as conn:
         stats = _article_related_stats_fast(conn, item)
@@ -37340,11 +37420,38 @@ def article_page(request: Request, slug: str):
     fb_reading = _article_fallback_text_for_reading_pack(item)
     h_body_raw = str(item.get("body_zh_hant") or "")
     s_body_raw = str(item.get("body_zh_hans") or "")
-    h_fb = fb_reading if body_zh_field_is_corrupt_jp_placeholder(h_body_raw) else ""
-    s_fb = fb_reading if body_zh_field_is_corrupt_jp_placeholder(s_body_raw) else ""
+    h_body_display = str(item.get("body_zh_hant_display") or h_body_raw or "")
+    s_body_display = str(item.get("body_zh_hans_display") or s_body_raw or "")
+    panel_fields = article_listing_panel.get("fields") if isinstance(article_listing_panel, dict) else {}
+    h_has_listing_detail = _article_body_has_listing_detail(h_body_display)
+    s_has_listing_detail = _article_body_has_listing_detail(s_body_display)
+    if h_has_listing_detail:
+        item["body_zh_hant_display"] = _article_listing_detail_body(panel_fields, locale="hant") or h_body_display
+        h_body_display = str(item.get("body_zh_hant_display") or h_body_display)
+    if s_has_listing_detail:
+        item["body_zh_hans_display"] = _article_listing_detail_body(panel_fields, locale="hans") or s_body_display
+        s_body_display = str(item.get("body_zh_hans_display") or s_body_display)
     try:
-        ai_pack_hant = build_ai_reading_pack(h_body_raw, fallback_text=h_fb, locale="hant")
-        ai_pack_hans = build_ai_reading_pack(s_body_raw, fallback_text=s_fb, locale="hans")
+        item["schema_json"] = build_schema_json(
+            str(item.get("seo_slug") or ""),
+            str(item.get("seo_title") or ""),
+            str(item.get("seo_description") or ""),
+            str(item.get("region_code") or ""),
+            h_body_display or h_body_raw,
+        )
+    except Exception:
+        pass
+    h_body_warn = body_zh_field_is_corrupt_jp_placeholder(h_body_raw)
+    s_body_warn = body_zh_field_is_corrupt_jp_placeholder(s_body_raw)
+    if h_has_listing_detail:
+        h_body_warn = False
+    if s_has_listing_detail:
+        s_body_warn = False
+    h_fb = fb_reading if h_body_warn else ""
+    s_fb = fb_reading if s_body_warn else ""
+    try:
+        ai_pack_hant = build_ai_reading_pack(h_body_display, fallback_text=h_fb, locale="hant")
+        ai_pack_hans = build_ai_reading_pack(s_body_display, fallback_text=s_fb, locale="hans")
     except Exception:
         _ap_base = {
             "conclusion": "本篇重點請先確認交易條件、成本與風險，再做決策。",
@@ -37389,8 +37496,8 @@ def article_page(request: Request, slug: str):
             "fallback_guide_hans": fallback_guide_hans,
             "ai_pack_hant": ai_pack_hant,
             "ai_pack_hans": ai_pack_hans,
-            "article_body_zh_warn_hant": body_zh_field_is_corrupt_jp_placeholder(h_body_raw),
-            "article_body_zh_warn_hans": body_zh_field_is_corrupt_jp_placeholder(s_body_raw),
+            "article_body_zh_warn_hant": h_body_warn,
+            "article_body_zh_warn_hans": s_body_warn,
             "related_stats": stats,
             "related_news": related_news,
             "article_smart_keywords": article_smart_keywords,

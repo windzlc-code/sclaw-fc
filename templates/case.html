@@ -97,8 +97,9 @@
     <section class="panel case-related-lite" aria-label="相關文章">
       <h2>相關文章</h2>
       <p class="muted">依地區、主題與意向做輕量查詢，方便快速比較同類案件。</p>
+      {% set related_cards = (case_related_news or [])[:8] %}
       <div class="article-related-cards">
-        {% for n in case_related_news %}
+        {% for n in related_cards %}
         <article class="article-related-card">
           {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
           <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
@@ -121,6 +122,20 @@
             {% if n.case_path %}<a href="{{ n.case_path }}">看案件頁</a>{% endif %}
             {% if n.article_path %}<a href="{{ n.article_path }}">讀站內文章</a>{% endif %}
           </p>
+        </article>
+        {% endfor %}
+        {% for _ in range(8 - (related_cards|length)) %}
+        <article class="article-related-card article-related-card--placeholder" aria-hidden="true">
+          <span class="article-related-thumb article-related-thumb--placeholder is-empty">
+            <span class="article-related-thumb-fallback">站內資料整理中</span>
+          </span>
+          <div class="article-related-card-head">
+            <span class="article-badge-note">整理中</span>
+            <span class="muted">tw</span>
+          </div>
+          <h3 class="article-related-title">相關日本房產內容準備中</h3>
+          <p class="muted article-related-meta">正在補齊同區域、同主題的站內資料。</p>
+          <p class="article-related-actions"><span class="muted">即將補入</span></p>
         </article>
         {% endfor %}
       </div>
