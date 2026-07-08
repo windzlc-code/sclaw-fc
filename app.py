@@ -5974,14 +5974,14 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
                 ts = float(cached_payload.get("ts") or 0)
                 bundle = cached_payload.get("bundle") or {}
                 if (
-                    cached_payload.get("version") == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
-                    and ts > 0
+                    ts > 0
                     and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
                     and isinstance(bundle, dict)
                 ):
                     bundle = _home_featured_normalized_preload_bundle(bundle)
-                    _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
-                    return copy.deepcopy(bundle)
+                    if _home_featured_preload_bundle_has_items(bundle):
+                        _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
+                        return copy.deepcopy(bundle)
         except Exception:
             pass
 
@@ -6009,14 +6009,14 @@ def _home_featured_index_preload_bundle_cached_only() -> dict[str, Any] | None:
             ts = float(cached_payload.get("ts") or 0)
             bundle = cached_payload.get("bundle") or {}
             if (
-                cached_payload.get("version") == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
-                and ts > 0
+                ts > 0
                 and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
                 and isinstance(bundle, dict)
             ):
                 bundle = _home_featured_normalized_preload_bundle(bundle)
-                _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
-                return copy.deepcopy(bundle)
+                if _home_featured_preload_bundle_has_items(bundle):
+                    _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
+                    return copy.deepcopy(bundle)
         except Exception:
             return None
     return None
