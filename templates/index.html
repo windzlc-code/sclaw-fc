@@ -262,7 +262,7 @@
           <p id="home-featured-type-status" class="home-featured-status">{% if type_ssr_items %}已载入 {{ type_ssr_items|length }} 笔「综合推荐」房源。{% else %}正在载入物件类型房源...{% endif %}</p>
           <div class="home-featured-flow-actions" aria-label="房源更多操作">
             <button type="button" id="home-featured-type-more" class="home-featured-more-btn" onclick="loadHomeFeaturedTypeCases({ append: true })">加载更多房源</button>
-            <a class="home-featured-contact-btn" href="/company#company-luxe-contact">联络我们</a>
+            <a class="home-featured-contact-btn" href="/support-intake">联络我们</a>
           </div>
         </div>
       </div>
@@ -23665,6 +23665,12 @@
       if (el) el.textContent = String(text || '');
     }
 
+    function homeFeaturedKeepTypeMoreVisible() {
+      const moreBtn = document.getElementById('home-featured-type-more');
+      if (moreBtn) moreBtn.hidden = false;
+      return moreBtn;
+    }
+
     function homeFeaturedTypeDisplayLabel(type) {
       return ({
         '': '综合推荐',
@@ -24025,8 +24031,7 @@
           homeFeaturedTypeCases = next.slice();
           homeFeaturedTypeOffset = Number(data.next_offset || next.length || 0);
           renderHomeFeaturedTypeCases();
-          const moreBtn = document.getElementById('home-featured-type-more');
-          if (moreBtn) moreBtn.hidden = data.has_more === false;
+          homeFeaturedKeepTypeMoreVisible();
           homeFeaturedSetTypeStatus(`已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。`);
         }
       } catch (_) {
@@ -24073,8 +24078,7 @@
         homeFeaturedTypeOffset = Number(cached.offset || homeFeaturedTypeCases.length || 0);
         renderHomeFeaturedTypeCases();
         queueHomeFeaturedTypeImageWarmup(homeFeaturedTypeCases, HOME_FEATURED_PAGE_SIZE);
-        const moreBtn = document.getElementById('home-featured-type-more');
-        if (moreBtn) moreBtn.hidden = cached.hasMore === false;
+        homeFeaturedKeepTypeMoreVisible();
         homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」的房源。`);
         return;
       }
@@ -24549,8 +24553,7 @@
           homeFeaturedTypeOffset = normalized.offset;
           renderHomeFeaturedTypeCases();
           homeFeaturedWarmImages(firstPageItems, 6, true);
-          const moreBtn = document.getElementById('home-featured-type-more');
-          if (moreBtn) moreBtn.hidden = normalized.hasMore === false;
+          homeFeaturedKeepTypeMoreVisible();
           homeFeaturedSetTypeStatus(firstPageItems.length ? `已载入 ${firstPageItems.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(type)}」的房源。`);
           renderedActive = true;
           if (needsRefill) {
@@ -24634,8 +24637,7 @@
           homeFeaturedTypeOffset = Number(cached.offset || homeFeaturedTypeCases.length || 0);
           renderHomeFeaturedTypeCases();
           queueHomeFeaturedTypeImageWarmup(homeFeaturedTypeCases, HOME_FEATURED_PAGE_SIZE);
-          const moreBtn = document.getElementById('home-featured-type-more');
-          if (moreBtn) moreBtn.hidden = cached.hasMore === false;
+          homeFeaturedKeepTypeMoreVisible();
           homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(propertyType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(propertyType)}」的房源。`);
           return;
         }
@@ -24677,7 +24679,7 @@
           }
           return;
         }
-        if (append) {
+        if (append && next.length) {
           const seen = new Set(homeFeaturedTypeCases.map((it) => supportCaseKeyFromItem(it)));
           for (const item of next) {
             const key = supportCaseKeyFromItem(item);
@@ -24685,11 +24687,12 @@
             seen.add(key);
             homeFeaturedTypeCases.push(item);
           }
-        } else {
+        } else if (!append) {
           homeFeaturedType = propertyType;
           homeFeaturedTypeCases = next.slice(0, HOME_FEATURED_PAGE_SIZE);
         }
-        homeFeaturedTypeOffset = Number(data.next_offset || (fetchOffset + next.length) || fetchOffset);
+        const rawNextOffset = Number(data.next_offset || (fetchOffset + next.length) || fetchOffset);
+        homeFeaturedTypeOffset = (append && (!next.length || data.has_more === false)) ? 0 : rawNextOffset;
         renderHomeFeaturedTypeCases();
         queueHomeFeaturedTypeImageWarmup(homeFeaturedTypeCases, HOME_FEATURED_PAGE_SIZE);
         const hasMore = data.has_more !== false && next.length > 0;
@@ -24701,8 +24704,12 @@
             hasMore,
           });
         }
-        homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(propertyType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(propertyType)}」的房源。`);
-        if (moreBtn) moreBtn.hidden = data.has_more === false || next.length === 0;
+        if (append && !next.length) {
+          homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(propertyType)}」房源，下一次会重新换一批。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(propertyType)}」的房源。`);
+        } else {
+          homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(propertyType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(propertyType)}」的房源。`);
+        }
+        homeFeaturedKeepTypeMoreVisible();
       } catch (_) {
         if (!silent) {
           homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已显示上次载入的 ${homeFeaturedTypeCases.length} 笔物件类型房源。` : '物件类型房源暂时无法载入，请稍后再试。');
