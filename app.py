@@ -5121,6 +5121,34 @@ def _home_featured_image_unsuitable_reason(item: dict[str, Any]) -> str:
     except Exception:
         return ""
     total = max(1, len(pixels))
+    min_x = 96
+    min_y = 96
+    max_x = -1
+    max_y = -1
+    content_hits = 0
+    for idx, (r, g, b) in enumerate(pixels):
+        spread = max(r, g, b) - min(r, g, b)
+        blank = (r >= 232 and g >= 232 and b >= 232 and spread <= 26) or (
+            r >= 218 and g >= 218 and b >= 218 and spread <= 24
+        )
+        if blank:
+            continue
+        x = idx % 96
+        y = idx // 96
+        content_hits += 1
+        min_x = min(min_x, x)
+        min_y = min(min_y, y)
+        max_x = max(max_x, x)
+        max_y = max(max_y, y)
+    if content_hits and max_x >= min_x and max_y >= min_y:
+        content_ratio = content_hits / total
+        box_area = ((max_x - min_x + 1) / 96) * ((max_y - min_y + 1) / 96)
+        if box_area <= 0.36 and content_ratio <= 0.34:
+            reason = "sparse-main-image"
+            if len(_HOME_FEATURED_IMAGE_UNSUITABLE_CACHE) >= _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE_MAX:
+                _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE.clear()
+            _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE[thumb] = reason
+            return reason
     red_ratio = (
         sum(
             1
