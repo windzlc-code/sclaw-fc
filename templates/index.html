@@ -23948,7 +23948,14 @@
           })
           .filter(Boolean);
         if (excludedSourceIds.length) params.set('exclude_source_item_ids', excludedSourceIds.slice(0, 48).join(','));
-        const res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default' });
+        const controller = 'AbortController' in window ? new AbortController() : null;
+        const timer = controller ? window.setTimeout(() => controller.abort(), 6500) : 0;
+        let res;
+        try {
+          res = await fetch(`/api/home-featured-cases?${params.toString()}`, { cache: 'default', signal: controller ? controller.signal : undefined });
+        } finally {
+          if (timer) window.clearTimeout(timer);
+        }
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data || data.ok === false) throw new Error('featured cases unavailable');
         return data;

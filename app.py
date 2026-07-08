@@ -6043,10 +6043,18 @@ def _home_featured_cases_payload_from_preload(
     bundle = _home_featured_index_preload_bundle_cached_only()
     if not bundle:
         return None
+    type_payloads = bundle.get("home_featured_type_preloads") or {}
+    payload_fallback = False
     if query_property_type:
-        payload = (bundle.get("home_featured_type_preloads") or {}).get(query_property_type)
+        payload = type_payloads.get(query_property_type)
+        if not isinstance(payload, dict) or not (payload.get("items") or []):
+            # Do not let property-type tabs fall through to the expensive cold
+            # database path. The tab is a discovery surface; a fast generic
+            # representative batch is better than a permanent loading state.
+            payload = type_payloads.get("") or bundle.get("home_featured_preload")
+            payload_fallback = True
     else:
-        payload = (bundle.get("home_featured_type_preloads") or {}).get("") or bundle.get("home_featured_preload")
+        payload = type_payloads.get("") or bundle.get("home_featured_preload")
     if not isinstance(payload, dict):
         return None
     items = [
@@ -6062,7 +6070,7 @@ def _home_featured_cases_payload_from_preload(
     if not query_property_type and off == 0 and lim >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS and len(items) < lim:
         return None
     if off >= len(items):
-        if query_property_type or not items:
+        if (query_property_type and not payload_fallback) or not items:
             return None
         effective_off = off % len(items)
     else:
@@ -6086,6 +6094,7 @@ def _home_featured_cases_payload_from_preload(
         "q": "",
         "cached": True,
         "preloaded": True,
+        "property_type_fallback": payload_fallback,
     }
 
 
