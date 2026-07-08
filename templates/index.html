@@ -23483,7 +23483,7 @@
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
     const HOME_FEATURED_TYPE_PRELOADS = {{ home_featured_type_preloads|default({})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v22.';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v23.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
@@ -23802,11 +23802,13 @@
       const cached = homeFeaturedTypeCache.get(cacheKey);
       if (cached && Array.isArray(cached.items)) {
         if (!cached.items.length) return null;
+        if (cached.hasMore !== false && cached.items.length < HOME_FEATURED_PAGE_SIZE) return null;
         if (!homeFeaturedTypeShouldExcludeSpotlight(type)) {
           return cached;
         }
         const filteredItems = homeFeaturedFilterTypeItems(cached.items, type);
         if (!filteredItems.length) return null;
+        if (cached.hasMore !== false && filteredItems.length < HOME_FEATURED_PAGE_SIZE) return null;
         return {
           ...cached,
           items: filteredItems,
@@ -23817,6 +23819,7 @@
       const storedItems = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(storedPayload), type);
       const firstPageItems = storedItems.slice(0, HOME_FEATURED_PAGE_SIZE);
       if (!firstPageItems.length) return null;
+      if (storedPayload.has_more !== false && firstPageItems.length < HOME_FEATURED_PAGE_SIZE) return null;
       const normalized = {
         items: firstPageItems,
         offset: Number(storedPayload.next_offset || storedItems.length || 0),
