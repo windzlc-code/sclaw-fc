@@ -35548,7 +35548,7 @@ def _case_related_item_for_source(conn: sqlite3.Connection, source_item_id: int)
     return _normalize_article_item(dict(row)) if row else None
 
 
-def _related_article_row_lite(row: Any) -> dict[str, Any]:
+def _related_article_row_lite(row: Any, *, allow_thumb_sync_fetch: bool = False) -> dict[str, Any]:
     from src.portal_case_search import (
         _portal_case_has_kana,
         _portal_case_source_name_display,
@@ -35587,11 +35587,11 @@ def _related_article_row_lite(row: Any) -> dict[str, Any]:
         src = _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or "")
         title = f"{src or '站內'} 案件 #{sid}" if sid > 0 else (src or "站內案件")
     d["seo_title"] = title
-    d["thumb_url"] = _related_article_thumb_url(d)
+    d["thumb_url"] = _related_article_thumb_url(d, allow_sync_fetch=allow_thumb_sync_fetch)
     return d
 
 
-def _related_article_thumb_url(row: dict[str, Any]) -> str:
+def _related_article_thumb_url(row: dict[str, Any], *, allow_sync_fetch: bool = False) -> str:
     """Pick a related-card thumbnail from the same clean gallery sources as case pages.
 
     The previous lightweight path could select stale source thumbnails or remote
@@ -35629,6 +35629,7 @@ def _related_article_thumb_url(row: dict[str, Any]) -> str:
     push(row.get("hero_image_url"))
     push(row.get("thumbnail_url"))
 
+    sync_attempted = False
     for raw in candidates:
         s = str(raw or "").strip()
         if not s:
@@ -35655,6 +35656,12 @@ def _related_article_thumb_url(row: dict[str, Any]) -> str:
         cached_path = _url_to_local_static_path(cached)
         if cached and cached_path and cached_path.is_file():
             return cached
+        if allow_sync_fetch and not sync_attempted:
+            sync_attempted = True
+            fetched = _case_image_download_to_cache(norm)
+            fetched_path = _url_to_local_static_path(fetched)
+            if fetched and fetched_path and fetched_path.is_file() and not _case_image_visual_reject_reason(fetched):
+                return fetched
         # Related cards should be visually stable. Remote portal URLs can expire
         # or fail from the browser; schedule a cache warmup, but only render
         # thumbnails that are already local in this response.
@@ -35890,12 +35897,20 @@ def _related_articles_lite_for_item(
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    def add_row(row: Any) -> None:
+    sync_fetch_budget = max(0, min(12, int(os.getenv("RELATED_ARTICLE_THUMB_SYNC_BUDGET", "8") or 8)))
+
+    def add_row(row: Any, *, allow_thumb_sync_fetch: bool = False) -> None:
+        nonlocal sync_fetch_budget
         if len(out) >= rel_limit:
             return
-        d = _related_article_row_lite(row)
+        can_sync = bool(allow_thumb_sync_fetch and sync_fetch_budget > 0)
+        before_sync_budget = sync_fetch_budget
+        d = _related_article_row_lite(row, allow_thumb_sync_fetch=can_sync)
+        if can_sync:
+            sync_fetch_budget = max(0, sync_fetch_budget - 1)
         dup_keys = _related_article_identity_keys(d)
         if dup_keys & seen:
+            sync_fetch_budget = before_sync_budget
             return
         # Related cards are visual navigation. If a candidate cannot provide a
         # usable thumbnail, skip it instead of showing a broken placeholder card.
@@ -35912,7 +35927,7 @@ def _related_articles_lite_for_item(
             break
     if len(out) < rel_limit:
         for row in _related_articles_lite_visual_backfill_rows(conn, item, limit=rel_limit * 80):
-            add_row(row)
+            add_row(row, allow_thumb_sync_fetch=True)
             if len(out) >= rel_limit:
                 break
     return out
