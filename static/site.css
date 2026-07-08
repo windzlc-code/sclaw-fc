@@ -44166,3 +44166,129 @@ body.site-home .support-chat-panel #support-chat-send-btn {
     max-height: 150px !important;
   }
 }
+
+/* 2026-07-08: mobile dock hardening after server cache verification. */
+@media (max-width: 760px) {
+  body.site-home .bh-search-dock {
+    width: min(calc(100% - 40px), 322px) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    margin: -68px auto 16px !important;
+    border-radius: 12px !important;
+  }
+
+  body.site-home .bh-search-dock-item {
+    min-height: 50px !important;
+    grid-template-columns: 24px minmax(0, 1fr) !important;
+    column-gap: 5px !important;
+    padding: 7px 6px !important;
+  }
+
+  body.site-home .bh-search-dock-item span {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 10px !important;
+  }
+
+  body.site-home .bh-search-dock-item strong {
+    font-size: 12px !important;
+    line-height: 1.08 !important;
+  }
+
+  body.site-home .bh-search-dock-button {
+    grid-column: 1 / -1 !important;
+    min-height: 46px !important;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+    letter-spacing: 0 !important;
+  }
+
+  body.site-home .home-featured-flow {
+    margin-top: 14px !important;
+  }
+}
+
+@media (max-width: 340px) {
+  body.site-home .bh-search-dock {
+    width: min(calc(100% - 28px), 306px) !important;
+  }
+
+  body.site-home .bh-search-dock-item {
+    min-height: 48px !important;
+    padding-inline: 5px !important;
+  }
+}
+
+/* 2026-07-08: mobile property-type section alignment. */
+@media (max-width: 760px) {
+  body.site-home .home-room-explore {
+    overflow: hidden !important;
+  }
+
+  body.site-home .home-room-explore-shell {
+    width: 100% !important;
+    margin-inline: 0 !important;
+  }
+
+  body.site-home .home-room-explore-grid {
+    gap: 8px !important;
+    padding: 0 0 6px !important;
+    scroll-padding-inline: 0 !important;
+    scroll-snap-type: x mandatory !important;
+  }
+
+  body.site-home .home-room-explore-tile,
+  body.site-home .home-room-explore-tile--large {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: clamp(216px, 62vw, 270px) !important;
+    height: clamp(216px, 62vw, 270px) !important;
+    border-radius: 14px !important;
+    scroll-snap-align: center !important;
+  }
+
+  body.site-home .home-room-explore-copy {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 12px !important;
+  }
+
+  body.site-home .home-room-explore-copy strong {
+    max-width: 12em !important;
+    font-size: clamp(17px, 4.8vw, 21px) !important;
+  }
+
+  body.site-home .home-featured-type-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 0 12px !important;
+    scrollbar-width: none !important;
+  }
+
+  body.site-home .home-featured-type-tabs button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 0 8px !important;
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  body.site-home .home-featured-type-tabs button[data-home-featured-type="別墅/透天"] {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 340px) {
+  body.site-home .home-featured-type-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body.site-home .home-featured-type-tabs button[data-home-featured-type="別墅/透天"] {
+    grid-column: auto;
+  }
+}
