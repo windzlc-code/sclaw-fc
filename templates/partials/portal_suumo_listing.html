@@ -4,7 +4,85 @@
 {% set g_prop = listing_panel.gallery_property_urls or [] %}
 {% set g_full = listing_panel.gallery_urls or [] %}
 {% set g_sections = listing_panel.gallery_sections or [] %}
+{% set g_ref = article_display_images or [] %}
+{% if g_ref %}
+{% set gallery_ns = namespace(prop=[], ref=[], base_sections=[], sections=[], all_urls=[]) %}
+{% for u in g_prop %}
+{% set ut = (u|string)|trim %}
+{% if ut and (ut not in gallery_ns.prop) %}
+{% set _ = gallery_ns.prop.append(ut) %}
+{% endif %}
+{% endfor %}
+{% for u in g_ref %}
+{% set ut = (u|string)|trim %}
+{% if ut and (ut not in gallery_ns.ref) %}
+{% set _ = gallery_ns.ref.append(ut) %}
+{% endif %}
+{% endfor %}
+{% for sec in g_sections %}
+{% set sec_urls = namespace(items=[]) %}
+{% for u in sec.urls or [] %}
+{% set ut = (u|string)|trim %}
+{% if ut and (ut not in sec_urls.items) %}
+{% set _ = sec_urls.items.append(ut) %}
+{% endif %}
+{% endfor %}
+{% if sec.key != 'all' and sec_urls.items %}
+{% set _ = gallery_ns.base_sections.append({
+  'key': sec.key,
+  'label': sec.label,
+  'urls': sec_urls.items,
+  'count': sec_urls.items|length,
+  'is_all': false
+}) %}
+{% endif %}
+{% endfor %}
+{% for sec in gallery_ns.base_sections %}
+{% for u in sec.urls %}
+{% if u not in gallery_ns.all_urls %}
+{% set _ = gallery_ns.all_urls.append(u) %}
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% for u in gallery_ns.prop %}
+{% if u not in gallery_ns.all_urls %}
+{% set _ = gallery_ns.all_urls.append(u) %}
+{% endif %}
+{% endfor %}
+{% for u in gallery_ns.ref %}
+{% if u not in gallery_ns.all_urls %}
+{% set _ = gallery_ns.all_urls.append(u) %}
+{% endif %}
+{% endfor %}
+{% if gallery_ns.all_urls %}
+{% set _ = gallery_ns.sections.append({
+  'key': 'all',
+  'label': '全部圖片',
+  'urls': gallery_ns.all_urls,
+  'count': gallery_ns.all_urls|length,
+  'is_all': true
+}) %}
+{% endif %}
+{% for sec in gallery_ns.base_sections %}
+{% set _ = gallery_ns.sections.append(sec) %}
+{% endfor %}
+{% if gallery_ns.ref %}
+{% set _ = gallery_ns.sections.append({
+  'key': 'reference',
+  'label': '參考圖片',
+  'urls': gallery_ns.ref,
+  'count': gallery_ns.ref|length,
+  'is_all': false
+}) %}
+{% endif %}
+{% if gallery_ns.sections %}
+{% set g_sections = gallery_ns.sections %}
+{% endif %}
+{% endif %}
 {% set g_album_all = (g_sections[0].urls if g_sections and g_sections[0].key == 'all' else []) %}
+{% if g_album_all %}
+{% set g_full = g_album_all %}
+{% endif %}
 {% set inv = listing_panel.investment_metrics or {} %}
 {% set fallback_img = '/static/img/listing-image-fallback.svg' %}
 {# 案件詳情：物件圖為空時勿 fallback 到含仲介人像的整包網址，以免主圖顯示業者照片 #}

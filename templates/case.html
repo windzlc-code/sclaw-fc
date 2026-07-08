@@ -101,11 +101,12 @@
         {% for n in case_related_news %}
         <article class="article-related-card">
           {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
-          {% if n.thumb_url %}
           <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
-            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('.article-related-thumb')?.remove();">
+            {% if n.thumb_url %}
+            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-empty'); this.remove();">
+            {% endif %}
+            <span class="article-related-thumb-fallback">圖片暫不可用</span>
           </a>
-          {% endif %}
           <div class="article-related-card-head">
             {% if n.source_content_kind == 'jp_listing' %}
             <span class="article-badge-case">案件</span>

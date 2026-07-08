@@ -929,6 +929,10 @@
                 <h4 id="admin-visitor-detail-title">进入记录表格</h4>
                 <span id="admin-visitor-detail-subtitle">按同一 IP / 日期归并，区分普通游客与填单游客</span>
               </div>
+              <div class="admin-visitor-detail-switch" role="tablist" aria-label="游客类型表格切換">
+                <button id="admin-visitor-records-guest-btn" type="button" class="secondary is-active" role="tab" aria-selected="true" onclick="switchAdminVisitorRecordsMode('guest')">普通游客</button>
+                <button id="admin-visitor-records-form-btn" type="button" class="secondary" role="tab" aria-selected="false" onclick="switchAdminVisitorRecordsMode('form')">填单游客</button>
+              </div>
             </div>
             <div class="admin-visitor-records-toolbar">
               <label class="muted" id="admin-visitor-record-page-size-wrap">每頁顯示
@@ -13416,6 +13420,9 @@
       return `${Math.round(n * 10) / 10}%`;
     }
 
+    let adminVisitorRecordsMode = 'guest';
+    let adminVisitorLatestDashboardData = null;
+
     function adminVisitorRenderLineChart(items, maxValue) {
       const arr = Array.isArray(items) ? items : [];
       if (!arr.length) return '<p class="muted admin-visitor-empty">暫無曲線資料。</p>';
@@ -13475,6 +13482,97 @@
       </div>`;
     }
 
+    function adminVisitorRenderDailyStructureTable(items) {
+      const arr = Array.isArray(items) ? items : [];
+      const recent = arr.slice(-14).reverse();
+      if (!recent.length) return '<p class="muted admin-visitor-empty">暫無每日結構資料。</p>';
+      const rows = recent.map((it) => {
+        const guest = Math.max(0, Number(it.guest_visitors || 0));
+        const form = Math.max(0, Number(it.form_visitors || it.phone_visitors || 0));
+        const total = Math.max(0, Number(it.unique_visitors || guest + form || 0));
+        const formPct = total > 0 ? (form / total) * 100 : 0;
+        return `<tr>
+          <td>${esc(String(it.date || it.label || '-'))}</td>
+          <td>${adminVisitorNumber(guest)}</td>
+          <td>${adminVisitorNumber(form)}</td>
+          <td>${adminVisitorPercent(formPct)}</td>
+        </tr>`;
+      }).join('');
+      return `<div class="admin-visitor-pie-daily">
+        <div class="admin-visitor-pie-daily-head"><strong>每日表</strong><span>近 ${adminVisitorNumber(recent.length)} 日</span></div>
+        <table class="admin-visitor-pie-daily-table">
+          <thead><tr><th>日期</th><th>普通</th><th>填单</th><th>占比</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }
+
+    function adminVisitorRenderPieBoard(totals, daily) {
+      return `<div class="admin-visitor-pie-board">
+        <div class="admin-visitor-pie-total">
+          <div class="admin-visitor-pie-section-title">总表</div>
+          ${adminVisitorRenderPieChart(totals)}
+        </div>
+        ${adminVisitorRenderDailyStructureTable(daily)}
+      </div>`;
+    }
+
+    function adminVisitorDailyTableHtml(items) {
+      const arr = Array.isArray(items) ? items : [];
+      if (!arr.length) return '<p class="muted admin-visitor-empty">暫無每日資料。</p>';
+      const rows = arr.map((it) => {
+        const guest = Number(it.guest_visitors || 0);
+        const form = Number(it.form_visitors || it.phone_visitors || 0);
+        const total = Number(it.unique_visitors || guest + form || 0);
+        const formPct = total > 0 ? (form / total) * 100 : 0;
+        return `<tr>
+          <td>${esc(String(it.date || it.label || '-'))}</td>
+          <td>${adminVisitorNumber(total)}</td>
+          <td>${adminVisitorNumber(guest)}</td>
+          <td>${adminVisitorNumber(form)}</td>
+          <td>${adminVisitorPercent(formPct)}</td>
+        </tr>`;
+      }).join('');
+      return `<div class="admin-table-scroll">
+        <table class="admin-visitor-record-table admin-visitor-daily-table">
+          <thead><tr><th>日期</th><th>合计访客</th><th>普通游客</th><th>填单游客</th><th>填单占比</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }
+
+    function openAdminVisitorChartDetail(type) {
+      const data = adminVisitorLatestDashboardData || {};
+      const daily = Array.isArray(data.daily) ? data.daily : [];
+      const buckets = Array.isArray(data.buckets) ? data.buckets : [];
+      const titleMap = { bar: '每日进入柱状图明细', line: '每日访客曲线明细' };
+      const title = titleMap[type] || '访客图表明细';
+      let visual = '';
+      if (type === 'line') {
+        visual = adminVisitorRenderLineChart(daily, 0);
+      } else {
+        const maxDaily = Math.max(1, ...daily.map((it) => Number(it.guest_visitors || 0)), ...daily.map((it) => Number(it.form_visitors || it.phone_visitors || 0)));
+        visual = `<div class="admin-visitor-chart admin-visitor-chart--detail">${daily.map((it) => {
+          const guest = Number(it.guest_visitors || 0);
+          const form = Number(it.form_visitors || it.phone_visitors || 0);
+          const guestH = guest > 0 ? Math.max(6, Math.round((guest / maxDaily) * 100)) : 0;
+          const formH = form > 0 ? Math.max(6, Math.round((form / maxDaily) * 100)) : 0;
+          const label = String(it.date || '').slice(5).replace('-', '/');
+          return `<span class="admin-visitor-daybar" title="${esc(String(it.date || ''))}：普通 ${adminVisitorNumber(guest)} / 填单 ${adminVisitorNumber(form)}">
+            <span class="admin-visitor-bar-pair">
+              <i class="admin-visitor-bar-guest" style="height:${guestH}%"><b>${adminVisitorNumber(guest)}</b></i>
+              <i class="admin-visitor-bar-phone" style="height:${formH}%"><b>${adminVisitorNumber(form)}</b></i>
+            </span>
+            <small>${esc(label || '-')}</small>
+          </span>`;
+        }).join('')}</div>`;
+      }
+      const summary = data.range
+        ? `<p class="muted">精确每日数据：${esc(data.range.start_date || '-')} 至 ${esc(data.range.end_date || '-')}；外部卡片用 ${adminVisitorNumber(buckets.length || daily.length)} 段做粗略预览。</p>`
+        : '';
+      openAdminDetailLightbox(title, `<div class="admin-visitor-chart-detail">${summary}${visual}${adminVisitorDailyTableHtml(daily)}</div>`);
+    }
+
     function adminVisitorCurrentOrigin() {
       const origin = String(window.location && window.location.origin || '').trim();
       return origin && origin !== 'null' ? origin : '';
@@ -13520,6 +13618,7 @@
     function renderAdminVisitorDashboard(data) {
       const root = document.getElementById('admin-visitor-dashboard');
       if (!root) return;
+      adminVisitorLatestDashboardData = data || null;
       const totals = data && data.totals ? data.totals : {};
       const daily = Array.isArray(data && data.daily) ? data.daily : [];
       const buckets = Array.isArray(data && data.buckets) && data.buckets.length ? data.buckets : daily;
@@ -13561,19 +13660,19 @@
         </section>
         <section class="admin-visitor-chart-grid">
           <article class="admin-visitor-card">
-            <div class="admin-visitor-card-head"><h4>去重進入柱狀圖</h4><span>${adminVisitorNumber(buckets.length)} 段</span></div>
+            <div class="admin-visitor-card-head"><h4>去重進入柱狀圖</h4><button type="button" class="admin-visitor-chart-zoom" onclick="openAdminVisitorChartDetail('bar')">放大查看</button><span>${adminVisitorNumber(buckets.length)} 段</span></div>
             <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>填单游客</span></div>
             <div class="admin-visitor-chart">${dayBars || '<p class="muted">沒有趨勢資料。</p>'}</div>
           </article>
           <article class="admin-visitor-card">
-            <div class="admin-visitor-card-head"><h4>訪客曲線圖</h4><span>普通 / 填单</span></div>
+            <div class="admin-visitor-card-head"><h4>訪客曲線圖</h4><button type="button" class="admin-visitor-chart-zoom" onclick="openAdminVisitorChartDetail('line')">放大查看</button><span>普通 / 填单</span></div>
             <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>填单游客</span></div>
             ${adminVisitorRenderLineChart(buckets, maxDaily)}
           </article>
           <article class="admin-visitor-card admin-visitor-card--pie">
-            <div class="admin-visitor-card-head"><h4>游客结构饼图</h4><span>普通 / 填单</span></div>
+            <div class="admin-visitor-card-head"><h4>游客结构饼图</h4><span>总表 / 每日表</span></div>
             <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>填单游客</span></div>
-            ${adminVisitorRenderPieChart(totals)}
+            ${adminVisitorRenderPieBoard(totals, daily)}
           </article>
         </section>
         `;
@@ -13681,6 +13780,94 @@
         ${limited}`;
     }
 
+    function adminVisitorFilledFieldsHtml(fields) {
+      const rows = Array.isArray(fields) ? fields : [];
+      if (!rows.length) return '<span class="muted">未留下结构化字段</span>';
+      return `<div class="admin-visitor-filled-fields">${rows.slice(0, 10).map((field) => {
+        const label = String(field.label || field.key || '字段');
+        const value = String(field.value || '').trim();
+        return `<span><strong>${esc(label)}</strong><em>${esc(value)}</em></span>`;
+      }).join('')}${rows.length > 10 ? `<small>另有 ${adminVisitorNumber(rows.length - 10)} 项，点详情查看</small>` : ''}</div>`;
+    }
+
+    function openAdminVisitorFormDetail(index) {
+      const items = Array.isArray(window.__adminVisitorFormRecords) ? window.__adminVisitorFormRecords : [];
+      const it = items[Number(index)];
+      if (!it) return;
+      const fields = Array.isArray(it.filled_fields) ? it.filled_fields : [];
+      const fieldRows = fields.length
+        ? fields.map((f) => `<tr><th>${esc(String(f.label || f.key || '字段'))}</th><td>${esc(String(f.value || ''))}</td></tr>`).join('')
+        : '<tr><td colspan="2" class="muted">沒有可顯示的填寫字段。</td></tr>';
+      const html = `<div class="admin-table-scroll">
+        <table class="admin-visitor-record-table admin-visitor-form-detail-table">
+          <tbody>
+            <tr><th>ID</th><td>#${adminVisitorNumber(it.id || 0)}</td></tr>
+            <tr><th>创建时间</th><td>${esc(it.created_at || '-')}</td></tr>
+            <tr><th>联系方式</th><td>${esc(it.contact || '-')}</td></tr>
+            ${fieldRows}
+          </tbody>
+        </table>
+      </div>`;
+      openAdminDetailLightbox(`填单游客 #${adminVisitorNumber(it.id || 0)}`, html);
+    }
+
+    function renderAdminVisitorFormRecords(data) {
+      const root = document.getElementById('admin-visitor-records');
+      if (!root) return;
+      const items = Array.isArray(data && data.items) ? data.items : [];
+      window.__adminVisitorFormRecords = items;
+      const pageInfo = data && data.pagination ? data.pagination : {};
+      if (!items.length) {
+        root.innerHTML = '<p class="muted admin-visitor-empty">目前沒有填单游客记录。</p>';
+        return;
+      }
+      const rows = items.map((it, idx) => {
+        const page = Number(pageInfo.page || 1);
+        const pageSize = Number(pageInfo.page_size || items.length || 20);
+        const no = (page - 1) * pageSize + idx + 1;
+        return `<tr>
+          <td>${adminVisitorNumber(no)}</td>
+          <td class="admin-visitor-record-primary"><strong>#${adminVisitorNumber(it.id || 0)}</strong><span>${esc(it.created_at || '-')}</span></td>
+          <td>${esc(it.name || '未填稱呼')}</td>
+          <td>${esc(it.contact || '-')}</td>
+          <td>${adminVisitorFilledFieldsHtml(it.filled_fields)}</td>
+          <td><button type="button" class="secondary" onclick="openAdminVisitorFormDetail(${idx})">详情</button></td>
+        </tr>`;
+      }).join('');
+      root.innerHTML = `
+        <div class="admin-visitor-record-summary">共 ${adminVisitorNumber(pageInfo.total_records || 0)} 组填单游客，当前第 ${adminVisitorNumber(pageInfo.page || 1)} / ${adminVisitorNumber(pageInfo.total_pages || 1)} 页。</div>
+        <div class="admin-table-scroll">
+          <table class="admin-visitor-record-table admin-visitor-form-record-table">
+            <thead><tr><th>#</th><th>留单</th><th>称呼</th><th>联系方式</th><th>实际填写资料</th><th>操作</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${adminPagerHtml(pageInfo.page || 1, pageInfo.total_pages || 0, 'loadAdminVisitorRecords')}`;
+    }
+
+    function switchAdminVisitorRecordsMode(mode) {
+      adminVisitorRecordsMode = String(mode || 'guest') === 'form' ? 'form' : 'guest';
+      const guestBtn = document.getElementById('admin-visitor-records-guest-btn');
+      const formBtn = document.getElementById('admin-visitor-records-form-btn');
+      if (guestBtn) {
+        const active = adminVisitorRecordsMode === 'guest';
+        guestBtn.classList.toggle('is-active', active);
+        guestBtn.setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      if (formBtn) {
+        const active = adminVisitorRecordsMode === 'form';
+        formBtn.classList.toggle('is-active', active);
+        formBtn.setAttribute('aria-selected', active ? 'true' : 'false');
+      }
+      const title = document.getElementById('admin-visitor-detail-title');
+      const subtitle = document.getElementById('admin-visitor-detail-subtitle');
+      if (title) title.textContent = adminVisitorRecordsMode === 'form' ? '填单游客表格' : '普通游客表格';
+      if (subtitle) subtitle.textContent = adminVisitorRecordsMode === 'form'
+        ? '只展示客户实际填写过的字段，未填写的内容不会占位'
+        : '按同一 IP / 日期归并，只显示未填单的普通游客';
+      loadAdminVisitorRecords(1);
+    }
+
     async function loadAdminVisitorRecords(page = 1, showStatus = true) {
       const status = document.getElementById('admin-visitor-detail-status');
       const root = document.getElementById('admin-visitor-records');
@@ -13693,11 +13880,16 @@
       }
       if (showStatus && status) status.textContent = '记录載入中…';
       try {
-        const res = await adminFetchApi(`/api/admin/visitor-records?days=${encodeURIComponent(days)}&page=${encodeURIComponent(String(page || 1))}&page_size=${encodeURIComponent(pageSize)}`, {
+        const mode = adminVisitorRecordsMode === 'form' ? 'form' : 'guest';
+        const endpoint = mode === 'form'
+          ? `/api/admin/support-contact-users?days=${encodeURIComponent(days)}&page=${encodeURIComponent(String(page || 1))}&page_size=${encodeURIComponent(pageSize)}`
+          : `/api/admin/visitor-records?days=${encodeURIComponent(days)}&page=${encodeURIComponent(String(page || 1))}&page_size=${encodeURIComponent(pageSize)}&kind=guest`;
+        const res = await adminFetchApi(endpoint, {
           headers: adminApiHeaders(false),
         });
         const data = await parseApiResponseSafe(res);
-        renderAdminVisitorRecords(data);
+        if (mode === 'form') renderAdminVisitorFormRecords(data);
+        else renderAdminVisitorRecords(data);
         if (status) status.textContent = `已載入 ${adminVisitorNumber(data.pagination?.total_records || 0)} 组进入记录。`;
       } catch (err) {
         if (status) status.textContent = `记录載入失敗：${formatApiError(err)}`;

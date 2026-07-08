@@ -49,12 +49,6 @@
       {% if is_restricted %}
       <p class="article-warn" style="margin-top:0.65rem;">此來源內文可能不完整；請以來源官網為準，並交叉比對 SUUMO／HOMES／AtHome。</p>
       {% endif %}
-      <div class="case-smart-cs-dock" aria-label="智能客服與顧問">
-        {% if item.source_item_id %}
-        <a class="case-smart-cs-fab" href="/?open_support=1&amp;case_sid={{ item.source_item_id }}" title="開啟首頁智能客服並帶入案件編號">智能客服</a>
-        {% endif %}
-        <a class="case-advisor-fab" href="/#advisor-workbench-panel" title="首頁顧問工作台填單">顧問填單</a>
-      </div>
     </header>
 
     <section id="article-translation" class="panel article-dual-block">
@@ -133,18 +127,6 @@
       </div>
     </section>
 
-    {% set _display_imgs = article_display_images or [] %}
-    {% if _display_imgs %}
-    <section class="panel">
-      <h2 class="article-section-title">參考圖像</h2>
-      <div class="case-image-grid">
-        {% for u in _display_imgs %}
-          <figure class="case-image-cell"><a href="{{ u }}" target="_blank" rel="nofollow noopener"><img src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="" loading="lazy" referrerpolicy="no-referrer"></a></figure>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
     <section class="panel article-bottom-hub" id="article-more">
       <h2 class="article-section-title">相關案件與新聞連結</h2>
       <p class="muted">優先顯示與日本不動產物件／行情關聯較高的站內條目，並可一鍵回到來源站比對。</p>
@@ -153,11 +135,12 @@
         {% for n in related_news %}
         <article class="article-related-card">
           {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
-          {% if n.thumb_url %}
           <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
-            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('.article-related-thumb')?.remove();">
+            {% if n.thumb_url %}
+            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-empty'); this.remove();">
+            {% endif %}
+            <span class="article-related-thumb-fallback">圖片暫不可用</span>
           </a>
-          {% endif %}
           <div class="article-related-card-head">
             {% if n.source_content_kind == 'jp_listing' %}
             <span class="article-badge-case">案件</span>

@@ -15436,6 +15436,66 @@ def _support_contact_user_totals(conn: sqlite3.Connection, *, start_text: str, t
     }
 
 
+def _support_contact_field_rows(row: dict[str, Any]) -> list[dict[str, str]]:
+    """Return only fields the visitor actually filled, preserving useful labels."""
+    q = _decode_handoff_json_dict(row.get("questionnaire_json"))
+    field_specs = [
+        ("name", "稱呼", row.get("name")),
+        ("phone", "電話", row.get("phone")),
+        ("email", "電子信箱", row.get("email")),
+        ("contact_line", "LINE", q.get("contact_line")),
+        ("contact_wechat", "微信", q.get("contact_wechat")),
+        ("contact_line_wechat", "LINE/微信", q.get("contact_line_wechat")),
+        ("contact_phone_region_code", "電話區碼", q.get("contact_phone_region_code")),
+        ("contact_phone_local", "電話號碼", q.get("contact_phone_local")),
+        ("purchase_purpose", "購買目的", q.get("purchase_purpose")),
+        ("purchase_purpose_other", "購買目的補充", q.get("purchase_purpose_other")),
+        ("budget_total_yen", "總預算（日幣）", q.get("budget_total_yen")),
+        ("down_payment_yen", "自備款（日幣）", q.get("down_payment_yen")),
+        ("loan_need", "貸款需求", q.get("loan_need")),
+        ("income_source", "收入來源", q.get("income_source")),
+        ("income_source_other", "收入來源補充", q.get("income_source_other")),
+        ("annual_income_twd", "年收入", q.get("annual_income_twd")),
+        ("target_region", "投資地區", q.get("target_region")),
+        ("target_region_other", "投資地區補充", q.get("target_region_other")),
+        ("property_type", "物件類型", q.get("property_type")),
+        ("purchase_time", "購買時間", q.get("purchase_time")),
+        ("viewing_intent", "看房意願", q.get("viewing_intent")),
+        ("loan_eval_interest", "貸款評估", q.get("loan_eval_interest")),
+        ("interest_pick_summary", "勾選案件", q.get("interest_pick_summary")),
+        ("other_questions", "其他需求", q.get("other_questions")),
+        ("note", "備註", row.get("note")),
+        ("context_message", "諮詢內容", row.get("context_message")),
+        ("opinion", "顧問意見", row.get("opinion")),
+        ("matched_scene_label", "命中場景", row.get("matched_scene_label")),
+        ("action_id", "轉接動作", row.get("action_id")),
+        ("session_id", "Session", row.get("session_id")),
+    ]
+    if "consent_agreed" in q:
+        field_specs.append(("consent_agreed", "同意聲明", "是" if bool(q.get("consent_agreed")) else "否"))
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for key, label, value in field_specs:
+        if isinstance(value, (dict, list)):
+            try:
+                text = json.dumps(value, ensure_ascii=False)
+            except Exception:
+                text = str(value)
+        elif isinstance(value, bool):
+            text = "是" if value else "否"
+        else:
+            text = str(value or "").strip()
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text or text in {"-", "—", "[]", "{}"}:
+            continue
+        dedupe_key = (str(label), text)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        rows.append({"key": str(key), "label": str(label), "value": text[:1200]})
+    return rows
+
+
 @app.get("/api/admin/visitor-dashboard")
 def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, ge=1, le=365)):
     _require_admin_password(request)
@@ -15719,6 +15779,7 @@ def api_admin_support_contact_users(
             SELECT
               id, name, phone, email, note, action_id, session_id,
               matched_scene_label, context_message, opinion,
+              questionnaire_json,
               COALESCE(LENGTH(conversation_json), 0) AS conversation_chars,
               created_at
             FROM human_handoff_requests
@@ -15736,6 +15797,7 @@ def api_admin_support_contact_users(
             str(d.get("email") or "").strip(),
         ]
         contact_text = " / ".join([x for x in contact_bits if x]) or "已留其他資料"
+        filled_fields = _support_contact_field_rows(d)
         items.append(
             {
                 "id": int(d.get("id") or 0),
@@ -15748,6 +15810,7 @@ def api_admin_support_contact_users(
                 "session_id": str(d.get("session_id") or "").strip()[:120],
                 "matched_scene_label": str(d.get("matched_scene_label") or "").strip()[:120],
                 "note": str(d.get("note") or d.get("opinion") or d.get("context_message") or "").strip()[:180],
+                "filled_fields": filled_fields,
                 "conversation_chars": int(d.get("conversation_chars") or 0),
             }
         )
@@ -15803,6 +15866,7 @@ def api_admin_visitor_records(
     days: int = Query(default=14, ge=1, le=365),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=10, le=100),
+    kind: str = Query(default="all", max_length=20),
 ):
     _require_admin_password(request)
     range_days = _visitor_dashboard_days(days)
@@ -15812,6 +15876,18 @@ def api_admin_visitor_records(
     start_text = start_date.isoformat()
     path_sql, path_params = _visitor_path_where_clause()
     human_sql = _visitor_human_event_where_clause()
+    kind_norm = str(kind or "all").strip().lower()
+    if kind_norm in {"normal", "ordinary"}:
+        kind_norm = "guest"
+    if kind_norm in {"form", "phone", "phone_login"}:
+        kind_norm = "form_filled"
+    kind_clause = ""
+    if kind_norm == "guest":
+        kind_clause = " AND COALESCE(visitor_kind, 'guest') NOT IN ('form_filled', 'phone_login')"
+    elif kind_norm == "form_filled":
+        kind_clause = " AND COALESCE(visitor_kind, 'guest') IN ('form_filled', 'phone_login')"
+    else:
+        kind_norm = "all"
     with get_conn() as conn:
         conn.execute("DELETE FROM site_visitor_events WHERE event_date < ?", (_visitor_retention_cutoff(today),))
         conn.commit()
@@ -15827,7 +15903,7 @@ def api_admin_visitor_records(
                   ELSE 'guest'
                 END AS visitor_kind
               FROM site_visitor_events
-              WHERE event_date >= ?{path_sql}{human_sql}
+              WHERE event_date >= ?{path_sql}{human_sql}{kind_clause}
               GROUP BY
                 event_date,
                 ip_hash,
@@ -15859,7 +15935,7 @@ def api_admin_visitor_records(
               COUNT(*) AS entry_count,
               GROUP_CONCAT(DISTINCT path) AS paths
             FROM site_visitor_events
-            WHERE event_date >= ?{path_sql}{human_sql}
+            WHERE event_date >= ?{path_sql}{human_sql}{kind_clause}
             GROUP BY
               event_date,
               ip_hash,
@@ -15905,6 +15981,7 @@ def api_admin_visitor_records(
                 "raw_total_pages": raw_total_pages,
                 "max_pages": max_pages,
                 "has_more_beyond_limit": raw_total_pages > max_pages,
+                "kind": kind_norm,
             },
             "items": items,
         }
@@ -35518,6 +35595,8 @@ def _related_article_thumb_url(row: dict[str, Any]) -> str:
         cached_path = _url_to_local_static_path(cached)
         if cached and cached_path and cached_path.is_file():
             return cached
+        _case_image_prefetch([norm], limit=1)
+        return norm
     return ""
 
 
