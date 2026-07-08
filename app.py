@@ -29822,7 +29822,7 @@ def _normalize_selected_case_fast_service_meta(meta: dict[str, Any] | None) -> d
     base["active"] = True
     base["mode"] = "queueing"
     base["wait_minutes"] = 0
-    base["wait_seconds"] = 10
+    base["wait_seconds"] = 5
     base["service_label"] = f"工號{code}｜{name}" if code or name else "線上客服"
     if code or name:
         base["display_text"] = f"目前由工號{code}{name}{f'（{title}）' if title else ''}先為您接待。"
