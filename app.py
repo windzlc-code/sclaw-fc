@@ -5103,6 +5103,13 @@ def _home_featured_image_unsuitable_reason(item: dict[str, Any]) -> str:
     path = _url_to_local_static_path(thumb)
     if not path or not path.is_file():
         return ""
+    local_issue = _case_gallery_local_quality_issue(thumb)
+    if local_issue:
+        reason = f"local-quality:{local_issue.get('category') or 'issue'}"
+        if len(_HOME_FEATURED_IMAGE_UNSUITABLE_CACHE) >= _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE_MAX:
+            _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE.clear()
+        _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE[thumb] = reason
+        return reason
     try:
         from PIL import Image  # type: ignore
     except ImportError:
@@ -5838,6 +5845,13 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
         for item in list((hot_payload or {}).get("items") or [])
         if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
     ]
+    if isinstance(hot_payload, dict):
+        fixed["home_featured_preload"] = {
+            **hot_payload,
+            "items": hot_items[:180],
+            "next_offset": min(12, len(hot_items)),
+            "has_more": len(hot_items) > 12,
+        }
     if len(generic_items) >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS:
         if isinstance(generic_payload, dict):
             type_payloads[""] = {
