@@ -35807,6 +35807,49 @@ def _related_articles_lite_fallback_rows(
     return out[:rel_limit]
 
 
+def _related_articles_lite_visual_backfill_rows(
+    conn: sqlite3.Connection, item: dict[str, Any], *, limit: int = 8
+) -> list[Any]:
+    """Broad final pool for related cards that must have usable thumbnails.
+
+    Some sparse areas do not have eight strongly related rows. The related-card
+    UI is still visual navigation, so use recent jp_listing rows with media as a
+    final fill source and let _related_article_thumb_url reject bad/non-property
+    images.
+    """
+    sid = int(item.get("source_item_id") or 0)
+    rel_limit = max(1, min(240, int(limit or 8)))
+    try:
+        return conn.execute(
+            """
+            SELECT
+                c.source_item_id, c.seo_slug, c.seo_title, c.region_code, c.topic_category,
+                c.intent_target, c.updated_at,
+                s.source_name, s.item_url, s.access_status,
+                s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
+                s.thumbnail_url, s.hero_image_url,
+                COALESCE(c.listing_media_json, '[]') AS listing_media_json,
+                COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
+            FROM content_items c
+            JOIN source_items s ON s.id = c.source_item_id
+            WHERE c.source_item_id <> ?
+              AND TRIM(COALESCE(c.seo_slug, '')) <> ''
+              AND COALESCE(s.content_kind, '') = 'jp_listing'
+              AND (
+                TRIM(COALESCE(s.image_urls, '')) <> ''
+                OR TRIM(COALESCE(s.thumbnail_url, '')) <> ''
+                OR TRIM(COALESCE(s.hero_image_url, '')) <> ''
+                OR TRIM(COALESCE(c.listing_media_json, '[]')) NOT IN ('', '[]')
+              )
+            ORDER BY c.updated_at DESC, c.id DESC
+            LIMIT ?
+            """,
+            (sid, rel_limit),
+        ).fetchall()
+    except Exception:
+        return []
+
+
 def _related_articles_lite_for_item(
     conn: sqlite3.Connection, item: dict[str, Any], *, limit: int = 8
 ) -> list[dict[str, Any]]:
@@ -35818,19 +35861,30 @@ def _related_articles_lite_for_item(
         rows = list(rows) + _related_articles_lite_fallback_rows(conn, item, limit=rel_limit * 2)
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for row in rows:
+
+    def add_row(row: Any) -> None:
+        if len(out) >= rel_limit:
+            return
         d = _related_article_row_lite(row)
         # Related cards are visual navigation. If a candidate cannot provide a
         # usable thumbnail, skip it instead of showing a broken placeholder card.
         if not str(d.get("thumb_url") or "").strip():
-            continue
+            return
         key = str(d.get("article_path") or d.get("case_path") or "")
         if not key or key in seen:
-            continue
+            return
         seen.add(key)
         out.append(d)
+
+    for row in rows:
+        add_row(row)
         if len(out) >= rel_limit:
             break
+    if len(out) < rel_limit:
+        for row in _related_articles_lite_visual_backfill_rows(conn, item, limit=rel_limit * 80):
+            add_row(row)
+            if len(out) >= rel_limit:
+                break
     return out
 
 
