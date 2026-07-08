@@ -35097,7 +35097,7 @@ def source_case_page(request: Request, source_item_id: int):
         with get_conn() as conn:
             case_related_item = _case_related_item_for_source(conn, int(source_item_id))
             if case_related_item:
-                case_related_news = _related_articles_lite_for_item(conn, case_related_item, limit=6)
+                case_related_news = _related_articles_lite_for_item(conn, case_related_item, limit=8)
     context = {
         **_site_standalone_context(request),
         "item": item,
