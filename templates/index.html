@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260709-lower-mobile-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260709-mobile-full-center-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -2883,12 +2883,12 @@
       resetFigureFiltersForTypeOnlySearch();
       const propertyType = setFigurePropertyTypeOnly(el?.getAttribute('data-room-property-type') || '');
       if (typeof setHomeInternalView === 'function') {
-        setHomeInternalView('workbench', { targetId: 'query-dialog', persist: true, scroll: false, instant: true });
+        setHomeInternalView('workbench', { targetId: 'query-dialog', persist: true, scroll: false, instant: true, historyMode: 'push' });
       } else {
         document.body?.classList.add('home-view-workbench');
       }
       if (typeof setJpWorkbenchTab === 'function') {
-        setJpWorkbenchTab('query', { persist: true, scroll: false, instant: true });
+        setJpWorkbenchTab('query', { persist: false, scroll: false, instant: true });
       }
       if (typeof setSmartQueryMainTab === 'function') {
         try {
@@ -8164,13 +8164,13 @@
 
     function scrollToFigureResults() {
       if (typeof setHomeInternalView === 'function') {
-        setHomeInternalView('workbench', { targetId: 'figure-results', persist: true, scroll: false, instant: true });
+        setHomeInternalView('workbench', { targetId: 'figure-results', persist: false, scroll: false, instant: true });
       } else {
         document.body?.classList.add('home-view-workbench');
         document.body?.classList.remove('home-view-default');
       }
       if (typeof setJpWorkbenchTab === 'function') {
-        setJpWorkbenchTab('query', { persist: true, scroll: false });
+        setJpWorkbenchTab('query', { persist: false, scroll: false });
       }
       const el = document.getElementById('figure-results');
       if (!el) return;
@@ -30050,14 +30050,21 @@
 	        }
 	      }
 		      if (options.persist !== false && window.history && window.location) {
-		        const workbenchTarget = targetId === 'query-dialog' || targetId === 'figure-results' ? `#${targetId}` : '#jp-map-hub';
-		        const nextHash = showWorkbench ? workbenchTarget : '#home-hero-heading';
-	        const base = `${window.location.pathname}${window.location.search}`;
-	        try {
-	          if (isCleanHomepagePath()) cleanHomepageAddressBar();
-	          else window.history.replaceState(null, '', `${base}${nextHash}`);
-	        } catch (_) {}
-	      }
+			        const workbenchTarget = targetId === 'query-dialog' || targetId === 'figure-results' ? `#${targetId}` : '#jp-map-hub';
+			        const nextHash = showWorkbench ? workbenchTarget : '#home-hero-heading';
+		        const base = `${window.location.pathname}${window.location.search}`;
+		        const nextUrl = `${base}${nextHash}`;
+		        const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+		        try {
+		          if (options.historyMode === 'push') {
+		            if (currentUrl !== nextUrl) window.history.pushState(null, '', nextUrl);
+		          } else if (isCleanHomepagePath()) {
+		            cleanHomepageAddressBar();
+		          } else {
+		            window.history.replaceState(null, '', nextUrl);
+		          }
+		        } catch (_) {}
+		      }
 	    }
 	    window.setHomeInternalView = setHomeInternalView;
 
@@ -30065,16 +30072,19 @@
 	      if (window.__sclawHomeInternalViewSwitchBound) return;
 	      window.__sclawHomeInternalViewSwitchBound = true;
 	      const workbenchHashes = new Set(['#jp-map-hub', '#query-dialog', '#figure-results']);
-		      const syncFromHash = (instant = true) => {
-		        const hash = String(window.location.hash || '');
-		        if (workbenchHashes.has(hash)) {
-		          setHomeInternalView('workbench', {
-		            targetId: hash.slice(1),
-		            instant,
-		            scroll: true,
-		          });
-		        }
-		      };
+			      const syncFromHash = (instant = true) => {
+			        const hash = String(window.location.hash || '');
+			        if (workbenchHashes.has(hash)) {
+			          setHomeInternalView('workbench', {
+			            targetId: hash.slice(1),
+			            instant,
+			            scroll: true,
+			            persist: false,
+			          });
+			        } else if (!hash && isCleanHomepagePath()) {
+			          setHomeInternalView('home', { instant, scroll: false, persist: false });
+			        }
+			      };
 		      document.addEventListener('click', (evt) => {
 		        const placeholder = evt.target instanceof Element ? evt.target.closest('[data-nav-placeholder="true"]') : null;
 		        if (placeholder) {
