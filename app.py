@@ -1770,7 +1770,7 @@ def _run_cache_maintenance_once(*, dry_run: bool = False) -> dict[str, Any]:
         lock_fd: int | None = None
         try:
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-            stale_after = _env_float("SCLAW_CACHE_MAINTENANCE_LOCK_STALE_SEC", 2 * 3600.0, min_value=300.0)
+            stale_after = _env_float("SCLAW_CACHE_MAINTENANCE_LOCK_STALE_SEC", 15 * 60.0, min_value=300.0)
             if _CACHE_MAINTENANCE_LOCK_FILE.exists():
                 age = time.time() - _CACHE_MAINTENANCE_LOCK_FILE.stat().st_mtime
                 if age > stale_after:
@@ -1914,10 +1914,12 @@ def _cache_maintenance_loop() -> None:
             with _CACHE_MAINTENANCE_STATUS_LOCK:
                 _CACHE_MAINTENANCE_STATUS["running"] = True
             report = _run_cache_maintenance_once(dry_run=False)
+            skipped = str(report.get("skipped") or "")
             print(
                 "SCLAW: cache maintenance done "
                 f"ok={report.get('ok')} deleted="
-                f"{sum(int((v or {}).get('deleted_files') or 0) for v in (report.get('disk') or {}).values())}",
+                f"{sum(int((v or {}).get('deleted_files') or 0) for v in (report.get('disk') or {}).values())}"
+                f"{' skipped=' + skipped if skipped else ''}",
                 flush=True,
             )
         except Exception as exc:
