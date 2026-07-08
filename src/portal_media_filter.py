@@ -117,11 +117,20 @@ def is_yahoo_non_property_image_url(text: str) -> bool:
         parsed = urlparse(s)
         host = (parsed.netloc or "").lower()
         path = (parsed.path or "").lower()
+        query = deep_unquote(parsed.query or "")
     except Exception:
         host = ""
         path = ""
-    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" in path:
-        return False
+        query = ""
+    if host.endswith("realestate-pctr.c.yimg.jp"):
+        if path.startswith("/ds/realestate-buy-image/no_image/"):
+            return True
+        if "no_image" in path or "noimage" in path:
+            return True
+        if "nf_path=" in query and ("no_image" in query or "noimage" in query):
+            return True
+        if "/realestate-buy-image/bld_image/" in path:
+            return False
     if any(
         tok in hay
         for tok in (

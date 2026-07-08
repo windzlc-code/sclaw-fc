@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260708-mobile-dense-c">
+  <link rel="stylesheet" href="/static/site.css?v=20260709-lower-mobile-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -8163,6 +8163,12 @@
     }
 
     function scrollToFigureResults() {
+      if (typeof setHomeInternalView === 'function') {
+        setHomeInternalView('workbench', { targetId: 'figure-results', persist: true, scroll: false, instant: true });
+      } else {
+        document.body?.classList.add('home-view-workbench');
+        document.body?.classList.remove('home-view-default');
+      }
       if (typeof setJpWorkbenchTab === 'function') {
         setJpWorkbenchTab('query', { persist: true, scroll: false });
       }
@@ -8327,7 +8333,7 @@
           ? portalCaseGalleryUrlsPropertyOnly(item)
           : (Array.isArray(item?.gallery_urls) ? item.gallery_urls : []);
         const thumbs = rawUrls
-          .map((u) => portalListingThumbDisplayUrl(String(u || '').trim(), 240, 160))
+          .map((u) => portalCaseCardThumbDisplayUrl(String(u || '').trim()))
           .filter(Boolean);
         const fulls = rawUrls
           .map((u) => portalListingFullDisplayUrl(String(u || '').trim()))
@@ -17665,6 +17671,12 @@
     }
 
     const LISTING_IMAGE_FALLBACK_URL = '/static/img/listing-image-fallback.svg';
+    const PORTAL_CASE_CARD_THUMB_WIDTH = 560;
+    const PORTAL_CASE_CARD_THUMB_HEIGHT = 740;
+
+    function portalCaseCardThumbDisplayUrl(u) {
+      return portalListingThumbDisplayUrl(u, PORTAL_CASE_CARD_THUMB_WIDTH, PORTAL_CASE_CARD_THUMB_HEIGHT);
+    }
 
     function portalCaseNoImageCopyHtml(mode = 'missing_reference') {
       const title = '暫未提取到參考圖';
@@ -17751,6 +17763,9 @@
         img.setAttribute('data-portal-hero-i', String(i));
         if (i < arr.length && arr[i]) {
           portalCaseHeroImgBeginLoad(img, i === arr.length - 1 ? '正在改用最後一張備援縮圖。' : '原圖回應較慢，正在改用備援縮圖。');
+          img.removeAttribute('srcset');
+          img.removeAttribute('sizes');
+          img.loading = 'eager';
           img.src = arr[i];
           return;
         }
@@ -17772,6 +17787,9 @@
       }
       if (img.src !== LISTING_IMAGE_FALLBACK_URL) {
         img.onerror = null;
+        img.removeAttribute('srcset');
+        img.removeAttribute('sizes');
+        img.loading = 'eager';
         img.src = LISTING_IMAGE_FALLBACK_URL;
       }
     }
@@ -23483,7 +23501,7 @@
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
     const HOME_FEATURED_TYPE_PRELOADS = {{ home_featured_type_preloads|default({})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v23.';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v24.imageLoading.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
@@ -24736,10 +24754,10 @@
         const av = (sourceDisplay || '?').slice(0, 1);
         const galsProp = portalCaseGalleryUrlsPropertyOnly(it);
         const mainRaw = galsProp.length ? String(galsProp[0]).trim() : '';
-        const mainSrc = mainRaw ? portalListingThumbDisplayUrl(mainRaw, 240, 160) : LISTING_IMAGE_FALLBACK_URL;
+        const mainSrc = mainRaw ? portalCaseCardThumbDisplayUrl(mainRaw) : LISTING_IMAGE_FALLBACK_URL;
         const mainFullSrc = mainRaw ? portalListingFullDisplayUrl(mainRaw) : mainSrc;
         const galleryThumbUrls = galsProp
-          .map((u) => portalListingThumbDisplayUrl(String(u || '').trim(), 240, 160))
+          .map((u) => portalCaseCardThumbDisplayUrl(String(u || '').trim()))
           .filter(Boolean);
         const galleryFullUrls = galsProp
           .map((u) => portalListingFullDisplayUrl(String(u || '').trim()))
@@ -24761,7 +24779,7 @@
           .slice(0, 6)
           .map((u, ix) => {
             const raw = String(u || '').trim();
-            const su = galleryThumbUrls[ix] || portalListingThumbDisplayUrl(raw, 240, 160);
+            const su = galleryThumbUrls[ix] || portalCaseCardThumbDisplayUrl(raw);
             const fu = galleryFullUrls[ix] || portalListingFullDisplayUrl(raw) || su;
             if (!su) return '';
             return `<button type="button" class="portal-suumo-card-image-dot${ix === 0 ? ' is-active' : ''}" data-card-img-src="${esc(su)}" data-card-img-full="${esc(fu)}" aria-label="查看第 ${ix + 1} 張圖片" aria-selected="${ix === 0 ? 'true' : 'false'}"></button>`;
@@ -24779,8 +24797,9 @@
         const noImageCopyHtml = portalCaseNoImageCopyHtml(hasReferenceImage ? 'fetch_failed' : 'missing_reference');
         const imageMetaText = esc([it.area_text_hant, it.layout_text_hant].map((x) => String(x || '').trim()).filter(Boolean).join(' ｜ ') || sub || '日本不動產');
         const imageWarm = hasReferenceImage && typeof isFigureCaseMediaWarm === 'function' && isFigureCaseMediaWarm(mainSrc);
-        const imageLoading = index < 2 || imageWarm ? 'eager' : 'lazy';
-        const imageFetchPriority = index < 1 || imageWarm ? 'high' : 'low';
+        const isCurrentResultPageImage = index < 12;
+        const imageLoading = isCurrentResultPageImage || imageWarm ? 'eager' : 'lazy';
+        const imageFetchPriority = index < 6 || imageWarm ? 'high' : 'low';
         const caseSidAttr = sid > 0 ? ` data-case-sid="${sid}"` : '';
         const mediaBlock = mainSrc
           ? `<div class="figure-case-thumb portal-suumo-card-media${hasReferenceImage ? ' portal-suumo-card-media--loading' : ''}${mediaFallbackClass}" data-gallery-thumb="${galleryThumbAttr}" data-gallery-full="${galleryFullAttr}"${caseSidAttr}>

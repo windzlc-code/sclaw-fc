@@ -5833,7 +5833,7 @@ _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS = 600.0
 _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v17-spotlight-seven"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v18-image-loading"
 _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS = 7
 _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # Representative card images are intentionally fixed/static. Keep the preload
@@ -9843,7 +9843,7 @@ def _row_image_url_is_usable(u: str) -> bool:
         # Yahoo also serves genuine listing photos through opaque signed paths
         # such as /mREG... without a file extension. They are same-source media
         # and should not be rejected only because the URL lacks ".jpg".
-        if path.startswith("/ds/realestate-buy-image/no_image/"):
+        if _is_yahoo_noimage_fallback_listing_url(u):
             return False
         if "/realestate-buy-image/" in path:
             return any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))
@@ -10048,6 +10048,30 @@ def _is_truncated_listing_image_url(text: str) -> bool:
     return False
 
 
+def _is_yahoo_noimage_fallback_listing_url(text: str) -> bool:
+    """Yahoo can wrap missing photos in realestate-pctr URLs that still look like JPGs."""
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if not host.endswith("realestate-pctr.c.yimg.jp"):
+        return False
+    try:
+        query = unquote(parsed.query or "").lower()
+    except Exception:
+        query = (parsed.query or "").lower()
+    if path.startswith("/ds/realestate-buy-image/no_image/"):
+        return True
+    if "no_image" in path or "noimage" in path:
+        return True
+    return "nf_path=" in query and ("no_image" in query or "noimage" in query)
+
+
 def _is_case_property_gallery_image_url(u: str) -> bool:
     """案件主相簿只收室內/室外/建物照片；地圖、交通、站台 UI 與平面碎片不進展示與影片素材。"""
     s = str(u or "").strip()
@@ -10066,7 +10090,9 @@ def _is_case_property_gallery_image_url(u: str) -> bool:
     except Exception:
         host = ""
         path = ""
-    if host.endswith("realestate-pctr.c.yimg.jp") and path and not path.startswith("/ds/realestate-buy-image/no_image/"):
+    if host.endswith("realestate-pctr.c.yimg.jp") and _is_yahoo_noimage_fallback_listing_url(s):
+        return False
+    if host.endswith("realestate-pctr.c.yimg.jp") and path:
         return True
     reject_tokens = (
         "map",
@@ -33918,7 +33944,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
             "offset": page_offset if page_size > 0 else 0,
             "page_size": page_size if page_size > 0 else 0,
             "detail_gate": "openable-v1",
-            "media_policy": "detail-panel-gallery-v18-type-media-ignore-price",
+            "media_policy": "detail-panel-gallery-v19-yahoo-noimage-eager",
         }
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)

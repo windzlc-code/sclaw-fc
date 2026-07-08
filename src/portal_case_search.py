@@ -2094,6 +2094,29 @@ def _is_truncated_listing_image_url(text: str) -> bool:
     return False
 
 
+def _is_yahoo_noimage_fallback_listing_url(text: str) -> bool:
+    s = str(text or "").strip()
+    if not s or not s.startswith("http"):
+        return False
+    try:
+        parsed = urlparse(s)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if not host.endswith("realestate-pctr.c.yimg.jp"):
+        return False
+    try:
+        query = unquote(parsed.query or "").lower()
+    except Exception:
+        query = (parsed.query or "").lower()
+    if path.startswith("/ds/realestate-buy-image/no_image/"):
+        return True
+    if "no_image" in path or "noimage" in path:
+        return True
+    return "nf_path=" in query and ("no_image" in query or "noimage" in query)
+
+
 def _is_unfetchable_athome_thumbnail_url(text: str) -> bool:
     """Reject AtHome new-mansion thumbnail endpoints that commonly 404 via proxy.
 
@@ -2130,6 +2153,8 @@ def _is_unfetchable_listing_image_url(text: str) -> bool:
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
     if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path:
+        if _is_yahoo_noimage_fallback_listing_url(s):
+            return True
         return not any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
     if "suumo." in host and "resizeimage" in path:
         try:
