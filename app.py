@@ -5832,7 +5832,8 @@ _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS = 600.0
 _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v16-yahoo-clean-cover"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v17-spotlight-seven"
+_HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS = 7
 _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # Representative card images are intentionally fixed/static. Keep the preload
 # file usable across restarts and daily traffic; external jobs can replace it
@@ -5843,12 +5844,21 @@ _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 30 * 24 * 60 * 60
 def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bool:
     if not isinstance(bundle, dict):
         return False
-    hot_items = ((bundle.get("home_featured_preload") or {}).get("items") or [])
-    if hot_items:
+    hot_items = [
+        item
+        for item in list(((bundle.get("home_featured_preload") or {}).get("items") or []))
+        if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+    ]
+    if len(hot_items) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS:
         return True
     type_payloads = bundle.get("home_featured_type_preloads") or {}
     if isinstance(type_payloads, dict):
-        return any((payload or {}).get("items") for payload in type_payloads.values() if isinstance(payload, dict))
+        generic_items = [
+            item
+            for item in list(((type_payloads.get("") or {}).get("items") or []))
+            if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+        ]
+        return len(generic_items) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS
     return False
 
 
@@ -5873,13 +5883,19 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
         for item in list((hot_payload or {}).get("items") or [])
         if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
     ]
-    if isinstance(hot_payload, dict):
+
+    def set_spotlight_items(items: list[dict[str, Any]]) -> None:
+        if not isinstance(hot_payload, dict) or not items:
+            return
         fixed["home_featured_preload"] = {
             **hot_payload,
-            "items": hot_items[:180],
-            "next_offset": min(12, len(hot_items)),
-            "has_more": len(hot_items) > 12,
+            "ok": True,
+            "items": items[:180],
+            "next_offset": min(12, len(items)),
+            "has_more": len(items) > 12,
         }
+
+    set_spotlight_items(hot_items)
     if len(generic_items) >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS:
         if isinstance(generic_payload, dict):
             type_payloads[""] = {
@@ -5888,6 +5904,8 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
                 "next_offset": min(12, len(generic_items)),
                 "has_more": len(generic_items) > 12,
             }
+        if len(hot_items) < _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS:
+            set_spotlight_items(generic_items)
         return fixed
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -5930,6 +5948,8 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
             "property_type": "",
             "preload_backfilled": True,
         }
+    if len(hot_items) < _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS and len(merged) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS:
+        set_spotlight_items(merged)
     return fixed
 
 

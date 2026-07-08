@@ -23483,7 +23483,7 @@
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
     const HOME_FEATURED_TYPE_PRELOADS = {{ home_featured_type_preloads|default({})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v21.';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v22.';
     const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
@@ -24500,7 +24500,7 @@
       const cachedItems = homeFeaturedPayloadItems(cachedHot);
       const sourcePayload = preloadItems.length ? HOME_FEATURED_PRELOAD : cachedHot;
       const sourceItems = preloadItems.length ? preloadItems : cachedItems;
-      if (!sourceItems.length) return false;
+      if (sourceItems.length < HOME_FEATURED_RECOMMEND_SIZE) return false;
       homeFeaturedCases = sourceItems.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
       homeFeaturedOffset = Number(sourcePayload?.next_offset || homeFeaturedCases.length || 0);
       homeFeaturedBatchOffset = 0;
@@ -24577,7 +24577,7 @@
       const storagePayload = requestOffset === 0 ? homeFeaturedStorageGet(homeFeaturedSpotlightCacheKey(), 0) : null;
       if (!keepExisting && storagePayload) {
         const stored = homeFeaturedPayloadItems(storagePayload);
-        if (stored.length) {
+        if (stored.length >= HOME_FEATURED_RECOMMEND_SIZE) {
           homeFeaturedCases = stored.slice(0, HOME_FEATURED_RECOMMEND_SIZE);
           homeFeaturedOffset = Number(storagePayload.next_offset || homeFeaturedCases.length || 0);
           renderHomeFeaturedCases();
