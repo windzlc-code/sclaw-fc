@@ -41255,6 +41255,20 @@ body.site-article .portal-suumo-gallery-section-grid {
   justify-content: center;
 }
 
+body.site-article .portal-suumo-invest-card--actions-only {
+  align-self: center;
+  padding: 1rem;
+  border-color: rgba(84, 114, 137, 0.16);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 30px rgba(27, 47, 67, 0.08);
+}
+
+body.site-article .portal-suumo-invest-card--actions-only .portal-suumo-case-actions {
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+}
+
 @media (max-width: 820px) {
   body.site-case-standalone main.case-page-suumo {
     padding-top: clamp(14px, 4vw, 24px) !important;

@@ -120,6 +120,7 @@
 {% set nar_zh = body_narrative_zh|default('')|string %}
 {% set nar_jp = body_narrative_jp|default('')|string %}
 {% set sid = source_item_id|default(0)|int %}
+{% set actions_only = portal_suumo_actions_only|default(false) %}
 
 <section class="portal-suumo-listing" id="portal-suumo-detail" aria-label="物件詳情（SUUMO 版型）">
   {% if f.homes_site_trail_jp %}
@@ -191,7 +192,8 @@
       {% endif %}
       {% endfor %}
     </div>
-    <aside class="portal-suumo-invest-card{% if inv.kind == 'rental' %} portal-suumo-invest-card--rental{% endif %}" aria-label="{% if inv.kind == 'rental' %}租賃資料{% else %}收益資料{% endif %}">
+    <aside class="portal-suumo-invest-card{% if inv.kind == 'rental' %} portal-suumo-invest-card--rental{% endif %}{% if actions_only %} portal-suumo-invest-card--actions-only{% endif %}" aria-label="{% if actions_only %}案件操作{% elif inv.kind == 'rental' %}租賃資料{% else %}收益資料{% endif %}">
+      {% if not actions_only %}
       <div class="portal-suumo-invest-head">
         <span class="portal-suumo-invest-badge{% if inv.kind == 'rental' %} portal-suumo-invest-badge--rental{% endif %}">{% if inv.kind == 'rental' %}租賃{% else %}出售{% endif %}</span>
         <span class="portal-suumo-invest-head-copy">收益對比</span>
@@ -246,6 +248,7 @@
       <div class="portal-suumo-invest-note">
         {{ inv.note }}
       </div>
+      {% endif %}
       {% endif %}
       {% if sid > 0 %}
       <div class="portal-suumo-case-actions" data-case-detail-actions>
