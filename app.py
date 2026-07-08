@@ -11384,19 +11384,19 @@ def build_ai_reading_pack(text: str, *, fallback_text: str = "", locale: str = "
     if not points:
         if loc == "hans":
             return {
-                "conclusion": "本站此条中文正文尚未就绪；结论请对照页首标题、摘要或来源官网日文原文。",
+                "conclusion": "本站此条中文正文尚未完整整理；请先对照页首标题、摘要与顾问确认信息。",
                 "must_know": [
                     "税务／表格类主题请以日本国税厅及窗口现场说明为准。",
-                    "页首「开启来源网站」可核对表单名称、适用对象与最新版式。",
+                    "表单名称、适用对象与最新版式需以官方窗口或顾问确认结果为准。",
                 ],
                 "action": ["用站内「智慧查询」补充地区或税种关键字，再交叉比对多篇制度稿。"],
                 "risk": ["不同年度版式与窗口要求可能调整；勿仅凭旧版截图办理。"],
             }
         return {
-            "conclusion": "本站此文繁中正文尚未就緒；結論請對照頁首標題、摘要或來源官網日文原文。",
+            "conclusion": "本站此文繁中正文尚未完整整理；請先對照頁首標題、摘要與顧問確認資訊。",
             "must_know": [
                 "稅務／表單類主題請以日本國稅廳及窗口現場說明為準。",
-                "頁首「開啟來源網站」可核對表單名稱、適用對象與最新版式。",
+                "表單名稱、適用對象與最新版式需以官方窗口或顧問確認結果為準。",
             ],
             "action": ["以站內「智慧查詢」補充地區或稅種關鍵字，再交叉比對多篇制度稿。"],
             "risk": ["不同年度版式與窗口要求可能調整；勿僅憑舊版截圖辦理。"],
@@ -15456,6 +15456,21 @@ def _support_contact_user_totals(conn: sqlite3.Connection, *, start_text: str, t
     }
 
 
+def _support_contact_user_daily_counts(conn: sqlite3.Connection, *, start_text: str) -> dict[str, int]:
+    """Daily submitted-form counts used by visitor charts and the form-user table."""
+    where_sql = _support_contact_user_where_clause()
+    rows = conn.execute(
+        f"""
+        SELECT date(created_at) AS event_date, COUNT(1) AS total
+        FROM human_handoff_requests
+        WHERE {where_sql} AND date(created_at) >= date(?)
+        GROUP BY date(created_at)
+        """,
+        (start_text,),
+    ).fetchall()
+    return {str(row["event_date"]): int(row["total"] or 0) for row in rows}
+
+
 def _support_contact_field_rows(row: dict[str, Any]) -> list[dict[str, str]]:
     """Return only fields the visitor actually filled, preserving useful labels."""
     q = _decode_handoff_json_dict(row.get("questionnaire_json"))
@@ -15606,6 +15621,7 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
             start_text=start_text,
             today_text=today_text,
         )
+        contact_daily_counts = _support_contact_user_daily_counts(conn, start_text=start_text)
         daily_rows = conn.execute(
             f"""
             SELECT
@@ -15631,15 +15647,33 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
     daily_map = {
         str(row["event_date"]): {
             "date": str(row["event_date"]),
-            "entries": int(row["visitors"] or 0),
-            "pageviews": int(row["visitors"] or 0),
-            "unique_visitors": int(row["visitors"] or 0),
-            "visitors": int(row["visitors"] or 0),
+            "entries": int(row["guest_visitors"] or 0),
+            "pageviews": int(row["guest_visitors"] or 0),
+            "unique_visitors": int(row["guest_visitors"] or 0),
+            "visitors": int(row["guest_visitors"] or 0),
             "guest_visitors": int(row["guest_visitors"] or 0),
-            "form_visitors": int(row["form_visitors"] or 0),
+            "form_visitors": 0,
         }
         for row in daily_rows
     }
+    for contact_date, contact_count in contact_daily_counts.items():
+        base = daily_map.setdefault(
+            contact_date,
+            {
+                "date": contact_date,
+                "entries": 0,
+                "pageviews": 0,
+                "unique_visitors": 0,
+                "visitors": 0,
+                "guest_visitors": 0,
+                "form_visitors": 0,
+            },
+        )
+        base["form_visitors"] = int(contact_count or 0)
+        base["unique_visitors"] = int(base.get("guest_visitors") or 0) + int(base.get("form_visitors") or 0)
+        base["visitors"] = int(base["unique_visitors"])
+        base["entries"] = int(base["unique_visitors"])
+        base["pageviews"] = int(base["unique_visitors"])
     daily: list[dict[str, Any]] = []
     for offset in range(range_days):
         d = (start_date + timedelta(days=offset)).isoformat()
@@ -15691,10 +15725,14 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
     while bucket_start <= today:
         bucket_end = min(today, bucket_start + timedelta(days=bucket_span - 1))
         row = bucket_rows.get((bucket_start.isoformat(), bucket_end.isoformat())) or {}
-        entries = int(row.get("entries") or 0)
-        unique_count = int(row.get("unique_visitors") or 0)
         guest_count = int(row.get("guest_visitors") or 0)
-        form_count = int(row.get("form_visitors") or 0)
+        form_count = sum(
+            int(count or 0)
+            for date_text, count in contact_daily_counts.items()
+            if bucket_start.isoformat() <= date_text <= bucket_end.isoformat()
+        )
+        unique_count = guest_count + form_count
+        entries = unique_count
         buckets.append(
             {
                 "label": _visitor_dashboard_date_label(bucket_start, bucket_end),
@@ -15709,20 +15747,21 @@ def api_admin_visitor_dashboard(request: Request, days: int = Query(default=14, 
         )
         bucket_start = bucket_end + timedelta(days=1)
 
-    pageviews = int(totals_row["visitors"] or 0) if totals_row else 0
-    unique_visitors = int(totals_row["visitors"] or 0) if totals_row else 0
     guest_visitors = int(totals_row["guest_visitors"] or 0) if totals_row else 0
-    form_visitors = int(totals_row["form_visitors"] or 0) if totals_row else 0
-    historical_unique = int(historical_row["visitors"] or 0) if historical_row else 0
     historical_guest = int(historical_row["guest_visitors"] or 0) if historical_row else 0
-    historical_form = int(historical_row["form_visitors"] or 0) if historical_row else 0
     avg_elapsed = float(totals_row["avg_elapsed_ms"] or 0) if totals_row else 0.0
-    today_unique = int(today_row["visitors"] or 0) if today_row else 0
     today_guest = int(today_row["guest_visitors"] or 0) if today_row else 0
-    today_form = int(today_row["form_visitors"] or 0) if today_row else 0
+    form_visitors = int(form_filled_totals["range_contacts"] or 0)
+    today_form = int(form_filled_totals["today_contacts"] or 0)
+    historical_form = int(form_filled_totals["historical_contacts"] or 0)
+    unique_visitors = guest_visitors + form_visitors
+    pageviews = unique_visitors
+    historical_unique = historical_guest + historical_form
+    today_unique = today_guest + today_form
     today_entries = today_unique
     yesterday_unique = int(yesterday_row["visitors"] or 0) if yesterday_row else 0
-    yesterday_form = int(yesterday_row["form_visitors"] or 0) if yesterday_row else 0
+    yesterday_form = int(contact_daily_counts.get(yesterday_text, 0) or 0)
+    yesterday_unique = int(yesterday_row["guest_visitors"] or 0) + yesterday_form if yesterday_row else yesterday_form
     delta = today_unique - yesterday_unique
     form_delta = today_form - yesterday_form
 
@@ -35773,6 +35812,10 @@ def _related_articles_lite_for_item(
     seen: set[str] = set()
     for row in rows:
         d = _related_article_row_lite(row)
+        # Related cards are visual navigation. If a candidate cannot provide a
+        # usable thumbnail, skip it instead of showing a broken placeholder card.
+        if not str(d.get("thumb_url") or "").strip():
+            continue
         key = str(d.get("article_path") or d.get("case_path") or "")
         if not key or key in seen:
             continue
@@ -37313,16 +37356,16 @@ def article_page(request: Request, slug: str):
         ai_pack_hans = dict(_ap_base)
     restricted = item.get("access_status") == "restricted" or "需授權或無法抓取" in (item.get("body_zh_hant") or "")
     fallback_guide_hant = [
-        "此來源目前需要授權，系統無法直接抓完整內文。",
+        "此條目目前內容不完整，系統無法直接整理完整內文。",
         "你仍可先用官方資料完成決策：先看國稅廳（稅務）與官方稅務問答。",
         "市場行情請交叉比對 SUUMO、HOMES、AtHome 的同區域物件與租金資訊。",
-        "若要轉成可發布文章：先整理問題清單，再用公開資料補證據，最後附來源連結。",
+        "若要轉成可發布文章：先整理問題清單，再用公開資料補證據，最後附參考依據。",
     ]
     fallback_guide_hans = [
-        "该来源目前需要授权，系统无法直接抓完整内文。",
+        "该条目目前内容不完整，系统无法直接整理完整内文。",
         "你仍可先用官方资料完成决策：先看国税厅（税务）与官方税务问答。",
         "市场行情请交叉比对 SUUMO、HOMES、AtHome 的同区域物件与租金资讯。",
-        "若要转成可发布文章：先整理问题清单，再用公开资料补证据，最后附来源链接。",
+        "若要转成可发布文章：先整理问题清单，再用公开资料补证据，最后附参考依据。",
     ]
     article_smart_keywords = list(LIGHT_KNOWLEDGE_KEYWORDS) + [
         "日本買房 流程",
