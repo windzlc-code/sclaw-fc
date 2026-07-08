@@ -5092,6 +5092,43 @@ def _home_featured_has_display_image(item: dict[str, Any]) -> bool:
     return bool(thumb) and max(int(item.get("image_count") or 0), gallery_count) > 0
 
 
+_HOME_FEATURED_IMAGE_UNSUITABLE_CACHE: dict[str, str] = {}
+_HOME_FEATURED_IMAGE_UNSUITABLE_CACHE_MAX = 3000
+
+
+def _home_featured_image_unsuitable_reason(item: dict[str, Any]) -> str:
+    thumb = str(item.get("thumb_url") or item.get("hero_media_url") or "").strip()
+    if thumb in _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE:
+        return str(_HOME_FEATURED_IMAGE_UNSUITABLE_CACHE.get(thumb) or "")
+    path = _url_to_local_static_path(thumb)
+    if not path or not path.is_file():
+        return ""
+    try:
+        from PIL import Image  # type: ignore
+    except ImportError:
+        return ""
+    try:
+        with Image.open(path) as im0:
+            sample = im0.convert("RGB").resize((96, 96))
+            pixels = list(sample.getdata())
+    except Exception:
+        return ""
+    total = max(1, len(pixels))
+    red_ratio = (
+        sum(
+            1
+            for r, g, b in pixels
+            if r >= 135 and r > g * 1.35 and r > b * 1.35 and g < 145 and b < 145
+        )
+        / total
+    )
+    reason = "facility-or-vending-main-image" if red_ratio >= 0.12 else ""
+    if len(_HOME_FEATURED_IMAGE_UNSUITABLE_CACHE) >= _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE_MAX:
+        _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE.clear()
+    _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE[thumb] = reason
+    return reason
+
+
 def _home_featured_has_display_price(item: dict[str, Any]) -> bool:
     price = str(item.get("price_hint") or item.get("price_text_hant") or "").strip()
     return bool(price) and not _HOME_FEATURED_INVALID_PRICE_RE.search(price)
@@ -5122,6 +5159,7 @@ def _home_featured_item_homepage_eligible(item: dict[str, Any]) -> bool:
     return (
         _home_featured_has_display_image(item)
         and _home_featured_has_display_price(item)
+        and not _home_featured_image_unsuitable_reason(item)
         and _home_featured_supporting_info_score(item) >= 2
     )
 
@@ -5790,9 +5828,24 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
         fixed["home_featured_type_preloads"] = type_payloads
     hot_payload = fixed.get("home_featured_preload") if isinstance(fixed.get("home_featured_preload"), dict) else {}
     generic_payload = type_payloads.get("") if isinstance(type_payloads.get(""), dict) else {}
-    generic_items = list((generic_payload or {}).get("items") or [])
-    hot_items = list((hot_payload or {}).get("items") or [])
+    generic_items = [
+        item
+        for item in list((generic_payload or {}).get("items") or [])
+        if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+    ]
+    hot_items = [
+        item
+        for item in list((hot_payload or {}).get("items") or [])
+        if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+    ]
     if len(generic_items) >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS:
+        if isinstance(generic_payload, dict):
+            type_payloads[""] = {
+                **generic_payload,
+                "items": generic_items[:180],
+                "next_offset": min(12, len(generic_items)),
+                "has_more": len(generic_items) > 12,
+            }
         return fixed
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -5802,6 +5855,8 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
             return
         for item in items:
             if not isinstance(item, dict):
+                continue
+            if not _home_featured_item_homepage_eligible(item):
                 continue
             key = str(item.get("source_item_id") or item.get("case_path") or item.get("title") or "").strip()
             if not key or key in seen:
@@ -5813,8 +5868,9 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
 
     add_items(generic_items)
     add_items(hot_items)
+    generic_backfill_types = {"公寓", "大樓", "華廈", "套房", "別墅/透天", "其他"}
     for key, payload in list(type_payloads.items()):
-        if key == "" or not isinstance(payload, dict):
+        if key == "" or key not in generic_backfill_types or not isinstance(payload, dict):
             continue
         add_items(payload.get("items") or [])
         if len(merged) >= 180:
@@ -5933,7 +5989,9 @@ def _home_featured_cases_payload_from_preload(
     items = [
         item
         for item in list(payload.get("items") or [])
-        if isinstance(item, dict) and int(item.get("source_item_id") or 0) not in excluded_ids
+        if isinstance(item, dict)
+        and int(item.get("source_item_id") or 0) not in excluded_ids
+        and _home_featured_item_homepage_eligible(item)
     ]
     # A stale/static hot preload can be sparse after client-side de-duplication.
     # Property-specific sparse preloads should still return quickly; the client
