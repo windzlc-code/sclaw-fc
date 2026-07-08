@@ -34,102 +34,21 @@
         ｜站內更新 {{ item.updated_at or '-' }}
       </p>
       {% set listing_panel = article_listing_panel %}
-      {% set item_url = item.item_url %}
       {% set hero_fallback = article_hero_thumb %}
       {% set body_narrative_zh = item.body_zh_hant or '' %}
       {% set body_narrative_jp = item.body_original_display or item.body_original or '' %}
       {% set body_narrative = body_narrative_zh|trim if body_narrative_zh|trim else body_narrative_jp %}
       {% set source_item_id = item.source_item_id %}
+      {% set portal_suumo_actions_only = true %}
       {% include 'partials/portal_suumo_listing.html' %}
-      <p class="muted" style="margin:0.5rem 0 0;">圖像取自來源官網公開素材；點主圖另開原物件頁（與 SUUMO 個別案件頁對照）。</p>
-      <div class="article-source-cta-row">
-        <a class="article-btn-primary" href="{{ item.item_url }}" target="_blank" rel="nofollow noopener noreferrer">開啟來源網站（個別案件頁）</a>
-        <a class="article-btn-secondary" href="#article-translation">站內翻譯與重點解說</a>
-      </div>
       {% if is_restricted %}
-      <p class="article-warn" style="margin-top:0.65rem;">此來源內文可能不完整；請以來源官網為準，並交叉比對 SUUMO／HOMES／AtHome。</p>
+      <p class="article-warn" style="margin-top:0.65rem;">此頁部分內容可能不完整；實際條件請以顧問協助確認為準。</p>
       {% endif %}
     </header>
 
-    <section id="article-translation" class="panel article-dual-block">
-      <h2 class="article-section-title">結論</h2>
-      <div class="article-dual-col article-dual-col-tabbed">
-        <div class="article-dual-cell" data-site-lang-pane="hant" data-lang-pane="hant">
-          <p class="article-lead rich-media-from-text">{{ ai_pack_hant.conclusion }}</p>
-        </div>
-        <div class="article-dual-cell" data-site-lang-pane="hans" data-lang-pane="hans" hidden>
-          <p class="article-lead rich-media-from-text">{{ ai_pack_hans.conclusion }}</p>
-        </div>
-      </div>
-
-      <h2 class="article-section-title" style="margin-top:1.25rem;">重點解說</h2>
-      <div class="article-dual-col article-dual-col-tabbed">
-        <div class="article-dual-cell" data-site-lang-pane="hant" data-lang-pane="hant">
-          <h4 class="article-dual-sub">必讀重點</h4>
-          <ul class="article-tight-list">
-            {% for p in ai_pack_hant.must_know %}
-            <li class="rich-media-from-text">{{ p }}</li>
-            {% endfor %}
-          </ul>
-          <h4 class="article-dual-sub">行動建議</h4>
-          <ol class="article-tight-list">
-            {% for p in ai_pack_hant.action %}
-            <li class="rich-media-from-text">{{ p }}</li>
-            {% endfor %}
-          </ol>
-          <h4 class="article-dual-sub">風險提醒</h4>
-          <ul class="article-tight-list">
-            {% for p in ai_pack_hant.risk %}
-            <li class="rich-media-from-text">{{ p }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-        <div class="article-dual-cell" data-site-lang-pane="hans" data-lang-pane="hans" hidden>
-          <h4 class="article-dual-sub">必读重点</h4>
-          <ul class="article-tight-list">
-            {% for p in ai_pack_hans.must_know %}
-            <li class="rich-media-from-text">{{ p }}</li>
-            {% endfor %}
-          </ul>
-          <h4 class="article-dual-sub">行动建议</h4>
-          <ol class="article-tight-list">
-            {% for p in ai_pack_hans.action %}
-            <li class="rich-media-from-text">{{ p }}</li>
-            {% endfor %}
-          </ol>
-          <h4 class="article-dual-sub">风险提醒</h4>
-          <ul class="article-tight-list">
-            {% for p in ai_pack_hans.risk %}
-            <li class="rich-media-from-text">{{ p }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel article-translation-body">
-      <h2 class="article-section-title">來源內容（站內翻譯）</h2>
-      {% if item.title_original %}
-      <p class="muted"><strong>原文標題：</strong>{{ item.title_original }}</p>
-      {% endif %}
-      <p><a href="{{ item.item_url }}" target="_blank" rel="nofollow noopener noreferrer">於來源網站對照閱讀</a></p>
-      <div class="article-lang-pane" data-site-lang-pane="hant" data-lang-pane="hant">
-        {% if article_body_zh_warn_hant %}
-        <p class="muted">此欄位尚未完成中文化（目前為日文占位或摘要尾段）；正式內容請以來源頁原文及上方標題／摘要為準。</p>
-        {% endif %}
-        <div class="article-body prose-block rich-media-from-text">{{ item.body_zh_hant }}</div>
-      </div>
-      <div class="article-lang-pane" data-site-lang-pane="hans" data-lang-pane="hans" hidden>
-        {% if article_body_zh_warn_hans %}
-        <p class="muted">此栏尚未完成中文化（目前为日文占位或摘要尾段）；正式内容请以来源页原文及上方标题／摘要为准。</p>
-        {% endif %}
-        <div class="article-body prose-block rich-media-from-text">{{ item.body_zh_hans }}</div>
-      </div>
-    </section>
-
     <section class="panel article-bottom-hub" id="article-more">
       <h2 class="article-section-title">相關案件與新聞連結</h2>
-      <p class="muted">優先顯示與日本不動產物件／行情關聯較高的站內條目，並可一鍵回到來源站比對。</p>
+      <p class="muted">優先顯示與日本不動產物件／行情關聯較高的站內條目，方便在站內延伸閱讀。</p>
       {% if related_news %}
       <div class="article-related-cards">
         {% for n in related_news %}
@@ -154,7 +73,6 @@
           <p class="article-related-actions">
             {% if n.case_path %}<a href="{{ n.case_path }}">案件頁</a>{% endif %}
             {% if n.article_path %}｜<a href="{{ n.article_path }}">站內說明</a>{% endif %}
-            ｜<a href="{{ n.item_url }}" target="_blank" rel="nofollow noopener noreferrer">來源：{{ n.source_name }}</a>
             {% if n.access_status == "restricted" %}<span class="muted">（需授權）</span>{% endif %}
           </p>
         </article>
@@ -186,9 +104,9 @@
     {% endif %}
 
     <div class="footer-note">
-      本站為摘要與閱讀輔助，事實與契約條件請以<a href="{{ item.item_url }}" rel="nofollow noopener" target="_blank">{{ item.source_name }} 官方頁</a>為準。
+      本站為摘要與閱讀輔助，實際條件與交易細節請以顧問協助確認為準。
       {% if item.access_status == "restricted" %}
-      ｜狀態：需授權／登入後以官網為準
+      ｜狀態：部分內容需進一步確認
       {% endif %}
     </div>
     {% include 'partials/seo_site_keywords_strip.html' %}
