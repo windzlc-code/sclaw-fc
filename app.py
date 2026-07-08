@@ -1536,10 +1536,417 @@ def _url_to_local_static_path(raw_url: Any) -> Path | None:
 
 _CASE_IMAGE_CACHE_DIR = Path("static/cache/case-images")
 _CASE_IMAGE_THUMB_DIR = Path("static/cache/case-thumbs")
+_HOME_CAROUSEL_POSTER_CACHE_DIR = Path("static/cache/home-carousel-posters")
 _CASE_IMAGE_PREFETCH_LOCK = threading.Lock()
 _CASE_IMAGE_PREFETCH_INFLIGHT: set[str] = set()
 _CASE_IMAGE_URL_CACHE: dict[str, str] = {}
 _CASE_IMAGE_URL_CACHE_MAX = 2000
+_CACHE_MAINTENANCE_LOCK = threading.Lock()
+_CACHE_MAINTENANCE_STATUS_LOCK = threading.Lock()
+_CACHE_MAINTENANCE_STATUS: dict[str, Any] = {
+    "ok": True,
+    "started": False,
+    "running": False,
+    "last_run_at": "",
+    "last_finished_at": "",
+    "last_error": "",
+    "last_report": {},
+}
+_CACHE_MAINTENANCE_WORKER_STARTED = False
+_CACHE_MAINTENANCE_LOCK_FILE = DATA_DIR / "cache_maintenance.lock"
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None or str(raw).strip() == "":
+        return bool(default)
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_float(name: str, default: float, *, min_value: float | None = None, max_value: float | None = None) -> float:
+    try:
+        value = float(os.getenv(name, str(default)) or default)
+    except Exception:
+        value = float(default)
+    if min_value is not None:
+        value = max(float(min_value), value)
+    if max_value is not None:
+        value = min(float(max_value), value)
+    return value
+
+
+def _env_int(name: str, default: int, *, min_value: int | None = None, max_value: int | None = None) -> int:
+    value = int(_env_float(name, float(default), min_value=min_value, max_value=max_value))
+    return value
+
+
+def _cache_file_age_days(path: Path, now: float) -> float:
+    try:
+        return max(0.0, (now - path.stat().st_mtime) / 86400.0)
+    except Exception:
+        return 0.0
+
+
+def _cache_file_sort_ts(path: Path) -> float:
+    try:
+        st = path.stat()
+        atime = float(getattr(st, "st_atime", 0.0) or 0.0)
+        mtime = float(getattr(st, "st_mtime", 0.0) or 0.0)
+        return min(ts for ts in (atime, mtime) if ts > 0) if atime or mtime else 0.0
+    except Exception:
+        return 0.0
+
+
+def _cache_directory_stats(root: Path) -> dict[str, int]:
+    files = 0
+    bytes_total = 0
+    if not root.exists():
+        return {"files": 0, "bytes": 0}
+    try:
+        for path in root.rglob("*"):
+            try:
+                if path.is_file():
+                    files += 1
+                    bytes_total += int(path.stat().st_size or 0)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return {"files": files, "bytes": bytes_total}
+
+
+def _cleanup_empty_cache_dirs(root: Path, *, dry_run: bool = False, limit: int = 800) -> int:
+    if not root.exists():
+        return 0
+    removed = 0
+    try:
+        dirs = [p for p in root.rglob("*") if p.is_dir()]
+    except Exception:
+        return 0
+    for path in sorted(dirs, key=lambda p: len(str(p)), reverse=True):
+        if removed >= limit:
+            break
+        try:
+            if not any(path.iterdir()):
+                if not dry_run:
+                    path.rmdir()
+                removed += 1
+        except Exception:
+            continue
+    return removed
+
+
+def _cleanup_cache_dir(
+    root: Path,
+    *,
+    max_age_days: float,
+    max_bytes: int,
+    dry_run: bool = False,
+    max_delete_files: int = 3000,
+) -> dict[str, Any]:
+    """Delete only generated cache files under a known cache directory."""
+    root = Path(root)
+    report: dict[str, Any] = {
+        "path": str(root),
+        "before": {"files": 0, "bytes": 0},
+        "after": {"files": 0, "bytes": 0},
+        "deleted_files": 0,
+        "deleted_bytes": 0,
+        "deleted_empty_dirs": 0,
+        "errors": [],
+        "dry_run": bool(dry_run),
+    }
+    if not root.exists():
+        return report
+    try:
+        resolved = root.resolve()
+        allowed = (Path.cwd() / "static" / "cache").resolve()
+        if resolved != allowed and allowed not in resolved.parents:
+            report["errors"].append("skip: outside static/cache")
+            return report
+    except Exception as exc:
+        report["errors"].append(f"skip: resolve failed {type(exc).__name__}")
+        return report
+
+    now = time.time()
+    entries: list[tuple[Path, int, float, bool]] = []
+    try:
+        for path in root.rglob("*"):
+            try:
+                if not path.is_file():
+                    continue
+                size = int(path.stat().st_size or 0)
+                age_days = _cache_file_age_days(path, now)
+                is_tmp = path.name.endswith(".tmp") or ".tmp." in path.name
+                entries.append((path, size, age_days, is_tmp))
+                report["before"]["files"] += 1
+                report["before"]["bytes"] += size
+            except Exception:
+                continue
+    except Exception as exc:
+        report["errors"].append(f"scan failed: {type(exc).__name__}: {exc}")
+        return report
+
+    victims: dict[Path, int] = {}
+
+    def mark(path: Path, size: int) -> None:
+        if len(victims) < max(1, int(max_delete_files or 1)):
+            victims[path] = int(size or 0)
+
+    for path, size, age_days, is_tmp in entries:
+        if is_tmp and age_days >= (1.0 / 24.0):
+            mark(path, size)
+        elif max_age_days > 0 and age_days >= max_age_days:
+            mark(path, size)
+
+    remaining_bytes = int(report["before"]["bytes"] or 0) - sum(victims.values())
+    if max_bytes > 0 and remaining_bytes > max_bytes:
+        for path, size, _age_days, _is_tmp in sorted(entries, key=lambda row: _cache_file_sort_ts(row[0])):
+            if path in victims:
+                continue
+            mark(path, size)
+            remaining_bytes -= size
+            if remaining_bytes <= max_bytes or len(victims) >= max(1, int(max_delete_files or 1)):
+                break
+
+    for path, size in list(victims.items()):
+        try:
+            if not dry_run:
+                path.unlink(missing_ok=True)
+            report["deleted_files"] += 1
+            report["deleted_bytes"] += int(size or 0)
+        except Exception as exc:
+            if len(report["errors"]) < 8:
+                report["errors"].append(f"{path.name}: {type(exc).__name__}")
+
+    report["deleted_empty_dirs"] = _cleanup_empty_cache_dirs(root, dry_run=dry_run)
+    after_files = max(0, int(report["before"]["files"] or 0) - int(report["deleted_files"] or 0))
+    after_bytes = max(0, int(report["before"]["bytes"] or 0) - int(report["deleted_bytes"] or 0))
+    if not dry_run:
+        actual = _cache_directory_stats(root)
+        after_files = int(actual.get("files") or after_files)
+        after_bytes = int(actual.get("bytes") or after_bytes)
+    report["after"] = {"files": after_files, "bytes": after_bytes}
+    return report
+
+
+def _prune_timed_memory_cache(cache: dict[Any, Any], lock: Any, ttl: float) -> int:
+    if ttl <= 0:
+        return 0
+    now = time.monotonic()
+    removed = 0
+    with lock:
+        for key, value in list(cache.items()):
+            try:
+                ts = float(value[0])
+            except Exception:
+                continue
+            if now - ts > ttl:
+                cache.pop(key, None)
+                removed += 1
+    return removed
+
+
+def _run_cache_maintenance_once(*, dry_run: bool = False) -> dict[str, Any]:
+    """Prune generated disk caches and expired in-memory caches.
+
+    This is deliberately local-only: it does not crawl portals, does not rebuild
+    listings, and does not delete source DB records. Missing cache files can be
+    regenerated by normal image/proxy paths.
+    """
+    started = time.time()
+    with _CACHE_MAINTENANCE_LOCK:
+        report: dict[str, Any] = {
+            "ok": True,
+            "dry_run": bool(dry_run),
+            "started_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "finished_at": "",
+            "elapsed_ms": 0,
+            "disk": {},
+            "memory": {},
+            "lock": "local",
+        }
+        lock_acquired = False
+        lock_fd: int | None = None
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            stale_after = _env_float("SCLAW_CACHE_MAINTENANCE_LOCK_STALE_SEC", 2 * 3600.0, min_value=300.0)
+            if _CACHE_MAINTENANCE_LOCK_FILE.exists():
+                age = time.time() - _CACHE_MAINTENANCE_LOCK_FILE.stat().st_mtime
+                if age > stale_after:
+                    _CACHE_MAINTENANCE_LOCK_FILE.unlink(missing_ok=True)
+            try:
+                lock_fd = os.open(str(_CACHE_MAINTENANCE_LOCK_FILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(lock_fd, str(os.getpid()).encode("utf-8"))
+                lock_acquired = True
+            except FileExistsError:
+                report["ok"] = True
+                report["skipped"] = "another maintenance run is active"
+                return report
+
+            case_max_age = _env_float("SCLAW_CACHE_CASE_IMAGES_MAX_AGE_DAYS", 45.0, min_value=1.0, max_value=365.0)
+            thumb_max_age = _env_float("SCLAW_CACHE_CASE_THUMBS_MAX_AGE_DAYS", 14.0, min_value=1.0, max_value=180.0)
+            poster_max_age = _env_float("SCLAW_CACHE_HOME_POSTERS_MAX_AGE_DAYS", 30.0, min_value=1.0, max_value=365.0)
+            case_max_bytes = _env_int("SCLAW_CACHE_CASE_IMAGES_MAX_BYTES", 6 * 1024 * 1024 * 1024, min_value=50 * 1024 * 1024)
+            thumb_max_bytes = _env_int("SCLAW_CACHE_CASE_THUMBS_MAX_BYTES", 1536 * 1024 * 1024, min_value=20 * 1024 * 1024)
+            poster_max_bytes = _env_int("SCLAW_CACHE_HOME_POSTERS_MAX_BYTES", 512 * 1024 * 1024, min_value=20 * 1024 * 1024)
+            max_delete_files = _env_int("SCLAW_CACHE_MAINTENANCE_MAX_DELETE_FILES", 12000, min_value=10, max_value=50000)
+            report["disk"]["case_images"] = _cleanup_cache_dir(
+                _CASE_IMAGE_CACHE_DIR,
+                max_age_days=case_max_age,
+                max_bytes=case_max_bytes,
+                dry_run=dry_run,
+                max_delete_files=max_delete_files,
+            )
+            report["disk"]["case_thumbs"] = _cleanup_cache_dir(
+                _CASE_IMAGE_THUMB_DIR,
+                max_age_days=thumb_max_age,
+                max_bytes=thumb_max_bytes,
+                dry_run=dry_run,
+                max_delete_files=max_delete_files,
+            )
+            report["disk"]["home_posters"] = _cleanup_cache_dir(
+                _HOME_CAROUSEL_POSTER_CACHE_DIR,
+                max_age_days=poster_max_age,
+                max_bytes=poster_max_bytes,
+                dry_run=dry_run,
+                max_delete_files=max_delete_files,
+            )
+            if not dry_run:
+                with _CASE_IMAGE_PREFETCH_LOCK:
+                    if report["disk"]["case_images"].get("deleted_files"):
+                        _CASE_IMAGE_URL_CACHE.clear()
+                    _CASE_IMAGE_PREFETCH_INFLIGHT.clear()
+                _HOME_FEATURED_IMAGE_UNSUITABLE_CACHE.clear()
+                _CASE_REPRESENTATIVE_VISUAL_CACHE.clear()
+
+            memory_report = {
+                "portal_search": 0,
+                "portal_exact_count": 0,
+                "site_search": 0,
+                "jp_transit": 0,
+                "coverage_matrix": 0,
+                "case_pages": 0,
+                "home_featured": 0,
+            }
+            if not dry_run:
+                memory_report.update(
+                    {
+                        "portal_search": _prune_timed_memory_cache(
+                            _PORTAL_CASE_SEARCH_CACHE,
+                            _PORTAL_CASE_SEARCH_CACHE_LOCK,
+                            _portal_case_search_cache_stale_ttl(),
+                        ),
+                        "portal_exact_count": _prune_timed_memory_cache(
+                            _PORTAL_CASE_SEARCH_EXACT_COUNT_CACHE,
+                            _PORTAL_CASE_SEARCH_CACHE_LOCK,
+                            _portal_case_search_exact_count_ttl(),
+                        ),
+                        "site_search": _prune_timed_memory_cache(
+                            _SITE_SEARCH_CACHE,
+                            _SITE_SEARCH_CACHE_LOCK,
+                            _site_search_cache_ttl(),
+                        ),
+                        "jp_transit": _prune_timed_memory_cache(
+                            _JP_TRANSIT_API_CACHE,
+                            _JP_TRANSIT_API_CACHE_LOCK,
+                            _jp_transit_api_cache_ttl(),
+                        ),
+                        "coverage_matrix": _prune_timed_memory_cache(
+                            _COVERAGE_MATRIX_CACHE,
+                            _COVERAGE_MATRIX_CACHE_LOCK,
+                            _coverage_matrix_cache_ttl(),
+                        ),
+                        "case_pages": _prune_timed_memory_cache(
+                            _CASE_PAGE_HTML_CACHE,
+                            _CASE_PAGE_HTML_CACHE_LOCK,
+                            _case_page_html_cache_ttl(),
+                        ),
+                    }
+                )
+                now_wall = time.time()
+                with _HOME_FEATURED_CASES_CACHE_LOCK:
+                    for key, value in list(_HOME_FEATURED_CASES_CACHE.items()):
+                        try:
+                            if now_wall - float(value[0]) > _HOME_FEATURED_CASES_CACHE_TTL_SECONDS:
+                                _HOME_FEATURED_CASES_CACHE.pop(key, None)
+                                memory_report["home_featured"] += 1
+                        except Exception:
+                            continue
+            report["memory"] = memory_report
+        except Exception as exc:
+            report["ok"] = False
+            report["error"] = f"{type(exc).__name__}: {str(exc)[:240]}"
+        finally:
+            if lock_fd is not None:
+                try:
+                    os.close(lock_fd)
+                except Exception:
+                    pass
+            if lock_acquired:
+                try:
+                    _CACHE_MAINTENANCE_LOCK_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            report["finished_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+            report["elapsed_ms"] = int((time.time() - started) * 1000)
+            with _CACHE_MAINTENANCE_STATUS_LOCK:
+                _CACHE_MAINTENANCE_STATUS.update(
+                    {
+                        "ok": bool(report.get("ok")),
+                        "running": False,
+                        "last_run_at": str(report.get("started_at") or ""),
+                        "last_finished_at": str(report.get("finished_at") or ""),
+                        "last_error": str(report.get("error") or ""),
+                        "last_report": copy.deepcopy(report),
+                    }
+                )
+            return report
+
+
+def _cache_maintenance_loop() -> None:
+    initial_delay = _env_float("SCLAW_CACHE_MAINTENANCE_INITIAL_DELAY_SEC", 45.0, min_value=0.0, max_value=3600.0)
+    interval = _env_float("SCLAW_CACHE_MAINTENANCE_INTERVAL_SEC", 6 * 3600.0, min_value=300.0)
+    if initial_delay > 0:
+        time.sleep(initial_delay)
+    while True:
+        try:
+            with _CACHE_MAINTENANCE_STATUS_LOCK:
+                _CACHE_MAINTENANCE_STATUS["running"] = True
+            report = _run_cache_maintenance_once(dry_run=False)
+            print(
+                "SCLAW: cache maintenance done "
+                f"ok={report.get('ok')} deleted="
+                f"{sum(int((v or {}).get('deleted_files') or 0) for v in (report.get('disk') or {}).values())}",
+                flush=True,
+            )
+        except Exception as exc:
+            _log_backend_error("cache-maintenance-loop", exc)
+            with _CACHE_MAINTENANCE_STATUS_LOCK:
+                _CACHE_MAINTENANCE_STATUS.update(
+                    {
+                        "ok": False,
+                        "running": False,
+                        "last_error": f"{type(exc).__name__}: {str(exc)[:240]}",
+                    }
+                )
+        time.sleep(interval)
+
+
+def _start_cache_maintenance_worker() -> None:
+    global _CACHE_MAINTENANCE_WORKER_STARTED
+    if not _env_bool("SCLAW_CACHE_MAINTENANCE", True):
+        with _CACHE_MAINTENANCE_STATUS_LOCK:
+            _CACHE_MAINTENANCE_STATUS.update({"started": False, "running": False, "last_error": "disabled"})
+        print("SCLAW: cache maintenance disabled（SCLAW_CACHE_MAINTENANCE=0）", flush=True)
+        return
+    with _CACHE_MAINTENANCE_LOCK:
+        if _CACHE_MAINTENANCE_WORKER_STARTED:
+            return
+        threading.Thread(target=_cache_maintenance_loop, daemon=True, name="cache-maintenance").start()
+        _CACHE_MAINTENANCE_WORKER_STARTED = True
+        with _CACHE_MAINTENANCE_STATUS_LOCK:
+            _CACHE_MAINTENANCE_STATUS.update({"started": True, "running": False, "last_error": ""})
 
 
 def _case_image_cache_hash(raw_url: Any) -> str:
@@ -8132,6 +8539,7 @@ def startup_event() -> None:
     _seed_offline_support_scenarios_if_empty()
     _seed_support_qa_training_if_empty()
     _start_phone_login_followup_recovery_worker()
+    _start_cache_maintenance_worker()
     # 重要：多進程（例如 uvicorn --workers / WEB_CONCURRENCY）下，startup 會在每個 worker 執行一次。
     # 站內的排程型背景工作（FAQ refresh / smart-nav intel）若不加控管，會造成重複執行、額外寫入與鎖表等待，
     # 影響「搜尋穩定」與 DB 壓力。正式環境建議改由外部排程（scripts/run_daily.ps1 等）運行。
@@ -15407,6 +15815,33 @@ def _require_admin_password(request: Request) -> None:
 def api_admin_auth_check(request: Request):
     _require_admin_password(request)
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/admin/cache-maintenance/status")
+def api_admin_cache_maintenance_status(request: Request):
+    _require_admin_password(request)
+    with _CACHE_MAINTENANCE_STATUS_LOCK:
+        payload = copy.deepcopy(_CACHE_MAINTENANCE_STATUS)
+    payload["config"] = {
+        "enabled": _env_bool("SCLAW_CACHE_MAINTENANCE", True),
+        "interval_sec": _env_float("SCLAW_CACHE_MAINTENANCE_INTERVAL_SEC", 6 * 3600.0, min_value=300.0),
+        "case_images_max_age_days": _env_float("SCLAW_CACHE_CASE_IMAGES_MAX_AGE_DAYS", 45.0, min_value=1.0, max_value=365.0),
+        "case_images_max_bytes": _env_int("SCLAW_CACHE_CASE_IMAGES_MAX_BYTES", 6 * 1024 * 1024 * 1024, min_value=50 * 1024 * 1024),
+        "case_thumbs_max_age_days": _env_float("SCLAW_CACHE_CASE_THUMBS_MAX_AGE_DAYS", 14.0, min_value=1.0, max_value=180.0),
+        "case_thumbs_max_bytes": _env_int("SCLAW_CACHE_CASE_THUMBS_MAX_BYTES", 1536 * 1024 * 1024, min_value=20 * 1024 * 1024),
+    }
+    return JSONResponse(payload)
+
+
+@app.post("/api/admin/cache-maintenance/run")
+def api_admin_cache_maintenance_run(request: Request, dry_run: bool = Query(default=False)):
+    _require_admin_password(request)
+    with _CACHE_MAINTENANCE_STATUS_LOCK:
+        if _CACHE_MAINTENANCE_STATUS.get("running"):
+            return JSONResponse({"ok": True, "status": "already_running"})
+        _CACHE_MAINTENANCE_STATUS["running"] = True
+    report = _run_cache_maintenance_once(dry_run=bool(dry_run))
+    return JSONResponse(report)
 
 
 def _visitor_dashboard_days(raw_days: int | None) -> int:
