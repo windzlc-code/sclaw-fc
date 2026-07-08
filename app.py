@@ -18,7 +18,7 @@ from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
-from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse, urlunparse
 from uuid import uuid4
 from typing import Any, Callable, Iterable
 
@@ -35655,16 +35655,44 @@ def _related_article_thumb_url(row: dict[str, Any]) -> str:
         cached_path = _url_to_local_static_path(cached)
         if cached and cached_path and cached_path.is_file():
             return cached
-        # Yahoo signed image URLs often expire quickly. Do not block article-page
-        # rendering on synchronous fetch here; if a cached local copy does not
-        # already exist, skip to the next candidate instead of stalling the page.
-        if _is_yahoo_listing_image_url(norm):
-            continue
-        # Other portal images can be fetched lazily through the existing cache
-        # proxy, which keeps article-page render latency predictable.
+        # Related cards should be visually stable. Remote portal URLs can expire
+        # or fail from the browser; schedule a cache warmup, but only render
+        # thumbnails that are already local in this response.
         _case_image_prefetch([norm], limit=1)
-        return norm
+        continue
     return ""
+
+
+def _related_article_identity_keys(row: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    sid = int(row.get("source_item_id") or 0)
+    if sid > 0:
+        keys.add(f"sid:{sid}")
+    for field in ("article_path", "case_path"):
+        value = str(row.get(field) or "").strip()
+        if value:
+            keys.add(f"{field}:{value.lower()}")
+    slug = str(row.get("seo_slug") or "").strip().lower()
+    if slug:
+        keys.add(f"slug:{slug}")
+    item_url = str(row.get("item_url") or "").strip()
+    if item_url:
+        try:
+            parsed = urlparse(item_url)
+            canonical = urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"), "", "", ""))
+        except Exception:
+            canonical = item_url.rstrip("/")
+        if canonical:
+            keys.add(f"url:{canonical.lower()}")
+    title = str(row.get("seo_title") or "").strip()
+    if title:
+        t = re.sub(r"^\s*(?:日本房[產产]案源|日本不動產案件)[:：]\s*", "", title)
+        t = re.sub(r"[｜|]\s*台[灣湾]買日本房地[產产]指南\s*$", "", t)
+        t = re.sub(r"\s+", "", t)
+        t = re.sub(r"[：:／/・,，。．、\[\]【】（）()]+", "", t)
+        if len(t) >= 4:
+            keys.add(f"title:{t.lower()}")
+    return keys
 
 
 def _related_articles_lite_fallback_rows(
@@ -35866,14 +35894,16 @@ def _related_articles_lite_for_item(
         if len(out) >= rel_limit:
             return
         d = _related_article_row_lite(row)
+        dup_keys = _related_article_identity_keys(d)
+        if dup_keys & seen:
+            return
         # Related cards are visual navigation. If a candidate cannot provide a
         # usable thumbnail, skip it instead of showing a broken placeholder card.
         if not str(d.get("thumb_url") or "").strip():
             return
-        key = str(d.get("article_path") or d.get("case_path") or "")
-        if not key or key in seen:
+        if not dup_keys:
             return
-        seen.add(key)
+        seen.update(dup_keys)
         out.append(d)
 
     for row in rows:
