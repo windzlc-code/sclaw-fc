@@ -6477,7 +6477,12 @@ def _home_featured_cases_payload_from_preload(
     # Property-specific sparse preloads should still return quickly; the client
     # supplements them from the hot pool instead of forcing a slow DB scan.
     if not query_property_type and off == 0 and lim >= _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS and len(items) < lim:
-        return None
+        # Do not fall through to the slow dynamic scan just because the cached
+        # representative pool is one or two cards short after image validation.
+        # A partially filled homepage section is preferable to an indefinite
+        # loading state on refresh.
+        if not items:
+            return None
     if off >= len(items):
         if (query_property_type and not payload_fallback) or not items:
             return None
