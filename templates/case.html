@@ -21,6 +21,7 @@
       <h1 class="suumo-case-catch">{% if item.title_display_hant|trim %}{{ item.title_display_hant|trim }}{% elif item.title_zh_hant|trim %}{{ item.title_zh_hant|trim }}{% else %}{{ item.title_original }}{% endif %}</h1>
       {% set listing_panel = case_listing_panel %}
       {% set restrict_hero_to_property_urls = true %}
+      {% set hide_portal_suumo_head_price = true %}
       {% set item_url = item.item_url %}
       {% set hero_fallback = ((item.case_media_images or [])|first) or '' %}
       {% set body_narrative_zh = item.body_zh_hant_display or item.body_zh_hant or '' %}

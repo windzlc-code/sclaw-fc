@@ -128,6 +128,7 @@
   {% endif %}
 
   <div class="portal-suumo-kvhead">
+    {% if not hide_portal_suumo_head_price|default(false) %}
     <p class="portal-suumo-price">
       {% if f.price_text_hant %}
       {{ f.price_text_hant }}{% if f.price_fx_hant %}<br><span class="portal-suumo-fx muted">{{ f.price_fx_hant }}</span>{% endif %}
@@ -135,6 +136,7 @@
       <span class="muted">{{ emdash }}（暫無明示價格）</span>
       {% endif %}
     </p>
+    {% endif %}
     {% set addr_zh = f.address_line_display_zh or m.address_line_zh_read %}
     {% if addr_zh %}
     <p class="portal-suumo-line">{{ addr_zh }}</p>
