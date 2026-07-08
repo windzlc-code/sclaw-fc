@@ -28311,8 +28311,8 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 
 .admin-visitor-pie-board {
   display: grid;
-  grid-template-columns: minmax(210px, 0.95fr) minmax(180px, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   align-items: stretch;
 }
 
@@ -28329,7 +28329,7 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 }
 
 .admin-visitor-pie-section-title,
-.admin-visitor-pie-daily-head {
+.admin-visitor-pie-daily .admin-visitor-pie-section-title {
   color: #526477;
   font-size: 12px;
   font-weight: 950;
@@ -28342,16 +28342,17 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 
 .admin-visitor-pie-wrap {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 1fr;
   align-items: center;
-  gap: 10px;
-  min-height: 156px;
+  justify-items: center;
+  gap: 8px;
+  min-height: 0;
 }
 
 .admin-visitor-pie {
   position: relative;
-  width: 112px;
-  height: 112px;
+  width: 92px;
+  height: 92px;
   justify-self: center;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08), 0 16px 34px rgba(31, 47, 66, 0.08);
@@ -28360,7 +28361,7 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 .admin-visitor-pie::after {
   content: "";
   position: absolute;
-  inset: 32px;
+  inset: 24px;
   border-radius: 50%;
   background: #fff;
   box-shadow: inset 0 0 0 1px #e2eaf2;
@@ -28378,7 +28379,7 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 }
 
 .admin-visitor-pie strong {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 950;
   line-height: 1;
 }
@@ -28392,15 +28393,16 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 .admin-visitor-pie-stats {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 8px;
+  gap: 6px;
+  width: 100%;
 }
 
 .admin-visitor-pie-stats div {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px 10px;
-  padding: 9px;
+  gap: 6px 8px;
+  padding: 7px 8px;
   border: 1px solid #dfe8f1;
   border-radius: 8px;
   background: #f9fbfd;
@@ -28422,13 +28424,13 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 
 .admin-visitor-pie-stats span {
   color: #526477;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
 }
 
 .admin-visitor-pie-stats strong {
   color: #102235;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 950;
 }
 
@@ -28441,56 +28443,7 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 }
 
 .admin-visitor-pie-daily {
-  max-height: 206px;
-  overflow: auto;
-}
-
-.admin-visitor-pie-daily-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 10px 8px;
-  background: linear-gradient(180deg, #fbfdff 80%, rgba(251, 253, 255, 0));
-}
-
-.admin-visitor-pie-daily-head span {
-  color: #7a8795;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.admin-visitor-pie-daily-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-
-.admin-visitor-pie-daily-table th,
-.admin-visitor-pie-daily-table td {
-  padding: 7px 8px;
-  border-top: 1px solid #edf3f8;
-  color: #526477;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.admin-visitor-pie-daily-table th:first-child,
-.admin-visitor-pie-daily-table td:first-child {
-  color: #102235;
-  text-align: left;
-}
-
-.admin-visitor-pie-daily-table th {
-  color: #748397;
-  font-weight: 950;
-}
-
-.admin-visitor-pie-daily-table td {
-  font-weight: 850;
+  padding: 10px;
 }
 
 .admin-visitor-chart-detail {

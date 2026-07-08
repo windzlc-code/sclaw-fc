@@ -13460,7 +13460,7 @@
       </div>`;
     }
 
-    function adminVisitorRenderPieChart(totals) {
+    function adminVisitorRenderPieChart(totals, caption) {
       const guest = Math.max(0, Number(totals && totals.guest_visitors || 0));
       const form = Math.max(0, Number(totals && (totals.form_filled_visitors || totals.phone_login_visitors) || 0));
       const total = guest + form;
@@ -13473,7 +13473,7 @@
         : 'background: #edf3f8;';
       return `<div class="admin-visitor-pie-wrap">
         <div class="admin-visitor-pie" style="${pieStyle}" role="img" aria-label="普通游客 ${guestText}，填单游客 ${formText}">
-          <span><strong>${adminVisitorNumber(total)}</strong><small>区间访客</small></span>
+          <span><strong>${adminVisitorNumber(total)}</strong><small>${esc(caption || '区间访客')}</small></span>
         </div>
         <div class="admin-visitor-pie-stats">
           <div><i class="is-guest"></i><span>普通游客</span><strong>${adminVisitorNumber(guest)}</strong><em>${guestText}</em></div>
@@ -13482,38 +13482,27 @@
       </div>`;
     }
 
-    function adminVisitorRenderDailyStructureTable(items) {
+    function adminVisitorRenderDailyPieChart(items) {
       const arr = Array.isArray(items) ? items : [];
-      const recent = arr.slice(-14).reverse();
-      if (!recent.length) return '<p class="muted admin-visitor-empty">暫無每日結構資料。</p>';
-      const rows = recent.map((it) => {
-        const guest = Math.max(0, Number(it.guest_visitors || 0));
-        const form = Math.max(0, Number(it.form_visitors || it.phone_visitors || 0));
-        const total = Math.max(0, Number(it.unique_visitors || guest + form || 0));
-        const formPct = total > 0 ? (form / total) * 100 : 0;
-        return `<tr>
-          <td>${esc(String(it.date || it.label || '-'))}</td>
-          <td>${adminVisitorNumber(guest)}</td>
-          <td>${adminVisitorNumber(form)}</td>
-          <td>${adminVisitorPercent(formPct)}</td>
-        </tr>`;
-      }).join('');
-      return `<div class="admin-visitor-pie-daily">
-        <div class="admin-visitor-pie-daily-head"><strong>每日表</strong><span>近 ${adminVisitorNumber(recent.length)} 日</span></div>
-        <table class="admin-visitor-pie-daily-table">
-          <thead><tr><th>日期</th><th>普通</th><th>填单</th><th>占比</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+      const latest = arr.length ? arr[arr.length - 1] : null;
+      if (!latest) return '<p class="muted admin-visitor-empty">暫無每日結構資料。</p>';
+      const label = String(latest.date || latest.label || '今日').replace(/-/g, '/');
+      return adminVisitorRenderPieChart({
+        guest_visitors: Number(latest.guest_visitors || 0),
+        form_filled_visitors: Number(latest.form_visitors || latest.phone_visitors || 0),
+      }, label || '每日访客');
     }
 
     function adminVisitorRenderPieBoard(totals, daily) {
       return `<div class="admin-visitor-pie-board">
         <div class="admin-visitor-pie-total">
-          <div class="admin-visitor-pie-section-title">总表</div>
-          ${adminVisitorRenderPieChart(totals)}
+          <div class="admin-visitor-pie-section-title">总饼状图</div>
+          ${adminVisitorRenderPieChart(totals, '区间访客')}
         </div>
-        ${adminVisitorRenderDailyStructureTable(daily)}
+        <div class="admin-visitor-pie-daily">
+          <div class="admin-visitor-pie-section-title">每日饼状图</div>
+          ${adminVisitorRenderDailyPieChart(daily)}
+        </div>
       </div>`;
     }
 
@@ -13670,7 +13659,7 @@
             ${adminVisitorRenderLineChart(buckets, maxDaily)}
           </article>
           <article class="admin-visitor-card admin-visitor-card--pie">
-            <div class="admin-visitor-card-head"><h4>游客结构饼图</h4><span>总表 / 每日表</span></div>
+            <div class="admin-visitor-card-head"><h4>游客结构饼图</h4><span>总图 / 每日图</span></div>
             <div class="admin-visitor-legend"><span><i class="is-guest"></i>普通游客</span><span><i class="is-phone"></i>填单游客</span></div>
             ${adminVisitorRenderPieBoard(totals, daily)}
           </article>
