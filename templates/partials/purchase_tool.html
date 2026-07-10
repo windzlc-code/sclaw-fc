@@ -40,19 +40,19 @@
                     <div class="purchase-tool-field-grid">
                       <label>
                         <span>案件名稱</span>
-                        <input id="purchase-tool-case-title" type="text" value="東京投資公寓" placeholder="例：新宿區中古公寓">
+                        <input id="purchase-tool-case-title" type="text" value="" placeholder="例：新宿區中古公寓">
                       </label>
                       <label>
                         <span>區域 / 都道府縣</span>
-                        <input id="purchase-tool-region" type="text" value="東京都" placeholder="例：東京都新宿區">
+                        <input id="purchase-tool-region" type="text" value="" placeholder="例：東京都新宿區">
                       </label>
                       <label>
                         <span>最近車站</span>
-                        <input id="purchase-tool-station" type="text" value="新宿駅" placeholder="例：新宿駅">
+                        <input id="purchase-tool-station" type="text" value="" placeholder="例：新宿駅">
                       </label>
                       <label>
                         <span>徒歩時間</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-walk" type="number" min="0" step="1" value="7" inputmode="decimal"><em>分</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-walk" type="number" min="0" step="1" value="" inputmode="decimal"><em>分</em></div>
                       </label>
                     </div>
                   </div>
@@ -61,32 +61,33 @@
                     <div class="purchase-tool-field-grid purchase-tool-field-grid--three">
                       <label class="purchase-tool-field--strong">
                         <span>房屋總價</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-price" type="number" min="0" step="10" value="4800" inputmode="decimal"><em>萬日圓</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-price" type="number" min="0" step="10" value="" inputmode="decimal"><em>萬日圓</em></div>
                       </label>
                       <label>
                         <span>頭期款率</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-down-rate" type="number" min="0" max="100" step="1" value="30" inputmode="decimal"><em>%</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-down-rate" type="number" min="0" max="100" step="1" value="" inputmode="decimal"><em>%</em></div>
                       </label>
                       <label>
                         <span>年利率</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-rate" type="number" min="0" step="0.01" value="1.80" inputmode="decimal"><em>%</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-rate" type="number" min="0" step="0.01" value="" inputmode="decimal"><em>%</em></div>
                       </label>
                       <label class="purchase-tool-field--strong">
                         <span>預估月租金</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-rent" type="number" min="0" step="0.1" value="18" inputmode="decimal"><em>萬/月</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-rent" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>萬/月</em></div>
                       </label>
                       <label>
                         <span>管理修繕費</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-monthly-fee" type="number" min="0" step="0.1" value="3.8" inputmode="decimal"><em>萬/月</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-monthly-fee" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>萬/月</em></div>
                       </label>
                       <label>
                         <span>貸款年限</span>
                         <select id="purchase-tool-years">
+                          <option value="" selected>請選擇</option>
                           <option value="10">10 年</option>
                           <option value="15">15 年</option>
                           <option value="20">20 年</option>
                           <option value="25">25 年</option>
-                          <option value="30" selected>30 年</option>
+                          <option value="30">30 年</option>
                           <option value="35">35 年</option>
                         </select>
                       </label>
@@ -106,15 +107,15 @@
                       </label>
                       <label>
                         <span>專有 / 建物面積</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-area" type="number" min="0" step="0.1" value="42.5" inputmode="decimal"><em>㎡</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-area" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>㎡</em></div>
                       </label>
                       <label>
                         <span>屋齡</span>
-                        <div class="purchase-tool-input-unit"><input id="purchase-tool-age" type="number" min="0" step="1" value="15" inputmode="decimal"><em>年</em></div>
+                        <div class="purchase-tool-input-unit"><input id="purchase-tool-age" type="number" min="0" step="1" value="" inputmode="decimal"><em>年</em></div>
                       </label>
                       <label>
                         <span>所在樓層</span>
-                        <input id="purchase-tool-floor" type="text" value="5F / 10F" inputmode="text">
+                        <input id="purchase-tool-floor" type="text" value="" inputmode="text">
                       </label>
                     </div>
                   </div>
@@ -133,7 +134,7 @@
                   </label>
                   <label>
                     <span>貸款總額</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-loan" type="number" min="0" step="10" value="3360" inputmode="decimal"><em>萬日圓</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-loan" type="number" min="0" step="10" value="" inputmode="decimal"><em>萬日圓</em></div>
                   </label>
                   <label>
                     <span>還款方式</span>
@@ -144,7 +145,7 @@
                   </label>
                   <label>
                     <span>100 日圓兌台幣</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-twd-rate" type="number" min="0" step="0.01" value="20.80" inputmode="decimal"><em>NTD</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-twd-rate" type="number" min="0" step="0.01" value="" inputmode="decimal"><em>NTD</em></div>
                   </label>
                 </div>
               </div>
@@ -154,27 +155,27 @@
                 <div class="purchase-tool-fieldset">
                   <label>
                     <span>購置成本率</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-cost-rate" type="number" min="0" step="0.1" value="7.0" inputmode="decimal"><em>%</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-cost-rate" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>%</em></div>
                   </label>
                   <label>
                     <span>仲介手數料</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-broker-rate" type="number" min="0" step="0.1" value="3.3" inputmode="decimal"><em>%</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-broker-rate" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>%</em></div>
                   </label>
                   <label>
                     <span>登記 / 取得稅估算</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-tax-rate" type="number" min="0" step="0.1" value="2.1" inputmode="decimal"><em>%</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-tax-rate" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>%</em></div>
                   </label>
                   <label>
                     <span>司法書士 / 印紙等</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-legal-fee" type="number" min="0" step="1" value="55" inputmode="decimal"><em>萬日圓</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-legal-fee" type="number" min="0" step="1" value="" inputmode="decimal"><em>萬日圓</em></div>
                   </label>
                   <label>
                     <span>空置與維護預留</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-reserve-rate" type="number" min="0" max="100" step="1" value="8" inputmode="decimal"><em>%</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-reserve-rate" type="number" min="0" max="100" step="1" value="" inputmode="decimal"><em>%</em></div>
                   </label>
                   <label>
                     <span>固定資產稅年估</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-annual-tax" type="number" min="0" step="1" value="18" inputmode="decimal"><em>萬日圓/年</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-annual-tax" type="number" min="0" step="1" value="" inputmode="decimal"><em>萬日圓/年</em></div>
                   </label>
                 </div>
               </div>
@@ -184,19 +185,19 @@
                 <div class="purchase-tool-fieldset">
                   <label>
                     <span>同區域均價</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-market-unit-price" type="number" min="0" step="1" value="112" inputmode="decimal"><em>萬日圓/㎡</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-market-unit-price" type="number" min="0" step="1" value="" inputmode="decimal"><em>萬日圓/㎡</em></div>
                   </label>
                   <label>
                     <span>同區域租金收益率</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-market-yield" type="number" min="0" step="0.1" value="4.4" inputmode="decimal"><em>%</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-market-yield" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>%</em></div>
                   </label>
                   <label>
                     <span>偏好徒歩上限</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-target-walk" type="number" min="0" step="1" value="10" inputmode="decimal"><em>分</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-target-walk" type="number" min="0" step="1" value="" inputmode="decimal"><em>分</em></div>
                   </label>
                   <label>
                     <span>偏好屋齡上限</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-target-age" type="number" min="0" step="1" value="25" inputmode="decimal"><em>年</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-target-age" type="number" min="0" step="1" value="" inputmode="decimal"><em>年</em></div>
                   </label>
                 </div>
                 <div class="purchase-tool-comparable-note">
@@ -213,11 +214,11 @@
               </div>
 
               <div class="purchase-tool-pane" data-purchase-pane="eligibility">
-                <input id="purchase-tool-buyer-status" type="hidden" value="overseas">
-                <input id="purchase-tool-purpose" type="hidden" value="investment">
-                <input id="purchase-tool-payment-path" type="hidden" value="cash">
-                <input id="purchase-tool-cash-ratio" type="hidden" value="40">
-                <input id="purchase-tool-timeline" type="hidden" value="research">
+                <input id="purchase-tool-buyer-status" type="hidden" value="">
+                <input id="purchase-tool-purpose" type="hidden" value="">
+                <input id="purchase-tool-payment-path" type="hidden" value="">
+                <input id="purchase-tool-cash-ratio" type="hidden" value="0">
+                <input id="purchase-tool-timeline" type="hidden" value="">
                 <div class="purchase-tool-wizard-head">
                   <div>
                     <span id="purchase-tool-step-label">第 1 題 / 共 6 題</span>
@@ -283,25 +284,25 @@
                   <div class="purchase-tool-section-title">貸款承受力補充</div>
                   <label>
                     <span>可證明年收入</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-income" type="number" min="0" step="10" value="900" inputmode="decimal"><em>萬日圓/年</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-income" type="number" min="0" step="10" value="" inputmode="decimal"><em>萬日圓/年</em></div>
                   </label>
                   <label>
                     <span>既有月負債</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-debt" type="number" min="0" step="0.1" value="0" inputmode="decimal"><em>萬日圓/月</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-debt" type="number" min="0" step="0.1" value="" inputmode="decimal"><em>萬日圓/月</em></div>
                   </label>
                   <label>
                     <span>可動用金融資產</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-assets" type="number" min="0" step="10" value="0" inputmode="decimal"><em>萬日圓</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-assets" type="number" min="0" step="10" value="" inputmode="decimal"><em>萬日圓</em></div>
                   </label>
                   <label>
                     <span>既有日本物件</span>
-                    <div class="purchase-tool-input-unit"><input id="purchase-tool-existing-property" type="number" min="0" step="1" value="0" inputmode="decimal"><em>戶</em></div>
+                    <div class="purchase-tool-input-unit"><input id="purchase-tool-existing-property" type="number" min="0" step="1" value="" inputmode="decimal"><em>戶</em></div>
                   </label>
                 </div>
                 <fieldset class="purchase-tool-checks purchase-tool-docs" data-purchase-wizard-complete>
                   <legend>文件與流程準備</legend>
-                  <label><input type="checkbox" data-purchase-doc checked> 身分證明/護照資料</label>
-                  <label><input type="checkbox" data-purchase-doc checked> 資金來源或存款證明</label>
+                  <label><input type="checkbox" data-purchase-doc> 身分證明/護照資料</label>
+                  <label><input type="checkbox" data-purchase-doc> 資金來源或存款證明</label>
                   <label><input type="checkbox" data-purchase-doc> 收入、稅單或公司資料</label>
                   <label><input type="checkbox" data-purchase-doc> 印鑑/簽署/匯款流程確認</label>
                   <label><input type="checkbox" data-purchase-doc> 管理、出租與稅務安排</label>
@@ -336,7 +337,7 @@
                       <em id="purchase-tool-score-label">待評估</em>
                     </div>
                     <p id="purchase-tool-decision-title">請輸入案件條件。</p>
-                    <small id="purchase-tool-data-source">依左側表單示例估算，尚未帶入已選案件。</small>
+                    <small id="purchase-tool-data-source">尚未帶入案件或輸入條件，儀表板暫不計算。</small>
                     <button type="button" class="purchase-tool-score-link" onclick="copyPurchaseToolAdvisorSummary()">查看建議</button>
                   </div>
                   <div class="purchase-tool-summary-grid">

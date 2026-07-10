@@ -15,6 +15,7 @@ const PURCHASE_SELECTED_CASES_KEY = 'sclaw_support_selected_cases_v1';
 function purchaseToolNumber(id, fallback = 0) {
   const el = document.getElementById(id);
   const raw = el ? String(el.value || '').replace(/,/g, '').trim() : '';
+  if (!raw) return fallback;
   const n = Number(raw);
   return Number.isFinite(n) ? n : fallback;
 }
@@ -32,6 +33,14 @@ function purchaseToolSetValue(id, value) {
   if (el.tagName === 'INPUT' && String(el.type || '').toLowerCase() === 'hidden') {
     el.setAttribute('value', String(value));
   }
+}
+
+function purchaseToolSetDefaultIfEmpty(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const current = String(el.value || '').trim();
+  if (current && !(id === 'purchase-tool-cash-ratio' && Number(current) === 0)) return;
+  purchaseToolSetValue(id, value);
 }
 
 function purchaseToolParseMan(value) {
@@ -783,12 +792,64 @@ function updatePurchaseToolDataSourceStatus() {
   } else if (rows.length) {
     el.textContent = `偵測到 ${rows.length} 筆已選案件；目前仍按左側表單與手動基準估算。`;
   } else {
-    el.textContent = '依左側表單示例估算，尚未帶入或校準已選案件。';
+    el.textContent = '尚未帶入案件或輸入條件，儀表板暫不計算。';
   }
+}
+
+function purchaseToolHasPrimaryCase(ctx) {
+  return !!(ctx && (ctx.priceMan > 0 || ctx.areaSqm > 0 || ctx.rentMan > 0 || ctx.loanMan > 0));
+}
+
+function renderPurchaseToolEmptyState() {
+  const fields = {
+    'purchase-tool-main-payment': '—',
+    'purchase-tool-main-payment-twd': '尚未計算',
+    'purchase-tool-result-cash': '—',
+    'purchase-tool-yield': '—',
+    'purchase-tool-cashflow': '—',
+    'purchase-tool-unit-price': '單價 —',
+    'purchase-tool-dti': '—',
+    'purchase-tool-net-yield': '—',
+    'purchase-tool-comparable-band': '待輸入',
+    'purchase-tool-decision-score': '待輸入',
+    'purchase-tool-decision-title': '請先帶入已選案件，或手動輸入房價、面積與租金。',
+    'purchase-tool-bar-yield-label': '—',
+    'purchase-tool-bar-cashflow-label': '—',
+    'purchase-tool-bar-dti-label': '—',
+    'purchase-tool-eligibility-title': '購房資格問答',
+    'purchase-tool-eligibility-summary': '尚未輸入案件條件，暫不進行資格與資金承受度判斷。',
+  };
+  Object.entries(fields).forEach(([id, text]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  });
+  const dataSource = document.getElementById('purchase-tool-data-source');
+  if (dataSource) dataSource.textContent = '尚未帶入案件或輸入條件，儀表板暫不計算。';
+  const scoreLabel = document.getElementById('purchase-tool-score-label');
+  if (scoreLabel) scoreLabel.textContent = '尚未計算';
+  const gauge = document.getElementById('purchase-tool-score-gauge');
+  if (gauge) gauge.style.setProperty('--purchase-score', '0');
+  ['purchase-tool-bar-yield', 'purchase-tool-bar-cashflow', 'purchase-tool-bar-dti'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.setProperty('--bar-value', '0');
+  });
+  const tbody = document.getElementById('purchase-tool-decision-body');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="3">尚未輸入案件條件。</td></tr>';
+  const schedule = document.getElementById('purchase-tool-schedule-list');
+  if (schedule) schedule.innerHTML = '<p class="muted">請先輸入貸款條件。</p>';
+  const eligibilityList = document.getElementById('purchase-tool-eligibility-list');
+  if (eligibilityList) eligibilityList.innerHTML = '<li>尚未選擇。</li>';
+  renderPurchaseSelectedComparables();
+  renderPurchaseImageComparables();
+  window.__purchaseToolLastSummary = '';
 }
 
 function calculatePurchaseTool() {
   const ctx = readPurchaseToolContext();
+  if (!purchaseToolHasPrimaryCase(ctx)) {
+    renderPurchaseToolEmptyState();
+    return;
+  }
   purchaseToolSetValue('purchase-tool-loan', Math.round(ctx.loanMan));
   const comparables = evaluatePurchaseComparables(ctx);
   const eligibility = evaluatePurchaseEligibility(ctx);
@@ -903,7 +964,7 @@ function normalizeSelectedCase(raw) {
     fields.yield_pct,
     fields.gross_yield,
   ].flat().map((x) => String(x || '')).find((x) => /利回|收益|報酬|yield|%|％/i.test(x)) || '';
-  const walkText = [raw.transit, raw.access_line_jp, raw.address_hint_zh, fields.access].map((x) => String(x || '')).join(' ');
+  const walkText = [station, raw.transit, raw.access_line_jp, raw.address_hint_zh, fields.access].map((x) => String(x || '')).join(' ');
   const ageText = [raw.age_text_hant, raw.building_age, fields.age_text_hant].map((x) => String(x || '')).join(' ');
   const priceMan = typeof raw.price_man === 'number' && raw.price_man > 0 ? raw.price_man : purchaseToolParseMan(priceText);
   const areaSqm = purchaseToolParseSqm(areaText);
@@ -993,6 +1054,22 @@ function applyPurchaseToolSelectedCase() {
   if (item.priceMan) purchaseToolSetValue('purchase-tool-price', Math.round(item.priceMan));
   if (item.areaSqm) purchaseToolSetValue('purchase-tool-area', item.areaSqm);
   if (item.rentMan) purchaseToolSetValue('purchase-tool-rent', item.rentMan);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-down-rate', 30);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-years', 30);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-rate', 1.8);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-twd-rate', 20.8);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-cost-rate', 7);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-broker-rate', 3.3);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-tax-rate', 2.1);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-reserve-rate', 8);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-monthly-fee', 0);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-annual-tax', 0);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-buyer-status', 'overseas');
+  purchaseToolSetDefaultIfEmpty('purchase-tool-purpose', 'investment');
+  purchaseToolSetDefaultIfEmpty('purchase-tool-payment-path', 'cash');
+  purchaseToolSetDefaultIfEmpty('purchase-tool-cash-ratio', 40);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-income', 0);
+  purchaseToolSetDefaultIfEmpty('purchase-tool-debt', 0);
   const modal = document.getElementById('purchase-tool-modal');
   if (modal) modal.dataset.selectedCaseImported = '1';
   setPurchaseToolActivePane('case');
@@ -1063,45 +1140,45 @@ function applyPurchaseToolPreset() {
 }
 
 function resetPurchaseTool() {
-  purchaseToolSetValue('purchase-tool-case-title', '東京投資公寓');
-  purchaseToolSetValue('purchase-tool-region', '東京都');
-  purchaseToolSetValue('purchase-tool-station', '新宿駅');
-  purchaseToolSetValue('purchase-tool-walk', 7);
+  purchaseToolSetValue('purchase-tool-case-title', '');
+  purchaseToolSetValue('purchase-tool-region', '');
+  purchaseToolSetValue('purchase-tool-station', '');
+  purchaseToolSetValue('purchase-tool-walk', '');
   purchaseToolSetValue('purchase-tool-property-type', 'mansion');
-  purchaseToolSetValue('purchase-tool-area', 42.5);
-  purchaseToolSetValue('purchase-tool-age', 15);
-  purchaseToolSetValue('purchase-tool-floor', '5F / 10F');
+  purchaseToolSetValue('purchase-tool-area', '');
+  purchaseToolSetValue('purchase-tool-age', '');
+  purchaseToolSetValue('purchase-tool-floor', '');
   purchaseToolSetValue('purchase-tool-mode', 'house');
-  purchaseToolSetValue('purchase-tool-price', 4800);
-  purchaseToolSetValue('purchase-tool-loan', 3360);
-  purchaseToolSetValue('purchase-tool-down-rate', 30);
-  purchaseToolSetValue('purchase-tool-years', 30);
-  purchaseToolSetValue('purchase-tool-rate', 1.8);
+  purchaseToolSetValue('purchase-tool-price', '');
+  purchaseToolSetValue('purchase-tool-loan', '');
+  purchaseToolSetValue('purchase-tool-down-rate', '');
+  purchaseToolSetValue('purchase-tool-years', '');
+  purchaseToolSetValue('purchase-tool-rate', '');
   purchaseToolSetValue('purchase-tool-repay', 'equal-payment');
-  purchaseToolSetValue('purchase-tool-twd-rate', 20.8);
-  purchaseToolSetValue('purchase-tool-cost-rate', 7);
-  purchaseToolSetValue('purchase-tool-broker-rate', 3.3);
-  purchaseToolSetValue('purchase-tool-tax-rate', 2.1);
-  purchaseToolSetValue('purchase-tool-legal-fee', 55);
-  purchaseToolSetValue('purchase-tool-monthly-fee', 3.8);
-  purchaseToolSetValue('purchase-tool-rent', 18);
-  purchaseToolSetValue('purchase-tool-reserve-rate', 8);
-  purchaseToolSetValue('purchase-tool-annual-tax', 18);
-  purchaseToolSetValue('purchase-tool-market-unit-price', 112);
-  purchaseToolSetValue('purchase-tool-market-yield', 4.4);
-  purchaseToolSetValue('purchase-tool-target-walk', 10);
-  purchaseToolSetValue('purchase-tool-target-age', 25);
-  purchaseToolSetValue('purchase-tool-buyer-status', 'overseas');
-  purchaseToolSetValue('purchase-tool-purpose', 'investment');
-  purchaseToolSetValue('purchase-tool-payment-path', 'cash');
-  purchaseToolSetValue('purchase-tool-cash-ratio', 40);
-  purchaseToolSetValue('purchase-tool-income', 900);
-  purchaseToolSetValue('purchase-tool-debt', 0);
-  purchaseToolSetValue('purchase-tool-assets', 0);
-  purchaseToolSetValue('purchase-tool-existing-property', 0);
-  purchaseToolSetValue('purchase-tool-timeline', 'research');
+  purchaseToolSetValue('purchase-tool-twd-rate', '');
+  purchaseToolSetValue('purchase-tool-cost-rate', '');
+  purchaseToolSetValue('purchase-tool-broker-rate', '');
+  purchaseToolSetValue('purchase-tool-tax-rate', '');
+  purchaseToolSetValue('purchase-tool-legal-fee', '');
+  purchaseToolSetValue('purchase-tool-monthly-fee', '');
+  purchaseToolSetValue('purchase-tool-rent', '');
+  purchaseToolSetValue('purchase-tool-reserve-rate', '');
+  purchaseToolSetValue('purchase-tool-annual-tax', '');
+  purchaseToolSetValue('purchase-tool-market-unit-price', '');
+  purchaseToolSetValue('purchase-tool-market-yield', '');
+  purchaseToolSetValue('purchase-tool-target-walk', '');
+  purchaseToolSetValue('purchase-tool-target-age', '');
+  purchaseToolSetValue('purchase-tool-buyer-status', '');
+  purchaseToolSetValue('purchase-tool-purpose', '');
+  purchaseToolSetValue('purchase-tool-payment-path', '');
+  purchaseToolSetValue('purchase-tool-cash-ratio', 0);
+  purchaseToolSetValue('purchase-tool-income', '');
+  purchaseToolSetValue('purchase-tool-debt', '');
+  purchaseToolSetValue('purchase-tool-assets', '');
+  purchaseToolSetValue('purchase-tool-existing-property', '');
+  purchaseToolSetValue('purchase-tool-timeline', '');
   document.querySelectorAll('[data-purchase-doc]').forEach((item, idx) => {
-    item.checked = idx < 2;
+    item.checked = false;
   });
   const modal = document.getElementById('purchase-tool-modal');
   if (modal) {
