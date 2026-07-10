@@ -769,6 +769,24 @@ function updatePurchaseDashboardVisuals(ctx, eligibility, decision) {
   if (dtiLabel) dtiLabel.textContent = Number.isFinite(eligibility.dti) && eligibility.dti < 900 ? `DTI ${eligibility.dti.toFixed(0)}%` : '待補收入';
 }
 
+function updatePurchaseToolDataSourceStatus() {
+  const el = document.getElementById('purchase-tool-data-source');
+  if (!el) return;
+  const rows = readPurchaseSelectedCases();
+  const modal = document.getElementById('purchase-tool-modal');
+  const calibrated = modal?.dataset.selectedMarketSynced === '1';
+  const imported = modal?.dataset.selectedCaseImported === '1';
+  if (rows.length && calibrated) {
+    el.textContent = `已用 ${rows.length} 筆已選案件校準市場基準，儀表板按左側表單即時計算。`;
+  } else if (rows.length && imported) {
+    el.textContent = `已帶入已選案件資料，另有 ${rows.length} 筆可切到可比校準套用市場基準。`;
+  } else if (rows.length) {
+    el.textContent = `偵測到 ${rows.length} 筆已選案件；目前仍按左側表單與手動基準估算。`;
+  } else {
+    el.textContent = '依左側表單示例估算，尚未帶入或校準已選案件。';
+  }
+}
+
 function calculatePurchaseTool() {
   const ctx = readPurchaseToolContext();
   purchaseToolSetValue('purchase-tool-loan', Math.round(ctx.loanMan));
@@ -800,6 +818,7 @@ function calculatePurchaseTool() {
   if (score) score.textContent = `${decision.score} 分`;
   if (title) title.textContent = decision.title;
   updatePurchaseDashboardVisuals(ctx, eligibility, decision);
+  updatePurchaseToolDataSourceStatus();
 
   renderPurchaseDecisionRows(decision.rows);
   renderPurchaseToolSchedule(ctx.selectedPlan);
@@ -974,6 +993,8 @@ function applyPurchaseToolSelectedCase() {
   if (item.priceMan) purchaseToolSetValue('purchase-tool-price', Math.round(item.priceMan));
   if (item.areaSqm) purchaseToolSetValue('purchase-tool-area', item.areaSqm);
   if (item.rentMan) purchaseToolSetValue('purchase-tool-rent', item.rentMan);
+  const modal = document.getElementById('purchase-tool-modal');
+  if (modal) modal.dataset.selectedCaseImported = '1';
   setPurchaseToolActivePane('case');
   calculatePurchaseTool();
 }
@@ -1031,6 +1052,11 @@ function applyPurchaseToolPreset() {
   document.querySelectorAll('[data-purchase-doc]').forEach((item, idx) => {
     item.checked = idx < 4;
   });
+  const modal = document.getElementById('purchase-tool-modal');
+  if (modal) {
+    delete modal.dataset.selectedCaseImported;
+    delete modal.dataset.selectedMarketSynced;
+  }
   setPurchaseQuestionStep(0);
   refreshPurchaseQuestionAnswers();
   calculatePurchaseTool();
@@ -1077,6 +1103,11 @@ function resetPurchaseTool() {
   document.querySelectorAll('[data-purchase-doc]').forEach((item, idx) => {
     item.checked = idx < 2;
   });
+  const modal = document.getElementById('purchase-tool-modal');
+  if (modal) {
+    delete modal.dataset.selectedCaseImported;
+    delete modal.dataset.selectedMarketSynced;
+  }
   setPurchaseQuestionStep(0);
   refreshPurchaseQuestionAnswers();
   setPurchaseToolActivePane('case');
