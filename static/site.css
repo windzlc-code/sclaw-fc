@@ -8197,6 +8197,39 @@ a.support-chat-toggle {
   gap: 3px;
 }
 
+.purchase-tool-comparable-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+}
+
+.purchase-tool-remove-case-btn {
+  min-width: 42px;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #d9e5f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #52647a;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.purchase-tool-remove-case-btn:hover,
+.purchase-tool-remove-case-btn:focus-visible {
+  border-color: #e46666;
+  color: #b42318;
+}
+
+.purchase-tool-comparable-more {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .purchase-tool-comparable-card strong {
   color: #15395e;
   font-size: 13px;
@@ -46646,6 +46679,18 @@ body.purchase-tools-body .purchase-tool-image-card-badge {
 body.purchase-tools-body .purchase-tool-image-card-body {
   gap: 7px;
   padding: 12px 12px 11px;
+}
+
+body.purchase-tools-body .purchase-tool-image-card-media .purchase-tool-remove-case-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  min-width: 44px;
+  min-height: 26px;
+  border-color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 18px rgba(12, 35, 56, 0.18);
 }
 
 body.purchase-tools-body .purchase-tool-image-card-body strong {

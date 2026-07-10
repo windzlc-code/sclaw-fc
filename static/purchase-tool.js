@@ -11,6 +11,7 @@ function esc(value) {
 function closeFloatingPanelsExcept() {}
 
 const PURCHASE_SELECTED_CASES_KEY = 'sclaw_support_selected_cases_v1';
+const PURCHASE_SELECTED_CASES_CHANNEL_KEY = 'sclaw_support_selected_cases_channel_v1';
 
 function purchaseToolNumber(id, fallback = 0) {
   const el = document.getElementById(id);
@@ -638,18 +639,25 @@ function renderPurchaseDecisionRows(rows) {
 function renderPurchaseSelectedComparables(rows) {
   const wrap = document.getElementById('purchase-tool-selected-comparables');
   if (!wrap) return;
-  const list = (Array.isArray(rows) ? rows : readPurchaseSelectedCases()).filter(Boolean).slice(0, 8);
+  const list = (Array.isArray(rows) ? rows : readPurchaseSelectedCases()).filter(Boolean);
+  const visible = list.slice(0, 8);
   wrap.replaceChildren();
-  if (!list.length) {
+  if (!visible.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
     empty.textContent = '尚未加入已選案件。可先在案件列表加入對比，再回到此處校準市場均價。';
     wrap.appendChild(empty);
     return;
   }
-  list.forEach((item, index) => {
+  visible.forEach((item, index) => {
     wrap.appendChild(buildPurchaseComparableCard(item, index));
   });
+  if (list.length > visible.length) {
+    const more = document.createElement('small');
+    more.className = 'purchase-tool-comparable-more';
+    more.textContent = `另有 ${list.length - visible.length} 筆已選案件已納入校準，可在右側列表移除後即時重算。`;
+    wrap.appendChild(more);
+  }
 }
 
 function buildPurchaseComparableCard(item, index) {
@@ -657,11 +665,15 @@ function buildPurchaseComparableCard(item, index) {
   card.className = 'purchase-tool-comparable-card';
   const title = item.title || ('已選案件 ' + (index + 1));
   const head = document.createElement('div');
+  head.className = 'purchase-tool-comparable-card-head';
+  const copy = document.createElement('div');
   const strong = document.createElement('strong');
   const span = document.createElement('span');
   strong.textContent = title;
   span.textContent = item.region || item.station || '位置待補';
-  head.append(strong, span);
+  copy.append(strong, span);
+  const removeBtn = buildPurchaseComparableRemoveButton(item, index);
+  head.append(copy, removeBtn);
   card.appendChild(head);
   const summary = document.createElement('small');
   const price = item.priceMan ? formatPurchaseToolMan(item.priceMan) : '價格待補';
@@ -671,6 +683,20 @@ function buildPurchaseComparableCard(item, index) {
   summary.textContent = price + '｜' + area + '｜' + unit + '｜' + yieldText;
   card.appendChild(summary);
   return card;
+}
+
+function buildPurchaseComparableRemoveButton(item, index) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'purchase-tool-remove-case-btn';
+  button.textContent = '移除';
+  button.setAttribute('aria-label', '移除 ' + (item.title || '可比案件'));
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    removePurchaseToolSelectedCase(item, index);
+  });
+  return button;
 }
 
 function purchaseToolImageUrl(item) {
@@ -717,6 +743,7 @@ function buildPurchaseImageComparableCard(item, index) {
     badge.textContent = '本案';
     media.appendChild(badge);
   }
+  media.appendChild(buildPurchaseComparableRemoveButton(item, index));
   const body = document.createElement('div');
   body.className = 'purchase-tool-image-card-body';
   const title = document.createElement('strong');
@@ -975,16 +1002,117 @@ function normalizeSelectedCase(raw) {
   const unitPrice = priceMan > 0 && areaSqm > 0 ? priceMan / areaSqm : 0;
   const galleryUrls = Array.isArray(raw.gallery_urls) ? raw.gallery_urls.map((x) => String(x || '').trim()).filter(Boolean) : [];
   const thumbUrl = String(raw.thumb_url || raw.image_url || raw.hero_media_url || raw.thumbnail_url || galleryUrls[0] || '').trim();
-  return { title, region, station, priceMan, areaSqm, rentMan, yieldPct, walk, age, unitPrice, thumbUrl, galleryUrls };
+  const stableKey = String(
+    raw.case_key ||
+    raw.source_item_id ||
+    raw.content_id ||
+    raw.item_url ||
+    raw.url ||
+    raw.canonical_url ||
+    raw.slug ||
+    ''
+  ).trim();
+  return { title, region, station, priceMan, areaSqm, rentMan, yieldPct, walk, age, unitPrice, thumbUrl, galleryUrls, stableKey };
+}
+
+function purchaseToolCaseFallbackKey(item) {
+  if (!item) return '';
+  return [
+    item.title || '',
+    item.region || '',
+    item.station || '',
+    item.priceMan || '',
+    item.areaSqm || '',
+    item.thumbUrl || '',
+  ].join('|');
+}
+
+function purchaseToolSelectedCaseKey(item) {
+  return String((item && item.stableKey) || '').trim() || purchaseToolCaseFallbackKey(item);
+}
+
+function readPurchaseSelectedRawCases() {
+  try {
+    const rows = JSON.parse(localStorage.getItem(PURCHASE_SELECTED_CASES_KEY) || '[]');
+    return Array.isArray(rows) ? rows : [];
+  } catch (_) {
+    return [];
+  }
 }
 
 function readPurchaseSelectedCases() {
   try {
-    const rows = JSON.parse(localStorage.getItem(PURCHASE_SELECTED_CASES_KEY) || '[]');
-    return Array.isArray(rows) ? rows.map(normalizeSelectedCase).filter(Boolean) : [];
+    return readPurchaseSelectedRawCases().map(normalizeSelectedCase).filter(Boolean);
   } catch (_) {
     return [];
   }
+}
+
+function writePurchaseSelectedRawCases(rows) {
+  const payload = Array.isArray(rows) ? rows : [];
+  let oldValue = '';
+  let newValue = '';
+  try {
+    oldValue = localStorage.getItem(PURCHASE_SELECTED_CASES_KEY) || '';
+    newValue = JSON.stringify(payload);
+    localStorage.setItem(PURCHASE_SELECTED_CASES_KEY, newValue);
+  } catch (_) {}
+  try {
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: PURCHASE_SELECTED_CASES_KEY,
+      oldValue,
+      newValue,
+      storageArea: localStorage,
+    }));
+  } catch (_) {}
+  try {
+    window.dispatchEvent(new CustomEvent('sclaw:selected-cases-updated', {
+      detail: { items: payload, source: 'purchase-tool' },
+    }));
+  } catch (_) {}
+  try {
+    if ('BroadcastChannel' in window) {
+      const channel = new BroadcastChannel(PURCHASE_SELECTED_CASES_CHANNEL_KEY);
+      channel.postMessage({ type: 'selected-cases-updated', source: 'purchase-tool', items: payload });
+      window.setTimeout(() => {
+        try { channel.close(); } catch (_) {}
+      }, 0);
+    }
+  } catch (_) {}
+}
+
+function removePurchaseToolSelectedCase(item, index) {
+  const targetKey = purchaseToolSelectedCaseKey(item);
+  const rows = readPurchaseSelectedRawCases();
+  let removed = false;
+  const next = rows.filter((raw, rawIndex) => {
+    if (removed) return true;
+    const normalized = normalizeSelectedCase(raw);
+    const rawKey = purchaseToolSelectedCaseKey(normalized);
+    const keyMatches = targetKey && rawKey === targetKey;
+    const fallbackIndexMatches = !targetKey && rawIndex === index;
+    if (keyMatches || fallbackIndexMatches) {
+      removed = true;
+      return false;
+    }
+    return true;
+  });
+  if (!removed && Number.isInteger(index) && index >= 0 && index < rows.length) {
+    next.splice(index, 1);
+    removed = true;
+  }
+  if (!removed) return;
+  const modal = document.getElementById('purchase-tool-modal');
+  writePurchaseSelectedRawCases(next);
+  if (modal?.dataset.selectedMarketSynced === '1' && !next.length) {
+    modal.dataset.selectedMarketSynced = '0';
+    purchaseToolSetValue('purchase-tool-market-unit-price', '');
+    purchaseToolSetValue('purchase-tool-market-yield', '');
+    purchaseToolSetValue('purchase-tool-target-walk', '');
+    purchaseToolSetValue('purchase-tool-target-age', '');
+    updatePurchaseToolMarketFromRows([]);
+  }
+  syncPurchaseToolSelectedCases();
 }
 
 function purchaseToolDialog() {
@@ -1029,6 +1157,9 @@ function syncPurchaseToolSelectedCases(options = {}) {
   if (shouldCalibrate && rows.length) {
     updatePurchaseToolMarketFromRows(rows);
     if (modal) modal.dataset.selectedMarketSynced = '1';
+  } else if (shouldCalibrate && !rows.length) {
+    updatePurchaseToolMarketFromRows([]);
+    if (modal?.dataset.selectedMarketSynced === '1') modal.dataset.selectedMarketSynced = '0';
   }
   calculatePurchaseTool();
   return rows;
