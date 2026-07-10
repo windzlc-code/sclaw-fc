@@ -6,7 +6,7 @@
   <title>{{ item.seo_title }}</title>
   <meta name="description" content="{{ item.seo_description }} {{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260709-lower-mobile-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260710-mobile-hero-vertical-actions-a">
   <link rel="canonical" href="{{ site_url }}{{ item.article_path }}">
   <link rel="alternate" hreflang="zh-Hant" href="{{ site_url }}{{ item.article_path }}">
   <link rel="alternate" hreflang="zh-Hans" href="{{ site_url }}{{ item.article_path }}?lang=zh-hans">
@@ -136,7 +136,7 @@
           {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
           <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
             {% if n.thumb_url %}
-            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-empty'); this.remove();">
+            <img src="{{ n.thumb_url|case_static_image_url|case_card_thumb_url(320, 180) }}" alt="" loading="eager" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-empty'); this.remove();">
             {% endif %}
             <span class="article-related-thumb-fallback">圖片暫不可用</span>
           </a>

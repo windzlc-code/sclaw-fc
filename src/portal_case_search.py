@@ -2064,7 +2064,9 @@ def _is_yahoo_listing_image_url(text: str) -> bool:
         return False
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
-    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" in path
+    if not host.endswith("realestate-pctr.c.yimg.jp") or "/realestate-buy-image/" not in path:
+        return False
+    return not _is_yahoo_noimage_fallback_listing_url(s)
 
 
 def _yahoo_listing_image_path_token(item_url: str) -> str:
@@ -2155,7 +2157,7 @@ def _is_unfetchable_listing_image_url(text: str) -> bool:
     if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path:
         if _is_yahoo_noimage_fallback_listing_url(s):
             return True
-        return not any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+        return False
     if "suumo." in host and "resizeimage" in path:
         try:
             q = dict(parse_qsl(parsed.query, keep_blank_values=True))

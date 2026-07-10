@@ -6,7 +6,7 @@
   <title>站內明細｜{{ site_name }}</title>
   <meta name="description" content="日本不動產站內房源明細。{{ seo_description_suffix }}">
   <meta name="keywords" content="{{ merge_seo_meta_keywords() }}">
-  <link rel="stylesheet" href="/static/site.css?v=20260709-lower-mobile-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260710-mobile-hero-vertical-actions-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
 </head>
 <body class="site-home site-case site-case-suumo site-case-standalone site-lang-hant">
@@ -105,7 +105,7 @@
           {% set related_primary_path = n.case_path if n.source_content_kind == 'jp_listing' and n.case_path else n.article_path %}
           <a class="article-related-thumb" href="{{ related_primary_path }}" aria-label="{{ n.seo_title }}">
             {% if n.thumb_url %}
-            <img src="{{ n.thumb_url|case_static_image_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-empty'); this.remove();">
+            <img src="{{ n.thumb_url|case_static_image_url|case_card_thumb_url(320, 180) }}" alt="" loading="eager" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-empty'); this.remove();">
             {% endif %}
             <span class="article-related-thumb-fallback">圖片暫不可用</span>
           </a>
@@ -811,7 +811,7 @@
         const syncMain = (thumb, direction = 1) => {
           const img = thumb.querySelector('img');
           const full = img?.getAttribute('data-full-src') || img?.getAttribute('src') || '';
-          const src = img?.getAttribute('src') || '';
+          const src = img?.getAttribute('data-case-deferred-src') || img?.getAttribute('src') || '';
           if (!full) return;
           const pane = thumb.closest('[data-gallery-pane]');
           const paneKey = String(pane?.getAttribute('data-gallery-pane') || activePaneKey);
@@ -959,6 +959,20 @@
       }
     }
 
+    function hydrateDeferredCaseImages() {
+      const imgs = Array.from(document.querySelectorAll('img[data-case-deferred-src]'));
+      if (!imgs.length) return;
+      imgs.forEach((img, idx) => {
+        const src = String(img.getAttribute('data-case-deferred-src') || '').trim();
+        if (!src) return;
+        window.setTimeout(() => {
+          if (!img.isConnected || img.getAttribute('src') === src) return;
+          img.setAttribute('src', src);
+          img.removeAttribute('data-case-deferred-src');
+        }, idx * 120);
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       initCaseContentTabs();
       initCaseGalleryTabs();
@@ -975,6 +989,7 @@
       initPortalCaseHeroFallback();
       initCaseImageFallbackPool();
       initImageLightbox();
+      window.addEventListener('load', () => window.setTimeout(hydrateDeferredCaseImages, 250), { once: true });
     });
   </script>
   {% include 'partials/support_chat_public_fab.html' %}

@@ -166,7 +166,9 @@
       <div class="portal-suumo-gallery-stage" aria-label="相簿主圖">
         <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--prev" data-gallery-nav="prev" aria-label="上一張">‹</button>
         <figure class="portal-suumo-herofig portal-suumo-gallery-main{% if main_u == fallback_img %} portal-suumo-herofig--fallback{% endif %}{% if main_is_floorplan %} portal-suumo-herofig--floorplan{% endif %}">
-          <img class="portal-suumo-heroimg zoomable-image" src="{{ main_u|case_static_image_url }}" data-full-src="{{ main_u }}" alt="主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="720" height="540">
+          {% set main_src = main_u|case_static_image_url %}
+          {% set main_is_proxy = main_src.startswith('/api/case-image-cache') %}
+          <img class="portal-suumo-heroimg zoomable-image" src="{% if main_is_proxy %}{{ fallback_img }}{% else %}{{ main_src }}{% endif %}"{% if main_is_proxy %} data-case-deferred-src="{{ main_src }}"{% endif %} data-full-src="{{ main_u }}" alt="主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="720" height="540">
         </figure>
         <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--next" data-gallery-nav="next" aria-label="下一張">›</button>
       </div>
@@ -186,7 +188,9 @@
         <div class="portal-suumo-gallery-section-grid">
           {% for u in sec.urls %}
           <a class="portal-suumo-gallery-section-thumb" href="{{ u }}" target="_blank" rel="nofollow noopener noreferrer" title="{{ sec.label }} {{ loop.index }}">
-            <img class="zoomable-image" src="{{ u|case_static_image_url }}" data-full-src="{{ u }}" alt="{{ sec.label }} {{ loop.index }}" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="180" height="126">
+            {% set thumb_src = u|case_static_image_url %}
+            {% set thumb_is_proxy = thumb_src.startswith('/api/case-image-cache') %}
+            <img class="zoomable-image" src="{% if thumb_is_proxy %}{{ fallback_img }}{% else %}{{ thumb_src }}{% endif %}"{% if thumb_is_proxy %} data-case-deferred-src="{{ thumb_src }}"{% endif %} data-full-src="{{ u }}" alt="{{ sec.label }} {{ loop.index }}" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="180" height="126">
           </a>
           {% endfor %}
         </div>

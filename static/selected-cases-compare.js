@@ -293,6 +293,15 @@ function scThumb(it) {
   return scUrlList(it.gallery_urls, 1)[0] || '';
 }
 
+function scCardThumbUrl(src, width = 520, height = 360) {
+  const raw = scText(src);
+  if (!raw) return '';
+  if (/^\/static\/cache\/case-images\/[a-f0-9]{2}\/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$/i.test(raw)) {
+    return `/api/case-image-thumb?src=${encodeURIComponent(raw)}&w=${Number(width) || 520}&h=${Number(height) || 360}`;
+  }
+  return raw;
+}
+
 function scLocalLink(it) {
   const sid = Number(it.source_item_id || 0);
   if (sid > 0) return `/case/${sid}?return_to=${encodeURIComponent('/selected-cases-compare')}`;
@@ -827,7 +836,7 @@ function renderSelectedCompareAdvantages(items, fields, winners) {
 function renderSelectedCompareCards(items) {
   const cards = document.getElementById('selected-compare-cards');
   cards.innerHTML = items.map((it, idx) => {
-    const thumb = scThumb(it);
+    const thumb = scCardThumbUrl(scThumb(it), 520, 360);
     const marker = `房源 ${String(idx + 1).padStart(2, '0')}`;
     const imageCount = Number(it.image_count || it.gallery_urls.length || 0);
     const imageLabel = imageCount ? `${imageCount} 張圖片` : (thumb ? '主圖' : '暫無配圖');
@@ -873,7 +882,7 @@ function renderSelectedCompareFloorplans(items) {
 function renderSelectedCompareTables(items, sections, winners) {
   const wrap = document.getElementById('selected-compare-table-groups');
   const header = `<thead><tr><th scope="col">對比項目</th>${items.map((it, idx) => {
-    const thumb = scThumb(it);
+      const thumb = scCardThumbUrl(scThumb(it), 120, 90);
     return `<th scope="col">
       <div class="selected-compare-head-card">
         <span class="selected-compare-head-index">${String(idx + 1)}</span>

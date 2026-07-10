@@ -3,7 +3,9 @@
       <div id="support-chat-backdrop" class="support-chat-backdrop" style="display: none;" onclick="toggleSupportChat(false)" aria-hidden="true"></div>
       <div id="support-selected-cases-drawer-backdrop" class="support-selected-cases-drawer-backdrop" style="display:none;" onclick="toggleSupportSelectedCasesDrawer(false)" aria-hidden="true"></div>
       <div id="support-saved-cases-drawer-backdrop" class="support-selected-cases-drawer-backdrop support-saved-cases-drawer-backdrop" style="display:none;" onclick="toggleSupportSavedCasesDrawer(false)" aria-hidden="true"></div>
+      {% if show_support_purchase_tool %}
       {% include 'partials/purchase_tool.html' %}
+      {% endif %}
       <div id="support-human-intake-modal" class="support-human-intake-modal" style="display:none;" aria-hidden="true">
         <div class="support-human-intake-modal-backdrop" onclick="toggleSupportHumanIntakeModal(false)" aria-hidden="true"></div>
         <section class="support-human-intake-dialog" role="dialog" aria-modal="true" aria-labelledby="support-human-intake-modal-title" aria-describedby="support-human-intake-modal-note">
@@ -674,15 +676,20 @@
 
     function thumbUrl(item) {
       if (!item) return '';
-      if (item.thumb_url) return String(item.thumb_url);
-      if (item.image_url) return String(item.image_url);
-      if (item.hero_media_url) return String(item.hero_media_url);
-      if (item.thumbnail_url) return String(item.thumbnail_url);
-      if (item.thumbnail) return String(item.thumbnail);
-      if (Array.isArray(item.gallery_urls) && item.gallery_urls.length) return String(item.gallery_urls[0]);
-      if (Array.isArray(item.image_urls) && item.image_urls.length) return String(item.image_urls[0]);
-      if (Array.isArray(item.images) && item.images.length) return String(item.images[0]);
-      return '';
+      var raw = '';
+      if (item.thumb_url) raw = String(item.thumb_url);
+      else if (item.image_url) raw = String(item.image_url);
+      else if (item.hero_media_url) raw = String(item.hero_media_url);
+      else if (item.thumbnail_url) raw = String(item.thumbnail_url);
+      else if (item.thumbnail) raw = String(item.thumbnail);
+      else if (Array.isArray(item.gallery_urls) && item.gallery_urls.length) raw = String(item.gallery_urls[0]);
+      else if (Array.isArray(item.image_urls) && item.image_urls.length) raw = String(item.image_urls[0]);
+      else if (Array.isArray(item.images) && item.images.length) raw = String(item.images[0]);
+      raw = String(raw || '').trim();
+      if (/^\/static\/cache\/case-images\/[a-f0-9]{2}\/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$/i.test(raw)) {
+        return '/api/case-image-thumb?src=' + encodeURIComponent(raw) + '&w=160&h=120';
+      }
+      return raw;
     }
 
     function refreshSupportFallbackBadges() {

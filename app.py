@@ -14,6 +14,7 @@ import threading
 import time
 import unicodedata
 import wave
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO, StringIO
@@ -250,8 +251,10 @@ _COVERAGE_MATRIX_CACHE: dict[str, tuple[float, bytes]] = {}
 _SOCIAL_TG_SNAPSHOT_CACHE_LOCK = threading.Lock()
 _SOCIAL_TG_SNAPSHOT_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
 _CASE_PAGE_HTML_CACHE_LOCK = threading.Lock()
-_CASE_PAGE_HTML_CACHE: dict[int, tuple[float, str, str]] = {}
+_CASE_PAGE_HTML_CACHE: dict[tuple[int, str], tuple[float, str]] = {}
 _CASE_PAGE_HTML_CACHE_MAX = 240
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-thumb-prefetch-20260709a"
+_CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=120"}
 
 
 def _invalidate_case_data_caches() -> None:
@@ -278,6 +281,7 @@ def _case_page_html_cache_ttl() -> float:
 
 def _case_page_fingerprint(item: dict[str, Any]) -> str:
     parts = [
+        _CASE_PAGE_HTML_CACHE_VERSION,
         str(item.get("updated_at") or ""),
         str(item.get("last_checked_at") or ""),
         str(item.get("crawled_at") or ""),
@@ -300,13 +304,14 @@ def _case_page_html_cache_get(source_item_id: int, fingerprint: str) -> str | No
         return None
     now = time.monotonic()
     sid = int(source_item_id or 0)
+    key = (sid, str(fingerprint))
     with _CASE_PAGE_HTML_CACHE_LOCK:
-        hit = _CASE_PAGE_HTML_CACHE.get(sid)
+        hit = _CASE_PAGE_HTML_CACHE.get(key)
         if not hit:
             return None
-        ts, fp, html = hit
-        if fp != fingerprint or now - ts > ttl:
-            _CASE_PAGE_HTML_CACHE.pop(sid, None)
+        ts, html = hit
+        if now - ts > ttl:
+            _CASE_PAGE_HTML_CACHE.pop(key, None)
             return None
         return html
 
@@ -317,8 +322,9 @@ def _case_page_html_cache_set(source_item_id: int, fingerprint: str, html: str) 
     sid = int(source_item_id or 0)
     if sid <= 0 or not html:
         return
+    key = (sid, str(fingerprint))
     with _CASE_PAGE_HTML_CACHE_LOCK:
-        _CASE_PAGE_HTML_CACHE[sid] = (time.monotonic(), str(fingerprint), str(html))
+        _CASE_PAGE_HTML_CACHE[key] = (time.monotonic(), str(html))
         while len(_CASE_PAGE_HTML_CACHE) > _CASE_PAGE_HTML_CACHE_MAX:
             oldest = min(_CASE_PAGE_HTML_CACHE.items(), key=lambda kv: kv[1][0])[0]
             _CASE_PAGE_HTML_CACHE.pop(oldest, None)
@@ -1971,7 +1977,7 @@ def _case_image_thumbnail_path(static_url: Any, width: int = 520, height: int = 
     if not source_path or not source_path.is_file():
         return None
     w = max(120, min(960, int(width or 520)))
-    h = max(90, min(720, int(height or 360)))
+    h = max(90, min(960, int(height or 360)))
     digest = hashlib.sha1(f"{src}|{source_path.stat().st_mtime_ns}|{source_path.stat().st_size}|{w}x{h}".encode("utf-8")).hexdigest()
     return _CASE_IMAGE_THUMB_DIR / f"{w}x{h}" / digest[:2] / f"{digest}.webp"
 
@@ -1993,7 +1999,7 @@ def _case_image_make_thumbnail(static_url: Any, width: int = 520, height: int = 
         from PIL import Image, ImageOps  # type: ignore
 
         w = max(120, min(960, int(width or 520)))
-        h = max(90, min(720, int(height or 360)))
+        h = max(90, min(960, int(height or 360)))
         thumb_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = thumb_path.with_name(thumb_path.name + ".tmp")
         with Image.open(source_path) as im0:
@@ -2158,6 +2164,14 @@ def _case_image_download_to_cache(raw_url: Any) -> str:
             tmp.unlink(missing_ok=True)
             return ""
         tmp.replace(dest)
+        cached_probe = _case_image_static_url_from_path(dest)
+        reject_reason = _case_image_proxy_reject_reason(cached_probe)
+        if reject_reason and not (reject_reason == "access-map" and _is_yahoo_listing_image_url(raw)):
+            try:
+                dest.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return ""
     except Exception:
         try:
             tmp.unlink(missing_ok=True)
@@ -6249,6 +6263,8 @@ _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # file usable across restarts and daily traffic; external jobs can replace it
 # when a new screening batch is generated.
 _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 30 * 24 * 60 * 60
+_HOME_FEATURED_DETAIL_PREWARM_LOCK = threading.Lock()
+_HOME_FEATURED_DETAIL_PREWARM_STARTED = False
 
 
 def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bool:
@@ -6569,6 +6585,95 @@ def _prewarm_home_featured_thumbnail_cache() -> None:
             print(f"SCLAW: 首頁卡片縮略圖預熱完成（來源 {len(sources)}，縮圖 {made}）", flush=True)
     except Exception as exc:
         _log_backend_error("home-featured-thumb-prewarm", exc)
+
+
+def _home_featured_preload_case_ids(bundle: dict[str, Any] | None, *, limit: int = 18) -> list[int]:
+    out: list[int] = []
+    seen: set[int] = set()
+
+    def add_from_payload(payload: Any) -> None:
+        if not isinstance(payload, dict):
+            return
+        for item in list(payload.get("items") or []):
+            if not isinstance(item, dict):
+                continue
+            try:
+                sid = int(item.get("source_item_id") or 0)
+            except Exception:
+                sid = 0
+            if sid <= 0 or sid in seen:
+                continue
+            seen.add(sid)
+            out.append(sid)
+            if len(out) >= limit:
+                return
+
+    add_from_payload((bundle or {}).get("home_featured_preload"))
+    type_payloads = (bundle or {}).get("home_featured_type_preloads") or {}
+    if isinstance(type_payloads, dict):
+        # Warm the generic property-type pool first because it is what the user sees
+        # immediately below the hero, then fill from the specific type pools.
+        add_from_payload(type_payloads.get(""))
+        for key, payload in type_payloads.items():
+            if key == "":
+                continue
+            add_from_payload(payload)
+            if len(out) >= limit:
+                break
+    return out[:limit]
+
+
+def _prewarm_home_featured_case_detail_cache() -> None:
+    try:
+        delay = max(0.0, min(20.0, float(os.getenv("SCLAW_HOME_DETAIL_PREWARM_DELAY", "2.5") or 2.5)))
+    except Exception:
+        delay = 2.5
+    if delay:
+        time.sleep(delay)
+    try:
+        bundle = _home_featured_index_preload_bundle_cached_only()
+        if not bundle:
+            return
+        ids = _home_featured_preload_case_ids(bundle, limit=int(os.getenv("SCLAW_HOME_DETAIL_PREWARM_LIMIT", "18") or 18))
+        if not ids:
+            return
+        port = str(os.getenv("PORT") or os.getenv("SCLAW_PORT") or "8000").strip() or "8000"
+        base_url = f"http://127.0.0.1:{port}"
+        warmed = 0
+        with httpx.Client(base_url=base_url, timeout=httpx.Timeout(24.0, connect=1.5), follow_redirects=False) as client:
+            for sid in ids:
+                try:
+                    resp = client.get(
+                        f"/case/{sid}",
+                        params={"return_to": "/#home-featured-cases"},
+                        headers={"X-SCLAW-Prefetch": "server-home-detail"},
+                    )
+                    if resp.status_code == 200:
+                        warmed += 1
+                except Exception:
+                    continue
+        print(f"SCLAW: 首頁案件詳情頁預熱完成（{warmed}/{len(ids)}）", flush=True)
+    except Exception as exc:
+        _log_backend_error("home-featured-detail-prewarm", exc)
+
+
+def _start_home_featured_detail_prewarm() -> None:
+    global _HOME_FEATURED_DETAIL_PREWARM_STARTED
+    enabled = (os.getenv("SCLAW_HOME_DETAIL_PREWARM") or "1").strip().lower()
+    if enabled in ("0", "false", "no", "off"):
+        return
+    with _HOME_FEATURED_DETAIL_PREWARM_LOCK:
+        if _HOME_FEATURED_DETAIL_PREWARM_STARTED:
+            return
+        _HOME_FEATURED_DETAIL_PREWARM_STARTED = True
+    try:
+        threading.Thread(
+            target=_prewarm_home_featured_case_detail_cache,
+            daemon=True,
+            name="home-featured-detail-prewarm",
+        ).start()
+    except Exception as exc:
+        _log_backend_error("home-featured-detail-prewarm-start", exc)
 
 
 def _start_home_featured_thumbnail_prewarm() -> None:
@@ -7639,13 +7744,6 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     cached_url = _case_image_cached_static_url(raw)
     path = _url_to_local_static_path(cached_url)
     if path:
-        reject_reason = _case_image_proxy_reject_reason(cached_url)
-        if reject_reason and not (reject_reason == "access-map" and _is_yahoo_listing_image_url(raw)):
-            return Response(
-                status_code=404,
-                content=f"image rejected: {reject_reason}",
-                headers={"Cache-Control": "public, max-age=300"},
-            )
         return RedirectResponse(
             cached_url,
             status_code=302,
@@ -7655,13 +7753,6 @@ def _case_image_cache_response(raw_url: Any, *, expected_hash: str = "") -> Resp
     path = _url_to_local_static_path(cached_url)
     if not path:
         return Response(status_code=404, content="image unavailable")
-    reject_reason = _case_image_proxy_reject_reason(cached_url)
-    if reject_reason and not (reject_reason == "access-map" and _is_yahoo_listing_image_url(raw)):
-        return Response(
-            status_code=404,
-            content=f"image rejected: {reject_reason}",
-            headers={"Cache-Control": "public, max-age=300"},
-        )
     media_type = mimetypes.guess_type(str(path))[0] or "image/jpeg"
     return FileResponse(
         path,
@@ -7686,7 +7777,7 @@ def api_case_image_cache(image_hash: str, u: str = Query(..., min_length=8)):
 def api_case_image_thumb(
     src: str = Query(..., min_length=8),
     w: int = Query(default=520, ge=120, le=960),
-    h: int = Query(default=360, ge=90, le=720),
+    h: int = Query(default=360, ge=90, le=960),
 ):
     thumb_url = _case_image_make_thumbnail(src, width=w, height=h)
     path = _url_to_local_static_path(thumb_url)
@@ -8627,6 +8718,7 @@ def startup_event() -> None:
         threading.Thread(target=_prewarm_home_titlebar_case_search_cache, daemon=True, name="titlebar-case-prewarm").start()
         threading.Thread(target=_prewarm_home_featured_api_cache, daemon=True, name="home-featured-api-prewarm").start()
         _start_home_featured_thumbnail_prewarm()
+        _start_home_featured_detail_prewarm()
     except Exception:
         pass
 
@@ -10270,7 +10362,7 @@ def _is_unfetchable_listing_image_url(text: str) -> bool:
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
     if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path:
-        return not any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"))
+        return _is_yahoo_noimage_fallback_listing_url(s)
     if "suumo." in host and "resizeimage" in path:
         try:
             q = dict(parse_qsl(parsed.query, keep_blank_values=True))
@@ -10313,7 +10405,7 @@ def _row_image_url_is_usable(u: str) -> bool:
         if _is_yahoo_noimage_fallback_listing_url(u):
             return False
         if "/realestate-buy-image/" in path:
-            return any(path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))
+            return True
         if len(path.strip("/")) >= 32 and not any(
             tok in path
             for tok in (
@@ -10497,7 +10589,20 @@ def _is_yahoo_listing_image_url(text: str) -> bool:
         return False
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
-    return host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" in path
+    if not host.endswith("realestate-pctr.c.yimg.jp") or "/realestate-buy-image/" not in path:
+        return False
+    return not _is_yahoo_noimage_fallback_listing_url(s)
+
+
+def _case_yahoo_listing_image_path_token(item_url: Any) -> str:
+    raw = str(item_url or "").strip()
+    if "realestate.yahoo.co.jp" not in raw.lower():
+        return ""
+    m = re.search(r"/detail[^/]*/b(\d{10})(?:/|$)", raw, re.I)
+    if not m:
+        return ""
+    digits = m.group(1)
+    return f"/{digits[:2]}/{digits[2:6]}/{digits[6:10]}/".lower()
 
 
 def _is_truncated_listing_image_url(text: str) -> bool:
@@ -10603,16 +10708,16 @@ def _normalize_listing_image_url_for_display(
         return raw
     host = (parsed.netloc or "").lower()
     path = (parsed.path or "").lower()
-    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path and any(
-        path.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")
-    ):
+    if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in path:
         # Yahoo's image service returns the real JPEG for the original query,
         # but can switch to the nf_path noimage PNG when width/height are added.
+        # Empty nf_= is also rejected with HTTP 400 on some current Yahoo images.
         try:
             q_pairs = [
                 (str(k), str(v))
                 for k, v in parse_qsl(parsed.query, keep_blank_values=True)
                 if str(k).lower() not in {"w", "h", "width", "height"}
+                and not (str(k).lower() in {"nf_", "nf"} and not str(v).strip())
             ]
             return parsed._replace(query=urlencode(q_pairs, doseq=True)).geturl()
         except Exception:
@@ -11043,6 +11148,7 @@ def _collect_raw_image_urls_for_case_display(row: dict, *, limit: int = 80) -> l
     seen: set[str] = set()
     homes_tokens = _homes_listing_image_tokens(str(row.get("item_url") or ""))
     apply_homes_filter = bool(homes_tokens)
+    yahoo_path_token = _case_yahoo_listing_image_path_token(row.get("item_url"))
 
     def _push(u: str) -> None:
         s = str(u or "").strip().rstrip(".,;:)】>\"'」』")
@@ -11054,6 +11160,14 @@ def _collect_raw_image_urls_for_case_display(row: dict, *, limit: int = 80) -> l
             return
         path = lu.split("?", 1)[0]
         is_static_img = any(path.endswith(ext) for ext in _CASE_IMG_EXTS)
+        is_yahoo_listing_image = False
+        try:
+            parsed = urlparse(s)
+            host = (parsed.netloc or "").lower()
+            parsed_path = (parsed.path or "").lower()
+            is_yahoo_listing_image = host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/" in parsed_path
+        except Exception:
+            is_yahoo_listing_image = False
         is_suumo_resize = "suumo." in lu and "resizeimage" in lu and "src=" in lu
         is_homes_image_endpoint = (
             ("homes.jp" in lu or "homes.co.jp" in lu)
@@ -11063,8 +11177,15 @@ def _collect_raw_image_urls_for_case_display(row: dict, *, limit: int = 80) -> l
             )
         )
         is_athome_image_endpoint = "athome.co.jp" in lu and "/image_files/path/" in path and len(s) >= 48
-        if not (is_static_img or is_suumo_resize or is_homes_image_endpoint or is_athome_image_endpoint):
+        if not (is_static_img or is_yahoo_listing_image or is_suumo_resize or is_homes_image_endpoint or is_athome_image_endpoint):
             return
+        if yahoo_path_token and is_yahoo_listing_image:
+            try:
+                y_path = urlparse(s).path.lower()
+            except Exception:
+                y_path = s.lower()
+            if yahoo_path_token not in unquote(y_path):
+                return
         if not _is_case_property_gallery_image_url(s):
             return
         seen.add(s)
@@ -14543,6 +14664,7 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
     context_by_key = _case_gallery_context_by_url(row)
     audit_by_key = _case_gallery_audit_by_source_item(int((row or {}).get("source_item_id") or (row or {}).get("id") or 0))
     item_url = str((row or {}).get("item_url") or "")
+    yahoo_path_token = _case_yahoo_listing_image_path_token(item_url)
     homes_structured_media = bool(context_by_key) and ("homes.co.jp" in item_url.lower() or "homes.jp" in item_url.lower())
     raw_sources: list[str] = []
     for group in (
@@ -14589,6 +14711,13 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
             continue
         if not _case_gallery_url_matches_source_site(u, item_url):
             continue
+        if yahoo_path_token and _is_yahoo_listing_image_url(u):
+            try:
+                y_path = urlparse(u).path.lower()
+            except Exception:
+                y_path = str(u or "").lower()
+            if yahoo_path_token not in unquote(y_path):
+                continue
         key = _case_gallery_url_identity_key(u) or u
         if key in seen:
             continue
@@ -34304,6 +34433,51 @@ def _portal_case_apply_representative_media(items: list[dict[str, Any]]) -> list
     return out
 
 
+def _portal_case_normalize_response_media(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize media URLs just before API output so cards and detail use one image policy."""
+    out: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        nit = dict(item)
+        gallery_raw = [str(u or "").strip() for u in (nit.get("gallery_urls") or []) if str(u or "").strip()]
+        thumb_raw = str(nit.get("thumb_url") or "").strip()
+        if thumb_raw:
+            gallery_raw = [thumb_raw, *[u for u in gallery_raw if u != thumb_raw]]
+        gallery = _dedupe_case_gallery_urls(
+            [
+                _normalize_listing_image_url_for_display(
+                    u,
+                    suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                    suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+                )
+                for u in gallery_raw
+                if _is_case_property_gallery_image_url(
+                    _normalize_listing_image_url_for_display(
+                        u,
+                        suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+                        suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+                    )
+                    or u
+                )
+            ],
+            suumo_w=_SOURCE_IMAGE_HIGH_RES_W,
+            suumo_h=_SOURCE_IMAGE_HIGH_RES_H,
+        )[:8]
+        if gallery:
+            nit["thumb_url"] = gallery[0]
+            nit["gallery_urls"] = gallery
+            nit["thumb_kind"] = _thumb_kind_label(gallery[0])
+            nit["image_count"] = max(int(nit.get("image_count") or 0), len(gallery))
+        else:
+            nit["thumb_url"] = ""
+            nit["gallery_urls"] = []
+            nit["thumb_kind"] = ""
+            nit["image_count"] = 0
+        out.append(nit)
+    return out
+
+
 def _normalize_smart_query_portals(*raw_values: Any) -> list[str]:
     out: list[str] = []
     for raw in raw_values:
@@ -34438,7 +34612,7 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
             "offset": page_offset if page_size > 0 else 0,
             "page_size": page_size if page_size > 0 else 0,
             "detail_gate": "openable-v1",
-            "media_policy": "detail-panel-gallery-v19-yahoo-noimage-eager",
+            "media_policy": "detail-panel-gallery-v20-yahoo-nf-normalized",
         }
     )
     cached_body, cache_status = _portal_case_search_cache_get_with_status(cache_key)
@@ -34446,6 +34620,12 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
         try:
             cached_data = json.loads(cached_body)
             cached_count_exact = bool(cached_data.get("count_exact")) and not bool(cached_data.get("count_provisional"))
+            if page_size > 0:
+                cached_items = cached_data.get("items") if isinstance(cached_data, dict) else []
+                cached_data["portal_image_warm"] = _portal_case_result_warm_primary_images(
+                    list(cached_items or []),
+                    limit=min(6, max(1, int(page_size or 6))),
+                )
             cached_body = json.dumps(
                 _attach_exact_count_meta(cached_data, count_exact_known=cached_count_exact),
                 ensure_ascii=False,
@@ -34507,17 +34687,20 @@ def api_portal_case_search(payload: PortalCaseSearchRequest):
     if page_size <= 0:
         items_bf = _portal_case_apply_representative_media(items_bf)
         _case_schedule_representative_selection(items_bf[: min(len(items_bf), 4)], limit=4)
+    items_bf = _portal_case_normalize_response_media(items_bf)
     data["items"] = items_bf
     data["portal_detail_gate"] = detail_gate_meta
     if page_size > 0:
         data["portal_detail_enrich"] = {"enabled": False, "scheduled": 0, "reason": "paged_fast_mode"}
     else:
         data["portal_detail_enrich"] = _portal_search_schedule_detail_enrich(items_bf)
-    # Keep search responses CPU/IO-light: cards can lazy-load through the image
-    # proxy/cache after the first page is rendered. Forced prefetch here competes
-    # with SQLite on cold region searches and is the main reason area clicks feel
-    # blocked on smaller servers.
-    if page_size <= 0 and lim <= 24:
+    if page_size > 0:
+        data["portal_image_warm"] = _portal_case_result_warm_primary_images(
+            items_bf,
+            limit=min(6, max(1, int(page_size or 6))),
+        )
+        _portal_case_result_prefetch_images(items_bf, limit=12)
+    elif lim <= 24:
         _portal_case_result_prefetch_images(items_bf, limit=6)
     data["portal_thumb_backfill"] = bf_meta
     track_filters = {
@@ -35316,6 +35499,9 @@ def source_case_page(request: Request, source_item_id: int):
     case_return_to, case_return_label = _safe_case_return_to(request.query_params.get("return_to"))
     has_case_return_to = bool(str(request.query_params.get("return_to") or "").strip()) and case_return_to != "/#query-dialog"
     case_page_fp = _case_page_fingerprint(item)
+    if has_case_return_to:
+        return_fp = hashlib.sha1(f"{case_return_to}|{case_return_label}".encode("utf-8")).hexdigest()[:12]
+        case_page_fp = f"{case_page_fp}|return:{return_fp}"
     access_status_clean = str(item.get("access_status") or "public").strip().lower()
     restricted_reason = ""
     if access_status_clean and access_status_clean != "public":
@@ -35350,9 +35536,9 @@ def source_case_page(request: Request, source_item_id: int):
             },
         )
     item = _ensure_case_listing_media_json_for_display(item)
-    cached_case_html = None if has_case_return_to else _case_page_html_cache_get(int(source_item_id), case_page_fp)
+    cached_case_html = _case_page_html_cache_get(int(source_item_id), case_page_fp)
     if cached_case_html is not None:
-        return Response(content=cached_case_html, media_type="text/html")
+        return Response(content=cached_case_html, media_type="text/html", headers=_CASE_PAGE_HTML_RESPONSE_HEADERS)
     case_listing_panel = _build_portal_listing_panel(item)
     case_fields_for_title = case_listing_panel.get("fields") if isinstance(case_listing_panel, dict) else {}
     if isinstance(case_fields_for_title, dict) and str(case_fields_for_title.get("source_name_display") or "").strip():
@@ -35593,9 +35779,8 @@ def source_case_page(request: Request, source_item_id: int):
         "case_listing_panel": case_listing_panel,
     }
     html = templates.env.get_template("case.html").render(context)
-    if not has_case_return_to:
-        _case_page_html_cache_set(int(source_item_id), case_page_fp, html)
-    return Response(content=html, media_type="text/html")
+    _case_page_html_cache_set(int(source_item_id), case_page_fp, html)
+    return Response(content=html, media_type="text/html", headers=_CASE_PAGE_HTML_RESPONSE_HEADERS)
 
 
 @app.get("/api/cases/{source_item_id}/gallery")
@@ -37287,6 +37472,145 @@ def _portal_case_result_prefetch_images(items: list[dict[str, Any]], *, limit: i
             break
     if picks:
         _case_image_prefetch(picks, limit=limit, force=True)
+
+
+def _portal_case_result_primary_image_urls(
+    items: list[dict[str, Any]],
+    *,
+    limit: int = 6,
+    per_item: int = 3,
+) -> list[str]:
+    picks: list[str] = []
+    seen: set[str] = set()
+    max_items = max(1, int(limit or 1))
+    max_per_item = max(1, min(4, int(per_item or 1)))
+    for item in list(items or [])[:max_items]:
+        picked_for_item = 0
+        raw_urls: list[str] = []
+        gallery = item.get("gallery_urls") if isinstance(item, dict) else []
+        if isinstance(gallery, list):
+            raw_urls.extend(str(u or "").strip() for u in gallery if str(u or "").strip())
+        thumb = str((item or {}).get("thumb_url") or "").strip() if isinstance(item, dict) else ""
+        if thumb:
+            raw_urls.append(thumb)
+        for raw in raw_urls:
+            src = _normalize_listing_image_url_for_display(str(raw or "").strip(), suumo_w=560, suumo_h=740)
+            if not src or src in seen or not _is_case_property_gallery_image_url(src):
+                continue
+            seen.add(src)
+            picks.append(src)
+            picked_for_item += 1
+            if picked_for_item >= max_per_item:
+                break
+    return picks[: max_items * max_per_item]
+
+
+def _portal_case_result_warm_primary_images(items: list[dict[str, Any]], *, limit: int = 6) -> dict[str, Any]:
+    """Synchronously cache the first result-page card images before JSON is returned."""
+    first_items = list(items or [])[: max(1, int(limit or 1))]
+    first_static_urls: list[str] = []
+    for item in first_items:
+        if not isinstance(item, dict):
+            first_static_urls = []
+            break
+        first_url = str(((item.get("gallery_urls") or [item.get("thumb_url") or ""])[0]) or "")
+        if not first_url.startswith("/static/cache/"):
+            first_static_urls = []
+            break
+        first_static_urls.append(first_url)
+    if first_static_urls and len(first_static_urls) == len(first_items):
+        started_static = time.perf_counter()
+        for static in first_static_urls:
+            _case_image_make_thumbnail(static, width=560, height=740)
+        return {
+            "enabled": True,
+            "checked": len(first_static_urls),
+            "cached": len(first_static_urls),
+            "missed": 0,
+            "elapsed_ms": int((time.perf_counter() - started_static) * 1000),
+        }
+    urls = _portal_case_result_primary_image_urls(items, limit=limit)
+    if not urls:
+        return {"enabled": True, "checked": 0, "cached": 0, "missed": 0, "elapsed_ms": 0}
+    started = time.perf_counter()
+    cached = 0
+    missed = 0
+    static_by_url: dict[str, str] = {}
+    cold_urls = [u for u in urls if not _case_image_cached_static_url(u)]
+    for u in urls:
+        static = _case_image_cached_static_url(u)
+        if static:
+            static_by_url[u] = static
+    cached += len(static_by_url)
+    if cold_urls:
+        workers = max(1, min(4, len(cold_urls)))
+        try:
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="portal-card-image-warm") as pool:
+                futures = {pool.submit(_case_image_download_to_cache, u): u for u in cold_urls}
+                for fut in as_completed(futures):
+                    raw_url = futures.get(fut, "")
+                    try:
+                        static = fut.result()
+                        if static:
+                            _case_image_make_thumbnail(static, width=560, height=740)
+                            static_by_url[raw_url] = static
+                            cached += 1
+                        else:
+                            missed += 1
+                    except Exception:
+                        missed += 1
+        except Exception:
+            for u in cold_urls:
+                try:
+                    static = _case_image_download_to_cache(u)
+                    if static:
+                        _case_image_make_thumbnail(static, width=560, height=740)
+                        static_by_url[u] = static
+                        cached += 1
+                    else:
+                        missed += 1
+                except Exception:
+                    missed += 1
+    if static_by_url:
+        for static in list(static_by_url.values()):
+            _case_image_make_thumbnail(static, width=560, height=740)
+        for item in list(items or [])[: max(1, int(limit or 1))]:
+            if not isinstance(item, dict):
+                continue
+            gallery_raw = [str(u or "").strip() for u in (item.get("gallery_urls") or []) if str(u or "").strip()]
+            thumb_raw = str(item.get("thumb_url") or "").strip()
+            raw_urls = [*gallery_raw]
+            if thumb_raw:
+                raw_urls.append(thumb_raw)
+            primary_raw = ""
+            primary_norm = ""
+            for raw in raw_urls:
+                norm = _normalize_listing_image_url_for_display(raw, suumo_w=560, suumo_h=740)
+                if norm and norm in static_by_url:
+                    primary_raw = raw
+                    primary_norm = norm
+                    break
+            static = static_by_url.get(primary_norm, "")
+            if not static:
+                continue
+            item["thumb_url"] = static
+            if gallery_raw:
+                new_gallery: list[str] = [static]
+                for raw in gallery_raw:
+                    norm = _normalize_listing_image_url_for_display(raw, suumo_w=560, suumo_h=740)
+                    if raw == static or raw == primary_raw or norm == primary_norm:
+                        continue
+                    new_gallery.append(raw)
+                item["gallery_urls"] = new_gallery
+            else:
+                item["gallery_urls"] = [static]
+    return {
+        "enabled": True,
+        "checked": len(urls),
+        "cached": cached,
+        "missed": missed,
+        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+    }
 
 
 def _portal_case_has_displayable_property_media(item: dict[str, Any]) -> bool:

@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260709-mobile-full-center-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260710-mobile-hero-vertical-actions-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -5771,6 +5771,33 @@
           return rect.width > 0 && rect.height > 0 && evt.clientX >= rect.left && evt.clientX <= rect.right && evt.clientY >= rect.top && evt.clientY <= rect.bottom;
         }) || null;
       };
+      const prefetchFromCard = (card) => {
+        if (!card || !card.getAttribute) return;
+        const url = String(card.getAttribute('data-case-detail-url') || '').trim();
+        if (!url || url === '#') return;
+        const returnTo = card.classList.contains('home-featured-card') || card.classList.contains('home-featured-hero-card')
+          ? '/#home-featured-cases'
+          : '/#figure-results';
+        prefetchPortalCaseStandalone(url, returnTo);
+      };
+      const prefetchFromEvent = (evt) => {
+        const target = evt && evt.target instanceof Element ? evt.target : null;
+        if (!target) return;
+        const card = target.closest('.portal-suumo-card[data-case-detail-url], .home-featured-card[data-case-detail-url], .home-featured-hero-card[data-case-detail-url]');
+        if (card) prefetchFromCard(card);
+      };
+      document.addEventListener('pointerover', prefetchFromEvent, { passive: true });
+      document.addEventListener('touchstart', prefetchFromEvent, { passive: true });
+      document.addEventListener('focusin', prefetchFromEvent);
+      const prefetchInitialCards = () => {
+        const cards = Array.from(document.querySelectorAll('.home-featured-card[data-case-detail-url], .home-featured-hero-card[data-case-detail-url]')).slice(0, 6);
+        cards.forEach((card, idx) => window.setTimeout(() => prefetchFromCard(card), 450 + idx * 260));
+      };
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(prefetchInitialCards, { timeout: 3500 });
+      } else {
+        window.setTimeout(prefetchInitialCards, 1800);
+      }
       document.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target : null;
         if (!target) return;
@@ -17481,11 +17508,10 @@
         const host = String(u.hostname || '').toLowerCase();
         const path = String(u.pathname || '').toLowerCase();
         if (!host.endsWith('yimg.jp') || !path.includes('/realestate-buy-image/')) return raw;
-        if (!/\.(?:jpg|jpeg|png|webp)$/i.test(path)) return raw;
-        const ww = Math.max(1, parseInt(String(w || 0), 10) || 0);
-        const hh = Math.max(1, parseInt(String(h || 0), 10) || 0);
-        if (ww > 0) u.searchParams.set('w', String(ww));
-        if (hh > 0) u.searchParams.set('h', String(hh));
+        ['w', 'h', 'width', 'height'].forEach((key) => u.searchParams.delete(key));
+        ['nf_', 'nf'].forEach((key) => {
+          if (!String(u.searchParams.get(key) || '').trim()) u.searchParams.delete(key);
+        });
         return u.toString();
       } catch (_) {
         return raw;
@@ -17574,6 +17600,13 @@
     function portalListingThumbDisplayUrl(u, w, h) {
       const s = unwrapPortalCaseCachedUrl(u);
       if (!s) return '';
+      if (/^\/static\/cache\/case-images\/[a-f0-9]{2}\/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$/i.test(s)) {
+        const ww = Number(w);
+        const hh = Number(h);
+        const rw = Number.isFinite(ww) && ww > 0 ? ww : 560;
+        const rh = Number.isFinite(hh) && hh > 0 ? hh : 420;
+        return `/api/case-image-thumb?src=${encodeURIComponent(s)}&w=${rw}&h=${rh}`;
+      }
       const low = s.toLowerCase();
       if (low.includes('suumo.') && low.includes('resizeimage') && low.includes('src=')) {
         const ww = Number(w);
@@ -23186,6 +23219,28 @@
       } catch (_) {
         return '';
       }
+    }
+
+    const portalCaseStandalonePrefetchSeen = new Set();
+    function prefetchPortalCaseStandalone(rawUrl, returnTo = '/#figure-results') {
+      const href = portalCaseStandaloneHref(rawUrl, returnTo);
+      if (!href || portalCaseStandalonePrefetchSeen.has(href)) return false;
+      portalCaseStandalonePrefetchSeen.add(href);
+      const run = () => {
+        fetch(href, {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'force-cache',
+          priority: 'low',
+          headers: { 'X-SCLAW-Prefetch': 'case-detail' },
+        }).catch(() => {});
+      };
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(run, { timeout: 1800 });
+      } else {
+        window.setTimeout(run, 180);
+      }
+      return true;
     }
 
     function navigatePortalCaseStandalone(rawUrl, returnTo = '/#figure-results') {
