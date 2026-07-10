@@ -907,6 +907,61 @@ function readPurchaseSelectedCases() {
   }
 }
 
+function purchaseToolDialog() {
+  const modal = document.getElementById('purchase-tool-modal');
+  return modal ? modal.querySelector('.purchase-tool-dialog') : document.querySelector('.purchase-tool-dialog');
+}
+
+function purchaseToolActivePaneKey() {
+  return String(purchaseToolDialog()?.dataset.activePane || '');
+}
+
+function updatePurchaseToolMarketFromRows(rows) {
+  const list = (Array.isArray(rows) ? rows : readPurchaseSelectedCases()).filter(Boolean);
+  const source = document.getElementById('purchase-tool-market-source');
+  if (!list.length) {
+    if (source) source.textContent = '尚未找到已選案件。可先在案件列表加入對比，再回到購房工具校準。';
+    return false;
+  }
+  const unitPrice = purchaseToolMedian(list.map((item) => item.unitPrice));
+  const yieldPct = purchaseToolMedian(list.map((item) => item.yieldPct));
+  const walk = purchaseToolMedian(list.map((item) => item.walk));
+  const age = purchaseToolMedian(list.map((item) => item.age));
+  if (unitPrice) purchaseToolSetValue('purchase-tool-market-unit-price', unitPrice.toFixed(unitPrice >= 100 ? 0 : 1));
+  if (yieldPct) purchaseToolSetValue('purchase-tool-market-yield', yieldPct.toFixed(1));
+  if (walk) purchaseToolSetValue('purchase-tool-target-walk', Math.round(walk));
+  if (age) purchaseToolSetValue('purchase-tool-target-age', Math.round(age));
+  if (source) {
+    source.textContent = `已用 ${list.length} 筆已選案件校準${unitPrice ? `，均價約 ${unitPrice.toFixed(unitPrice >= 100 ? 0 : 1)} 萬日圓/㎡` : ''}${yieldPct ? `，收益率約 ${yieldPct.toFixed(1)}%` : ''}。`;
+  }
+  return true;
+}
+
+function syncPurchaseToolSelectedCases(options = {}) {
+  const rows = readPurchaseSelectedCases();
+  renderPurchaseSelectedComparables(rows);
+  renderPurchaseImageComparables(rows);
+  const modal = document.getElementById('purchase-tool-modal');
+  const shouldCalibrate =
+    !!options.calibrateMarket ||
+    purchaseToolActivePaneKey() === 'comparables' ||
+    modal?.dataset.selectedMarketSynced === '1';
+  if (shouldCalibrate && rows.length) {
+    updatePurchaseToolMarketFromRows(rows);
+    if (modal) modal.dataset.selectedMarketSynced = '1';
+  }
+  calculatePurchaseTool();
+  return rows;
+}
+
+function handlePurchaseToolSelectedCasesChanged(event) {
+  if (event && event.type === 'storage' && event.key !== PURCHASE_SELECTED_CASES_KEY) return;
+  window.clearTimeout(window.__purchaseToolSelectedCasesTimer);
+  window.__purchaseToolSelectedCasesTimer = window.setTimeout(() => {
+    syncPurchaseToolSelectedCases();
+  }, 40);
+}
+
 function applyPurchaseToolSelectedCase() {
   const item = readPurchaseSelectedCases()[0] || null;
   if (!item) {
@@ -929,21 +984,11 @@ function applyPurchaseToolSelectedCaseMarket() {
     window.alert('尚未找到已選案件。可先在案件列表加入對比，再回到購房工具校準。');
     return;
   }
-  const unitPrice = purchaseToolMedian(rows.map((item) => item.unitPrice));
-  const yieldPct = purchaseToolMedian(rows.map((item) => item.yieldPct));
-  const walk = purchaseToolMedian(rows.map((item) => item.walk));
-  const age = purchaseToolMedian(rows.map((item) => item.age));
-  if (unitPrice) purchaseToolSetValue('purchase-tool-market-unit-price', unitPrice.toFixed(unitPrice >= 100 ? 0 : 1));
-  if (yieldPct) purchaseToolSetValue('purchase-tool-market-yield', yieldPct.toFixed(1));
-  if (walk) purchaseToolSetValue('purchase-tool-target-walk', Math.round(walk));
-  if (age) purchaseToolSetValue('purchase-tool-target-age', Math.round(age));
-  const source = document.getElementById('purchase-tool-market-source');
-  if (source) {
-    source.textContent = `已用 ${rows.length} 筆已選案件校準${unitPrice ? `，均價約 ${unitPrice.toFixed(unitPrice >= 100 ? 0 : 1)} 萬日圓/㎡` : ''}${yieldPct ? `，收益率約 ${yieldPct.toFixed(1)}%` : ''}。`;
-  }
-  renderPurchaseSelectedComparables(rows);
+  updatePurchaseToolMarketFromRows(rows);
+  const modal = document.getElementById('purchase-tool-modal');
+  if (modal) modal.dataset.selectedMarketSynced = '1';
   setPurchaseToolActivePane('comparables');
-  calculatePurchaseTool();
+  syncPurchaseToolSelectedCases({ calibrateMarket: true });
 }
 
 function applyPurchaseToolPreset() {
@@ -1131,7 +1176,11 @@ function installPurchaseTool() {
     btn.addEventListener('click', () => {
       const key = String(btn.dataset.purchaseTab || 'case');
       setPurchaseToolActivePane(key);
-      calculatePurchaseTool();
+      if (key === 'comparables') {
+        syncPurchaseToolSelectedCases({ calibrateMarket: true });
+      } else {
+        calculatePurchaseTool();
+      }
     });
   });
   modal.querySelectorAll('[data-purchase-answer]').forEach((btn) => {
@@ -1141,6 +1190,8 @@ function installPurchaseTool() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && modal.style.display !== 'none') setPurchaseToolModalOpen(false, { restoreFocus: true });
   });
+  window.addEventListener('storage', handlePurchaseToolSelectedCasesChanged);
+  window.addEventListener('sclaw:selected-cases-updated', handlePurchaseToolSelectedCasesChanged);
   setPurchaseToolActivePane('case');
   refreshPurchaseQuestionAnswers();
   calculatePurchaseTool();
