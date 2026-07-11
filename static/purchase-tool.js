@@ -97,6 +97,12 @@ function formatPurchasePercent(value, digits = 2) {
   return `${n.toFixed(digits)}%`;
 }
 
+function purchaseToolRentFromYield(priceMan, yieldPct) {
+  const price = Number(priceMan) || 0;
+  const yieldValue = Number(yieldPct) || 0;
+  return price > 0 && yieldValue > 0 ? (price * yieldValue / 100) / 12 : 0;
+}
+
 function clampPurchaseValue(value, min = 0, max = 100) {
   const n = Number(value);
   if (!Number.isFinite(n)) return min;
@@ -624,6 +630,21 @@ function buildPurchaseDecision(ctx, comparables, eligibility) {
   };
 }
 
+function buildPurchaseDecisionAdvice(ctx, comparables, eligibility, decision) {
+  if (!purchaseToolHasPrimaryCase(ctx)) return '尚未形成綜合建議。請先帶入已選案件，或補齊房價、面積與租金。';
+  const level =
+    decision.score >= 80 ? '高於基準，可進入顧問初審' :
+    decision.score >= 65 ? '中高水平，適合持續比較並補資料' :
+    decision.score >= 50 ? '中等水平，需校準價格、租金或資金條件' :
+    '偏弱，暫不建議直接出價';
+  const yieldText = ctx.netYield >= 3.5 ? '淨收益具備支撐' : ctx.netYield >= 2.5 ? '淨收益普通' : '淨收益偏弱';
+  const cashText = ctx.cashflowYen >= 0 ? '貸款後現金流為正' : '貸款後現金流為負';
+  const comparableText = comparables.band && comparables.band !== '待輸入'
+    ? `可比位置為「${comparables.band}」`
+    : '可比基準尚需補強';
+  return `綜合水平：${level}。${comparableText}，${yieldText}，${cashText}；資格文件為「${eligibility.title}」。`;
+}
+
 function renderPurchaseDecisionRows(rows) {
   const tbody = document.getElementById('purchase-tool-decision-body');
   if (!tbody) return;
@@ -840,6 +861,7 @@ function renderPurchaseToolEmptyState() {
     'purchase-tool-comparable-band': '待輸入',
     'purchase-tool-decision-score': '待輸入',
     'purchase-tool-decision-title': '請先帶入已選案件，或手動輸入房價、面積與租金。',
+    'purchase-tool-decision-advice': '尚未形成綜合建議。',
     'purchase-tool-bar-yield-label': '—',
     'purchase-tool-bar-cashflow-label': '—',
     'purchase-tool-bar-dti-label': '—',
@@ -893,6 +915,7 @@ function calculatePurchaseTool() {
   const band = document.getElementById('purchase-tool-comparable-band');
   const score = document.getElementById('purchase-tool-decision-score');
   const title = document.getElementById('purchase-tool-decision-title');
+  const advice = document.getElementById('purchase-tool-decision-advice');
 
   if (main) main.textContent = formatPurchaseToolYen(ctx.selectedPlan.firstPayment);
   if (mainTwd) mainTwd.textContent = formatPurchaseToolTwdFromYen(ctx.selectedPlan.firstPayment, ctx.twdRate);
@@ -905,6 +928,7 @@ function calculatePurchaseTool() {
   if (band) band.textContent = comparables.band;
   if (score) score.textContent = `${decision.score} 分`;
   if (title) title.textContent = decision.title;
+  if (advice) advice.textContent = buildPurchaseDecisionAdvice(ctx, comparables, eligibility, decision);
   updatePurchaseDashboardVisuals(ctx, eligibility, decision);
   updatePurchaseToolDataSourceStatus();
 
@@ -995,11 +1019,12 @@ function normalizeSelectedCase(raw) {
   const ageText = [raw.age_text_hant, raw.building_age, fields.age_text_hant].map((x) => String(x || '')).join(' ');
   const priceMan = typeof raw.price_man === 'number' && raw.price_man > 0 ? raw.price_man : purchaseToolParseMan(priceText);
   const areaSqm = purchaseToolParseSqm(areaText);
-  const rentMan = purchaseToolParseMan(rentText);
+  let rentMan = purchaseToolParseMan(rentText);
   const yieldPct = typeof raw.yield_pct === 'number' && raw.yield_pct > 0 ? raw.yield_pct : purchaseToolParsePercent(yieldText);
   const walk = Number(walkText.match(/(?:徒歩|步行|徒步)?\s*([0-9]{1,3})\s*分/)?.[1] || 0);
   const age = Number(ageText.match(/([0-9]{1,3})\s*年/)?.[1] || 0);
   const unitPrice = priceMan > 0 && areaSqm > 0 ? priceMan / areaSqm : 0;
+  if (!rentMan && priceMan > 0 && yieldPct > 0) rentMan = purchaseToolRentFromYield(priceMan, yieldPct);
   const galleryUrls = Array.isArray(raw.gallery_urls) ? raw.gallery_urls.map((x) => String(x || '').trim()).filter(Boolean) : [];
   const thumbUrl = String(raw.thumb_url || raw.image_url || raw.hero_media_url || raw.thumbnail_url || galleryUrls[0] || '').trim();
   const stableKey = String(
@@ -1174,7 +1199,8 @@ function handlePurchaseToolSelectedCasesChanged(event) {
 }
 
 function applyPurchaseToolSelectedCase() {
-  const item = readPurchaseSelectedCases()[0] || null;
+  const rows = readPurchaseSelectedCases();
+  const item = rows[0] || null;
   if (!item) {
     window.alert('尚未找到已選案件。可先在案件列表加入對比，再回到購房工具帶入。');
     return;
@@ -1182,9 +1208,11 @@ function applyPurchaseToolSelectedCase() {
   if (item.title) purchaseToolSetValue('purchase-tool-case-title', item.title);
   if (item.region) purchaseToolSetValue('purchase-tool-region', item.region);
   if (item.station) purchaseToolSetValue('purchase-tool-station', item.station);
+  if (item.walk) purchaseToolSetValue('purchase-tool-walk', Math.round(item.walk));
   if (item.priceMan) purchaseToolSetValue('purchase-tool-price', Math.round(item.priceMan));
   if (item.areaSqm) purchaseToolSetValue('purchase-tool-area', item.areaSqm);
   if (item.rentMan) purchaseToolSetValue('purchase-tool-rent', item.rentMan);
+  if (item.age) purchaseToolSetValue('purchase-tool-age', Math.round(item.age));
   purchaseToolSetDefaultIfEmpty('purchase-tool-down-rate', 30);
   purchaseToolSetDefaultIfEmpty('purchase-tool-years', 30);
   purchaseToolSetDefaultIfEmpty('purchase-tool-rate', 1.8);
@@ -1202,7 +1230,11 @@ function applyPurchaseToolSelectedCase() {
   purchaseToolSetDefaultIfEmpty('purchase-tool-income', 0);
   purchaseToolSetDefaultIfEmpty('purchase-tool-debt', 0);
   const modal = document.getElementById('purchase-tool-modal');
-  if (modal) modal.dataset.selectedCaseImported = '1';
+  const calibrated = updatePurchaseToolMarketFromRows(rows);
+  if (modal) {
+    modal.dataset.selectedCaseImported = '1';
+    if (calibrated) modal.dataset.selectedMarketSynced = '1';
+  }
   setPurchaseToolActivePane('case');
   calculatePurchaseTool();
 }

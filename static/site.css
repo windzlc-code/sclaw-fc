@@ -46440,6 +46440,18 @@ body.purchase-tools-body .purchase-tool-score p {
   font-weight: 900;
 }
 
+body.purchase-tools-body .purchase-tool-score .purchase-tool-decision-advice {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid #dbe6ef;
+  border-radius: 8px;
+  background: #f8fbfd;
+  color: #173b63;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
 body.purchase-tools-body .purchase-tool-score-link {
   min-height: 30px;
   padding: 0 14px;
