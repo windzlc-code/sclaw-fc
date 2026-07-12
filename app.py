@@ -10053,9 +10053,10 @@ def _case_detail_compact_access_line(value: Any, *, max_items: int = 2, max_len:
     return s
 
 
-_INDEX_HTML_CACHE_TTL_SECONDS = int(os.getenv("SCLAW_INDEX_HTML_CACHE_TTL", "60") or "60")
+_INDEX_HTML_CACHE_TTL_SECONDS = int(os.getenv("SCLAW_INDEX_HTML_CACHE_TTL", "86400") or "86400")
 _INDEX_HTML_CACHE_LOCK = threading.RLock()
 _INDEX_HTML_CACHE: tuple[float, bytes] | None = None
+_INDEX_HTML_CACHE_REFRESHING = False
 
 
 def _should_use_index_html_cache(request: Request) -> bool:
@@ -10072,17 +10073,46 @@ def _render_index_html(request: Request, *, admin_standalone: bool = False) -> s
     return templates.env.get_template("index.html").render(context)
 
 
+def _refresh_index_html_cache_in_background(request: Request) -> None:
+    """Refresh expired homepage HTML without making a visitor wait for it."""
+    global _INDEX_HTML_CACHE, _INDEX_HTML_CACHE_REFRESHING
+    try:
+        body = _render_index_html(request).encode("utf-8")
+        with _INDEX_HTML_CACHE_LOCK:
+            _INDEX_HTML_CACHE = (time.time(), body)
+    except Exception as exc:
+        _log_backend_error("index-html-cache-refresh", exc)
+    finally:
+        with _INDEX_HTML_CACHE_LOCK:
+            _INDEX_HTML_CACHE_REFRESHING = False
+
+
 @app.get("/")
 def index(request: Request):
-    global _INDEX_HTML_CACHE
+    global _INDEX_HTML_CACHE, _INDEX_HTML_CACHE_REFRESHING
     if _should_use_index_html_cache(request):
         now = time.time()
         with _INDEX_HTML_CACHE_LOCK:
-            if _INDEX_HTML_CACHE and now - _INDEX_HTML_CACHE[0] <= _INDEX_HTML_CACHE_TTL_SECONDS:
+            if _INDEX_HTML_CACHE:
+                cached_at, cached_body = _INDEX_HTML_CACHE
+                if now - cached_at <= _INDEX_HTML_CACHE_TTL_SECONDS:
+                    return Response(
+                        content=cached_body,
+                        media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=120", "X-SCLAW-Index-Cache": "hit"},
+                    )
+                if not _INDEX_HTML_CACHE_REFRESHING:
+                    _INDEX_HTML_CACHE_REFRESHING = True
+                    threading.Thread(
+                        target=_refresh_index_html_cache_in_background,
+                        args=(request,),
+                        daemon=True,
+                        name="index-html-cache-refresh",
+                    ).start()
                 return Response(
-                    content=_INDEX_HTML_CACHE[1],
+                    content=cached_body,
                     media_type="text/html; charset=utf-8",
-                    headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=120", "X-SCLAW-Index-Cache": "hit"},
+                    headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=120", "X-SCLAW-Index-Cache": "stale"},
                 )
         body = _render_index_html(request).encode("utf-8")
         with _INDEX_HTML_CACHE_LOCK:

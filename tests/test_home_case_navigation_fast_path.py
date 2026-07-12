@@ -51,6 +51,11 @@ class HomeCaseNavigationFastPathTests(unittest.TestCase):
         self.assertIn('--workers \\"${WEB_CONCURRENCY:-1}\\"', DOCKERFILE)
         self.assertIn('WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}', PROD_COMPOSE)
 
+    def test_homepage_cache_serves_stale_html_while_refreshing(self):
+        self.assertIn("def _refresh_index_html_cache_in_background", APP_SOURCE)
+        self.assertIn('"X-SCLAW-Index-Cache": "stale"', APP_SOURCE)
+        self.assertIn('SCLAW_INDEX_HTML_CACHE_TTL=${SCLAW_INDEX_HTML_CACHE_TTL:-86400}', PROD_COMPOSE)
+
 
 if __name__ == "__main__":
     unittest.main()
