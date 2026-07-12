@@ -17,6 +17,7 @@ import wave
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import deque
 from datetime import date, datetime, timedelta, timezone
+from functools import wraps
 from io import BytesIO, StringIO
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, unquote, urljoin, urlparse, urlunparse
@@ -253,6 +254,9 @@ _SOCIAL_TG_SNAPSHOT_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
 _CASE_PAGE_HTML_CACHE_LOCK = threading.Lock()
 _CASE_PAGE_HTML_CACHE: dict[tuple[int, str], tuple[float, str]] = {}
 _CASE_PAGE_HTML_CACHE_MAX = 240
+_CASE_PAGE_RENDER_LOCKS_LOCK = threading.Lock()
+_CASE_PAGE_RENDER_LOCKS: dict[tuple[int, str], threading.Lock] = {}
+_CASE_PAGE_RENDER_LOCKS_MAX = 480
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
@@ -343,6 +347,42 @@ def _case_page_html_cache_set(source_item_id: int, fingerprint: str, html: str) 
         while len(_CASE_PAGE_HTML_CACHE) > _CASE_PAGE_HTML_CACHE_MAX:
             oldest = min(_CASE_PAGE_HTML_CACHE.items(), key=lambda kv: kv[1][0])[0]
             _CASE_PAGE_HTML_CACHE.pop(oldest, None)
+
+
+def _serialize_case_page_render(handler: Callable[..., Response]) -> Callable[..., Response]:
+    """Coalesce concurrent cold renders for the same standalone case page.
+
+    Case rendering validates galleries and related articles, so a cold page is
+    materially more expensive than a cached response.  Without this guard, a
+    burst of clicks on one card starts the same render on multiple thread-pool
+    workers.  The first request fills the existing HTML cache; followers then
+    reuse it instead of doing duplicate work.
+    """
+
+    @wraps(handler)
+    def wrapped(request: Request, source_item_id: int, *args: Any, **kwargs: Any) -> Response:
+        try:
+            sid = max(0, int(source_item_id or 0))
+        except (TypeError, ValueError):
+            sid = 0
+        return_to = str(request.query_params.get("return_to") or "")[:512]
+        key = (sid, return_to)
+        with _CASE_PAGE_RENDER_LOCKS_LOCK:
+            render_lock = _CASE_PAGE_RENDER_LOCKS.get(key)
+            if render_lock is None:
+                if len(_CASE_PAGE_RENDER_LOCKS) >= _CASE_PAGE_RENDER_LOCKS_MAX:
+                    stale_key = next(
+                        (lock_key for lock_key, lock in _CASE_PAGE_RENDER_LOCKS.items() if not lock.locked()),
+                        None,
+                    )
+                    if stale_key is not None:
+                        _CASE_PAGE_RENDER_LOCKS.pop(stale_key, None)
+                render_lock = threading.Lock()
+                _CASE_PAGE_RENDER_LOCKS[key] = render_lock
+        with render_lock:
+            return handler(request, source_item_id, *args, **kwargs)
+
+    return wrapped
 
 
 def _coverage_matrix_cache_ttl() -> float:
@@ -35625,6 +35665,7 @@ def market_detail_page(
 
 
 @app.get("/case/{source_item_id}")
+@_serialize_case_page_render
 def source_case_page(request: Request, source_item_id: int):
     with get_conn() as conn:
         row = conn.execute(

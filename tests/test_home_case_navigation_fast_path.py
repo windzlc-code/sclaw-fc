@@ -4,6 +4,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "static" / "index-app.js").read_text(encoding="utf-8")
+APP_SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
 
 
 class HomeCaseNavigationFastPathTests(unittest.TestCase):
@@ -37,6 +38,10 @@ class HomeCaseNavigationFastPathTests(unittest.TestCase):
         self.assertNotIn("prefetchHomeFeaturedTypes();", body)
         self.assertNotIn("prefetchVisiblePortalCaseDetails();", body)
         self.assertIn("their own detail on hover, touch, or keyboard focus", body)
+
+    def test_concurrent_case_requests_share_one_cold_render(self):
+        self.assertIn("def _serialize_case_page_render", APP_SOURCE)
+        self.assertIn("@_serialize_case_page_render\ndef source_case_page", APP_SOURCE)
 
 
 if __name__ == "__main__":
