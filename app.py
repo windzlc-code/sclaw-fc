@@ -253,8 +253,11 @@ _SOCIAL_TG_SNAPSHOT_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
 _CASE_PAGE_HTML_CACHE_LOCK = threading.Lock()
 _CASE_PAGE_HTML_CACHE: dict[tuple[int, str], tuple[float, str]] = {}
 _CASE_PAGE_HTML_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-thumb-prefetch-20260709a"
-_CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=120"}
+_CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
+_CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+_CASE_RELATED_NEWS_CACHE_MAX = 240
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-cards-cache-20260712b"
+_CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
 def _invalidate_case_data_caches() -> None:
@@ -269,14 +272,26 @@ def _invalidate_case_data_caches() -> None:
         _PORTAL_CASE_SEARCH_EXACT_COUNT_JOBS.clear()
     with _CASE_PAGE_HTML_CACHE_LOCK:
         _CASE_PAGE_HTML_CACHE.clear()
+    with _CASE_RELATED_NEWS_CACHE_LOCK:
+        _CASE_RELATED_NEWS_CACHE.clear()
 _COVERAGE_MATRIX_CACHE_MAX = 32
 
 
 def _case_page_html_cache_ttl() -> float:
     try:
-        return max(0.0, min(3600.0, float(os.getenv("SCLAW_CASE_PAGE_CACHE_TTL", "900") or 900)))
+        # Detail pages normalize a complete listing/gallery. Keep a rendered
+        # page warm for the daily recommendation cycle; write paths invalidate it.
+        return max(0.0, min(86400.0, float(os.getenv("SCLAW_CASE_PAGE_CACHE_TTL", "86400") or 86400)))
     except Exception:
-        return 900.0
+        return 86400.0
+
+
+def _case_related_news_cache_ttl() -> float:
+    """Keep the existing related-articles section stable for one daily cycle."""
+    try:
+        return max(0.0, min(86400.0, float(os.getenv("SCLAW_CASE_RELATED_CACHE_TTL", "86400") or 86400)))
+    except Exception:
+        return 86400.0
 
 
 def _case_page_fingerprint(item: dict[str, Any]) -> str:
@@ -1235,6 +1250,23 @@ def _home_static_url_from_path(path: Path) -> str:
         return ""
 
 
+def _home_default_carousel_playback_url(index: int) -> str:
+    """Serve homepage videos through a stable media URL, not the upload path."""
+    return f"/media/home-carousel/{max(1, int(index or 1))}"
+
+
+def _home_default_carousel_playback_url_for_ref(raw_ref: Any) -> str:
+    raw = str(raw_ref or "").strip()
+    if not raw:
+        return ""
+    parsed_path = unquote(urlparse(raw).path or raw)
+    for idx, (raw_path, _title) in enumerate(HOME_DEFAULT_CAROUSEL_VIDEOS, start=1):
+        source_url = _home_static_url_from_path(Path(raw_path))
+        if raw == source_url or parsed_path == source_url:
+            return _home_default_carousel_playback_url(idx)
+    return ""
+
+
 def _home_carousel_video_poster_url(raw_ref: Any) -> str:
     path = _url_to_local_static_path(raw_ref) if isinstance(raw_ref, str) else raw_ref
     if not isinstance(path, Path) or not path.is_file():
@@ -1287,7 +1319,7 @@ def _home_default_carousel_video_items() -> list[dict[str, Any]]:
         if not path.is_file() or path.stat().st_size < 1024:
             continue
         playback_path = _home_video_playback_path(path)
-        url = _home_static_url_from_path(playback_path)
+        url = _home_default_carousel_playback_url(idx)
         source_url = _home_static_url_from_path(path)
         if not url:
             continue
@@ -1325,16 +1357,17 @@ def _home_generated_video_carousel(
         for idx, item in enumerate(published_items):
             if not isinstance(item, dict) or item.get("enabled") is False:
                 continue
-            url = str(item.get("url") or "").strip()
-            media_type = _home_carousel_media_type(url)
-            if not url or media_type != "video" or url in seen_manual:
+            raw_url = str(item.get("url") or "").strip()
+            media_type = _home_carousel_media_type(raw_url)
+            if not raw_url or media_type != "video" or raw_url in seen_manual:
                 continue
-            seen_manual.add(url)
+            seen_manual.add(raw_url)
+            url = _home_default_carousel_playback_url_for_ref(raw_url) or raw_url
             manual_rows.append(
                 {
                     "url": url,
-                    "source_url": str(item.get("source_url") or url).strip(),
-                    "poster_url": str(item.get("poster_url") or _home_carousel_video_poster_url(url)).strip(),
+                    "source_url": str(item.get("source_url") or raw_url).strip(),
+                    "poster_url": str(item.get("poster_url") or _home_carousel_video_poster_url(raw_url)).strip(),
                     "title": str(item.get("title") or "首頁影片").strip(),
                     "kind_label": str(item.get("kind_label") or "發布影片").strip(),
                     "time_label": str(item.get("time_label") or "").strip(),
@@ -2087,6 +2120,19 @@ def _case_image_download_to_cache(raw_url: Any) -> str:
     max_bytes = 20 * 1024 * 1024
     curl_max_time = max(1.5, min(8.0, float(os.getenv("CASE_IMAGE_DOWNLOAD_MAX_TIME", "2.8") or 2.8)))
     curl_connect_time = max(0.8, min(curl_max_time, float(os.getenv("CASE_IMAGE_DOWNLOAD_CONNECT_TIME", "1.4") or 1.4)))
+    fetch_url = raw
+    # Yahoo's gallery URLs often carry a display-only `pri/up/nf_` query.
+    # Directly requesting that variant intermittently returns HTTP 400, which
+    # leaves only an arbitrary portal thumbnail for the card selector. Fetch
+    # the underlying original asset while retaining the original URL as the
+    # cache identity.
+    try:
+        parsed_raw = urlparse(raw)
+        host = (parsed_raw.netloc or "").lower()
+        if host.endswith("realestate-pctr.c.yimg.jp") and "/realestate-buy-image/bld_image/" in (parsed_raw.path or "").lower():
+            fetch_url = parsed_raw._replace(query="").geturl()
+    except Exception:
+        fetch_url = raw
     h = _case_image_cache_hash(raw)
     shard_dir = _CASE_IMAGE_CACHE_DIR / h[:2]
     shard_dir.mkdir(parents=True, exist_ok=True)
@@ -2097,7 +2143,7 @@ def _case_image_download_to_cache(raw_url: Any) -> str:
         tmp.unlink(missing_ok=True)
         referer = ""
         try:
-            host = (urlparse(raw).netloc or "").lower()
+            host = (urlparse(fetch_url).netloc or "").lower()
             if host:
                 referer = f"https://{host}/"
         except Exception:
@@ -2122,7 +2168,7 @@ def _case_image_download_to_cache(raw_url: Any) -> str:
             ]
             if referer:
                 cmd.extend(["--referer", referer])
-            cmd.extend(["--output", str(tmp), raw])
+            cmd.extend(["--output", str(tmp), fetch_url])
             try:
                 subprocess.run(
                     cmd,
@@ -2145,7 +2191,7 @@ def _case_image_download_to_cache(raw_url: Any) -> str:
             if referer:
                 http_headers["Referer"] = referer
             with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(curl_max_time, connect=curl_connect_time)) as client:
-                with client.stream("GET", raw, headers=http_headers) as resp:
+                with client.stream("GET", fetch_url, headers=http_headers) as resp:
                     resp.raise_for_status()
                     content_type = str(resp.headers.get("content-type") or "").lower()
                     if content_type and not content_type.startswith("image/") and "octet-stream" not in content_type:
@@ -2296,6 +2342,15 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                     mid_gray_ratio = sum(1 for v in px if 88 <= v <= 214) / total
                     edge = gray.filter(ImageFilter.FIND_EDGES)
                     edge_mean = float(ImageStat.Stat(edge).mean[0]) / 255.0
+                    color_bins: dict[tuple[int, int, int], int] = {}
+                    greenish = 0
+                    for red, green, blue in small.getdata():
+                        key = (red // 24, green // 24, blue // 24)
+                        color_bins[key] = color_bins.get(key, 0) + 1
+                        if green >= red + 12 and green >= blue + 8:
+                            greenish += 1
+                    dominant_color_ratio = max(color_bins.values(), default=0) / total
+                    greenish_ratio = greenish / total
                     reason = ""
                     # Floor plans and structure diagrams are usually bright, low-saturation
                     # line drawings with many hard edges. Keep the thresholds conservative
@@ -2318,6 +2373,18 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                         reason = "site-plan"
                     elif sat_mean <= 0.20 and light_ratio <= 0.13 and dark_ratio <= 0.01 and mid_gray_ratio >= 0.58 and edge_mean >= 0.14:
                         reason = "site-plan"
+                    # A parcel diagram can be a large, lightly textured green
+                    # block with a compass/measurement border rather than the
+                    # black-line look of a conventional floor plan. Reject that
+                    # narrow pattern so it cannot become a homepage hero image.
+                    elif (
+                        0.75 <= aspect <= 1.35
+                        and dominant_color_ratio >= 0.28
+                        and greenish_ratio >= 0.40
+                        and light_ratio >= 0.12
+                        and edge_mean <= 0.10
+                    ):
+                        reason = "parcel-diagram"
                     elif light_ratio >= 0.78 and dark_ratio <= 0.03 and sat_mean <= 0.18:
                         reason = "blank-placeholder"
     except Exception:
@@ -2570,6 +2637,25 @@ def _case_gallery_local_quality_issue(static_url: Any) -> dict[str, Any]:
             "metrics": {"bytes": file_size},
         }
     return {}
+
+
+def _case_gallery_local_display_issue(static_url: Any) -> bool:
+    """Cheap render-time rejection; full visual auditing runs outside page requests."""
+    path = _url_to_local_static_path(str(static_url or "").strip())
+    if not path or not path.is_file():
+        return False
+    try:
+        file_size = int(path.stat().st_size or 0)
+    except OSError:
+        return False
+    if file_size and file_size < 1500:
+        return True
+    dims = _case_image_file_dimensions(path)
+    if not dims:
+        return False
+    width, height = dims
+    aspect = width / max(1, height)
+    return min(width, height) < 120 or max(width, height) < 260 or width * height < 60_000 or aspect < 0.33 or aspect > 4.2
 
 
 def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "building") -> str:
@@ -3087,17 +3173,20 @@ def _case_representative_ai_category_accepted(category: str, information_value: 
 
 
 def _case_representative_raw_url_candidates(row: dict[str, Any], *, limit: int = 32) -> list[str]:
-    """Build ordered original image candidates for one listing."""
-    raw: list[Any] = [
-        row.get("hero_image_url"),
-        row.get("thumbnail_url"),
-        *(_row_primary_image_url_lines(row, limit=20) if isinstance(row, dict) else []),
-    ]
+    """Build ordered original image candidates for one listing.
+
+    Source hero/thumbnail fields are often a portal's arbitrary gallery image
+    (and can be a toilet, a plan, or a facility detail). Prefer the listing's
+    own ordered album before using those fields as a final fallback.
+    """
+    raw: list[Any] = []
     try:
         imgs, _vids = extract_media_urls_from_row(row)
         raw.extend(imgs)
     except Exception:
         pass
+    raw.extend(_row_primary_image_url_lines(row, limit=20) if isinstance(row, dict) else [])
+    raw.extend((row.get("hero_image_url"), row.get("thumbnail_url")))
     out: list[str] = []
     seen: set[str] = set()
     for u in raw:
@@ -5280,8 +5369,9 @@ def _home_featured_case_public_row(row: dict[str, Any], *, sync_static: bool = T
     _hero, imgs, _vids = _home_intro_case_media(row)
     primary_imgs = _row_primary_image_url_lines(row, limit=12)
     raw_gallery_candidates = [
-        str(base.get("thumb_url") or "").strip(),
+        *imgs,
         *primary_imgs,
+        str(base.get("thumb_url") or "").strip(),
     ]
     rep_context = _case_representative_context_text(row)
     rep_profile = _case_representative_profile(row, context=rep_context)
@@ -5393,9 +5483,10 @@ def _home_featured_case_public_row_fast(
     imgs, _vids = extract_media_urls_from_row(row)
     primary_imgs = _row_primary_image_url_lines(row, limit=12)
     raw_gallery_candidates = [
+        *imgs,
+        *primary_imgs,
         str(row.get("hero_image_url") or "").strip(),
         str(row.get("thumbnail_url") or "").strip(),
-        *primary_imgs,
     ]
     rep_context = _case_representative_context_text(row)
     rep_profile = _case_representative_profile(row, context=rep_context)
@@ -5623,7 +5714,9 @@ def _home_featured_item_homepage_eligible(item: dict[str, Any]) -> bool:
     )
 
 
-_HOME_FEATURED_CASES_CACHE_TTL_SECONDS = 300.0
+# Homepage recommendation batches are intentionally stable for a whole day.
+# A manual "change batch" request only selects another already-cached offset.
+_HOME_FEATURED_CASES_CACHE_TTL_SECONDS = 24 * 60 * 60.0
 _HOME_FEATURED_CASES_CACHE_MAX = 80
 _HOME_FEATURED_CASES_CACHE_LOCK = threading.RLock()
 _HOME_FEATURED_CASES_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -6255,16 +6348,27 @@ def _home_featured_static_payload(payload: dict[str, Any], *, target_static: int
 _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS = 600.0
 _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
+_HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY: tuple[int, int] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v18-image-loading"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v20-gallery-first"
 _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS = 7
 _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # Representative card images are intentionally fixed/static. Keep the preload
 # file usable across restarts and daily traffic; external jobs can replace it
 # when a new screening batch is generated.
-_HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 30 * 24 * 60 * 60
+_HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 24 * 60 * 60
 _HOME_FEATURED_DETAIL_PREWARM_LOCK = threading.Lock()
 _HOME_FEATURED_DETAIL_PREWARM_STARTED = False
+_HOME_FEATURED_INDEX_INLINE_ITEMS = 12
+
+
+def _home_featured_index_preload_file_key() -> tuple[int, int] | None:
+    """Keep the precomputed bundle in RAM until its source file changes."""
+    try:
+        stat = _HOME_FEATURED_INDEX_PRELOAD_FILE.stat()
+        return (int(stat.st_mtime_ns), int(stat.st_size))
+    except OSError:
+        return None
 
 
 def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bool:
@@ -6273,7 +6377,7 @@ def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bo
     hot_items = [
         item
         for item in list(((bundle.get("home_featured_preload") or {}).get("items") or []))
-        if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+        if isinstance(item, dict)
     ]
     if len(hot_items) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS:
         return True
@@ -6282,7 +6386,7 @@ def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bo
         generic_items = [
             item
             for item in list(((type_payloads.get("") or {}).get("items") or []))
-            if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+            if isinstance(item, dict)
         ]
         return len(generic_items) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS
     return False
@@ -6302,12 +6406,12 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
     generic_items = [
         item
         for item in list((generic_payload or {}).get("items") or [])
-        if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+        if isinstance(item, dict)
     ]
     hot_items = [
         item
         for item in list((hot_payload or {}).get("items") or [])
-        if isinstance(item, dict) and _home_featured_item_homepage_eligible(item)
+        if isinstance(item, dict)
     ]
 
     def set_spotlight_items(items: list[dict[str, Any]]) -> None:
@@ -6341,8 +6445,6 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
             return
         for item in items:
             if not isinstance(item, dict):
-                continue
-            if not _home_featured_item_homepage_eligible(item):
                 continue
             key = str(item.get("source_item_id") or item.get("case_path") or item.get("title") or "").strip()
             if not key or key in seen:
@@ -6381,8 +6483,9 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
 
 def _home_featured_index_preload_bundle() -> dict[str, Any]:
     """Prepare homepage featured sections once, then reuse them across refreshes."""
-    global _HOME_FEATURED_INDEX_PRELOAD_CACHE
+    global _HOME_FEATURED_INDEX_PRELOAD_CACHE, _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY
     now = time.time()
+    file_key = _home_featured_index_preload_file_key()
     empty_bundle = {
         "home_featured_preload": {"ok": False, "items": []},
         "home_featured_type_preloads": {},
@@ -6390,22 +6493,25 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
     }
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
-            ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
-            if now - ts <= _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS and _home_featured_preload_bundle_has_items(cached):
+            _ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
+            if _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY == file_key and _home_featured_preload_bundle_has_items(cached):
                 return copy.deepcopy(cached)
         try:
             if _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file():
                 cached_payload = json.loads(_HOME_FEATURED_INDEX_PRELOAD_FILE.read_text(encoding="utf-8"))
                 ts = float(cached_payload.get("ts") or 0)
+                version = str(cached_payload.get("version") or "")
                 bundle = cached_payload.get("bundle") or {}
                 if (
                     ts > 0
+                    and version == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
                     and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
                     and isinstance(bundle, dict)
                 ):
                     bundle = _home_featured_normalized_preload_bundle(bundle)
                     if _home_featured_preload_bundle_has_items(bundle):
                         _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
+                        _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY = file_key
                         return copy.deepcopy(bundle)
         except Exception:
             pass
@@ -6415,36 +6521,59 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
     # featured cases through the lightweight API instead of blocking `/`.
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(empty_bundle))
+        _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY = file_key
     return copy.deepcopy(empty_bundle)
 
 
 def _home_featured_index_preload_bundle_cached_only() -> dict[str, Any] | None:
     """Return a valid homepage preload bundle without building a new one."""
-    global _HOME_FEATURED_INDEX_PRELOAD_CACHE
+    global _HOME_FEATURED_INDEX_PRELOAD_CACHE, _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY
     now = time.time()
+    file_key = _home_featured_index_preload_file_key()
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
-            ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
-            if now - ts <= _HOME_FEATURED_INDEX_PRELOAD_TTL_SECONDS and _home_featured_preload_bundle_has_items(cached):
+            _ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
+            if _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY == file_key and _home_featured_preload_bundle_has_items(cached):
                 return copy.deepcopy(cached)
         try:
             if not _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file():
                 return None
             cached_payload = json.loads(_HOME_FEATURED_INDEX_PRELOAD_FILE.read_text(encoding="utf-8"))
             ts = float(cached_payload.get("ts") or 0)
+            version = str(cached_payload.get("version") or "")
             bundle = cached_payload.get("bundle") or {}
             if (
                 ts > 0
+                and version == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
                 and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
                 and isinstance(bundle, dict)
             ):
                 bundle = _home_featured_normalized_preload_bundle(bundle)
                 if _home_featured_preload_bundle_has_items(bundle):
                     _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
+                    _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY = file_key
                     return copy.deepcopy(bundle)
         except Exception:
             return None
     return None
+
+
+def _home_featured_index_inline_payload(payload: Any, *, limit: int = _HOME_FEATURED_INDEX_INLINE_ITEMS) -> dict[str, Any]:
+    """Keep the initial HTML small; later pages are served by the cached API."""
+    if not isinstance(payload, dict):
+        return {"ok": False, "items": []}
+    items = [item for item in list(payload.get("items") or []) if isinstance(item, dict)]
+    inline_items = copy.deepcopy(items[: max(1, int(limit or 1))])
+    offset = max(0, int(payload.get("offset") or 0))
+    return {
+        **payload,
+        "ok": bool(payload.get("ok", True)),
+        "items": inline_items,
+        "limit": min(max(1, int(limit or 1)), len(inline_items)) if inline_items else 0,
+        "offset": offset,
+        "next_offset": offset + len(inline_items),
+        "has_more": bool(payload.get("has_more") is not False and len(items) > len(inline_items)),
+    }
 
 
 def _home_featured_cases_payload_from_preload(
@@ -6473,9 +6602,9 @@ def _home_featured_cases_payload_from_preload(
     if query_property_type:
         payload = type_payloads.get(query_property_type)
         if not isinstance(payload, dict) or not (payload.get("items") or []):
-            # Do not let property-type tabs fall through to the expensive cold
-            # database path. The tab is a discovery surface; a fast generic
-            # representative batch is better than a permanent loading state.
+            # A missing type-specific preload must not turn a tab click into a
+            # full SQLite scan. Return the already-screened generic cache; the
+            # client keeps only cards matching the selected type.
             payload = type_payloads.get("") or bundle.get("home_featured_preload")
             payload_fallback = True
     else:
@@ -6487,7 +6616,6 @@ def _home_featured_cases_payload_from_preload(
         for item in list(payload.get("items") or [])
         if isinstance(item, dict)
         and int(item.get("source_item_id") or 0) not in excluded_ids
-        and _home_featured_item_homepage_eligible(item)
     ]
     # A stale/static hot preload can be sparse after client-side de-duplication.
     # Property-specific sparse preloads should still return quickly; the client
@@ -6659,7 +6787,10 @@ def _prewarm_home_featured_case_detail_cache() -> None:
 
 def _start_home_featured_detail_prewarm() -> None:
     global _HOME_FEATURED_DETAIL_PREWARM_STARTED
-    enabled = (os.getenv("SCLAW_HOME_DETAIL_PREWARM") or "1").strip().lower()
+    # Rendering a full case page is intentionally thorough. Prewarming many
+    # pages through this same single-worker app queues real visitors behind the
+    # warmup, so keep it opt-in for offline maintenance only.
+    enabled = (os.getenv("SCLAW_HOME_DETAIL_PREWARM") or "0").strip().lower()
     if enabled in ("0", "false", "no", "off"):
         return
     with _HOME_FEATURED_DETAIL_PREWARM_LOCK:
@@ -6678,7 +6809,7 @@ def _start_home_featured_detail_prewarm() -> None:
 
 def _start_home_featured_thumbnail_prewarm() -> None:
     global _HOME_FEATURED_THUMB_PREWARM_STARTED
-    enabled = (os.getenv("SCLAW_HOME_THUMB_PREWARM") or "1").strip().lower()
+    enabled = (os.getenv("SCLAW_HOME_THUMB_PREWARM") or "0").strip().lower()
     if enabled in ("0", "false", "no", "off"):
         return
     with _HOME_FEATURED_THUMB_PREWARM_LOCK:
@@ -7801,6 +7932,24 @@ templates.env.globals["seo_meta_keywords_base"] = SEO_META_KEYWORDS_BASE
 templates.env.globals["seo_phrase_brand"] = SEO_PHRASE_BRAND
 templates.env.globals["seo_phrase_entry"] = SEO_PHRASE_ENTRY
 templates.env.globals["seo_phrase_hero_kicker"] = SEO_PHRASE_HERO_KICKER
+
+
+@app.get("/media/home-carousel/{video_index}")
+def public_home_carousel_video(video_index: int):
+    """Deliver default homepage videos without exposing their upload URL."""
+    if video_index < 1 or video_index > len(HOME_DEFAULT_CAROUSEL_VIDEOS):
+        raise HTTPException(status_code=404, detail="home carousel video not found")
+    raw_path, _title = HOME_DEFAULT_CAROUSEL_VIDEOS[video_index - 1]
+    path = Path(raw_path)
+    if not path.is_file() or path.stat().st_size < 1024:
+        raise HTTPException(status_code=404, detail="home carousel video unavailable")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 _faq_worker_started = False
 _faq_worker_lock = threading.Lock()
@@ -8690,7 +8839,7 @@ def startup_event() -> None:
             "off",
         ):
             threading.Thread(target=_prewarm_inventory_stats_cache, daemon=True).start()
-        if (os.getenv("SCLAW_PORTAL_TYPE_SEARCH_PREWARM") or "1").strip().lower() not in (
+        if (os.getenv("SCLAW_PORTAL_TYPE_SEARCH_PREWARM") or "0").strip().lower() not in (
             "0",
             "false",
             "no",
@@ -8715,10 +8864,16 @@ def startup_event() -> None:
                 "off",
             ):
                 threading.Thread(target=_portal_case_search_cache_prewarm_loop, daemon=True).start()
-        threading.Thread(target=_prewarm_home_titlebar_case_search_cache, daemon=True, name="titlebar-case-prewarm").start()
-        threading.Thread(target=_prewarm_home_featured_api_cache, daemon=True, name="home-featured-api-prewarm").start()
-        _start_home_featured_thumbnail_prewarm()
-        _start_home_featured_detail_prewarm()
+        if (os.getenv("SCLAW_HOME_STARTUP_PREWARM") or "0").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            threading.Thread(target=_prewarm_home_titlebar_case_search_cache, daemon=True, name="titlebar-case-prewarm").start()
+            threading.Thread(target=_prewarm_home_featured_api_cache, daemon=True, name="home-featured-api-prewarm").start()
+            _start_home_featured_thumbnail_prewarm()
+            _start_home_featured_detail_prewarm()
     except Exception:
         pass
 
@@ -9517,10 +9672,14 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         published_items=crawl_settings.get("home_carousel_items"),
     )
     home_featured_bundle = _home_featured_index_preload_bundle()
-    home_featured_preload = home_featured_bundle.get("home_featured_preload") or {"ok": False, "items": []}
-    home_featured_type_preloads = dict(home_featured_bundle.get("home_featured_type_preloads") or {})
-    if "" not in home_featured_type_preloads and (home_featured_preload.get("items") or []):
-        home_featured_type_preloads[""] = home_featured_preload
+    home_featured_preload = _home_featured_index_inline_payload(
+        home_featured_bundle.get("home_featured_preload")
+        or (home_featured_bundle.get("home_featured_type_preloads") or {}).get("")
+    )
+    # The old page embedded every type's large candidate pool. The browser now
+    # gets the visible generic set only; type tabs fetch from the same cached
+    # backend pool when the visitor selects them.
+    home_featured_type_preloads = {"": home_featured_preload} if home_featured_preload.get("items") else {}
     home_room_explore_tiles = home_featured_bundle.get("home_room_explore_tiles") or []
     return {
         "request": request,
@@ -14730,7 +14889,7 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         if _case_gallery_context_is_non_property_media(u, context):
             continue
         cached_static = _case_image_cached_static_url(u)
-        if cached_static and _case_gallery_local_quality_issue(cached_static):
+        if cached_static and _case_gallery_local_display_issue(cached_static):
             continue
         seen.add(key)
         if key in agent_keys or is_likely_agent_portrait_image_url(u):
@@ -29497,7 +29656,7 @@ def api_home_featured_cases(
     if preload_payload is not None:
         return JSONResponse(
             preload_payload,
-            headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},
+            headers={"Cache-Control": "public, max-age=86400, stale-while-revalidate=86400"},
         )
     max_rounds = 10 if not str(property_type or "").strip() else 8
     return JSONResponse(
@@ -29511,7 +29670,7 @@ def api_home_featured_cases(
             max_rounds=max_rounds,
             exclude_source_item_ids=excluded_ids,
         ),
-        headers={"Cache-Control": "public, max-age=120, stale-while-revalidate=300"},
+        headers={"Cache-Control": "public, max-age=86400, stale-while-revalidate=86400"},
     )
 
 
@@ -35763,12 +35922,10 @@ def source_case_page(request: Request, source_item_id: int):
     if rebuilt_body and _case_listing_text_needs_zh_rebuild(_clean_case_body_for_display(str(item.get("body_zh_hant") or ""))):
         item["body_original_display"] = " "
     case_article_path = _standard_article_path(item.get("seo_slug"), source_item_id)
-    case_related_news: list[dict[str, Any]] = []
-    if case_article_path:
-        with get_conn() as conn:
-            case_related_item = _case_related_item_for_source(conn, int(source_item_id))
-            if case_related_item:
-                case_related_news = _related_articles_lite_for_item(conn, case_related_item, limit=8)
+    # The template renders this established section. Cache its prepared cards
+    # so normal navigation keeps the functionality without re-screening every
+    # thumbnail on each detail-page visit.
+    case_related_news = _related_articles_cached_for_source(int(source_item_id), limit=8) if case_article_path else []
     context = {
         **_site_standalone_context(request),
         "item": item,
@@ -36602,7 +36759,7 @@ def _related_articles_lite_for_item(
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    sync_fetch_budget = max(0, min(12, int(os.getenv("RELATED_ARTICLE_THUMB_SYNC_BUDGET", "8") or 8)))
+    sync_fetch_budget = max(0, min(48, int(os.getenv("RELATED_ARTICLE_THUMB_SYNC_BUDGET", "24") or 24)))
 
     def add_row(row: Any, *, allow_thumb_sync_fetch: bool = False) -> None:
         nonlocal sync_fetch_budget
@@ -36627,15 +36784,43 @@ def _related_articles_lite_for_item(
         out.append(d)
 
     for row in rows:
-        add_row(row)
+        add_row(row, allow_thumb_sync_fetch=True)
         if len(out) >= rel_limit:
             break
     if len(out) < rel_limit:
-        for row in _related_articles_lite_visual_backfill_rows(conn, item, limit=rel_limit * 80):
+        for row in _related_articles_lite_visual_backfill_rows(conn, item, limit=rel_limit * 160):
             add_row(row, allow_thumb_sync_fetch=True)
             if len(out) >= rel_limit:
                 break
     return out
+
+
+def _related_articles_cached_for_source(source_item_id: int, *, limit: int = 8) -> list[dict[str, Any]]:
+    """Keep related cards stable for a day without rebuilding image candidates per visit."""
+    sid = int(source_item_id or 0)
+    rel_limit = max(1, min(20, int(limit or 8)))
+    ttl = _case_related_news_cache_ttl()
+    if sid <= 0:
+        return []
+    now = time.monotonic()
+    if ttl > 0:
+        with _CASE_RELATED_NEWS_CACHE_LOCK:
+            hit = _CASE_RELATED_NEWS_CACHE.get(sid)
+            if hit:
+                cached_at, rows = hit
+                if now - cached_at <= ttl:
+                    return copy.deepcopy(rows[:rel_limit])
+                _CASE_RELATED_NEWS_CACHE.pop(sid, None)
+    with get_conn() as conn:
+        related_item = _case_related_item_for_source(conn, sid)
+        rows = _related_articles_lite_for_item(conn, related_item, limit=rel_limit) if related_item else []
+    if ttl > 0:
+        with _CASE_RELATED_NEWS_CACHE_LOCK:
+            _CASE_RELATED_NEWS_CACHE[sid] = (time.monotonic(), copy.deepcopy(rows))
+            while len(_CASE_RELATED_NEWS_CACHE) > _CASE_RELATED_NEWS_CACHE_MAX:
+                oldest = min(_CASE_RELATED_NEWS_CACHE.items(), key=lambda kv: kv[1][0])[0]
+                _CASE_RELATED_NEWS_CACHE.pop(oldest, None)
+    return rows
 
 
 def _article_body_has_listing_detail(text: str) -> bool:
@@ -38344,7 +38529,7 @@ def article_page(request: Request, slug: str):
     rel_limit = 40 if _infer_kyushu_okinawa_geo_focus(item) else 10
     with get_conn() as conn:
         stats = _article_related_stats_fast(conn, item)
-        related_news = _related_articles_lite_for_item(conn, item, limit=min(12, rel_limit))
+    related_news = _related_articles_cached_for_source(int(item.get("source_item_id") or 0), limit=min(12, rel_limit))
     article_listing_panel = _build_portal_listing_panel(dict(row))
     _art_snap = article_listing_panel.pop("_live_enrich_snapshot", None)
     if _art_snap:

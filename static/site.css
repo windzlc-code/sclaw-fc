@@ -21172,6 +21172,28 @@ body.site-home .home-hero-video {
   filter: brightness(0.54) saturate(0.92);
 }
 
+body.site-home .home-hero-video-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  transform: scale(1.01);
+  filter: brightness(0.78) saturate(1.02);
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+
+body.site-home .hero-media.is-home-hero-video-playing .home-hero-video-fallback {
+  opacity: 0;
+  visibility: hidden;
+}
+
+body.site-home .hero-media-overlay {
+  z-index: 3;
+}
+
 body.site-home .home-hero-video::-webkit-media-controls,
 body.site-home .home-hero-video::-webkit-media-controls-panel,
 body.site-home .home-hero-video::-webkit-media-controls-play-button,
@@ -47053,22 +47075,22 @@ body.purchase-tools-body .purchase-tool-image-card-stats small {
 
   body.site-home #support-chat-widget.support-chat-widget:not(.is-expanded) {
     position: fixed !important;
-    left: 50% !important;
-    right: auto !important;
-    top: auto !important;
-    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    left: auto !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    top: clamp(276px, 73vw, 318px) !important;
+    bottom: auto !important;
     z-index: 180 !important;
-    display: grid !important;
-    width: min(270px, calc(100vw - 56px)) !important;
-    grid-template-columns: repeat(4, 38px) !important;
-    justify-content: center !important;
-    gap: 12px !important;
-    padding: 8px 12px !important;
-    border-radius: 999px !important;
-    background: rgba(8, 19, 30, 0.45) !important;
-    box-shadow: 0 14px 34px rgba(5, 14, 24, 0.18) !important;
-    backdrop-filter: blur(10px) !important;
-    transform: translateX(-50%) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    width: 38px !important;
+    gap: 8px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    transform: none !important;
   }
 
   body.site-home #support-chat-widget.support-chat-widget:not(.is-expanded) #purchase-tool-toggle,
