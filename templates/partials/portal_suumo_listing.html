@@ -110,9 +110,6 @@
 {% if main_ut and (main_ut not in ns_hero.cands) %}
 {% set _ = ns_hero.cands.insert(0, main_ut) %}
 {% endif %}
-{% if main_ut and main_ut != fallback_img and fallback_img not in ns_hero.cands %}
-{% set _ = ns_hero.cands.append(fallback_img) %}
-{% endif %}
 {% set emdash = '—' %}
 {% set narrative_raw = body_narrative|default('')|string %}
 {% set narrative_cleanup_suffix = '以上為站內' ~ '中文' ~ '整理，實際價格、可售狀態與交易條件請以顧問確認為準。' %}
@@ -167,8 +164,7 @@
         <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--prev" data-gallery-nav="prev" aria-label="上一張">‹</button>
         <figure class="portal-suumo-herofig portal-suumo-gallery-main{% if main_u == fallback_img %} portal-suumo-herofig--fallback{% endif %}{% if main_is_floorplan %} portal-suumo-herofig--floorplan{% endif %}">
           {% set main_src = main_u|case_static_image_url %}
-          {% set main_is_proxy = main_src.startswith('/api/case-image-cache') %}
-          <img class="portal-suumo-heroimg zoomable-image" src="{% if main_is_proxy %}{{ fallback_img }}{% else %}{{ main_src }}{% endif %}"{% if main_is_proxy %} data-case-deferred-src="{{ main_src }}"{% endif %} data-full-src="{{ main_u }}" alt="主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="720" height="540">
+          <img class="portal-suumo-heroimg zoomable-image" src="{{ main_src }}" data-full-src="{{ main_u }}" alt="主圖" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="720" height="540">
         </figure>
         <button type="button" class="portal-suumo-gallery-nav portal-suumo-gallery-nav--next" data-gallery-nav="next" aria-label="下一張">›</button>
       </div>
@@ -189,8 +185,7 @@
           {% for u in sec.urls %}
           <a class="portal-suumo-gallery-section-thumb" href="{{ u }}" target="_blank" rel="nofollow noopener noreferrer" title="{{ sec.label }} {{ loop.index }}">
             {% set thumb_src = u|case_static_image_url %}
-            {% set thumb_is_proxy = thumb_src.startswith('/api/case-image-cache') %}
-            <img class="zoomable-image" src="{% if thumb_is_proxy %}{{ fallback_img }}{% else %}{{ thumb_src }}{% endif %}"{% if thumb_is_proxy %} data-case-deferred-src="{{ thumb_src }}"{% endif %} data-full-src="{{ u }}" alt="{{ sec.label }} {{ loop.index }}" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="180" height="126">
+            <img class="zoomable-image" src="{{ thumb_src }}" data-full-src="{{ u }}" alt="{{ sec.label }} {{ loop.index }}" loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" width="180" height="126">
           </a>
           {% endfor %}
         </div>

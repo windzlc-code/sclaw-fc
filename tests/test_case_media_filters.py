@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app import (
+    _case_gallery_local_audit_item,
     _build_portal_listing_panel,
     _case_detail_unavailable_reason,
     _case_verified_property_gallery_urls,
@@ -38,6 +39,27 @@ from src.portal_media_filter import clean_portal_image_urls, is_portal_non_prope
 
 
 class CaseMediaFilterTests(unittest.TestCase):
+    def test_detail_gallery_template_does_not_render_proxy_as_default_art(self):
+        template = (Path(__file__).resolve().parents[1] / "templates" / "partials" / "portal_suumo_listing.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('src="{{ main_src }}"', template)
+        self.assertIn('src="{{ thumb_src }}"', template)
+        self.assertNotIn('src="{% if main_is_proxy %}{{ fallback_img }}', template)
+        self.assertNotIn('src="{% if thumb_is_proxy %}{{ fallback_img }}', template)
+
+    def test_gallery_audit_marks_unavailable_remote_image_for_removal_when_requested(self):
+        result = _case_gallery_local_audit_item(
+            source_item_id=1,
+            image_url="https://example.test/listing/photo.jpg",
+            static_url="",
+            remove_unavailable=True,
+        )
+
+        self.assertTrue(result["is_polluted"])
+        self.assertIn("無法下載", result["pollution_reason"])
+
     def test_athome_image_files_path_builds_listing_media(self):
         row = {
             "source_item_id": 97558,

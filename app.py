@@ -260,7 +260,7 @@ _CASE_PAGE_RENDER_LOCKS_MAX = 480
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-cards-cache-20260713c"
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-no-fallback-gallery-20260713d"
 _CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
@@ -4047,6 +4047,7 @@ def _case_gallery_local_audit_item(
     context: str = "",
     image_signature: str = "",
     remove_low_quality: bool = True,
+    remove_unavailable: bool = False,
 ) -> dict[str, Any]:
     category = _case_gallery_category_for_url(image_url, context)
     polluted = False
@@ -4068,6 +4069,12 @@ def _case_gallery_local_audit_item(
     elif _case_representative_semantic_reject_reason(image_url, context, profile="building") == "weak-semantic-context":
         polluted = True
         pollution_reason = "疑似概念圖、廣告圖或低信息圖片"
+    elif remove_unavailable and not str(static_url or "").strip():
+        # The page must never reserve an album slot for an image that the
+        # server could not obtain.  Keep this opt-in for the dedicated bulk
+        # availability scan so a transient request cannot affect normal audits.
+        polluted = True
+        pollution_reason = "來源圖片無法下載或驗證，已從展示相冊移除"
     quality_issue = _case_gallery_local_quality_issue(static_url) if remove_low_quality else {}
     if quality_issue:
         category = str(quality_issue.get("category") or category or "unclear")
@@ -4434,6 +4441,7 @@ def _case_audit_gallery_images_for_row(
     *,
     limit: int = 16,
     remove_low_quality: bool = True,
+    remove_unavailable: bool = False,
 ) -> dict[str, Any]:
     sid = int(row.get("source_item_id") or row.get("id") or 0)
     if sid <= 0:
@@ -4441,7 +4449,7 @@ def _case_audit_gallery_images_for_row(
     candidates, raw_urls, signature = _case_gallery_audit_candidate_pack(
         row,
         limit=limit,
-        ensure_local=bool(remove_low_quality),
+        ensure_local=bool(remove_low_quality or remove_unavailable),
     )
     if not candidates:
         return {"ok": False, "reason": "no_gallery_candidates"}
@@ -4454,6 +4462,7 @@ def _case_audit_gallery_images_for_row(
             context=str(c.get("context") or ""),
             image_signature=signature,
             remove_low_quality=bool(remove_low_quality),
+            remove_unavailable=bool(remove_unavailable),
         )
         for c in candidates
     ]

@@ -609,45 +609,16 @@
     }
 
     function initCaseImageFallbackPool() {
-      const localFallback = '/static/img/listing-image-fallback.svg';
-      const pushCandidate = (list, raw) => {
-        const url = String(raw || '').trim();
-        if (!url || list.includes(url)) return;
-        list.push(url);
-      };
-
-      const pool = [];
-      document.querySelectorAll(
-        '.portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img, .case-image-cell img, .article-inline-suumo-thumb'
-      ).forEach((img) => {
-        pushCandidate(pool, img.getAttribute('src'));
-        pushCandidate(pool, img.getAttribute('data-full-src'));
-        pushCandidate(pool, img.getAttribute('data-fallback-src'));
-      });
-      pushCandidate(pool, localFallback);
-      if (!pool.length) return;
-
-      const bad = new Set();
       document.querySelectorAll('.case-image-cell img, .portal-suumo-subthumb img, .portal-suumo-gallery-section-thumb img').forEach((img) => {
-        const ownSrc = String(img.getAttribute('src') || '').trim();
-        let idx = Math.max(0, pool.indexOf(ownSrc));
-        img.onerror = () => {
-          const failedSrc = String(img.currentSrc || img.getAttribute('src') || '').trim();
-          if (failedSrc) bad.add(failedSrc);
-          while (idx < pool.length) {
-            const next = String(pool[idx] || '').trim();
-            idx += 1;
-            if (!next || next === img.currentSrc || next === img.src || bad.has(next)) continue;
-            img.src = next;
-            return;
-          }
+        const removeUnavailableImage = () => {
           img.onerror = null;
-          img.hidden = false;
-          img.src = localFallback;
+          img.hidden = true;
+          img.removeAttribute('src');
           img.closest('.case-image-cell, .portal-suumo-subthumb, .portal-suumo-gallery-section-thumb')?.classList.add('is-img-fallback');
         };
+        img.onerror = removeUnavailableImage;
         if (img.complete && Number(img.naturalWidth || 0) === 0) {
-          img.onerror();
+          removeUnavailableImage();
         }
       });
     }
