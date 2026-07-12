@@ -2,6 +2,31 @@
 www.{$DOMAIN} {
     encode zstd gzip
 
+    # Keep the homepage carousel on Caddy's static file server.  Some browsers
+    # do not start playback reliably when the same MP4 is streamed through the
+    # application route; serving these originals exactly as /static does keeps
+    # production and local playback behavior aligned.
+    handle /media/home-carousel/1 {
+        root * /srv/sclaw_fz_static
+        rewrite * /uploads/home-carousel-defaults/default_cloud_phone_showcase_01_h264.mp4
+        header Cache-Control "public, max-age=86400"
+        file_server
+    }
+
+    handle /media/home-carousel/2 {
+        root * /srv/sclaw_fz_static
+        rewrite * /uploads/home-carousel-defaults/default_cloud_phone_showcase_02_h264.mp4
+        header Cache-Control "public, max-age=86400"
+        file_server
+    }
+
+    handle /media/home-carousel/3 {
+        root * /srv/sclaw_fz_static
+        rewrite * /uploads/home-carousel-defaults/default_cloud_phone_showcase_03_h264.mp4
+        header Cache-Control "public, max-age=86400"
+        file_server
+    }
+
     handle_path /static/* {
         root * /srv/sclaw_fz_static
         header Cache-Control "public, max-age=31536000, immutable"

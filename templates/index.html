@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260710-mobile-hero-vertical-actions-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260712-home-sync-b">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -68,9 +68,27 @@
       {% set initial_hero_media = hero_media_ns.item %}
       {% set initial_hero_poster = (initial_hero_media.poster_url if initial_hero_media and initial_hero_media.poster_url else '') %}
       {% set initial_hero_fallback_image = initial_hero_poster or (home_hero.image_url if home_hero.media_type != 'video' else '/static/img/home-hero-brand-gold-residence.svg') %}
-      <div class="hero-media{% if home_video_carousel %} hero-media--video-carousel{% endif %}" data-home-hero-theme="{{ home_hero.theme }}" data-home-hero-media-type="image" data-home-hero-fallback-image="{{ initial_hero_fallback_image }}" data-home-hero-items='{{ home_video_carousel|tojson|forceescape }}' style="--home-hero-image: url('{{ initial_hero_fallback_image }}');">
+      <div class="hero-media{% if home_video_carousel %} hero-media--video-carousel{% endif %}" data-home-hero-theme="{{ home_hero.theme }}" data-home-hero-media-type="{% if initial_hero_media and initial_hero_media.media_type == 'video' %}video{% else %}image{% endif %}" data-home-hero-fallback-image="{{ initial_hero_fallback_image }}" data-home-hero-items='{{ home_video_carousel|tojson|forceescape }}' style="--home-hero-image: url('{{ initial_hero_fallback_image }}');">
         {% if initial_hero_media and initial_hero_media.media_type == "video" %}
         <video id="home-hero-video-carousel-player" class="home-hero-video home-hero-generated-video" src="{{ initial_hero_media.url }}" data-src="{{ initial_hero_media.url }}" poster="{{ initial_hero_fallback_image }}" muted loop playsinline autoplay preload="metadata"></video>
+        <img class="home-hero-video-fallback" src="/static/uploads/home-carousel-defaults/default_cloud_phone_showcase_01_fallback.webp" alt="" aria-hidden="true">
+        <script>
+          (() => {
+            const video = document.getElementById('home-hero-video-carousel-player');
+            if (!video) return;
+            const hero = video.closest('.hero-media');
+            const markPlaying = () => hero?.classList.add('is-home-hero-video-playing');
+            video.defaultMuted = true;
+            video.muted = true;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.addEventListener('playing', markPlaying, { once: true });
+            const play = () => video.play().catch(() => {});
+            video.addEventListener('loadeddata', play, { once: true });
+            video.addEventListener('canplay', play, { once: true });
+            play();
+          })();
+        </script>
         {% elif home_hero.media_type == 'video' and home_hero.media_url %}
         <video class="home-hero-video" src="{{ home_hero.media_url }}" data-src="{{ home_hero.media_url }}" poster="{{ initial_hero_fallback_image }}" muted loop playsinline autoplay preload="metadata"></video>
         {% endif %}
@@ -5771,33 +5789,24 @@
           return rect.width > 0 && rect.height > 0 && evt.clientX >= rect.left && evt.clientX <= rect.right && evt.clientY >= rect.top && evt.clientY <= rect.bottom;
         }) || null;
       };
-      const prefetchFromCard = (card) => {
+      const prefetchFromCard = (card, eager = false) => {
         if (!card || !card.getAttribute) return;
         const url = String(card.getAttribute('data-case-detail-url') || '').trim();
         if (!url || url === '#') return;
         const returnTo = card.classList.contains('home-featured-card') || card.classList.contains('home-featured-hero-card')
           ? '/#home-featured-cases'
           : '/#figure-results';
-        prefetchPortalCaseStandalone(url, returnTo);
+        prefetchPortalCaseStandalone(url, returnTo, { eager });
       };
       const prefetchFromEvent = (evt) => {
         const target = evt && evt.target instanceof Element ? evt.target : null;
         if (!target) return;
         const card = target.closest('.portal-suumo-card[data-case-detail-url], .home-featured-card[data-case-detail-url], .home-featured-hero-card[data-case-detail-url]');
-        if (card) prefetchFromCard(card);
+        if (card) prefetchFromCard(card, true);
       };
       document.addEventListener('pointerover', prefetchFromEvent, { passive: true });
       document.addEventListener('touchstart', prefetchFromEvent, { passive: true });
       document.addEventListener('focusin', prefetchFromEvent);
-      const prefetchInitialCards = () => {
-        const cards = Array.from(document.querySelectorAll('.home-featured-card[data-case-detail-url], .home-featured-hero-card[data-case-detail-url]')).slice(0, 6);
-        cards.forEach((card, idx) => window.setTimeout(() => prefetchFromCard(card), 450 + idx * 260));
-      };
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(prefetchInitialCards, { timeout: 3500 });
-      } else {
-        window.setTimeout(prefetchInitialCards, 1800);
-      }
       document.addEventListener('click', (evt) => {
         const target = evt.target instanceof Element ? evt.target : null;
         if (!target) return;
@@ -21075,7 +21084,9 @@
     }
 
     function isHomeHeroVideoUrl(url) {
-      return /\.(mp4|webm|mov|m4v)(?:$|[?#])/i.test(String(url || '').trim());
+      const value = String(url || '').trim();
+      return /\.(mp4|webm|mov|m4v)(?:$|[?#])/i.test(value)
+        || /^\/media\/home-carousel\/\d+(?:$|[?#])/i.test(value);
     }
 
     function isHomeCarouselAudioUrl(url) {
@@ -21186,7 +21197,12 @@
         homeMediaQueryRestoreTimer = 0;
       }
       document.body.classList.toggle('figure-query-in-flight', !!active);
-      const mediaEls = homeManagedMediaElements();
+      // The hero video is the visible first-screen media. Keep it playing
+      // while a background query runs; otherwise every refresh removes its
+      // src and leaves the poster visible indefinitely.
+      const mediaEls = homeManagedMediaElements().filter(
+        (media) => !media.matches('.hero-media > .home-hero-video')
+      );
       if (active) {
         mediaEls.forEach((media) => {
           try { media.pause(); } catch (_) {}
@@ -23222,7 +23238,7 @@
     }
 
     const portalCaseStandalonePrefetchSeen = new Set();
-    function prefetchPortalCaseStandalone(rawUrl, returnTo = '/#figure-results') {
+    function prefetchPortalCaseStandalone(rawUrl, returnTo = '/#figure-results', options = {}) {
       const href = portalCaseStandaloneHref(rawUrl, returnTo);
       if (!href || portalCaseStandalonePrefetchSeen.has(href)) return false;
       portalCaseStandalonePrefetchSeen.add(href);
@@ -23235,7 +23251,9 @@
           headers: { 'X-SCLAW-Prefetch': 'case-detail' },
         }).catch(() => {});
       };
-      if ('requestIdleCallback' in window) {
+      if (options && options.eager) {
+        run();
+      } else if ('requestIdleCallback' in window) {
         window.requestIdleCallback(run, { timeout: 1800 });
       } else {
         window.setTimeout(run, 180);
@@ -23556,8 +23574,10 @@
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = {{ home_featured_preload|default({"ok": false, "items": []})|tojson }};
     const HOME_FEATURED_TYPE_PRELOADS = {{ home_featured_type_preloads|default({})|tojson }};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v24.imageLoading.';
-    const HOME_FEATURED_STORAGE_TTL = 10 * 60 * 1000;
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v26.galleryFirst.';
+    const HOME_FEATURED_SELECTION_VERSION = 'gallery-v20';
+    // Keep the recommendation batches stable in this browser for one day.
+    const HOME_FEATURED_STORAGE_TTL = 24 * 60 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
     let homeFeaturedCases = [];
     let homeFeaturedCaseMap = new Map();
@@ -23993,6 +24013,7 @@
           limit: String(target),
           offset: String(fetchOffset),
           category: 'hot',
+          selection_version: HOME_FEATURED_SELECTION_VERSION,
         });
         const cleanType = String(type || '').trim();
         if (cleanType) params.set('property_type', cleanType);
@@ -24162,7 +24183,6 @@
         homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」的房源。`);
         return;
       }
-      prefetchHomeFeaturedType(homeFeaturedType);
       loadHomeFeaturedTypeCases({ append: false, propertyType: homeFeaturedType, keepExisting: true, background: true });
     }
 
@@ -30234,9 +30254,12 @@
       if (!homeFeaturedTypesHydrated) {
         homeFeaturedStartupLoads.push(loadHomeFeaturedTypeCases({ append: false }));
       }
-      Promise.allSettled(homeFeaturedStartupLoads).finally(() => prefetchHomeFeaturedTypes());
+      Promise.allSettled(homeFeaturedStartupLoads);
+      // Queue first pages for the remaining type tabs one by one after first
+      // render, so a manual tab click only swaps already-cached cards.
+      prefetchHomeFeaturedTypes();
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
-      scheduleAfterMobileFirstIntent(initHomeHeroCarousel, 12000);
+      initHomeHeroCarousel();
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);
       initBhomelandSeoMotion();
       scheduleAfterMobileFirstIntent(initHomeIntroCasePicker, 12000);
