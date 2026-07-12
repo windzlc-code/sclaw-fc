@@ -3423,7 +3423,7 @@
         const returnTo = card.classList.contains('home-featured-card') || card.classList.contains('home-featured-hero-card')
           ? '/#home-featured-cases'
           : '/#figure-results';
-        openPortalCaseInlineDetail(url, card, { returnTo });
+        navigatePortalCaseStandalone(url, returnTo);
       }, true);
     }
 
@@ -21255,7 +21255,7 @@
         event.preventDefault();
         event.stopPropagation();
       }
-      openPortalCaseInlineDetail(url, card, { returnTo: '/#figure-results' });
+      navigatePortalCaseStandalone(url, '/#figure-results');
     }
 
     function portalCaseInlineLinkClick(event, link) {
@@ -21266,7 +21266,7 @@
         event.preventDefault();
         event.stopPropagation();
       }
-      openPortalCaseInlineDetail(href, link, { returnTo: '/#figure-results' });
+      navigatePortalCaseStandalone(href, '/#figure-results');
       return false;
     }
 
@@ -21585,7 +21585,7 @@
         event.preventDefault();
         event.stopPropagation();
       }
-      openPortalCaseInlineDetail(url, card, { returnTo: '/#home-featured-cases' });
+      navigatePortalCaseStandalone(url, '/#home-featured-cases');
     }
 
     function homeFeaturedCacheKey(type) {
