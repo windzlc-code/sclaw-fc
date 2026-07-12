@@ -5,6 +5,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "static" / "index-app.js").read_text(encoding="utf-8")
 APP_SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
+DOCKERFILE = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+PROD_COMPOSE = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
 
 
 class HomeCaseNavigationFastPathTests(unittest.TestCase):
@@ -42,6 +44,10 @@ class HomeCaseNavigationFastPathTests(unittest.TestCase):
     def test_concurrent_case_requests_share_one_cold_render(self):
         self.assertIn("def _serialize_case_page_render", APP_SOURCE)
         self.assertIn("@_serialize_case_page_render\ndef source_case_page", APP_SOURCE)
+
+    def test_production_runs_configured_uvicorn_workers(self):
+        self.assertIn('--workers \\"${WEB_CONCURRENCY:-1}\\"', DOCKERFILE)
+        self.assertIn('WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}', PROD_COMPOSE)
 
 
 if __name__ == "__main__":
