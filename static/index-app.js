@@ -21264,8 +21264,8 @@
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = window.__SCLAW_INDEX_BOOTSTRAP?.homeFeaturedPreload || { ok: false, items: [] };
     const HOME_FEATURED_TYPE_PRELOADS = window.__SCLAW_INDEX_BOOTSTRAP?.homeFeaturedTypePreloads || {};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v26.galleryFirst.';
-    const HOME_FEATURED_SELECTION_VERSION = 'gallery-v20';
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v27.noSpotlightOverlap.';
+    const HOME_FEATURED_SELECTION_VERSION = 'gallery-v21-no-overlap';
     // Keep the recommendation batches stable in this browser for one day.
     const HOME_FEATURED_STORAGE_TTL = 24 * 60 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
@@ -21344,7 +21344,7 @@
         const key = homeFeaturedStableKey(item);
         return !key || !excluded.has(key);
       });
-      return filtered.length >= Math.min(6, HOME_FEATURED_PAGE_SIZE) ? filtered : list;
+      return filtered;
     }
 
     function homeFeaturedTrustedImageUrl(value) {

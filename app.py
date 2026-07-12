@@ -9764,10 +9764,10 @@ def _index_template_context(request: Request, *, admin_standalone: bool = False)
         home_featured_bundle.get("home_featured_preload")
         or (home_featured_bundle.get("home_featured_type_preloads") or {}).get("")
     )
-    # The old page embedded every type's large candidate pool. The browser now
-    # gets the visible generic set only; type tabs fetch from the same cached
-    # backend pool when the visitor selects them.
-    home_featured_type_preloads = {"": home_featured_preload} if home_featured_preload.get("items") else {}
+    # Do not duplicate the spotlight batch in the generic type board.  The
+    # client fetches that board with the spotlight source IDs excluded, which
+    # keeps the two homepage sections genuinely distinct even after a refresh.
+    home_featured_type_preloads = {}
     home_room_explore_tiles = home_featured_bundle.get("home_room_explore_tiles") or []
     return {
         "request": request,

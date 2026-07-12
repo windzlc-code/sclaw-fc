@@ -248,7 +248,7 @@
         </div>
         {% set type_ssr_payload = home_featured_type_preloads.get('') if home_featured_type_preloads else none %}
         {% set type_ssr_raw_items = type_ssr_payload['items'] if type_ssr_payload and type_ssr_payload['items'] else [] %}
-        {% set type_ssr_items = (type_ssr_raw_items if type_ssr_raw_items|length >= 12 else featured_ssr_items)[:12] %}
+        {% set type_ssr_items = type_ssr_raw_items[:12] %}
         <div id="home-featured-type-grid" class="home-featured-grid home-featured-type-grid" aria-live="polite">
           {% for item in type_ssr_items %}
           {% set detail_url = item.case_path or ('/case/' ~ item.source_item_id) %}
@@ -2420,7 +2420,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260713-home-runtime-g" defer></script>
+  <script src="/static/index-app.js?v=20260713-home-runtime-h" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>
