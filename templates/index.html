@@ -206,9 +206,9 @@
                 <img
                   src="{{ tile_thumb_url }}"
                   alt=""
-                  loading="eager"
+                  loading="{% if loop.index <= 2 %}eager{% else %}lazy{% endif %}"
                   decoding="async"
-                  fetchpriority="{% if loop.index <= 5 %}high{% else %}auto{% endif %}"
+                  fetchpriority="{% if loop.index <= 2 %}high{% else %}low{% endif %}"
                 >
                 {% else %}
                 <span class="home-room-explore-placeholder">待补入代表图</span>
@@ -2315,7 +2315,7 @@
       </div>
       <div class="bh-feature-card-grid">
         <article class="bh-feature-card">
-          <img src="/static/template-bhomeland/feature_img_1.jpg" alt="日本住宅外觀參考" loading="eager" decoding="async" fetchpriority="high">
+          <img src="/static/template-bhomeland/feature_img_1.jpg" alt="日本住宅外觀參考" loading="lazy" decoding="async" fetchpriority="low">
           <div>
             <span>日本區域圖</span>
             <h3>用地圖先決定查詢範圍</h3>
@@ -2324,7 +2324,7 @@
           </div>
         </article>
         <article class="bh-feature-card">
-          <img src="/static/template-bhomeland/feature_img_2.jpg" alt="日本室內房源參考" loading="eager" decoding="async" fetchpriority="high">
+          <img src="/static/template-bhomeland/feature_img_2.jpg" alt="日本室內房源參考" loading="lazy" decoding="async" fetchpriority="low">
           <div>
             <span>智慧查詢</span>
             <h3>依條件整理可比較的房源結果</h3>
@@ -2333,7 +2333,7 @@
           </div>
         </article>
         <article class="bh-feature-card">
-          <img src="/static/template-bhomeland/feature_img_3.jpg" alt="日本公寓房源參考" loading="eager" decoding="async" fetchpriority="high">
+          <img src="/static/template-bhomeland/feature_img_3.jpg" alt="日本公寓房源參考" loading="lazy" decoding="async" fetchpriority="low">
           <div>
             <span>顧問諮詢</span>
             <h3>收藏與諮詢入口延續原流程</h3>
