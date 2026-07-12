@@ -37,7 +37,7 @@ copy .env.example .env
 | `SITE_NAME` | 站名 | 依品牌填寫 |
 | `BRAND_NAME` | 品牌字樣（可空） | 選填 |
 | `SCLAW_ENABLE_BACKGROUND_WORKERS` | 是否啟用 web server 進程內背景排程（FAQ refresh / smart-nav intel） | **正式環境建議 `0`** |
-| `WEB_CONCURRENCY` | Uvicorn worker 數 | 2 vCPU 正式主機建議 `2`；低記憶體或 SQLite 寫入密集場景可設為 `1` |
+| `WEB_CONCURRENCY` | Uvicorn worker 數 | SQLite 場景預設 `1`；僅在壓測確認 CPU 與寫入負載足夠時才提高 |
 
 說明：
 

@@ -47,7 +47,7 @@ class HomeCaseNavigationFastPathTests(unittest.TestCase):
 
     def test_production_runs_configured_uvicorn_workers(self):
         self.assertIn('--workers \\"${WEB_CONCURRENCY:-1}\\"', DOCKERFILE)
-        self.assertIn('WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}', PROD_COMPOSE)
+        self.assertIn('WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}', PROD_COMPOSE)
 
 
 if __name__ == "__main__":
