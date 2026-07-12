@@ -21227,21 +21227,11 @@
     }
 
     function installPortalCaseInlineHistory() {
-      if (window.__sclawPortalCaseInlineHistoryBound) return;
-      window.__sclawPortalCaseInlineHistoryBound = true;
-      window.addEventListener('popstate', (event) => {
-        const state = event?.state?.[PORTAL_CASE_INLINE_HISTORY_KEY];
-        if (state?.href) {
-          openPortalCaseInlineDetail(state.href, null, {
-            returnTo: state.returnTo,
-            historyMode: 'none',
-            scroll: true,
-            instant: true,
-          });
-          return;
-        }
-        closePortalCaseInlineDetail({ fromHistory: true, restoreScrollY: portalCaseInlineLastHomeScrollY });
-      });
+      // Detail pages are standalone documents.  In particular, do not revive
+      // the obsolete inline-detail history state when a user goes forward or
+      // back through a session created before this navigation was restored.
+      // Doing so would inject a detail document into the homepage and apply
+      // homepage layout rules to it.
     }
 
     function portalCaseCardOpenDetail(event, card) {

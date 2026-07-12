@@ -25,6 +25,12 @@ class HomeCaseNavigationFastPathTests(unittest.TestCase):
         self.assertIn("function prefetchVisiblePortalCaseDetails()", SOURCE)
         self.assertIn("prefetchVisiblePortalCaseDetails();", SOURCE)
 
+    def test_legacy_history_cannot_reopen_embedded_detail(self):
+        start = SOURCE.index("function installPortalCaseInlineHistory")
+        body = SOURCE[start: SOURCE.index("function portalCaseCardOpenDetail", start)]
+        self.assertNotIn("addEventListener('popstate'", body)
+        self.assertNotIn("openPortalCaseInlineDetail", body)
+
 
 if __name__ == "__main__":
     unittest.main()
