@@ -256,7 +256,7 @@ _CASE_PAGE_HTML_CACHE_MAX = 240
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-cards-cache-20260712a"
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-cards-cache-20260712b"
 _CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
@@ -36759,7 +36759,7 @@ def _related_articles_lite_for_item(
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    sync_fetch_budget = max(0, min(12, int(os.getenv("RELATED_ARTICLE_THUMB_SYNC_BUDGET", "8") or 8)))
+    sync_fetch_budget = max(0, min(48, int(os.getenv("RELATED_ARTICLE_THUMB_SYNC_BUDGET", "24") or 24)))
 
     def add_row(row: Any, *, allow_thumb_sync_fetch: bool = False) -> None:
         nonlocal sync_fetch_budget
@@ -36784,11 +36784,11 @@ def _related_articles_lite_for_item(
         out.append(d)
 
     for row in rows:
-        add_row(row)
+        add_row(row, allow_thumb_sync_fetch=True)
         if len(out) >= rel_limit:
             break
     if len(out) < rel_limit:
-        for row in _related_articles_lite_visual_backfill_rows(conn, item, limit=rel_limit * 80):
+        for row in _related_articles_lite_visual_backfill_rows(conn, item, limit=rel_limit * 160):
             add_row(row, allow_thumb_sync_fetch=True)
             if len(out) >= rel_limit:
                 break
