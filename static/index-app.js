@@ -22330,7 +22330,14 @@
           homeFeaturedTypeCache.set(homeFeaturedCacheKey(type), normalized);
           homeFeaturedStorageSet(type, 0, { ...payload, items: firstPageItems });
         }
-        queueHomeFeaturedTypeImageWarmup(firstPageItems, HOME_FEATURED_PAGE_SIZE);
+        // Do not warm every tab's twelve card images at startup.  Those image
+        // requests all go through the same application process and used to
+        // queue behind a visitor opening a case.  Only warm the visible tab;
+        // the other tabs keep their already embedded data and load images on
+        // the user's actual selection.
+        if (String(type || '') === String(homeFeaturedType || '')) {
+          queueHomeFeaturedTypeImageWarmup(firstPageItems, 4);
+        }
         if (String(type || '') === String(homeFeaturedType || '') && !renderedActive) {
           if (needsRefill && homeFeaturedExistingTypeCardCount() >= HOME_FEATURED_PAGE_SIZE) {
             renderedActive = true;
@@ -22342,7 +22349,7 @@
           homeFeaturedTypeCases = firstPageItems.slice();
           homeFeaturedTypeOffset = normalized.offset;
           renderHomeFeaturedTypeCases();
-          homeFeaturedWarmImages(firstPageItems, 6, true);
+          homeFeaturedWarmImages(firstPageItems, 4, true);
           homeFeaturedKeepTypeMoreVisible();
           homeFeaturedSetTypeStatus(firstPageItems.length ? `已载入 ${firstPageItems.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(type)}」的房源。`);
           renderedActive = true;
@@ -27946,10 +27953,11 @@
         homeFeaturedStartupLoads.push(loadHomeFeaturedTypeCases({ append: false }));
       }
       Promise.allSettled(homeFeaturedStartupLoads);
-      // Queue first pages for the remaining type tabs one by one after first
-      // render, so a manual tab click only swaps already-cached cards.
-      prefetchHomeFeaturedTypes();
-      prefetchVisiblePortalCaseDetails();
+      // The initial HTML already contains the daily recommendation payloads
+      // for the type tabs.  Do not enqueue every non-visible tab or seven full
+      // detail documents here: on the single production worker that caused a
+      // visitor's click to wait behind speculative work.  Cards still prefetch
+      // their own detail on hover, touch, or keyboard focus.
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       initHomeHeroCarousel();
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);

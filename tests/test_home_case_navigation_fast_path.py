@@ -19,17 +19,24 @@ class HomeCaseNavigationFastPathTests(unittest.TestCase):
         self.assertIn("navigatePortalCaseStandalone(url, returnTo);", body)
         self.assertNotIn("openPortalCaseInlineDetail(url, card, { returnTo });", body)
 
-    def test_details_are_prefetched_without_changing_the_page_layout(self):
+    def test_details_are_prefetched_on_intent_without_changing_the_page_layout(self):
         self.assertIn("const portalCaseInlineDocumentCache = new Map()", SOURCE)
         self.assertIn("function portalCaseInlineFetchHtml", SOURCE)
-        self.assertIn("function prefetchVisiblePortalCaseDetails()", SOURCE)
-        self.assertIn("prefetchVisiblePortalCaseDetails();", SOURCE)
+        self.assertIn("function prefetchPortalCaseStandalone", SOURCE)
+        self.assertIn("prefetchFromEvent", SOURCE)
 
     def test_legacy_history_cannot_reopen_embedded_detail(self):
         start = SOURCE.index("function installPortalCaseInlineHistory")
         body = SOURCE[start: SOURCE.index("function portalCaseCardOpenDetail", start)]
         self.assertNotIn("addEventListener('popstate'", body)
         self.assertNotIn("openPortalCaseInlineDetail", body)
+
+    def test_startup_does_not_queue_speculative_case_pages_or_all_tabs(self):
+        start = SOURCE.index("function runSclawStartupChecks")
+        body = SOURCE[start: SOURCE.index("if (document.readyState === 'loading')", start)]
+        self.assertNotIn("prefetchHomeFeaturedTypes();", body)
+        self.assertNotIn("prefetchVisiblePortalCaseDetails();", body)
+        self.assertIn("their own detail on hover, touch, or keyboard focus", body)
 
 
 if __name__ == "__main__":
