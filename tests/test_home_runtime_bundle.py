@@ -38,6 +38,11 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("return filtered;", body)
         self.assertNotIn("? filtered : list", body)
 
+        refresh_start = runtime.index("async function refreshHomeFeaturedSpotlight")
+        refresh_body = runtime[refresh_start:runtime.index("async function loadHomeFeaturedCases", refresh_start)]
+        self.assertIn("await loadHomeFeaturedTypeCases({", refresh_body)
+        self.assertIn("forceRefresh: true", refresh_body)
+
 
 if __name__ == "__main__":
     unittest.main()

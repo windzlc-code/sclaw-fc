@@ -22370,6 +22370,18 @@
         homeFeaturedBatchOffset = 0;
         await loadHomeFeaturedCases({ append: false, offset: 0, keepExisting: true });
       }
+      // The generic tab excludes the current spotlight set. Re-fetch it whenever
+      // the spotlight rotates, otherwise an already-rendered generic batch could
+      // overlap with the newly selected spotlight cards.
+      if (homeFeaturedTypeShouldExcludeSpotlight(homeFeaturedType)) {
+        await loadHomeFeaturedTypeCases({
+          append: false,
+          propertyType: homeFeaturedType,
+          keepExisting: true,
+          background: true,
+          forceRefresh: true,
+        });
+      }
     }
 
     async function loadHomeFeaturedCases(options = {}) {
