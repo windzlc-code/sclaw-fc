@@ -260,7 +260,7 @@ _CASE_PAGE_RENDER_LOCKS_MAX = 480
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-cards-cache-20260712b"
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-cards-cache-20260713c"
 _CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
@@ -288,6 +288,12 @@ def _case_page_html_cache_ttl() -> float:
         return max(0.0, min(86400.0, float(os.getenv("SCLAW_CASE_PAGE_CACHE_TTL", "86400") or 86400)))
     except Exception:
         return 86400.0
+
+
+def _case_page_html_disk_cache_path(source_item_id: int, fingerprint: str) -> Path:
+    sid = max(0, int(source_item_id or 0))
+    digest = hashlib.sha1(f"{sid}|{fingerprint}".encode("utf-8")).hexdigest()
+    return _CASE_PAGE_HTML_DISK_CACHE_DIR / digest[:2] / f"{digest}.html"
 
 
 def _case_related_news_cache_ttl() -> float:
@@ -331,8 +337,23 @@ def _case_page_html_cache_get(source_item_id: int, fingerprint: str) -> str | No
         ts, html = hit
         if now - ts > ttl:
             _CASE_PAGE_HTML_CACHE.pop(key, None)
+        else:
+            return html
+    try:
+        path = _case_page_html_disk_cache_path(source_item_id, fingerprint)
+        if not path.is_file() or path.stat().st_size < 256:
             return None
-        return html
+        html = path.read_text(encoding="utf-8")
+        if not html:
+            return None
+    except Exception:
+        return None
+    with _CASE_PAGE_HTML_CACHE_LOCK:
+        _CASE_PAGE_HTML_CACHE[key] = (now, html)
+        while len(_CASE_PAGE_HTML_CACHE) > _CASE_PAGE_HTML_CACHE_MAX:
+            oldest = min(_CASE_PAGE_HTML_CACHE.items(), key=lambda kv: kv[1][0])[0]
+            _CASE_PAGE_HTML_CACHE.pop(oldest, None)
+    return html
 
 
 def _case_page_html_cache_set(source_item_id: int, fingerprint: str, html: str) -> None:
@@ -347,6 +368,14 @@ def _case_page_html_cache_set(source_item_id: int, fingerprint: str, html: str) 
         while len(_CASE_PAGE_HTML_CACHE) > _CASE_PAGE_HTML_CACHE_MAX:
             oldest = min(_CASE_PAGE_HTML_CACHE.items(), key=lambda kv: kv[1][0])[0]
             _CASE_PAGE_HTML_CACHE.pop(oldest, None)
+    try:
+        path = _case_page_html_disk_cache_path(source_item_id, fingerprint)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f"{path.name}.{uuid4().hex}.tmp")
+        tmp.write_text(str(html), encoding="utf-8")
+        tmp.replace(path)
+    except Exception:
+        pass
 
 
 def _serialize_case_page_render(handler: Callable[..., Response]) -> Callable[..., Response]:
@@ -1615,6 +1644,7 @@ def _url_to_local_static_path(raw_url: Any) -> Path | None:
 
 _CASE_IMAGE_CACHE_DIR = Path("static/cache/case-images")
 _CASE_IMAGE_THUMB_DIR = Path("static/cache/case-thumbs")
+_CASE_PAGE_HTML_DISK_CACHE_DIR = Path("static/cache/case-pages")
 _HOME_CAROUSEL_POSTER_CACHE_DIR = Path("static/cache/home-carousel-posters")
 _CASE_IMAGE_PREFETCH_LOCK = threading.Lock()
 _CASE_IMAGE_PREFETCH_INFLIGHT: set[str] = set()
@@ -1865,9 +1895,11 @@ def _run_cache_maintenance_once(*, dry_run: bool = False) -> dict[str, Any]:
 
             case_max_age = _env_float("SCLAW_CACHE_CASE_IMAGES_MAX_AGE_DAYS", 45.0, min_value=1.0, max_value=365.0)
             thumb_max_age = _env_float("SCLAW_CACHE_CASE_THUMBS_MAX_AGE_DAYS", 14.0, min_value=1.0, max_value=180.0)
+            case_page_max_age = _env_float("SCLAW_CACHE_CASE_PAGES_MAX_AGE_DAYS", 14.0, min_value=1.0, max_value=180.0)
             poster_max_age = _env_float("SCLAW_CACHE_HOME_POSTERS_MAX_AGE_DAYS", 30.0, min_value=1.0, max_value=365.0)
             case_max_bytes = _env_int("SCLAW_CACHE_CASE_IMAGES_MAX_BYTES", 6 * 1024 * 1024 * 1024, min_value=50 * 1024 * 1024)
             thumb_max_bytes = _env_int("SCLAW_CACHE_CASE_THUMBS_MAX_BYTES", 1536 * 1024 * 1024, min_value=20 * 1024 * 1024)
+            case_page_max_bytes = _env_int("SCLAW_CACHE_CASE_PAGES_MAX_BYTES", 512 * 1024 * 1024, min_value=20 * 1024 * 1024)
             poster_max_bytes = _env_int("SCLAW_CACHE_HOME_POSTERS_MAX_BYTES", 512 * 1024 * 1024, min_value=20 * 1024 * 1024)
             max_delete_files = _env_int("SCLAW_CACHE_MAINTENANCE_MAX_DELETE_FILES", 12000, min_value=10, max_value=50000)
             report["disk"]["case_images"] = _cleanup_cache_dir(
@@ -1881,6 +1913,13 @@ def _run_cache_maintenance_once(*, dry_run: bool = False) -> dict[str, Any]:
                 _CASE_IMAGE_THUMB_DIR,
                 max_age_days=thumb_max_age,
                 max_bytes=thumb_max_bytes,
+                dry_run=dry_run,
+                max_delete_files=max_delete_files,
+            )
+            report["disk"]["case_pages"] = _cleanup_cache_dir(
+                _CASE_PAGE_HTML_DISK_CACHE_DIR,
+                max_age_days=case_page_max_age,
+                max_bytes=case_page_max_bytes,
                 dry_run=dry_run,
                 max_delete_files=max_delete_files,
             )

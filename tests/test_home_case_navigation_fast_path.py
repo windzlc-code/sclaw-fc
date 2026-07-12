@@ -44,6 +44,8 @@ class HomeCaseNavigationFastPathTests(unittest.TestCase):
     def test_concurrent_case_requests_share_one_cold_render(self):
         self.assertIn("def _serialize_case_page_render", APP_SOURCE)
         self.assertIn("@_serialize_case_page_render\ndef source_case_page", APP_SOURCE)
+        self.assertIn("def _case_page_html_disk_cache_path", APP_SOURCE)
+        self.assertIn("_CASE_PAGE_HTML_DISK_CACHE_DIR", APP_SOURCE)
 
     def test_production_runs_configured_uvicorn_workers(self):
         self.assertIn('--workers \\"${WEB_CONCURRENCY:-1}\\"', DOCKERFILE)
