@@ -53,6 +53,11 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("requestIdleCallback", body)
         self.assertIn("prefetchHomeFeaturedTypes();", startup)
 
+    def test_home_featured_client_cache_is_bumped_after_promo_image_cleanup(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        self.assertIn("sclaw.homeFeatured.v28.promo-image-clean.", runtime)
+        self.assertIn("gallery-v22-promo-image-clean", runtime)
+
 
 if __name__ == "__main__":
     unittest.main()

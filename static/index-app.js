@@ -21298,8 +21298,11 @@
     const HOME_FEATURED_PAGE_SIZE = 12;
     const HOME_FEATURED_PRELOAD = window.__SCLAW_INDEX_BOOTSTRAP?.homeFeaturedPreload || { ok: false, items: [] };
     const HOME_FEATURED_TYPE_PRELOADS = window.__SCLAW_INDEX_BOOTSTRAP?.homeFeaturedTypePreloads || {};
-    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v27.noSpotlightOverlap.';
-    const HOME_FEATURED_SELECTION_VERSION = 'gallery-v21-no-overlap';
+    // The version is part of the client cache key. Bump it whenever card-image
+    // eligibility changes so a browser never resurrects yesterday's rejected
+    // card payload from sessionStorage after a server-side cleanup.
+    const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v28.promo-image-clean.';
+    const HOME_FEATURED_SELECTION_VERSION = 'gallery-v22-promo-image-clean';
     // Keep the recommendation batches stable in this browser for one day.
     const HOME_FEATURED_STORAGE_TTL = 24 * 60 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
