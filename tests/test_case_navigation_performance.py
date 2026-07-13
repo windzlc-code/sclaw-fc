@@ -5,6 +5,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app.py"
 CASE_TEMPLATE = ROOT / "templates" / "case.html"
+PROD_COMPOSE = ROOT / "docker-compose.prod.yml"
 
 
 class CaseNavigationPerformanceTests(unittest.TestCase):
@@ -31,6 +32,10 @@ class CaseNavigationPerformanceTests(unittest.TestCase):
         self.assertIn('loading="lazy"', related_section)
         self.assertIn('fetchpriority="low"', related_section)
         self.assertNotIn("case_card_thumb_url", related_section)
+
+    def test_production_uses_both_available_server_cores(self):
+        source = PROD_COMPOSE.read_text(encoding="utf-8")
+        self.assertIn("WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}", source)
 
 
 if __name__ == "__main__":
