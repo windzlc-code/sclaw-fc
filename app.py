@@ -36586,6 +36586,26 @@ def _related_article_thumb_url(row: dict[str, Any], *, allow_sync_fetch: bool = 
         if s and s not in candidates:
             candidates.append(s)
 
+    # These two fields are selected with every related-card row. Use them
+    # before parsing the complete gallery: the card image itself is lazy, so a
+    # remote candidate can be resolved by the image endpoint after the detail
+    # document has been delivered instead of delaying navigation by seconds.
+    for raw in (row.get("thumbnail_url"), row.get("hero_image_url")):
+        s = str(raw or "").strip()
+        if not s:
+            continue
+        local_path = _url_to_local_static_path(s)
+        if local_path:
+            if local_path.is_file():
+                return s
+            continue
+        if not s.lower().startswith(("http://", "https://")):
+            continue
+        cached = _case_image_cached_static_url(s)
+        if cached:
+            return cached
+        return s
+
     try:
         push(_case_stored_representative_static_url(row, []))
     except Exception:
@@ -36878,7 +36898,10 @@ def _related_articles_lite_for_item(
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    sync_fetch_budget = max(0, min(48, int(os.getenv("RELATED_ARTICLE_THUMB_SYNC_BUDGET", "24") or 24)))
+    # Related cards are below the listing detail. Never make their thumbnail
+    # downloads block a case-page response; missing local art is warmed in the
+    # background and the browser loads it lazily when the section is reached.
+    sync_fetch_budget = max(0, min(48, int(os.getenv("RELATED_ARTICLE_THUMB_SYNC_BUDGET", "0") or 0)))
 
     def add_row(row: Any, *, allow_thumb_sync_fetch: bool = False) -> None:
         nonlocal sync_fetch_budget
