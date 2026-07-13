@@ -47174,7 +47174,7 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
 @media (max-width: 640px) {
   body.site-home #support-chat-widget.support-chat-widget:not(.is-expanded) {
     top: auto !important;
-    bottom: max(84px, calc(env(safe-area-inset-bottom) + 72px)) !important;
+    bottom: max(18px, calc(env(safe-area-inset-bottom) + 18px)) !important;
   }
 }
 
