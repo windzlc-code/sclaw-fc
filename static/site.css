@@ -47138,3 +47138,34 @@ body.purchase-tools-body .purchase-tool-image-card-stats small {
     font-size: 10.5px !important;
   }
 }
+
+/* 2026-07-13: anchor compare/saved drawers to the active floating icon. */
+body.support-selected-cases-open #support-selected-cases-drawer,
+body.support-saved-cases-open #support-saved-cases-drawer,
+body.site-home.support-selected-cases-open #support-selected-cases-drawer,
+body.site-home.support-saved-cases-open #support-saved-cases-drawer,
+body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) #support-selected-cases-drawer,
+body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #support-saved-cases-drawer {
+  left: auto !important;
+  right: var(--support-floating-drawer-right, calc(max(34px, env(safe-area-inset-right)) + 88px)) !important;
+  top: var(--support-floating-drawer-top, 50%) !important;
+  bottom: auto !important;
+  width: min(var(--support-floating-drawer-width, 520px), 94vw) !important;
+  max-width: min(var(--support-floating-drawer-width, 520px), 94vw) !important;
+  transform: translateY(-50%) !important;
+}
+
+@media (max-width: 520px) {
+  body.support-selected-cases-open #support-selected-cases-drawer,
+  body.support-saved-cases-open #support-saved-cases-drawer,
+  body.site-home.support-selected-cases-open #support-selected-cases-drawer,
+  body.site-home.support-saved-cases-open #support-saved-cases-drawer {
+    left: 10px !important;
+    right: 10px !important;
+    top: auto !important;
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px) !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+  }
+}

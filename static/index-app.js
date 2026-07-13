@@ -5406,6 +5406,14 @@
       }
     }
 
+    function isSupportFloatingDrawerMobileUi() {
+      try {
+        return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 520px)').matches;
+      } catch (_) {
+        return false;
+      }
+    }
+
     let supportChatVisualViewportAssistInstalled = false;
 
     function updateSupportChatVisualViewportVars() {
@@ -9063,6 +9071,28 @@
       } catch (_) {}
     }
 
+    function positionSupportFloatingDrawer(drawer, anchor) {
+      if (!drawer || !anchor || isSupportFloatingDrawerMobileUi()) return;
+      try {
+        const rect = anchor.getBoundingClientRect();
+        const gap = 18;
+        const right = Math.max(12, window.innerWidth - rect.left + gap);
+        const minLeftGutter = window.innerWidth <= 720 ? 96 : 24;
+        const availableWidth = Math.max(280, window.innerWidth - right - minLeftGutter);
+        const width = Math.min(520, Math.max(280, Math.min(window.innerWidth * 0.94, availableWidth, drawer.offsetWidth || 520)));
+        const height = Math.min(window.innerHeight * 0.78, drawer.offsetHeight || 420);
+        const safeTop = 12;
+        const safeBottom = 12;
+        const anchorCenterY = rect.top + rect.height / 2;
+        const narrowViewportCenterY = window.innerWidth <= 720 ? window.innerHeight * 0.73 : anchorCenterY;
+        const centerY = Math.max(anchorCenterY, narrowViewportCenterY);
+        const top = Math.max(safeTop + height / 2, Math.min(window.innerHeight - safeBottom - height / 2, centerY));
+        drawer.style.setProperty('--support-floating-drawer-top', `${Math.round(top)}px`);
+        drawer.style.setProperty('--support-floating-drawer-right', `${Math.round(right)}px`);
+        drawer.style.setProperty('--support-floating-drawer-width', `${Math.round(width)}px`);
+      } catch (_) {}
+    }
+
     function setSupportSelectedCasesDrawerOpen(open, options = {}) {
       const shouldOpen = !!open;
       const restoreFocus = options && typeof options === 'object' ? options.restoreFocus !== false : true;
@@ -9078,7 +9108,9 @@
       if (shouldOpen) {
         unlockBodyScrollForSupportSelectedCasesDrawer();
         if (!(options && options.skipExclusive)) closeFloatingPanelsExcept('selected');
+        positionSupportFloatingDrawer(drawer, document.getElementById('support-selected-cases-fab'));
         renderSupportSelectedCasesDrawerList();
+        positionSupportFloatingDrawer(drawer, document.getElementById('support-selected-cases-fab'));
         hydrateSupportSelectedCasesDetails();
         try {
           const focusTarget = drawer && drawer.querySelector ? drawer.querySelector('button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])') : null;
@@ -9121,7 +9153,9 @@
       if (shouldOpen) {
         unlockBodyScrollForSupportSelectedCasesDrawer();
         if (!(options && options.skipExclusive)) closeFloatingPanelsExcept('saved');
+        positionSupportFloatingDrawer(drawer, document.getElementById('support-saved-cases-fab'));
         renderSupportSavedCasesDrawerList();
+        positionSupportFloatingDrawer(drawer, document.getElementById('support-saved-cases-fab'));
         try {
           const focusTarget = drawer && drawer.querySelector ? drawer.querySelector('button, [href], input, textarea, select, [tabindex]:not([tabindex=\"-1\"])') : null;
           if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();

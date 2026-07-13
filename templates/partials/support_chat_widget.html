@@ -807,6 +807,28 @@
       if (keep !== 'chat' && typeof window.toggleSupportChat === 'function') window.toggleSupportChat(false);
     }
 
+    function positionSupportFallbackDrawer(drawerId, anchorId) {
+      var drawer = document.getElementById(drawerId);
+      var anchor = document.getElementById(anchorId);
+      if (!drawer || !anchor || window.matchMedia('(max-width: 520px)').matches) return;
+      try {
+        var rect = anchor.getBoundingClientRect();
+        var gap = 18;
+        var right = Math.max(12, window.innerWidth - rect.left + gap);
+        var minLeftGutter = window.innerWidth <= 720 ? 96 : 24;
+        var availableWidth = Math.max(280, window.innerWidth - right - minLeftGutter);
+        var width = Math.min(520, Math.max(280, Math.min(window.innerWidth * 0.94, availableWidth, drawer.offsetWidth || 520)));
+        var height = Math.min(window.innerHeight * 0.78, drawer.offsetHeight || 420);
+        var anchorCenterY = rect.top + rect.height / 2;
+        var narrowViewportCenterY = window.innerWidth <= 720 ? window.innerHeight * 0.73 : anchorCenterY;
+        var centerY = Math.max(anchorCenterY, narrowViewportCenterY);
+        var top = Math.max(12 + height / 2, Math.min(window.innerHeight - 12 - height / 2, centerY));
+        drawer.style.setProperty('--support-floating-drawer-top', Math.round(top) + 'px');
+        drawer.style.setProperty('--support-floating-drawer-right', Math.round(right) + 'px');
+        drawer.style.setProperty('--support-floating-drawer-width', Math.round(width) + 'px');
+      } catch (_) {}
+    }
+
     if (typeof window.toggleSupportSelectedCasesDrawer !== 'function') {
       window.toggleSupportSelectedCasesDrawer = function (force) {
         var drawer = document.getElementById('support-selected-cases-drawer');
@@ -816,7 +838,11 @@
         setDisplay('support-selected-cases-drawer-backdrop', open, 'block');
         setExpanded('support-selected-cases-fab', open);
         document.body.classList.toggle('support-selected-cases-open', open);
-        if (open) renderCaseList(selectedKey, 'support-selected-cases-drawer-list', '尚未加入案件。可在智慧查詢結果點選加號加入案件對比。');
+        if (open) {
+          positionSupportFallbackDrawer('support-selected-cases-drawer', 'support-selected-cases-fab');
+          renderCaseList(selectedKey, 'support-selected-cases-drawer-list', '尚未加入案件。可在智慧查詢結果點選加號加入案件對比。');
+          positionSupportFallbackDrawer('support-selected-cases-drawer', 'support-selected-cases-fab');
+        }
         refreshSupportFallbackBadges();
       };
     }
@@ -830,7 +856,11 @@
         setDisplay('support-saved-cases-drawer-backdrop', open, 'block');
         setExpanded('support-saved-cases-fab', open);
         document.body.classList.toggle('support-saved-cases-open', open);
-        if (open) renderCaseList(savedKey, 'support-saved-cases-drawer-list', '尚未收藏案件。可在智慧查詢結果點選愛心收藏。');
+        if (open) {
+          positionSupportFallbackDrawer('support-saved-cases-drawer', 'support-saved-cases-fab');
+          renderCaseList(savedKey, 'support-saved-cases-drawer-list', '尚未收藏案件。可在智慧查詢結果點選愛心收藏。');
+          positionSupportFallbackDrawer('support-saved-cases-drawer', 'support-saved-cases-fab');
+        }
         refreshSupportFallbackBadges();
       };
     }
