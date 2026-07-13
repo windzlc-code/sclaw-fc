@@ -21300,6 +21300,7 @@
     const HOME_FEATURED_TYPE_PRELOADS = window.__SCLAW_INDEX_BOOTSTRAP?.homeFeaturedTypePreloads || {};
     const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v27.noSpotlightOverlap.';
     const HOME_FEATURED_SELECTION_VERSION = 'gallery-v21-no-overlap';
+    const HOME_FEATURED_TYPE_PREFETCH_CONCURRENCY = 2;
     // Keep the recommendation batches stable in this browser for one day.
     const HOME_FEATURED_STORAGE_TTL = 24 * 60 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
@@ -21315,6 +21316,7 @@
     let homeFeaturedTypeLoading = false;
     let homeFeaturedTypeRequestSeq = 0;
     const homeFeaturedTypePrefetching = new Set();
+    const homeFeaturedTypePrefetchPromises = new Map();
 
     function homeFeaturedStorageKey(type, offset = 0) {
       return `${HOME_FEATURED_STORAGE_PREFIX}${homeFeaturedCacheKey(type)}.${Number(offset || 0)}`;
@@ -21827,65 +21829,67 @@
       };
     }
 
-    async function prefetchHomeFeaturedType(propertyType) {
+    function prefetchHomeFeaturedType(propertyType) {
       const type = String(propertyType || '').trim();
       const cacheKey = homeFeaturedCacheKey(type);
-      if (homeFeaturedTypeCache.has(cacheKey) || homeFeaturedTypePrefetching.has(cacheKey)) return;
-      if (homeFeaturedFirstPageCache(type)) return;
+      if (homeFeaturedTypeCache.has(cacheKey) || homeFeaturedFirstPageCache(type)) return Promise.resolve();
+      const pending = homeFeaturedTypePrefetchPromises.get(cacheKey);
+      if (pending) return pending;
       homeFeaturedTypePrefetching.add(cacheKey);
-      try {
-        const data = await homeFeaturedFetchMergedBatch({
-          limit: HOME_FEATURED_PAGE_SIZE,
-          offset: 0,
-          propertyType: type,
-          maxRounds: homeFeaturedTypeFetchRounds(type),
-          excludeKeys: homeFeaturedTypeShouldExcludeSpotlight(type) ? homeFeaturedSpotlightKeySet() : null,
-        });
-        const next = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(data), type);
-        const hasMore = data.has_more !== false && next.length > 0;
-        if (!homeFeaturedTypeNeedsRefill(next, hasMore)) {
-          homeFeaturedStorageSet(type, 0, data);
-          homeFeaturedTypeCache.set(cacheKey, {
-            items: next.slice(),
-            offset: Number(data.next_offset || next.length || 0),
-            hasMore,
+      const request = (async () => {
+        try {
+          const data = await homeFeaturedFetchMergedBatch({
+            limit: HOME_FEATURED_PAGE_SIZE,
+            offset: 0,
+            propertyType: type,
+            maxRounds: homeFeaturedTypeFetchRounds(type),
+            excludeKeys: homeFeaturedTypeShouldExcludeSpotlight(type) ? homeFeaturedSpotlightKeySet() : null,
           });
+          const next = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(data), type);
+          const hasMore = data.has_more !== false && next.length > 0;
+          if (!homeFeaturedTypeNeedsRefill(next, hasMore)) {
+            homeFeaturedStorageSet(type, 0, data);
+            homeFeaturedTypeCache.set(cacheKey, {
+              items: next.slice(),
+              offset: Number(data.next_offset || next.length || 0),
+              hasMore,
+            });
+          }
+          homeFeaturedWarmImages(next, homeFeaturedType === type ? 4 : 1);
+          if (homeFeaturedType === type && !homeFeaturedTypeLoading) {
+            homeFeaturedTypeCases = next.slice();
+            homeFeaturedTypeOffset = Number(data.next_offset || next.length || 0);
+            renderHomeFeaturedTypeCases();
+            homeFeaturedKeepTypeMoreVisible();
+            homeFeaturedSetTypeStatus(`已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。`);
+          }
+        } catch (_) {
+        } finally {
+          homeFeaturedTypePrefetching.delete(cacheKey);
+          homeFeaturedTypePrefetchPromises.delete(cacheKey);
         }
-        homeFeaturedWarmImages(next, homeFeaturedType === type ? 4 : 1);
-        if (homeFeaturedType === type && !homeFeaturedTypeLoading) {
-          homeFeaturedTypeCases = next.slice();
-          homeFeaturedTypeOffset = Number(data.next_offset || next.length || 0);
-          renderHomeFeaturedTypeCases();
-          homeFeaturedKeepTypeMoreVisible();
-          homeFeaturedSetTypeStatus(`已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(type)}」房源。`);
-        }
-      } catch (_) {
-      } finally {
-        homeFeaturedTypePrefetching.delete(cacheKey);
-      }
+      })();
+      homeFeaturedTypePrefetchPromises.set(cacheKey, request);
+      return request;
     }
 
     function prefetchHomeFeaturedTypes() {
       if (!document.getElementById('home-featured-flow')) return;
       const activeType = String(homeFeaturedType || '').trim();
       const queue = HOME_FEATURED_TYPES
-        .filter((type) => !homeFeaturedFirstPageCache(type))
+        .filter((type) => type !== activeType && !homeFeaturedFirstPageCache(type))
         .sort((a, b) => {
-          if (a === activeType) return -1;
-          if (b === activeType) return 1;
           return HOME_FEATURED_TYPES.indexOf(a) - HOME_FEATURED_TYPES.indexOf(b);
         });
       let index = 0;
-      const runNext = () => {
+      const runNext = async () => {
         if (index >= queue.length) return;
         const next = queue[index++];
-        prefetchHomeFeaturedType(next).finally(() => window.setTimeout(runNext, 220));
+        await prefetchHomeFeaturedType(next);
+        return runNext();
       };
-      const start = () => window.setTimeout(runNext, 260);
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(start, { timeout: 1200 });
-      } else {
-        start();
+      for (let worker = 0; worker < Math.min(HOME_FEATURED_TYPE_PREFETCH_CONCURRENCY, queue.length); worker += 1) {
+        void runNext();
       }
     }
 
@@ -21905,6 +21909,14 @@
         queueHomeFeaturedTypeImageWarmup(homeFeaturedTypeCases, HOME_FEATURED_PAGE_SIZE);
         homeFeaturedKeepTypeMoreVisible();
         homeFeaturedSetTypeStatus(homeFeaturedTypeCases.length ? `已载入 ${homeFeaturedTypeCases.length} 笔「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」房源。` : `目前没有符合「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」的房源。`);
+        return;
+      }
+      const pending = homeFeaturedTypePrefetchPromises.get(homeFeaturedCacheKey(homeFeaturedType));
+      if (pending) {
+        homeFeaturedSetTypeStatus(`正在准备「${homeFeaturedTypeDisplayLabel(homeFeaturedType)}」房源...`);
+        pending.finally(() => {
+          if (homeFeaturedType === String(type || '').trim()) homeFeaturedApplyType(homeFeaturedType, btn);
+        });
         return;
       }
       loadHomeFeaturedTypeCases({ append: false, propertyType: homeFeaturedType, keepExisting: true, background: true });
@@ -27997,13 +28009,15 @@
       }
       if (!homeFeaturedTypesHydrated) {
         homeFeaturedStartupLoads.push(loadHomeFeaturedTypeCases({ append: false }));
+        // The server already has compact daily payloads for every type. Start
+        // fetching the non-visible tabs immediately so the first tab click
+        // reads from memory instead of waiting behind an idle-time queue.
+        prefetchHomeFeaturedTypes();
       }
       Promise.allSettled(homeFeaturedStartupLoads);
-      // The initial HTML already contains the daily recommendation payloads
-      // for the type tabs.  Do not enqueue every non-visible tab or seven full
-      // detail documents here: on the single production worker that caused a
-      // visitor's click to wait behind speculative work.  Cards still prefetch
-      // their own detail on hover, touch, or keyboard focus.
+      // Type payloads are compact and are warmed above with two bounded requests;
+      // do not enqueue full detail documents here. Cards still prefetch their own
+      // detail on hover, touch, or keyboard focus.
       scheduleNonCriticalStartup(restoreDeferredHomeHeroBackdrop, 36000);
       initHomeHeroCarousel();
       scheduleAfterMobileFirstIntent(initHomeVideoCarousel, 14000);

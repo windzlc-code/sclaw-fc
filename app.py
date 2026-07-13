@@ -2381,8 +2381,9 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
     """Lightweight local visual filter for card thumbnails.
 
     This intentionally does not call an AI model. It rejects obvious floor plans,
-    diagrams, placeholders and extreme-ratio fragments after the image has been
-    cached locally, then lets ordinary exterior/interior photos pass through.
+    diagrams, placeholders, full-frame promotional text boards and extreme-ratio
+    fragments after the image has been cached locally, then lets ordinary
+    exterior/interior photos pass through.
     """
     s = str(static_url or "").strip()
     if not s:
@@ -2464,6 +2465,21 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                         and edge_mean <= 0.10
                     ):
                         reason = "parcel-diagram"
+                    # Renovation checklists and similar ad boards can arrive from
+                    # listing feeds as opaque image URLs, so URL/context filters
+                    # cannot identify them. They are a highly saturated, almost
+                    # entirely green panel with dense contrast edges from the
+                    # baked-in copy. Keep this deliberately narrow: garden and
+                    # exterior photos do not have a single dominant green swatch.
+                    elif (
+                        0.75 <= aspect <= 2.2
+                        and sat_mean >= 0.38
+                        and greenish_ratio >= 0.78
+                        and dominant_color_ratio >= 0.32
+                        and edge_mean >= 0.14
+                        and light_ratio <= 0.16
+                    ):
+                        reason = "promotional-text-board"
                     elif light_ratio >= 0.78 and dark_ratio <= 0.03 and sat_mean <= 0.18:
                         reason = "blank-placeholder"
     except Exception:

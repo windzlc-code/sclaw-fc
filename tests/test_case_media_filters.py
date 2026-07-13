@@ -453,6 +453,34 @@ class CaseMediaFilterTests(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_representative_visual_filter_rejects_green_text_promo_board(self):
+        """Homepage cards must not use renovation/marketing text boards as photos."""
+        try:
+            from PIL import Image, ImageDraw
+        except Exception as exc:  # pragma: no cover - dependency guard for minimal local envs
+            self.skipTest(f"Pillow unavailable: {exc}")
+
+        rel = Path("static/cache/case-images/unit/unit-green-promo-board.jpg")
+        rel.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            image = Image.new("RGB", (990, 556), (78, 181, 74))
+            draw = ImageDraw.Draw(image)
+            # Simulate a full-frame renovation checklist: a dominant green panel
+            # with dense, high-contrast copy rather than a property photograph.
+            for y in range(70, 500, 58):
+                draw.rectangle((38, y, 930, y + 20), fill=(20, 38, 20))
+                draw.rectangle((56, y + 3, 182, y + 17), fill=(244, 250, 244))
+            image.save(rel, quality=86)
+            self.assertEqual(
+                _case_image_visual_reject_reason("/static/cache/case-images/unit/unit-green-promo-board.jpg"),
+                "promotional-text-board",
+            )
+        finally:
+            try:
+                rel.unlink(missing_ok=True)
+            except Exception:
+                pass
+
     def test_representative_filter_rejects_vending_machine_and_facility_detail(self):
         context = "中古マンション 2LDK 価格 350万円 静岡県駿東郡小山町須走"
         urls = [
