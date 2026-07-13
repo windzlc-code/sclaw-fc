@@ -47169,3 +47169,28 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
     transform: none !important;
   }
 }
+
+/* 2026-07-13: keep the mobile floating action stack near the bottom. */
+@media (max-width: 640px) {
+  body.site-home #support-chat-widget.support-chat-widget:not(.is-expanded) {
+    top: auto !important;
+    bottom: max(84px, calc(env(safe-area-inset-bottom) + 72px)) !important;
+  }
+}
+
+/* 2026-07-13: keep mobile compare/saved panels inside the viewport beside the action stack. */
+@media (max-width: 640px) {
+  body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) #support-selected-cases-drawer,
+  body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #support-saved-cases-drawer,
+  body.site-home.support-selected-cases-open #support-selected-cases-drawer,
+  body.site-home.support-saved-cases-open #support-saved-cases-drawer {
+    left: max(10px, env(safe-area-inset-left)) !important;
+    right: max(58px, calc(env(safe-area-inset-right) + 58px)) !important;
+    width: auto !important;
+    max-width: none !important;
+    top: auto !important;
+    bottom: max(92px, calc(env(safe-area-inset-bottom) + 84px)) !important;
+    max-height: min(72dvh, calc(100dvh - 148px)) !important;
+    transform: none !important;
+  }
+}
