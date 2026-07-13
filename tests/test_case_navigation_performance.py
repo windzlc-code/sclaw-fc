@@ -18,6 +18,11 @@ class CaseNavigationPerformanceTests(unittest.TestCase):
             body.index("for raw in (row.get(\"thumbnail_url\"), row.get(\"hero_image_url\"))"),
             body.index("_case_stored_representative_static_url"),
         )
+        self.assertIn("if not allow_sync_fetch:\n        return \"\"", body)
+        self.assertLess(
+            body.index("if not allow_sync_fetch:\n        return \"\""),
+            body.index("_case_stored_representative_static_url"),
+        )
 
     def test_related_card_images_do_not_block_case_navigation(self):
         source = CASE_TEMPLATE.read_text(encoding="utf-8")

@@ -36606,6 +36606,26 @@ def _related_article_thumb_url(row: dict[str, Any], *, allow_sync_fetch: bool = 
             return cached
         return s
 
+    # Some older rows do not populate thumbnail_url/hero_image_url but retain
+    # an image URL in the stored media fields. A lightweight URL extraction is
+    # sufficient for a lazy below-fold card; do not invoke the full gallery
+    # classifier on the request path just to refine a related-card thumbnail.
+    for raw in (row.get("image_urls"), row.get("listing_media_json")):
+        for candidate in re.findall(r"https?://[^\s\"'<>]+", str(raw or "")[:24000], flags=re.I):
+            s = candidate.rstrip("),.;]}\\\"")
+            if not s:
+                continue
+            cached = _case_image_cached_static_url(s)
+            if cached:
+                return cached
+            return s
+
+    # The deep gallery path can run hundreds of image-quality checks and may
+    # perform a network download. It is reserved for an explicit maintenance
+    # caller, never for a visitor waiting for a case page.
+    if not allow_sync_fetch:
+        return ""
+
     try:
         push(_case_stored_representative_static_url(row, []))
     except Exception:
@@ -36916,10 +36936,8 @@ def _related_articles_lite_for_item(
         if dup_keys & seen:
             sync_fetch_budget = before_sync_budget
             return
-        # Related cards are visual navigation. If a candidate cannot provide a
-        # usable thumbnail, skip it instead of showing a broken placeholder card.
-        if not str(d.get("thumb_url") or "").strip():
-            return
+        # Keep the related article/link even if its media is still warming.
+        # The established template has a clear fallback tile for this state.
         if not dup_keys:
             return
         seen.update(dup_keys)
