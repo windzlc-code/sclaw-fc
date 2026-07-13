@@ -43,13 +43,13 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("await loadHomeFeaturedTypeCases({", refresh_body)
         self.assertIn("forceRefresh: true", refresh_body)
 
-    def test_type_tabs_begin_parallel_cache_prewarm_on_first_load(self):
+    def test_type_tabs_begin_single_payload_prewarm_on_first_load(self):
         runtime = RUNTIME.read_text(encoding="utf-8")
         start = runtime.index("function prefetchHomeFeaturedTypes")
         body = runtime[start:runtime.index("function homeFeaturedApplyType", start)]
         startup = runtime[runtime.index("function runSclawStartupChecks()"):]
 
-        self.assertIn("HOME_FEATURED_TYPE_PREFETCH_CONCURRENCY", body)
+        self.assertIn("/api/home-featured-type-preloads", body)
         self.assertNotIn("requestIdleCallback", body)
         self.assertIn("prefetchHomeFeaturedTypes();", startup)
 

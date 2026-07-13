@@ -21300,7 +21300,6 @@
     const HOME_FEATURED_TYPE_PRELOADS = window.__SCLAW_INDEX_BOOTSTRAP?.homeFeaturedTypePreloads || {};
     const HOME_FEATURED_STORAGE_PREFIX = 'sclaw.homeFeatured.v27.noSpotlightOverlap.';
     const HOME_FEATURED_SELECTION_VERSION = 'gallery-v21-no-overlap';
-    const HOME_FEATURED_TYPE_PREFETCH_CONCURRENCY = 2;
     // Keep the recommendation batches stable in this browser for one day.
     const HOME_FEATURED_STORAGE_TTL = 24 * 60 * 60 * 1000;
     const HOME_FEATURED_TYPES = ['', '公寓', '大樓', '華廈', '套房', '別墅/透天', '辦公', '店面', '土地', '其他'];
@@ -21317,6 +21316,7 @@
     let homeFeaturedTypeRequestSeq = 0;
     const homeFeaturedTypePrefetching = new Set();
     const homeFeaturedTypePrefetchPromises = new Map();
+    let homeFeaturedTypeBulkPrefetchPromise = null;
 
     function homeFeaturedStorageKey(type, offset = 0) {
       return `${HOME_FEATURED_STORAGE_PREFIX}${homeFeaturedCacheKey(type)}.${Number(offset || 0)}`;
@@ -21878,19 +21878,59 @@
       const activeType = String(homeFeaturedType || '').trim();
       const queue = HOME_FEATURED_TYPES
         .filter((type) => type !== activeType && !homeFeaturedFirstPageCache(type))
-        .sort((a, b) => {
-          return HOME_FEATURED_TYPES.indexOf(a) - HOME_FEATURED_TYPES.indexOf(b);
-        });
-      let index = 0;
-      const runNext = async () => {
-        if (index >= queue.length) return;
-        const next = queue[index++];
-        await prefetchHomeFeaturedType(next);
-        return runNext();
-      };
-      for (let worker = 0; worker < Math.min(HOME_FEATURED_TYPE_PREFETCH_CONCURRENCY, queue.length); worker += 1) {
-        void runNext();
-      }
+        .sort((a, b) => HOME_FEATURED_TYPES.indexOf(a) - HOME_FEATURED_TYPES.indexOf(b));
+      if (!queue.length || homeFeaturedTypeBulkPrefetchPromise) return;
+      const controller = 'AbortController' in window ? new AbortController() : null;
+      const timer = controller ? window.setTimeout(() => controller.abort(), 6500) : 0;
+      const request = (async () => {
+        try {
+          const res = await fetch('/api/home-featured-type-preloads', {
+            cache: 'default',
+            signal: controller ? controller.signal : undefined,
+          });
+          const data = await res.json().catch(() => ({}));
+          const payloads = data && data.type_preloads && typeof data.type_preloads === 'object'
+            ? data.type_preloads
+            : {};
+          if (!res.ok || !data || data.ok === false) throw new Error('featured type preloads unavailable');
+          queue.forEach((type) => {
+            const payload = payloads[type];
+            if (!payload || !Array.isArray(payload.items)) return;
+            const next = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(payload), type).slice(0, HOME_FEATURED_PAGE_SIZE);
+            const hasMore = payload.has_more !== false && next.length > 0;
+            if (homeFeaturedTypeNeedsRefill(next, hasMore)) return;
+            const normalized = {
+              ...payload,
+              items: next,
+              next_offset: Number(payload.next_offset || next.length || 0),
+            };
+            homeFeaturedStorageSet(type, 0, normalized);
+            homeFeaturedTypeCache.set(homeFeaturedCacheKey(type), {
+              items: next.slice(),
+              offset: normalized.next_offset,
+              hasMore,
+            });
+            homeFeaturedWarmImages(next, homeFeaturedType === type ? 4 : 1);
+          });
+        } catch (_) {
+          // The visible tab keeps its normal request path; a failed speculative
+          // preload must never block a visitor's explicit selection.
+        } finally {
+          if (timer) window.clearTimeout(timer);
+          queue.forEach((type) => {
+            const cacheKey = homeFeaturedCacheKey(type);
+            homeFeaturedTypePrefetching.delete(cacheKey);
+            homeFeaturedTypePrefetchPromises.delete(cacheKey);
+          });
+          homeFeaturedTypeBulkPrefetchPromise = null;
+        }
+      })();
+      homeFeaturedTypeBulkPrefetchPromise = request;
+      queue.forEach((type) => {
+        const cacheKey = homeFeaturedCacheKey(type);
+        homeFeaturedTypePrefetching.add(cacheKey);
+        homeFeaturedTypePrefetchPromises.set(cacheKey, request);
+      });
     }
 
     function homeFeaturedApplyType(type, btn) {

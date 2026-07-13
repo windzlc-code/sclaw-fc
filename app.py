@@ -29808,6 +29808,48 @@ def api_home_featured_cases(
     )
 
 
+@app.get("/api/home-featured-type-preloads")
+def api_home_featured_type_preloads():
+    """Return the already-screened first page for every homepage type tab.
+
+    The browser uses this one compact request immediately after first render so
+    the first type switch reads from memory instead of causing several queued
+    requests on the production workers.
+    """
+    bundle = _home_featured_index_preload_bundle_cached_only() or {}
+    raw_payloads = bundle.get("home_featured_type_preloads") or {}
+    if not isinstance(raw_payloads, dict):
+        raw_payloads = {}
+    types = ("", "公寓", "大樓", "華廈", "套房", "別墅/透天", "辦公", "店面", "土地", "其他")
+    payloads: dict[str, dict[str, Any]] = {}
+    for property_type in types:
+        raw = raw_payloads.get(property_type)
+        if not isinstance(raw, dict):
+            continue
+        # Keep a little extra generic data because the client removes the
+        # spotlight cards there before showing its first twelve type cards.
+        item_limit = 24 if not property_type else 12
+        items = [
+            copy.deepcopy(item)
+            for item in list(raw.get("items") or [])[:item_limit]
+            if isinstance(item, dict)
+        ]
+        if not items:
+            continue
+        payloads[property_type] = {
+            "ok": True,
+            "items": items,
+            "next_offset": int(raw.get("next_offset") or min(12, len(items))),
+            "has_more": bool(raw.get("has_more") is not False),
+            "property_type": property_type,
+            "preloaded": True,
+        }
+    return JSONResponse(
+        {"ok": True, "type_preloads": payloads},
+        headers={"Cache-Control": "public, max-age=86400, stale-while-revalidate=86400"},
+    )
+
+
 @app.get("/api/home-intro-video/cases")
 def api_home_intro_video_cases(q: str = Query(default=""), limit: int = Query(default=12, ge=1, le=40)):
     query = str(q or "").strip()
