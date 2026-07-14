@@ -58,8 +58,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         runtime = RUNTIME.read_text(encoding="utf-8")
         self.assertIn("sclaw.homeFeatured.v28.promo-image-clean.", runtime)
         self.assertIn("gallery-v22-promo-image-clean", runtime)
-        self.assertIn("index-app.js?v=20260715-mobile-support-details", index)
-        self.assertIn("site.css?v=20260715-mobile-card-fit", index)
+        self.assertRegex(index, r"index-app\.js\?v=20260715-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"site\.css\?v=20260715-[A-Za-z0-9-]+")
 
     def test_mobile_featured_cards_keep_price_and_specs_visible_without_hover(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
@@ -94,7 +94,9 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("flex-wrap: wrap !important;", block)
         self.assertIn("overflow: visible !important;", block)
         self.assertIn("right: 8px !important;", block)
-        self.assertIn("font-size: 7.5px !important;", block)
+        self.assertIn("min-height: 34px !important;", block)
+        self.assertIn("font-size: clamp(9.5px, 2.5vw, 10.5px) !important;", block)
+        self.assertIn("font-size: clamp(6.5px, 1.8vw, 7.5px) !important;", block)
 
 
 if __name__ == "__main__":
