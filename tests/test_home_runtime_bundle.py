@@ -102,6 +102,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
         self.assertIn("Narrow featured cards: final fallback", css)
         self.assertIn("@media (max-width: 1080px)", css)
+        self.assertIn("#home-featured-type-grid .home-featured-card h3", css)
         self.assertIn("font-size: 10px !important;", css)
         self.assertIn("font-size: 7px !important;", css)
 
