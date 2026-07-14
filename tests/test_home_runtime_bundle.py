@@ -98,6 +98,14 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("font-size: clamp(9.5px, 2.5vw, 10.5px) !important;", block)
         self.assertIn("font-size: clamp(6.5px, 1.8vw, 7.5px) !important;", block)
 
+    def test_narrow_featured_cards_use_container_sized_layout(self):
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+        self.assertIn("Mobile narrow-card container sizing", css)
+        self.assertIn("container-type: inline-size", css)
+        self.assertIn("@container featured-card (max-width: 220px)", css)
+        self.assertIn("font-size: 10px !important;", css)
+        self.assertIn("font-size: 7px !important;", css)
+
 
 if __name__ == "__main__":
     unittest.main()
