@@ -47272,13 +47272,8 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
   }
 }
 
-/* Mobile narrow-card container sizing: fit card facts without media-query ambiguity. */
-body.site-home .home-featured-card {
-  container-type: inline-size;
-  container-name: featured-card;
-}
-
-@container featured-card (max-width: 220px) {
+/* Narrow featured cards: final fallback for the live mobile/tablet rendering path. */
+@media (max-width: 1080px) {
   body.site-home .home-featured-card h3 {
     max-width: calc(100% - 10px) !important;
     font-size: 10px !important;
