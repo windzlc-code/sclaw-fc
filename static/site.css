@@ -47185,6 +47185,73 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
   }
 }
 
+/* Mobile support open state must not tint the homepage. */
+@media (max-width: 760px) {
+  body.site-home #support-chat-widget.support-chat-widget.is-expanded {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+  }
+}
+
+/* Mobile featured cards retain their desktop facts at a compact scale. */
+@media (max-width: 760px) {
+  body.site-home #home-featured-grid .home-featured-card,
+  body.site-home #home-featured-type-grid .home-featured-card {
+    min-height: 164px !important;
+    height: clamp(164px, 44vw, 188px) !important;
+  }
+
+  body.site-home .home-featured-card h3 {
+    font-size: clamp(11.5px, 3vw, 12.5px) !important;
+    line-height: 1.14 !important;
+  }
+
+  body.site-home .home-featured-media-spec {
+    left: 9px !important;
+    right: 36px !important;
+    bottom: 30px !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  body.site-home .home-featured-media-spec strong {
+    font-size: clamp(14px, 4vw, 15.5px) !important;
+    line-height: 1.05 !important;
+  }
+
+  body.site-home .home-featured-media-spec span {
+    font-size: 8.5px !important;
+    line-height: 1.1 !important;
+  }
+
+  body.site-home .home-featured-tags {
+    display: flex !important;
+    position: absolute !important;
+    left: 9px !important;
+    right: 36px !important;
+    bottom: 6px !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+    gap: 3px !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  body.site-home .home-featured-tags span {
+    flex: 0 0 auto !important;
+    min-height: 18px !important;
+    max-width: 100% !important;
+    padding: 0 5px !important;
+    font-size: 8.5px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+}
+
 /* 2026-07-13: keep mobile compare/saved panels inside the viewport beside the action stack. */
 @media (max-width: 640px) {
   body.site-home.support-selected-cases-open .support-chat-widget:not(.is-expanded) #support-selected-cases-drawer,

@@ -59,7 +59,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("sclaw.homeFeatured.v28.promo-image-clean.", runtime)
         self.assertIn("gallery-v22-promo-image-clean", runtime)
         self.assertIn("index-app.js?v=20260715-mobile-support-details", index)
-        self.assertIn("site.css?v=20260715-mobile-support-details", index)
+        self.assertIn("site.css?v=20260715-mobile-home-card-facts", index)
 
     def test_mobile_featured_cards_keep_price_and_specs_visible_without_hover(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
@@ -78,6 +78,20 @@ class HomeRuntimeBundleTests(unittest.TestCase):
 
         self.assertIn("widget.insertBefore(panel, widget.firstChild);", block)
         self.assertNotIn("document.body.appendChild(panel);", runtime)
+
+    def test_mobile_support_open_state_does_not_tint_the_homepage(self):
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+        self.assertIn("Mobile support open state must not tint the homepage", css)
+        self.assertIn("background: transparent !important;", css)
+
+    def test_mobile_featured_cards_show_desktop_equivalent_tags_compactly(self):
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+        start = css.index("Mobile featured cards retain their desktop facts")
+        block = css[start:css.index("@media (max-width: 640px)", start)]
+
+        self.assertIn("body.site-home .home-featured-tags", block)
+        self.assertIn("opacity: 1 !important;", block)
+        self.assertIn("font-size: 8.5px !important;", block)
 
 
 if __name__ == "__main__":
