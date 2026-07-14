@@ -6955,12 +6955,15 @@
       updateScrollState();
     }
 
-    function ensureSupportChatPanelInViewportLayer() {
+    function ensureSupportChatPanelInWidget() {
       const panel = document.getElementById('support-chat-panel');
       const widget = document.getElementById('support-chat-widget');
       if (!panel || !widget) return;
-      if (panel.parentElement === widget) {
-        document.body.appendChild(panel);
+      // The mobile chat rules deliberately scope the panel to the expanded
+      // floating widget.  Keeping the panel here preserves that layout and
+      // prevents a detached, empty-looking panel on touch devices.
+      if (panel.parentElement !== widget) {
+        widget.insertBefore(panel, widget.firstChild);
       }
     }
 
@@ -6971,7 +6974,7 @@
       const widget = document.getElementById('support-chat-widget');
       if (!panel) return;
       const open = typeof force === 'boolean' ? force : !supportChatOpen;
-      if (open) ensureSupportChatPanelInViewportLayer();
+      if (open) ensureSupportChatPanelInWidget();
       if (open && !(options && options.skipExclusive)) closeFloatingPanelsExcept('support');
       if (supportChatPanelMotionTimer) {
         window.clearTimeout(supportChatPanelMotionTimer);

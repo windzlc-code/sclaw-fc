@@ -44709,6 +44709,13 @@ body.site-home .support-chat-panel #support-chat-send-btn {
 
 /* 2026-07-08: denser mobile home layout, sized for thumb-friendly taps. */
 @media (max-width: 760px) {
+  /* Touch devices have no hover state: keep the essential case facts visible
+     without requiring a first tap on every recommendation card. */
+  body.site-home .home-featured-media-spec {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
   body.site-home .hero-media-overlay-copy {
     gap: 10px !important;
   }

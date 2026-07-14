@@ -54,9 +54,30 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("prefetchHomeFeaturedTypes();", startup)
 
     def test_home_featured_client_cache_is_bumped_after_promo_image_cleanup(self):
+        index = INDEX.read_text(encoding="utf-8")
         runtime = RUNTIME.read_text(encoding="utf-8")
         self.assertIn("sclaw.homeFeatured.v28.promo-image-clean.", runtime)
         self.assertIn("gallery-v22-promo-image-clean", runtime)
+        self.assertIn("index-app.js?v=20260715-mobile-support-details", index)
+        self.assertIn("site.css?v=20260715-mobile-support-details", index)
+
+    def test_mobile_featured_cards_keep_price_and_specs_visible_without_hover(self):
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+        marker = "Touch devices have no hover state"
+        start = css.index(marker)
+        block = css[start:css.index("body.site-home .hero-media-overlay-copy", start)]
+
+        self.assertIn("body.site-home .home-featured-media-spec", block)
+        self.assertIn("opacity: 1 !important;", block)
+        self.assertIn("transform: none !important;", block)
+
+    def test_mobile_support_panel_stays_in_widget_for_scoped_layout_rules(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        start = runtime.index("function ensureSupportChatPanelInWidget")
+        block = runtime[start:runtime.index("function toggleSupportChat", start)]
+
+        self.assertIn("widget.insertBefore(panel, widget.firstChild);", block)
+        self.assertNotIn("document.body.appendChild(panel);", runtime)
 
 
 if __name__ == "__main__":
