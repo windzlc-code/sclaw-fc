@@ -103,9 +103,9 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("Narrow featured cards: final fallback", css)
         self.assertIn("@media (max-width: 1080px)", css)
         self.assertIn("#home-featured-type-grid .home-featured-card h3", css)
-        self.assertIn("font-size: 10px !important;", css)
-        self.assertIn("font-size: 6px !important;", css)
-        self.assertIn("min-height: 12px !important;", css)
+        self.assertIn("font-size: 10.5px !important;", css)
+        self.assertIn("font-size: 6.5px !important;", css)
+        self.assertIn("min-height: 13px !important;", css)
 
 
 if __name__ == "__main__":

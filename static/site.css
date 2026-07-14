@@ -47277,7 +47277,7 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
   body.site-home #home-featured-grid .home-featured-card h3,
   body.site-home #home-featured-type-grid .home-featured-card h3 {
     max-width: calc(100% - 10px) !important;
-    font-size: 10px !important;
+    font-size: 10.5px !important;
     line-height: 1.08 !important;
   }
 
@@ -47285,18 +47285,18 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
   body.site-home #home-featured-type-grid .home-featured-media-spec {
     left: 8px !important;
     right: 8px !important;
-    bottom: 35px !important;
+    bottom: 37px !important;
   }
 
   body.site-home #home-featured-grid .home-featured-media-spec strong,
   body.site-home #home-featured-type-grid .home-featured-media-spec strong {
-    font-size: 12px !important;
+    font-size: 13px !important;
     line-height: 1.05 !important;
   }
 
   body.site-home #home-featured-grid .home-featured-media-spec span,
   body.site-home #home-featured-type-grid .home-featured-media-spec span {
-    font-size: 7px !important;
+    font-size: 7.5px !important;
     line-height: 1.05 !important;
   }
 
@@ -47305,7 +47305,7 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
     left: 8px !important;
     right: 8px !important;
     bottom: 6px !important;
-    min-height: 26px !important;
+    min-height: 28px !important;
     gap: 1px !important;
     flex-wrap: wrap !important;
     overflow: visible !important;
@@ -47314,10 +47314,10 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
 
   body.site-home #home-featured-grid .home-featured-tags span,
   body.site-home #home-featured-type-grid .home-featured-tags span {
-    min-height: 12px !important;
+    min-height: 13px !important;
     max-width: 100% !important;
-    padding: 0 2px !important;
-    font-size: 6px !important;
+    padding: 0 2.5px !important;
+    font-size: 6.5px !important;
     line-height: 1 !important;
     white-space: nowrap !important;
   }
