@@ -106,6 +106,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("font-size: 10.5px !important;", css)
         self.assertIn("font-size: 6.5px !important;", css)
         self.assertIn("min-height: 13px !important;", css)
+        self.assertIn("bottom: 35px !important;", css)
 
 
 if __name__ == "__main__":
