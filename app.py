@@ -31762,6 +31762,67 @@ def _build_handoff_telegram_body(
     return full
 
 
+def _build_handoff_boss_line_body(
+    *,
+    name: str,
+    phone: str,
+    email: str,
+    note: str,
+    interest_cases: list[dict[str, Any]],
+    ai_summary: str,
+    questionnaire_text: str = "",
+    max_len: int = 3600,
+) -> str:
+    """Concise LINE notice for the owner/advisor; omit internal routing/debug fields."""
+
+    def clean(value: object, limit: int = 260) -> str:
+        return str(value or "").strip()[:limit]
+
+    def append_section(parts: list[str], title: str, body: str) -> None:
+        text = clean(body, 1400)
+        if text:
+            parts.append("")
+            parts.append(title)
+            parts.append(text)
+
+    q_lines: list[str] = []
+    for raw in str(questionnaire_text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("同意聲明："):
+            continue
+        if phone and line.startswith("電話識別："):
+            continue
+        q_lines.append(line)
+    q_text = "\n".join(q_lines).strip()
+
+    # `note` may already contain the full questionnaire for DB/Telegram compatibility.
+    # For LINE, keep only any non-form freeform note to avoid showing the same form twice.
+    note_text = clean(note, 1200)
+    if "【購買諮詢申請表】" in note_text:
+        note_text = note_text.split("【購買諮詢申請表】", 1)[0].strip()
+    if "【預算（客戶填寫）】" in note_text:
+        note_text = note_text.replace("【預算（客戶填寫）】", "預算：").strip()
+    if "【留單勾選諮詢案件】" in note_text:
+        note_text = note_text.split("【留單勾選諮詢案件】", 1)[0].strip()
+
+    parts = ["【新購房諮詢】"]
+    parts.append(f"姓名：{clean(name) or '-'}")
+    parts.append(f"電話：{clean(phone) or '-'}")
+    parts.append(f"Email：{clean(email) or '-'}")
+    append_section(parts, "【客戶需求】", q_text)
+    if interest_cases:
+        append_section(parts, "【客戶有興趣案件】", _format_interest_cases_for_tg(interest_cases, max_items=5))
+    append_section(parts, "【補充備註】", note_text)
+    append_section(parts, "【跟進建議】", ai_summary)
+
+    full = "\n".join(parts).strip()
+    if len(full) > max_len:
+        full = full[: max_len - 1] + "…"
+    return full
+
+
 def _ai_summarize_handoff_ticket(
     *,
     name: str,
@@ -32248,6 +32309,15 @@ def _human_intake_phone_login_followup(
             ai_summary=ai_summary,
             questionnaire_text=questionnaire_text,
         )
+        boss_line_body = _build_handoff_boss_line_body(
+            name=name,
+            phone=phone,
+            email=email,
+            note=note,
+            interest_cases=interest_cases,
+            ai_summary=ai_summary,
+            questionnaire_text=questionnaire_text,
+        )
         notify_errors: list[str] = []
         if (not telegram_already_sent) and _support_notify_channel_enabled("telegram"):
             try:
@@ -32265,7 +32335,7 @@ def _human_intake_phone_login_followup(
                 _log_backend_error("phone-login-telegram-notify", err)
         if (not line_already_sent) and _support_notify_channel_enabled("line"):
             try:
-                _line_send_and_bridge(tg_body[:4900], session_id, "human_handoff")
+                _line_send_and_bridge(boss_line_body[:4900], session_id, "human_handoff")
                 line_sent_now = True
                 with get_conn() as conn:
                     conn.execute(
@@ -32527,6 +32597,15 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
         ai_summary=ai_summary,
         questionnaire_text=questionnaire_text,
     )
+    boss_line_body = _build_handoff_boss_line_body(
+        name=name,
+        phone=phone,
+        email=email,
+        note=note,
+        interest_cases=interest_cases,
+        ai_summary=ai_summary,
+        questionnaire_text=questionnaire_text,
+    )
     tg_sent = False
     tg_err = ""
     line_sent = False
@@ -32539,7 +32618,7 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
             tg_err = _sanitize_telegram_error_detail(exc)[:300]
     if _support_notify_channel_enabled("line"):
         try:
-            _line_send_and_bridge(tg_body[:4900], session_id, "human_handoff")
+            _line_send_and_bridge(boss_line_body[:4900], session_id, "human_handoff")
             line_sent = True
         except Exception as exc:
             line_err = _sanitize_line_error_detail(exc)[:300]
