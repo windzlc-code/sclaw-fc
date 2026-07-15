@@ -34747,6 +34747,18 @@ body.site-home .support-chat-panel,
   font-size: 14.5px;
 }
 
+.support-human-intake .support-human-choice-grid input[type="checkbox"],
+.support-human-intake .support-human-choice-grid input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 0;
+  flex: 0 0 16px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: #2d8f74;
+}
+
 .support-human-intake-modal .support-human-intake textarea {
   min-height: 96px;
 }
