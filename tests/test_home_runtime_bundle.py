@@ -122,9 +122,10 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("min-height: 30px !important;", block)
         self.assertIn("min-height: 38px !important;", block)
         self.assertIn("min-height: 36px !important;", block)
-        self.assertIn("grid-template-columns: 26px minmax(0, 1fr) !important;", block)
-        self.assertIn("transform: scale(0.72) !important;", block)
-        self.assertIn("height: 28px !important;", block)
+        self.assertIn("grid-template-areas: \"brand search actions\" !important;", block)
+        self.assertIn("grid-template-columns: 132px minmax(0, 1fr) 28px !important;", block)
+        self.assertIn("transform: scale(0.62) !important;", block)
+        self.assertIn("height: 24px !important;", block)
 
 
 if __name__ == "__main__":

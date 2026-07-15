@@ -47711,52 +47711,66 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
   }
 
   body.site-home .bh-site-nav {
-    gap: 5px 8px !important;
-    padding: 8px 14px 0 !important;
+    grid-template-columns: 132px minmax(0, 1fr) 28px !important;
+    grid-template-areas: "brand search actions" !important;
+    gap: 0 6px !important;
+    padding: 8px 10px 0 !important;
   }
 
   body.site-home .bh-site-brand {
-    grid-template-columns: 26px minmax(0, 1fr) !important;
-    gap: 7px !important;
+    grid-area: brand !important;
+    grid-template-columns: 22px minmax(0, 1fr) !important;
+    gap: 5px !important;
   }
 
   body.site-home .bh-site-brand img {
-    width: 26px !important;
-    height: 26px !important;
+    width: 22px !important;
+    height: 22px !important;
   }
 
   body.site-home .bh-site-brand strong {
-    max-width: 190px !important;
-    font-size: 10px !important;
+    max-width: 105px !important;
+    font-size: 9px !important;
     line-height: 1.1 !important;
   }
 
+  body.site-home .bh-site-titlebar-actions {
+    grid-area: actions !important;
+    order: initial !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    gap: 0 !important;
+  }
+
   body.site-home .bh-site-titlebar-actions .site-language-switch {
-    transform: scale(0.72) !important;
+    transform: scale(0.62) !important;
   }
 
   body.site-home .bh-title-search {
-    width: calc(100% - 10px) !important;
-    justify-self: center !important;
+    grid-area: search !important;
+    grid-column: auto !important;
+    order: initial !important;
+    width: 100% !important;
+    justify-self: stretch !important;
   }
 
   body.site-home .bh-title-search-box {
-    min-height: 36px !important;
-    grid-template-columns: 18px minmax(0, 1fr) auto !important;
-    gap: 5px !important;
-    padding: 0 4px 0 10px !important;
+    min-height: 32px !important;
+    grid-template-columns: 14px minmax(0, 1fr) auto !important;
+    gap: 4px !important;
+    padding: 0 3px 0 8px !important;
   }
 
   body.site-home .bh-title-search-input {
-    height: 36px !important;
-    font-size: 10.5px !important;
+    height: 32px !important;
+    font-size: 9px !important;
   }
 
   body.site-home .bh-title-search-submit {
-    min-width: 48px !important;
-    height: 28px !important;
-    padding: 0 9px !important;
-    font-size: 10px !important;
+    min-width: 40px !important;
+    height: 24px !important;
+    padding: 0 6px !important;
+    font-size: 9px !important;
   }
 
   body.site-home .bh-search-dock {
