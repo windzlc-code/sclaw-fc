@@ -16419,6 +16419,7 @@ def _support_contact_field_rows(row: dict[str, Any]) -> list[dict[str, str]]:
     q = _decode_handoff_json_dict(row.get("questionnaire_json"))
     field_specs = [
         ("name", "稱呼", row.get("name")),
+        ("gender", "性別", q.get("gender")),
         ("phone", "電話", row.get("phone")),
         ("email", "電子信箱", row.get("email")),
         ("contact_line", "LINE", q.get("contact_line")),
@@ -16431,13 +16432,20 @@ def _support_contact_field_rows(row: dict[str, Any]) -> list[dict[str, str]]:
         ("budget_total_yen", "總預算（日幣）", q.get("budget_total_yen")),
         ("down_payment_yen", "自備款（日幣）", q.get("down_payment_yen")),
         ("loan_need", "貸款需求", q.get("loan_need")),
+        ("purchase_time", "購買時間", q.get("purchase_time")),
         ("income_source", "收入來源", q.get("income_source")),
         ("income_source_other", "收入來源補充", q.get("income_source_other")),
         ("annual_income_twd", "年收入", q.get("annual_income_twd")),
+        ("target_city", "希望購買城市", q.get("target_city")),
         ("target_region", "投資地區", q.get("target_region")),
         ("target_region_other", "投資地區補充", q.get("target_region_other")),
+        ("target_line_station", "希望沿線或車站", q.get("target_line_station")),
+        ("station_walk_minutes", "距離最近車站步行", q.get("station_walk_minutes")),
         ("property_type", "物件類型", q.get("property_type")),
-        ("purchase_time", "購買時間", q.get("purchase_time")),
+        ("interest_status", "屬意物件／區域狀態", q.get("interest_status")),
+        ("residence_status", "中長期在留資格", q.get("residence_status")),
+        ("residence_status_other", "在留資格補充", q.get("residence_status_other")),
+        ("short_stay_usage", "短期滯在物件使用規劃", q.get("short_stay_usage")),
         ("viewing_intent", "看房意願", q.get("viewing_intent")),
         ("loan_eval_interest", "貸款評估", q.get("loan_eval_interest")),
         ("interest_pick_summary", "勾選案件", q.get("interest_pick_summary")),
@@ -31824,6 +31832,9 @@ def _format_support_human_questionnaire_text(questionnaire: dict[str, Any]) -> s
         return main
 
     lines: list[str] = []
+    gender = s("gender")
+    if gender:
+        lines.append(f"性別：{gender}")
     line_id = s("contact_line")
     if line_id:
         lines.append(f"LINE：{line_id}")
@@ -31850,21 +31861,39 @@ def _format_support_human_questionnaire_text(questionnaire: dict[str, Any]) -> s
     loan_need = s("loan_need")
     if loan_need:
         lines.append(f"貸款需求：{loan_need}")
+    ptime = s("purchase_time")
+    if ptime:
+        lines.append(f"購買時間：{ptime}")
     income_src = maybe_other("income_source", "income_source_other")
     if income_src:
         lines.append(f"收入來源：{income_src}")
     inc = s("annual_income_twd")
     if inc:
         lines.append(f"年收入：{inc}")
+    city = s("target_city")
+    if city:
+        lines.append(f"希望購買城市：{city}")
     region = maybe_other("target_region", "target_region_other")
     if region:
-        lines.append(f"投資地區：{region}")
+        lines.append(f"希望購買區域：{region}")
+    line_station = s("target_line_station")
+    if line_station:
+        lines.append(f"希望沿線或車站：{line_station}")
+    walk = s("station_walk_minutes")
+    if walk:
+        lines.append(f"距離最近車站步行：{walk}")
     ptype = s("property_type")
     if ptype:
         lines.append(f"物件類型：{ptype}")
-    ptime = s("purchase_time")
-    if ptime:
-        lines.append(f"購買時間：{ptime}")
+    interest_status = s("interest_status")
+    if interest_status:
+        lines.append(f"屬意物件／區域狀態：{interest_status}")
+    residence_status = maybe_other("residence_status", "residence_status_other")
+    if residence_status:
+        lines.append(f"中長期在留資格：{residence_status}")
+    short_stay_usage = s("short_stay_usage")
+    if short_stay_usage:
+        lines.append(f"短期滯在物件使用規劃：{short_stay_usage}")
     view = s("viewing_intent")
     if view:
         lines.append(f"看房意願：{view}")

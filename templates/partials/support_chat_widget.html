@@ -300,19 +300,39 @@
     function supportFallbackHumanIntakeFormHtml() {
       return (
         '<div class="support-human-intake" data-support-human-fallback-form="1">' +
-          '<div class="support-human-intake-heading"><strong>日本不動產購買諮詢申請表</strong><span class="muted">填寫聯絡方式後再送出給顧問。</span></div>' +
+          '<div class="support-human-intake-heading"><strong>日本不動產購買諮詢申請表</strong><span class="muted">填寫完整需求後再送出給顧問。</span></div>' +
           '<section class="support-human-section support-human-section--static"><h3>一、基本資料</h3><div class="support-human-section-body support-human-section-body--grid">' +
-            '<label class="muted support-human-field">姓名<input id="support-fallback-human-name" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名（必填）"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>姓名<input id="support-fallback-human-name" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>性別<select id="support-fallback-human-gender"><option value="">請選擇</option><option value="男">男</option><option value="女">女</option><option value="其他 / 不便透露">其他 / 不便透露</option></select></label>' +
             '<div class="support-human-phone-row">' +
-              '<label class="muted support-human-field">電話所在地<select id="support-fallback-human-phone-region" autocomplete="tel-country-code"><option value="">請選擇電話所在地（有填電話時必選）</option><option value="+886">台灣 +886</option><option value="+852">香港 +852</option><option value="+853">澳門 +853</option><option value="+86">中國 +86</option><option value="+81">日本 +81</option><option value="+65">新加坡 +65</option><option value="+60">馬來西亞 +60</option><option value="+1">美國/加拿大 +1</option><option value="other">其他國家/地區</option></select></label>' +
-              '<label class="muted support-human-field">聯絡電話<input id="support-fallback-human-phone" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" placeholder="請填寫具體電話（選填，聯絡方式至少一項）"></label>' +
+              '<label class="muted support-human-field"><span class="support-human-required">必填</span>電話所在地<select id="support-fallback-human-phone-region" autocomplete="tel-country-code"><option value="">請選擇電話所在地</option><option value="+886">台灣 +886</option><option value="+852">香港 +852</option><option value="+853">澳門 +853</option><option value="+86">中國 +86</option><option value="+81">日本 +81</option><option value="+65">新加坡 +65</option><option value="+60">馬來西亞 +60</option><option value="+1">美國/加拿大 +1</option><option value="other">其他國家/地區</option></select></label>' +
+              '<label class="muted support-human-field"><span class="support-human-required">必填</span>聯絡電話<input id="support-fallback-human-phone" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" placeholder="請填寫具體電話"></label>' +
             '</div>' +
-            '<label class="muted support-human-field">LINE ID<input id="support-fallback-human-line" type="text" maxlength="120" placeholder="例：line_id（選填，聯絡方式至少一項）"></label>' +
-            '<label class="muted support-human-field">微信 ID<input id="support-fallback-human-wechat" type="text" maxlength="120" placeholder="例：wechat_id（選填，聯絡方式至少一項）"></label>' +
-            '<label class="muted support-human-field">Email<input id="support-fallback-human-email" type="email" maxlength="160" autocomplete="email" placeholder="name@example.com（選填，聯絡方式至少一項）"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>LINE ID<input id="support-fallback-human-line" type="text" maxlength="120" placeholder="例：line_id"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>微信 ID<input id="support-fallback-human-wechat" type="text" maxlength="120" placeholder="例：wechat_id"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>Email<input id="support-fallback-human-email" type="email" maxlength="160" autocomplete="email" placeholder="name@example.com"></label>' +
           '</div></section>' +
-          '<section class="support-human-section support-human-section--static"><h3>二、需求</h3><div class="support-human-section-body support-human-section-body--grid">' +
-            '<label class="muted support-human-field">購買目的<select id="support-fallback-human-purpose"><option value="">請選擇購買目的（必填）</option><option value="投資收租">投資收租</option><option value="自住 / 度假">自住 / 度假</option><option value="未來移居">未來移居</option><option value="資產配置">資產配置</option><option value="其他">其他</option></select></label>' +
+          '<section class="support-human-section support-human-section--static"><h3>二、購屋預算</h3><div class="support-human-section-body support-human-section-body--grid">' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>預計購屋總預算（日圓）<input id="support-fallback-human-budget-total-yen" type="text" maxlength="80" placeholder="例如：1000萬～3000萬 / 約4000萬"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>自備資金（日圓）<input id="support-fallback-human-down-payment-yen" type="text" maxlength="80" placeholder="例如：500萬"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>是否需要申請日本銀行貸款<select id="support-fallback-human-loan-need"><option value="">請選擇</option><option value="是">是</option><option value="否">否</option><option value="尚未確定">尚未確定</option></select></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>預計購屋時間<select id="support-fallback-human-purchase-time"><option value="">請選擇</option><option value="一個月內">一個月內</option><option value="三個月內">三個月內</option><option value="六個月內">六個月內</option><option value="六個月以上">六個月以上</option><option value="尚未確定">尚未確定</option></select></label>' +
+          '</div></section>' +
+          '<section class="support-human-section support-human-section--static"><h3>三、物件需求</h3><div class="support-human-section-body support-human-section-body--grid">' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>物件類型<select id="support-fallback-human-property-type"><option value="">請選擇</option><option value="公寓（マンション）">公寓（マンション）</option><option value="整棟公寓 / 大樓">整棟公寓 / 大樓</option><option value="獨棟住宅（一戶建）">獨棟住宅（一戶建）</option><option value="辦公室 / 事務所">辦公室 / 事務所</option><option value="其他">其他</option></select></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>希望購買城市<input id="support-fallback-human-target-city" type="text" maxlength="160" placeholder="例如：東京、大阪"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>希望購買區域<input id="support-fallback-human-target-region" type="text" maxlength="160" placeholder="例如：新宿區、澀谷區等"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>希望沿線或車站<input id="support-fallback-human-target-line-station" type="text" maxlength="160" placeholder="例如：JR 山手線、新宿站等"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>距離最近車站步行<input id="support-fallback-human-station-walk-minutes" type="text" maxlength="40" placeholder="例如：10 分鐘內"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>屬意物件或區域狀態<select id="support-fallback-human-interest-status"><option value="">請選擇</option><option value="已有屬意物件，可提供物件網址或相關資料">已有屬意物件，可提供物件網址或相關資料</option><option value="已有希望購買的城市 / 區域，希望協助尋找物件">已有希望購買的城市 / 區域，希望協助尋找物件</option><option value="尚未確定，希望依需求推薦合適物件">尚未確定，希望依需求推薦合適物件</option></select></label>' +
+          '</div></section>' +
+          '<section class="support-human-section support-human-section--static"><h3>四、購屋需求及使用規劃</h3><div class="support-human-section-body support-human-section-body--grid">' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>購屋用途<select id="support-fallback-human-purpose"><option value="">請選擇</option><option value="投資出租">投資出租</option><option value="自用（本人、家人或子女居住 / 自用辦公室）">自用（本人、家人或子女居住 / 自用辦公室）</option><option value="其他">其他</option></select></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>其他用途<input id="support-fallback-human-purpose-other" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>中長期在留資格<select id="support-fallback-human-residence-status"><option value="">請選擇</option><option value="是，已持有中長期在留資格">是，已持有中長期在留資格</option><option value="否，目前為短期滯在（旅遊簽證）">否，目前為短期滯在（旅遊簽證）</option><option value="正在申請中長期在留資格">正在申請中長期在留資格</option><option value="其他">其他</option></select></label>' +
+            '<label class="muted support-human-field"><span class="support-human-optional">選填</span>在留資格補充<input id="support-fallback-human-residence-status-other" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>' +
+            '<label class="muted support-human-field"><span class="support-human-required">必填</span>短期滯在使用規劃<select id="support-fallback-human-short-stay-usage"><option value="">請選擇</option><option value="赴日時作為短期居住使用">赴日時作為短期居住使用</option><option value="未來取得中長期在留資格後自住">未來取得中長期在留資格後自住</option><option value="其他">其他</option><option value="不適用">不適用</option></select></label>' +
+            '<label class="muted support-human-field support-human-field--wide"><span class="support-human-optional">選填</span>其他需求、希望條件或補充說明<textarea id="support-fallback-human-note" rows="3" maxlength="2000" placeholder="例如：希望條件、方便聯絡時間、已看中的物件網址等"></textarea></label>' +
             '<input id="support-fallback-human-consent" type="hidden" value="1">' +
           '</div></section>' +
           '<div id="support-fallback-human-status" class="muted" aria-live="polite"></div>' +
@@ -388,9 +408,55 @@
       if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
 
+    var supportFallbackLinePublicUrl = 'https://line.me/R/ti/p/@002apkmh';
+    var supportFallbackLinePublicQr = '/static/human-handoff/line.png?v=line-public-20260715';
+
+    function supportFallbackLineSuccessHtml() {
+      return (
+        '<div class="support-human-success-panel">' +
+          '<span class="support-human-success-badge">已成功送出</span>' +
+          '<h3>請加入 LINE，顧問會接續協助您</h3>' +
+          '<p>您的日本不動產購買諮詢申請已送出。為了更快確認需求、補充物件資料與安排後續回覆，請掃描下方 LINE QR 或點擊連結加入專人服務。</p>' +
+          '<div class="support-human-success-line-card">' +
+            '<img src="' + supportFallbackLinePublicQr + '" width="220" height="220" alt="LINE 專人 QR" loading="eager" decoding="async">' +
+            '<div class="support-human-success-line-copy">' +
+              '<strong>LINE 專人諮詢</strong>' +
+              '<span>添加後請傳一句「我已提交購房諮詢表單」，顧問可更快對應您的資料。</span>' +
+              '<a href="' + supportFallbackLinePublicUrl + '" target="_blank" rel="nofollow noopener">' + supportFallbackLinePublicUrl + '</a>' +
+            '</div>' +
+          '</div>' +
+          '<div class="support-human-success-actions">' +
+            '<a class="primary" href="' + supportFallbackLinePublicUrl + '" target="_blank" rel="nofollow noopener">開啟 LINE</a>' +
+            '<button type="button" class="secondary" onclick="copySupportHumanLinePublicUrl()">複製連結</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function supportFallbackShowLineSuccessModal() {
+      var body = document.getElementById('support-human-intake-modal-body');
+      if (body) body.innerHTML = supportFallbackLineSuccessHtml();
+      supportFallbackToggleHumanIntakeModal(true, {
+        title: '申請已送出',
+        note: '請加入 LINE 專人諮詢，顧問會依您填寫的資料接續回覆。'
+      });
+    }
+
+    window.showSupportHumanLineSuccessModal = window.showSupportHumanLineSuccessModal || supportFallbackShowLineSuccessModal;
+    window.copySupportHumanLinePublicUrl = window.copySupportHumanLinePublicUrl || function () {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(supportFallbackLinePublicUrl).catch(function () {
+          window.prompt('請複製 LINE 連結', supportFallbackLinePublicUrl);
+        });
+        return;
+      }
+      window.prompt('請複製 LINE 連結', supportFallbackLinePublicUrl);
+    };
+
     async function submitSupportFallbackHumanIntake() {
       var status = document.getElementById('support-fallback-human-status');
       var name = supportFallbackField('support-fallback-human-name');
+      var gender = supportFallbackField('support-fallback-human-gender');
       var phoneRegion = supportFallbackField('support-fallback-human-phone-region');
       var phoneLocal = supportFallbackField('support-fallback-human-phone');
       var phoneNormalized = supportFallbackNormalizePhone(phoneRegion, phoneLocal);
@@ -401,6 +467,7 @@
       var q = {
         form_version: 'jp_property_buy_intake_v2',
         name: name,
+        gender: gender,
         contact_phone: phone,
         contact_phone_region_code: phoneRegion,
         contact_phone_local: phoneLocal,
@@ -411,14 +478,41 @@
         contact_wechat: wechat,
         contact_line_wechat: [line ? 'LINE：' + line : '', wechat ? '微信：' + wechat : ''].filter(Boolean).join('；'),
         purchase_purpose: supportFallbackField('support-fallback-human-purpose'),
+        purchase_purpose_other: supportFallbackField('support-fallback-human-purpose-other'),
+        budget_total_yen: supportFallbackField('support-fallback-human-budget-total-yen'),
+        down_payment_yen: supportFallbackField('support-fallback-human-down-payment-yen'),
+        loan_need: supportFallbackField('support-fallback-human-loan-need'),
+        purchase_time: supportFallbackField('support-fallback-human-purchase-time'),
+        property_type: supportFallbackField('support-fallback-human-property-type'),
+        target_city: supportFallbackField('support-fallback-human-target-city'),
+        target_region: supportFallbackField('support-fallback-human-target-region'),
+        target_line_station: supportFallbackField('support-fallback-human-target-line-station'),
+        station_walk_minutes: supportFallbackField('support-fallback-human-station-walk-minutes'),
+        interest_status: supportFallbackField('support-fallback-human-interest-status'),
+        residence_status: supportFallbackField('support-fallback-human-residence-status'),
+        residence_status_other: supportFallbackField('support-fallback-human-residence-status-other'),
+        short_stay_usage: supportFallbackField('support-fallback-human-short-stay-usage'),
         other_questions: supportFallbackField('support-fallback-human-note'),
         consent_agreed: true
       };
       var required = [
         [name, ['support-fallback-human-name'], '請填寫姓名。'],
+        [gender, ['support-fallback-human-gender'], '請選擇性別。'],
+        [phoneRegion, ['support-fallback-human-phone-region'], '請選擇電話所在地。'],
+        [phoneLocal, ['support-fallback-human-phone'], '請填寫聯絡電話。'],
         [phoneNormalized.ok, ['support-fallback-human-phone-region', 'support-fallback-human-phone'], phoneNormalized.message],
-        [phone || email || line || wechat, ['support-fallback-human-phone', 'support-fallback-human-line', 'support-fallback-human-wechat', 'support-fallback-human-email'], '請至少填寫電話、LINE、微信或 Email 其中一項，方便顧問聯絡。'],
+        [q.budget_total_yen, ['support-fallback-human-budget-total-yen'], '請填寫預計購屋總預算。'],
+        [q.down_payment_yen, ['support-fallback-human-down-payment-yen'], '請填寫自備資金。'],
+        [q.loan_need, ['support-fallback-human-loan-need'], '請選擇是否需要申請日本銀行貸款。'],
+        [q.purchase_time, ['support-fallback-human-purchase-time'], '請選擇預計購屋時間。'],
+        [q.property_type, ['support-fallback-human-property-type'], '請選擇希望購買的物件類型。'],
+        [q.target_city, ['support-fallback-human-target-city'], '請填寫希望購買城市。'],
+        [q.interest_status, ['support-fallback-human-interest-status'], '請選擇目前是否已有屬意的物件或區域。'],
         [q.purchase_purpose, ['support-fallback-human-purpose'], '請選擇購買目的。'],
+        [q.purchase_purpose !== '其他' || q.purchase_purpose_other, ['support-fallback-human-purpose-other'], '請填寫其他購買目的。'],
+        [q.residence_status, ['support-fallback-human-residence-status'], '請選擇目前是否持有日本中長期在留資格。'],
+        [q.residence_status !== '其他' || q.residence_status_other, ['support-fallback-human-residence-status-other'], '請填寫在留資格補充。'],
+        [q.short_stay_usage, ['support-fallback-human-short-stay-usage'], '請選擇短期滯在時預計如何使用物件。'],
         [q.consent_agreed, [], '請確認表單聲明後才能送出。']
       ];
       supportFallbackClearValidation();
@@ -434,7 +528,13 @@
         phone: phone,
         email: email,
         note: q.other_questions,
-        budget_text: q.purchase_purpose ? '購買目的：' + q.purchase_purpose : '',
+        budget_text: [
+          q.budget_total_yen ? '總預算：' + q.budget_total_yen : '',
+          q.down_payment_yen ? '自備款：' + q.down_payment_yen : '',
+          q.loan_need ? '貸款：' + q.loan_need : '',
+          q.purchase_time ? '購買時間：' + q.purchase_time : '',
+          q.purchase_purpose ? '購買目的：' + q.purchase_purpose + (q.purchase_purpose === '其他' && q.purchase_purpose_other ? '（' + q.purchase_purpose_other + '）' : '') : ''
+        ].filter(Boolean).join('；'),
         session_id: supportFallbackSalesSessionId(),
         conversation: supportFallbackHistory.map(function (row) { return { role: row.role, content: String(row.content || '') }; }).slice(-20),
         questionnaire: q
@@ -457,20 +557,7 @@
         if (!res.ok || data.ok === false) throw new Error(String(data.detail || data.message || '送出失敗'));
         if (status) status.textContent = '已送出，顧問會依資料回覆。';
         supportFallbackToggleHumanIntakeModal(false);
-        var lineUrl = esc(String(data.line_group_qr_url || data.line_qr_url || '/static/human-handoff/line-group.png'));
-        supportFallbackHistory.push({
-          role: 'assistant',
-          content: '',
-          contentHtml:
-            '<p>已收到您的申請資料。顧問會依內容整理回覆，您也可以先掃描下方二維碼加入 LINE 群，方便後續確認需求與接收提醒。</p>' +
-            '<div class="support-human-qr-grid support-human-qr-grid--single">' +
-              '<div class="support-human-qr-card support-human-qr-card--line support-human-qr-card--group"><div class="muted">LINE 客服群</div>' +
-                '<img src="' + lineUrl + '" width="200" height="200" alt="LINE QR" loading="lazy">' +
-                '<p class="muted support-human-qr-hint">請加入 LINE 群，顧問可更快確認您的需求。</p>' +
-              '</div>' +
-            '</div>'
-        });
-        renderSupportFallbackChatMessages();
+        supportFallbackShowLineSuccessModal();
       } catch (err) {
         if (status) status.textContent = '送出失敗：' + (err && err.message ? err.message : String(err));
       }

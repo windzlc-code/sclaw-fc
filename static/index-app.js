@@ -10157,7 +10157,6 @@
           conversation: supportChatHandoffConversationPayload(),
         });
         const data = await parseApiResponseSafe(res);
-        const lineUrl = esc(supportHumanLineQrUrl(data.line_group_qr_url || data.line_qr_url));
         const tgOk = Boolean(data.telegram_sent);
         const tgErr = String(data.telegram_error || '').trim();
         const lineOk = Boolean(data.line_sent);
@@ -10172,21 +10171,7 @@
               tgOk ? 'Telegram 已通知' : `Telegram 未發送${tgErr ? '：' + esc(tgErr) : ''}`,
               lineOk ? 'LINE 已通知' : `LINE 未發送${lineErr ? '：' + esc(lineErr) : ''}`,
             ].join('；');
-        supportChatHistory.push({
-          role: 'assistant',
-          content: '',
-          contentHtml:
-            '<p>已收到您的資料。請掃描下方二維碼加入 LINE 群，顧問會在群內或依您留下的聯絡方式跟進；也可以直接在這裡繼續對話。</p>' +
-            `<p class="muted">${notifyLine}</p>` +
-            '<div class="support-human-qr-grid support-human-qr-grid--single">' +
-            '<div class="support-human-qr-card support-human-qr-card--line support-human-qr-card--group"><div class="muted">LINE 客服群</div>' +
-            `<img src="${lineUrl}" width="200" height="200" alt="LINE QR" loading="lazy">` +
-            '<p class="muted support-human-qr-hint">請加入 LINE 群，方便顧問更快確認需求。</p>' +
-            '</div>' +
-            '</div>',
-        });
-        renderSupportChatMessages();
-        clearSupportHumanIntakeModalContent();
+        showSupportHumanLineSuccessModal(notifyLine);
         markSupportHandoffSyncActive();
         scheduleSyncHandoffConversationToBackend();
       } catch (err) {
@@ -10209,6 +10194,51 @@
       }
       return raw;
     }
+
+    const SUPPORT_HUMAN_LINE_PUBLIC_URL = 'https://line.me/R/ti/p/@002apkmh';
+    const SUPPORT_HUMAN_LINE_PUBLIC_QR = '/static/human-handoff/line.png?v=line-public-20260715';
+
+    function supportHumanLineSuccessModalHtml(notifyLine) {
+      const note = String(notifyLine || '').trim();
+      return (
+        '<div class="support-human-success-panel">' +
+          '<span class="support-human-success-badge">已成功送出</span>' +
+          '<h3>請加入 LINE，顧問會接續協助您</h3>' +
+          '<p>您的日本不動產購買諮詢申請已送出。為了更快確認需求、補充物件資料與安排後續回覆，請掃描下方 LINE QR 或點擊連結加入專人服務。</p>' +
+          (note ? `<p class="muted support-human-success-notice">${esc(note)}</p>` : '') +
+          '<div class="support-human-success-line-card">' +
+            `<img src="${SUPPORT_HUMAN_LINE_PUBLIC_QR}" width="220" height="220" alt="LINE 專人 QR" loading="eager" decoding="async">` +
+            '<div class="support-human-success-line-copy">' +
+              '<strong>LINE 專人諮詢</strong>' +
+              '<span>添加後請傳一句「我已提交購房諮詢表單」，顧問可更快對應您的資料。</span>' +
+              `<a href="${SUPPORT_HUMAN_LINE_PUBLIC_URL}" target="_blank" rel="nofollow noopener">${SUPPORT_HUMAN_LINE_PUBLIC_URL}</a>` +
+            '</div>' +
+          '</div>' +
+          '<div class="support-human-success-actions">' +
+            `<a class="primary" href="${SUPPORT_HUMAN_LINE_PUBLIC_URL}" target="_blank" rel="nofollow noopener">開啟 LINE</a>` +
+            `<button type="button" class="secondary" onclick="copySupportHumanLinePublicUrl()">複製連結</button>` +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    function showSupportHumanLineSuccessModal(notifyLine) {
+      return setSupportHumanIntakeModalContent(supportHumanLineSuccessModalHtml(notifyLine), {
+        title: '申請已送出',
+        note: '請加入 LINE 專人諮詢，顧問會依您填寫的資料接續回覆。',
+      });
+    }
+
+    async function copySupportHumanLinePublicUrl() {
+      try {
+        await navigator.clipboard.writeText(SUPPORT_HUMAN_LINE_PUBLIC_URL);
+      } catch (_) {
+        window.prompt('請複製 LINE 連結', SUPPORT_HUMAN_LINE_PUBLIC_URL);
+      }
+    }
+
+    window.showSupportHumanLineSuccessModal = showSupportHumanLineSuccessModal;
+    window.copySupportHumanLinePublicUrl = copySupportHumanLinePublicUrl;
 
     function applySupportSalesAction(actionId) {
       const act = String(actionId || '');
@@ -10306,17 +10336,19 @@
       }
       return (
         `<div class="support-human-intake" data-support-human-form="${seq}">` +
-        '<div class="support-human-intake-heading"><strong>日本不動產購買諮詢申請表</strong><span class="muted">請先完整填寫必填問卷與至少一項聯絡方式；確認送出後才會通知顧問，人工才會依資料回覆。</span></div>' +
-        '<p class="muted support-human-intake-help">送出前會先整理需求；送出後會顯示 LINE／WeChat 專人 QR，並同步後台與 Telegram。</p>' +
+        '<div class="support-human-intake-heading"><strong>日本不動產購買諮詢申請表</strong><span class="muted">請先完整填寫必填問卷；確認送出後才會通知顧問，人工會依資料回覆。</span></div>' +
+        '<p class="muted support-human-intake-help">送出前會先整理需求；送出後會顯示 LINE 專人 QR，並同步後台顧問通知。</p>' +
         casesHtml +
         `<section class="support-human-section support-human-section--static">` +
-        `<h3>一、基本資料（必填）</h3>` +
+        `<h3>一、基本資料</h3>` +
         `<div class="support-human-section-body support-human-section-body--grid">` +
-        `<label class="muted support-human-field">姓名<input id="support-human-name-${seq}" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名（必填）"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>姓名<input id="support-human-name-${seq}" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>性別` +
+        `<select id="support-human-gender-${seq}"><option value="">請選擇</option><option value="男">男</option><option value="女">女</option><option value="其他 / 不便透露">其他 / 不便透露</option></select></label>` +
         `<div class="support-human-phone-row">` +
-        `<label class="muted support-human-field">電話所在地` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>電話所在地` +
         `<select id="support-human-phone-region-${seq}" autocomplete="tel-country-code">` +
-        `<option value="">請選擇電話所在地（有填電話時必選）</option>` +
+        `<option value="">請選擇電話所在地</option>` +
         `<option value="+886" data-region="台灣">台灣 +886</option>` +
         `<option value="+852" data-region="香港">香港 +852</option>` +
         `<option value="+853" data-region="澳門">澳門 +853</option>` +
@@ -10327,25 +10359,51 @@
         `<option value="+1" data-region="美國/加拿大">美國/加拿大 +1</option>` +
         `<option value="other" data-region="其他">其他國家/地區</option>` +
         `</select></label>` +
-        `<label class="muted support-human-field">聯絡電話<input id="support-human-phone-${seq}" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" placeholder="請填寫具體電話（選填，聯絡方式至少一項）"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>聯絡電話<input id="support-human-phone-${seq}" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" placeholder="請填寫具體電話"></label>` +
         `</div>` +
-        `<label class="muted support-human-field">LINE ID<input id="support-human-line-${seq}" type="text" maxlength="120" placeholder="例：line_id（選填，聯絡方式至少一項）"></label>` +
-        `<label class="muted support-human-field">微信 ID<input id="support-human-wechat-${seq}" type="text" maxlength="120" placeholder="例：wechat_id（選填，聯絡方式至少一項）"></label>` +
-        `<label class="muted support-human-field">Email<input id="support-human-email-${seq}" type="email" maxlength="160" autocomplete="email" placeholder="name@example.com（選填，聯絡方式至少一項）"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>LINE ID<input id="support-human-line-${seq}" type="text" maxlength="120" placeholder="例：line_id"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>微信 ID<input id="support-human-wechat-${seq}" type="text" maxlength="120" placeholder="例：wechat_id"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>Email<input id="support-human-email-${seq}" type="email" maxlength="160" autocomplete="email" placeholder="name@example.com"></label>` +
         `</div></section>` +
         `<section class="support-human-section support-human-section--static">` +
-        `<h3>二、需求（必填）</h3>` +
+        `<h3>二、購屋預算</h3>` +
         `<div class="support-human-section-body support-human-section-body--grid">` +
-        `<label class="muted support-human-field">購買目的` +
-        `<select id="support-human-purpose-${seq}">` +
-        `<option value="">請選擇購買目的（必填）</option>` +
-        `<option value="投資收租">投資收租</option>` +
-        `<option value="自住 / 度假">自住 / 度假</option>` +
-        `<option value="未來移居">未來移居</option>` +
-        `<option value="資產配置">資產配置</option>` +
-        `<option value="其他">其他</option>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>預計購屋總預算（日圓）<input id="support-human-budget-total-yen-${seq}" type="text" maxlength="80" inputmode="numeric" placeholder="例如：1000萬～3000萬 / 約4000萬"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>自備資金（日圓）<input id="support-human-down-payment-yen-${seq}" type="text" maxlength="80" inputmode="numeric" placeholder="例如：500萬"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>是否需要申請日本銀行貸款` +
+        `<select id="support-human-loan-need-${seq}"><option value="">請選擇</option><option value="是">是</option><option value="否">否</option><option value="尚未確定">尚未確定</option></select></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>預計購屋時間` +
+        `<select id="support-human-purchase-time-${seq}">` +
+        `<option value="">請選擇</option><option value="一個月內">一個月內</option><option value="三個月內">三個月內</option><option value="六個月內">六個月內</option><option value="六個月以上">六個月以上</option><option value="尚未確定">尚未確定</option>` +
         `</select></label>` +
-        `<label class="muted support-human-field">其他目的<input id="support-human-purpose-other-${seq}" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>` +
+        `</div></section>` +
+        `<section class="support-human-section support-human-section--static">` +
+        `<h3>三、物件需求</h3>` +
+        `<div class="support-human-section-body support-human-section-body--grid">` +
+        `<div id="support-human-property-type-${seq}" class="support-human-field support-human-choice-field"><span class="support-human-required">必填</span>希望購買的物件類型（可複選）<div class="support-human-choice-grid" data-support-human-group="property-type" data-seq="${seq}">` +
+        `<label><input type="checkbox" value="公寓（マンション）">公寓（マンション）</label><label><input type="checkbox" value="整棟公寓 / 大樓">整棟公寓 / 大樓</label><label><input type="checkbox" value="獨棟住宅（一戶建）">獨棟住宅（一戶建）</label><label><input type="checkbox" value="辦公室 / 事務所">辦公室 / 事務所</label><label><input type="checkbox" value="其他">其他</label>` +
+        `</div></div>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>希望購買城市<input id="support-human-target-city-${seq}" type="text" maxlength="160" placeholder="例如：東京、大阪"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>希望購買區域<input id="support-human-target-region-${seq}" type="text" maxlength="160" placeholder="例如：新宿區、澀谷區等"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>希望沿線或車站<input id="support-human-target-line-station-${seq}" type="text" maxlength="160" placeholder="例如：JR 山手線、新宿站等"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>距離最近車站步行<input id="support-human-station-walk-minutes-${seq}" type="text" maxlength="40" inputmode="numeric" placeholder="例如：10 分鐘內"></label>` +
+        `<div id="support-human-interest-status-${seq}" class="support-human-field support-human-choice-field"><span class="support-human-required">必填</span>目前是否已有屬意的物件或區域？<div class="support-human-choice-grid support-human-choice-grid--stack" data-support-human-group="interest-status" data-seq="${seq}">` +
+        `<label><input type="radio" name="support-human-interest-status-${seq}" value="已有屬意物件，可提供物件網址或相關資料">已有屬意物件，可提供物件網址或相關資料</label><label><input type="radio" name="support-human-interest-status-${seq}" value="已有希望購買的城市 / 區域，希望協助尋找物件">已有希望購買的城市 / 區域，希望協助尋找物件</label><label><input type="radio" name="support-human-interest-status-${seq}" value="尚未確定，希望依需求推薦合適物件">尚未確定，希望依需求推薦合適物件</label>` +
+        `</div></div>` +
+        `</div></section>` +
+        `<section class="support-human-section support-human-section--static">` +
+        `<h3>四、購屋需求及使用規劃</h3>` +
+        `<div class="support-human-section-body support-human-section-body--grid">` +
+        `<div id="support-human-purpose-${seq}" class="support-human-field support-human-choice-field"><span class="support-human-required">必填</span>購屋用途（可複選）<div class="support-human-choice-grid" data-support-human-group="purpose" data-seq="${seq}">` +
+        `<label><input type="checkbox" value="投資出租">投資出租</label><label><input type="checkbox" value="自用（本人、家人或子女居住 / 自用辦公室）">自用（本人、家人或子女居住 / 自用辦公室）</label><label><input type="checkbox" value="其他">其他</label>` +
+        `</div></div>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>其他用途<input id="support-human-purpose-other-${seq}" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>目前是否持有日本中長期在留資格` +
+        `<select id="support-human-residence-status-${seq}"><option value="">請選擇</option><option value="是，已持有中長期在留資格">是，已持有中長期在留資格</option><option value="否，目前為短期滯在（旅遊簽證）">否，目前為短期滯在（旅遊簽證）</option><option value="正在申請中長期在留資格">正在申請中長期在留資格</option><option value="其他">其他</option></select></label>` +
+        `<label class="muted support-human-field"><span class="support-human-optional">選填</span>在留資格補充<input id="support-human-residence-status-other-${seq}" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>` +
+        `<label class="muted support-human-field"><span class="support-human-required">必填</span>若目前為短期滯在，預計如何使用物件` +
+        `<select id="support-human-short-stay-usage-${seq}"><option value="">請選擇</option><option value="赴日時作為短期居住使用">赴日時作為短期居住使用</option><option value="未來取得中長期在留資格後自住">未來取得中長期在留資格後自住</option><option value="其他">其他</option><option value="不適用">不適用</option></select></label>` +
+        `<label class="muted support-human-field support-human-field--wide"><span class="support-human-optional">選填</span>其他需求、希望條件或補充說明<textarea id="support-human-other-needs-${seq}" rows="3" maxlength="2000" placeholder="例如：希望條件、方便聯絡時間、已看中的物件網址等"></textarea></label>` +
         `<input id="support-human-consent-${seq}" type="hidden" value="1">` +
         `</div></section>` +
         `<div id="support-human-preview-${seq}" class="support-human-preview" style="display:none;" aria-live="polite"></div>` +
@@ -10406,6 +10464,14 @@
       return { ok: true, full: `${region} ${digits}`, local: digits, region, message: '' };
     }
 
+    function supportHumanGroupValues(seq, group) {
+      const root = document.querySelector(`[data-support-human-group="${group}"][data-seq="${Number(seq || 0)}"]`);
+      if (!root) return [];
+      return Array.from(root.querySelectorAll('input:checked'))
+        .map((el) => String(el.value || '').trim())
+        .filter(Boolean);
+    }
+
     function buildSupportHumanIntakePayloadFromForm(seq) {
       const n = Number(seq || 0);
       if (!Number.isFinite(n) || n <= 0) {
@@ -10426,6 +10492,7 @@
       };
 
       const name = v('name', 120);
+      const gender = v('gender', 80);
       const phoneRegion = v('phone-region', 20);
       const phoneLocal = v('phone', 40);
       const phoneNormalized = normalizeSupportHumanPhone(phoneRegion, phoneLocal);
@@ -10433,15 +10500,34 @@
       const email = v('email', 160);
       const line = v('line', 120);
       const wechat = v('wechat', 120);
-      const purpose = v('purpose', 80);
+      const purposeValues = supportHumanGroupValues(n, 'purpose');
+      const purpose = purposeValues.join('、');
       const purpose_other = v('purpose-other', 160);
+      const budget_total_yen = v('budget-total-yen', 80);
+      const down_payment_yen = v('down-payment-yen', 80);
+      const loan_need = v('loan-need', 80);
+      const purchase_time = v('purchase-time', 80);
+      const propertyTypeValues = supportHumanGroupValues(n, 'property-type');
+      const property_type = propertyTypeValues.join('、');
+      const target_city = v('target-city', 160);
+      const target_region = v('target-region', 160);
+      const target_line_station = v('target-line-station', 160);
+      const station_walk_minutes = v('station-walk-minutes', 40);
+      const interest_status = supportHumanGroupValues(n, 'interest-status').join('、');
+      const residence_status = v('residence-status', 160);
+      const residence_status_other = v('residence-status-other', 160);
+      const short_stay_usage = v('short-stay-usage', 160);
       const other_questions = v('other-needs', 2000);
       const consent_agreed = b('consent');
 
       const pickLines = supportHumanIntakePickLinesFromFormRoot(formRoot);
       const interest_pick_summary = pickLines.join('\n').slice(0, 4000);
       const budget_text = [
-        purpose ? `購買目的：${purpose}${purpose === '其他' && purpose_other ? '（' + purpose_other + '）' : ''}` : '',
+        budget_total_yen ? `總預算：${budget_total_yen}` : '',
+        down_payment_yen ? `自備款：${down_payment_yen}` : '',
+        loan_need ? `貸款：${loan_need}` : '',
+        purchase_time ? `購買時間：${purchase_time}` : '',
+        purpose ? `購買目的：${purpose}${purposeValues.includes('其他') && purpose_other ? '（' + purpose_other + '）' : ''}` : '',
       ]
         .filter(Boolean)
         .join('；')
@@ -10450,6 +10536,7 @@
       const questionnaire = {
         form_version: 'jp_property_buy_intake_v2',
         name,
+        gender,
         contact_phone: phone,
         contact_phone_region_code: phoneRegion,
         contact_phone_local: phoneLocal,
@@ -10461,6 +10548,19 @@
         contact_line_wechat: [line ? `LINE：${line}` : '', wechat ? `微信：${wechat}` : ''].filter(Boolean).join('；'),
         purchase_purpose: purpose,
         purchase_purpose_other: purpose_other,
+        budget_total_yen,
+        down_payment_yen,
+        loan_need,
+        purchase_time,
+        property_type,
+        target_city,
+        target_region,
+        target_line_station,
+        station_walk_minutes,
+        interest_status,
+        residence_status,
+        residence_status_other,
+        short_stay_usage,
         other_questions,
         consent_agreed,
         interest_pick_summary,
@@ -10530,11 +10630,23 @@
       if (!payload) return fail([], '資料異常，請重新開啟表單後再試一次。');
       const q = payload.questionnaire || {};
       if (!String(payload.name || '').trim()) return fail('name', '請填寫姓名。');
+      if (!String(q.gender || '').trim()) return fail('gender', '請選擇性別。');
+      if (!String(q.contact_phone_region_code || '').trim()) return fail('phone-region', '請選擇電話所在地。');
+      if (!String(q.contact_phone_local || '').trim()) return fail('phone', '請填寫聯絡電話。');
       if (String(q.contact_phone_local || '').trim() && !q.contact_phone_valid) return fail(['phone-region', 'phone'], String(q.contact_phone_error || '聯絡電話格式不符合，請重新確認。'));
-      if (!String(payload.phone || '').trim() && !String(payload.email || '').trim() && !String(q.contact_line || '').trim() && !String(q.contact_wechat || '').trim())
-        return fail(['phone', 'line', 'wechat', 'email'], '請至少填寫「聯絡電話、LINE、微信、Email」其中一項，方便顧問聯絡。');
+      if (!String(payload.phone || '').trim()) return fail(['phone-region', 'phone'], '請填寫可聯絡電話。');
+      if (!String(q.budget_total_yen || '').trim()) return fail('budget-total-yen', '請填寫預計購屋總預算。');
+      if (!String(q.down_payment_yen || '').trim()) return fail('down-payment-yen', '請填寫自備資金。');
+      if (!String(q.loan_need || '').trim()) return fail('loan-need', '請選擇是否需要申請日本銀行貸款。');
+      if (!String(q.purchase_time || '').trim()) return fail('purchase-time', '請選擇預計購屋時間。');
+      if (!String(q.property_type || '').trim()) return fail('property-type', '請選擇希望購買的物件類型。');
+      if (!String(q.target_city || '').trim()) return fail('target-city', '請填寫希望購買城市。');
+      if (!String(q.interest_status || '').trim()) return fail('interest-status', '請選擇目前是否已有屬意的物件或區域。');
       if (!String(q.purchase_purpose || '').trim()) return fail('purpose', '請選擇購買目的。');
-      if (q.purchase_purpose === '其他' && !String(q.purchase_purpose_other || '').trim()) return fail('purpose-other', '請填寫其他購買目的。');
+      if (String(q.purchase_purpose || '').includes('其他') && !String(q.purchase_purpose_other || '').trim()) return fail('purpose-other', '請填寫其他購買目的。');
+      if (!String(q.residence_status || '').trim()) return fail('residence-status', '請選擇目前是否持有日本中長期在留資格。');
+      if (q.residence_status === '其他' && !String(q.residence_status_other || '').trim()) return fail('residence-status-other', '請填寫在留資格補充。');
+      if (!String(q.short_stay_usage || '').trim()) return fail('short-stay-usage', '請選擇短期滯在時預計如何使用物件。');
       if (!q.consent_agreed) return fail([], '請確認表單聲明後才能送出。');
       return '';
     }
@@ -10551,11 +10663,24 @@
       html += '<div class="support-human-preview-title"><strong>預覽：送出給顧問的內容</strong><span class="muted">若修改表單，請再按一次預覽。</span></div>';
       html += '<div class="support-human-preview-grid">';
       html += `<div><strong>姓名</strong>：${esc(payload.name || '-')}</div>`;
+      html += `<div><strong>性別</strong>：${esc(q.gender || '-')}</div>`;
       html += `<div><strong>電話</strong>：${esc(payload.phone || '-')}</div>`;
       html += `<div><strong>LINE</strong>：${esc(q.contact_line || '-')}</div>`;
       html += `<div><strong>微信</strong>：${esc(q.contact_wechat || '-')}</div>`;
       html += `<div><strong>Email</strong>：${esc(payload.email || '-')}</div>`;
-      html += `<div><strong>購買目的</strong>：${esc(q.purchase_purpose || '-')}${q.purchase_purpose === '其他' && q.purchase_purpose_other ? '（' + esc(q.purchase_purpose_other) + '）' : ''}</div>`;
+      html += `<div><strong>總預算</strong>：${esc(q.budget_total_yen || '-')}</div>`;
+      html += `<div><strong>自備款</strong>：${esc(q.down_payment_yen || '-')}</div>`;
+      html += `<div><strong>貸款需求</strong>：${esc(q.loan_need || '-')}</div>`;
+      html += `<div><strong>購買時間</strong>：${esc(q.purchase_time || '-')}</div>`;
+      html += `<div><strong>物件類型</strong>：${esc(q.property_type || '-')}</div>`;
+      html += `<div><strong>希望城市</strong>：${esc(q.target_city || '-')}</div>`;
+      html += `<div><strong>希望區域</strong>：${esc(q.target_region || '-')}</div>`;
+      html += `<div><strong>沿線車站</strong>：${esc(q.target_line_station || '-')}</div>`;
+      html += `<div><strong>步行距離</strong>：${esc(q.station_walk_minutes || '-')}</div>`;
+      html += `<div><strong>屬意狀態</strong>：${esc(q.interest_status || '-')}</div>`;
+      html += `<div><strong>購買目的</strong>：${esc(q.purchase_purpose || '-')}${String(q.purchase_purpose || '').includes('其他') && q.purchase_purpose_other ? '（' + esc(q.purchase_purpose_other) + '）' : ''}</div>`;
+      html += `<div><strong>在留資格</strong>：${esc(q.residence_status || '-')}${q.residence_status === '其他' && q.residence_status_other ? '（' + esc(q.residence_status_other) + '）' : ''}</div>`;
+      html += `<div><strong>短期滯在使用</strong>：${esc(q.short_stay_usage || '-')}</div>`;
       html += '</div>';
       if (cases.length) {
         html += '<div style="margin-top:0.45rem;"><strong>有興趣案件</strong>：</div><ul class="support-human-preview-cases">';
@@ -10611,7 +10736,6 @@
         const res = await postSupportHumanIntake(built.payload);
         const data = await parseApiResponseSafe(res);
         supportHumanHandoffStep = null;
-        const lineUrl = esc(supportHumanLineQrUrl(data.line_group_qr_url || data.line_qr_url));
         const tgOk = Boolean(data.telegram_sent);
         const tgErr = String(data.telegram_error || '').trim();
         const lineOk = Boolean(data.line_sent);
@@ -10626,22 +10750,8 @@
               tgOk ? 'Telegram 已通知' : `Telegram 未發送${tgErr ? '：' + esc(tgErr) : ''}`,
               lineOk ? 'LINE 已通知' : `LINE 未發送${lineErr ? '：' + esc(lineErr) : ''}`,
             ].join('；');
-        supportChatHistory.push({
-          role: 'assistant',
-          content: '',
-          contentHtml:
-            '<p>已收到完整問卷與聯絡方式。請掃描下方二維碼加入 LINE 群，顧問會依您填寫的資料跟進，也方便後續確認需求。</p>' +
-            `<p class="muted">${notifyLine}</p>` +
-            '<div class="support-human-qr-grid support-human-qr-grid--single">' +
-            '<div class="support-human-qr-card support-human-qr-card--line support-human-qr-card--group"><div class="muted">LINE 客服群</div>' +
-            `<img src="${lineUrl}" width="200" height="200" alt="LINE QR" loading="lazy">` +
-            '<p class="muted support-human-qr-hint">請加入 LINE 群，方便顧問更快確認需求。</p>' +
-            '</div>' +
-            '</div>',
-        });
-        renderSupportChatMessages();
         await clearSupportSelectedCasesAfterSend(String(built.payload.interest_pick_summary || '').trim() ? 1 : 0);
-        clearSupportHumanIntakeModalContent();
+        showSupportHumanLineSuccessModal(notifyLine);
         markSupportHandoffSyncActive();
         scheduleSyncHandoffConversationToBackend();
       } catch (err) {
@@ -13339,7 +13449,11 @@
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
         updateLineTabAutoStatusFromSnapshot(data);
         const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '已設定';
-        if (msg) msg.textContent = `LINE 連線狀態：${data.channel_access_token_set ? masked : '未設定'}`;
+        const wh = String(data.webhook_url || '').trim();
+        const whHint = wh && wh !== 'https://www.manuvip.com/api/line/webhook'
+          ? '；Webhook 目前不是正式站地址，建議改為 https://www.manuvip.com/api/line/webhook'
+          : '';
+        if (msg) msg.textContent = `LINE 連線狀態：${data.channel_access_token_set ? masked : '未設定'}${whHint}`;
       } catch (err) {
         if (msg) msg.textContent = `載入 LINE 失敗：${formatApiError(err)}`;
         const cfgEl = document.getElementById('admin-line-config-line');
@@ -16618,6 +16732,7 @@
         if (String(text || '').trim()) rows.push([label, text]);
       };
       pushRow('姓名', q.name);
+      pushRow('性別', q.gender);
       pushRow('LINE', q.contact_line);
       pushRow('微信', q.contact_wechat);
       if (!compactValue(q.contact_line) && !compactValue(q.contact_wechat)) pushRow('LINE/微信', q.contact_line_wechat);
@@ -16629,9 +16744,15 @@
       pushRow('貸款需求', q.loan_need);
       pushRow('收入來源', maybeOther('income_source', 'income_source_other'));
       pushRow('年收入', q.annual_income_twd);
+      pushRow('希望購買城市', q.target_city);
       pushRow('目標區域', maybeOther('target_region', 'target_region_other'));
+      pushRow('希望沿線或車站', q.target_line_station);
+      pushRow('距離最近車站步行', q.station_walk_minutes);
       pushRow('物件類型', q.property_type);
+      pushRow('屬意物件／區域狀態', q.interest_status);
       pushRow('購買時間', q.purchase_time);
+      pushRow('中長期在留資格', maybeOther('residence_status', 'residence_status_other'));
+      pushRow('短期滯在物件使用規劃', q.short_stay_usage);
       pushRow('看房意願', q.viewing_intent);
       pushRow('貸款評估', q.loan_eval_interest);
       pushRow('其他需求', q.other_questions);
@@ -16645,11 +16766,13 @@
         'purchase_purpose_other',
         'income_source_other',
         'target_region_other',
+        'residence_status_other',
         'consent_agreed',
       ]);
       const usedKeys = new Set([
         ...internalKeys,
         'name',
+        'gender',
         'contact_line',
         'contact_wechat',
         'contact_line_wechat',
@@ -16661,9 +16784,15 @@
         'loan_need',
         'income_source',
         'annual_income_twd',
+        'target_city',
         'target_region',
+        'target_line_station',
+        'station_walk_minutes',
         'property_type',
+        'interest_status',
         'purchase_time',
+        'residence_status',
+        'short_stay_usage',
         'viewing_intent',
         'loan_eval_interest',
         'other_questions',
