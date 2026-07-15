@@ -27934,102 +27934,6 @@
       selectVideo(0, true);
     }
 
-	    function initHeaderKeywordTabs() {
-	      const root = document.querySelector('.bh-nav-keywords');
-	      if (!root || root.dataset.bound === '1') return;
-      root.dataset.bound = '1';
-      const tabs = Array.from(root.querySelectorAll('[data-bh-nav-keyword-tab]'));
-      const panels = Array.from(root.querySelectorAll('[data-bh-nav-keyword-panel]'));
-      const internalSwitches = Array.from(root.querySelectorAll('[data-home-view-switch]'));
-      let closeTimer = 0;
-      const clearCloseTimer = () => {
-        if (closeTimer) {
-          window.clearTimeout(closeTimer);
-          closeTimer = 0;
-        }
-      };
-      const setActive = (key, allowCollapse = false) => {
-        const current = tabs.find((tab) => tab.classList.contains('is-active'));
-        const currentKey = current ? String(current.getAttribute('data-bh-nav-keyword-tab') || '') : '';
-        const shouldCollapse = allowCollapse && currentKey === key;
-        root.classList.toggle('is-open', !shouldCollapse);
-        tabs.forEach((tab) => {
-          const on = !shouldCollapse && String(tab.getAttribute('data-bh-nav-keyword-tab') || '') === key;
-          tab.classList.toggle('is-active', on);
-          tab.setAttribute('aria-selected', on ? 'true' : 'false');
-          tab.setAttribute('aria-expanded', on ? 'true' : 'false');
-        });
-        panels.forEach((panel) => {
-          const on = !shouldCollapse && String(panel.getAttribute('data-bh-nav-keyword-panel') || '') === key;
-          panel.classList.toggle('is-active', on);
-          panel.hidden = !on;
-        });
-      };
-      const closeMenu = () => {
-        root.classList.remove('is-open');
-        tabs.forEach((tab) => {
-          tab.classList.remove('is-active');
-          tab.setAttribute('aria-selected', 'false');
-          tab.setAttribute('aria-expanded', 'false');
-        });
-        panels.forEach((panel) => {
-          panel.classList.remove('is-active');
-          panel.hidden = true;
-        });
-      };
-      tabs.forEach((tab) => {
-        tab.addEventListener('pointerup', (evt) => {
-          if (evt.pointerType === 'mouse') return;
-          clearCloseTimer();
-          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
-          if (!key) return;
-          evt.preventDefault();
-          setActive(key, false);
-        });
-        tab.addEventListener('mouseenter', () => {
-          clearCloseTimer();
-          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
-          if (key) setActive(key, false);
-        });
-        tab.addEventListener('focus', () => {
-          clearCloseTimer();
-          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
-          if (key) setActive(key, false);
-        });
-        tab.addEventListener('click', () => {
-          clearCloseTimer();
-          const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
-          if (key) setActive(key, false);
-        });
-      });
-      internalSwitches.forEach((btn) => {
-        if (btn.hasAttribute('data-bh-nav-keyword-tab')) return;
-        const syncStandaloneState = () => {
-          clearCloseTimer();
-          closeMenu();
-        };
-        btn.addEventListener('mouseenter', syncStandaloneState);
-        btn.addEventListener('focus', syncStandaloneState);
-        btn.addEventListener('click', syncStandaloneState);
-      });
-      root.addEventListener('mouseenter', clearCloseTimer);
-      root.addEventListener('mouseleave', () => {
-        clearCloseTimer();
-        closeTimer = window.setTimeout(closeMenu, 180);
-      });
-      root.addEventListener('click', (evt) => {
-        const link = evt.target instanceof Element ? evt.target.closest('.bh-nav-keyword-panel a') : null;
-        if (!link || !root.contains(link)) return;
-        if (link.matches('[data-nav-placeholder="true"]')) {
-          evt.preventDefault();
-          link.classList.add('is-nav-placeholder-tapped');
-          window.setTimeout(() => link.classList.remove('is-nav-placeholder-tapped'), 420);
-          return;
-        }
-        window.setTimeout(closeMenu, 160);
-	      });
-	    }
-
 	    function setHomeInternalView(view, options = {}) {
 	      const mode = view === 'workbench' ? 'workbench' : 'home';
 	      const showWorkbench = mode === 'workbench';
@@ -28235,7 +28139,6 @@
       installSupportChatHistoryApplyDelegation();
       installHomeHeroSoundToggle();
 	      installGeoKeywordEntrances();
-	      initHeaderKeywordTabs();
       installHomeInternalViewSwitch();
       installPortalCaseInlineHistory();
       consumeInboundGeoKeywordSearch();
