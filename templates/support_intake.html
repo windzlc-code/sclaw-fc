@@ -6,7 +6,7 @@
   <title>日本不動產購買諮詢申請表｜{{ site_name }}</title>
   <meta name="description" content="填寫日本不動產購買諮詢申請表，提交後由顧問依資料回覆。">
   <meta name="robots" content="noindex,nofollow">
-  <link rel="stylesheet" href="/static/site.css?v=20260715-intake-fields-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260715-intake-contact-b">
 </head>
 <body class="site-home site-case-standalone support-intake-page site-lang-hant">
   {% include 'partials/site_header.html' %}
@@ -22,19 +22,19 @@
           <strong id="support-intake-title">日本不動產購買諮詢申請表</strong>
           <span class="muted">填寫後送出給顧問，後續會依資料回覆。</span>
         </div>
-        <p class="muted support-human-intake-help">請填寫必填欄位；LINE、微信與 Email 可作為補充聯絡方式。</p>
+        <p class="muted support-human-intake-help">請填寫必填欄位；LINE、微信與 Email 至少填寫其中一項，方便顧問後續聯絡。</p>
 
         <section class="support-human-section support-human-section--static">
           <h3>一、基本資料</h3>
           <div class="support-human-section-body support-human-section-body--grid">
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>姓名<input id="support-page-name" type="text" maxlength="120" autocomplete="name" placeholder="請填寫姓名"></label>
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>性別
-              <select id="support-page-gender"><option value="">請選擇</option><option value="男">男</option><option value="女">女</option><option value="其他 / 不便透露">其他 / 不便透露</option></select>
+            <label class="muted support-human-field"><input id="support-page-name" type="text" maxlength="120" autocomplete="name" aria-label="姓名（必填）" placeholder="姓名（必填）"></label>
+            <label class="muted support-human-field">
+              <select id="support-page-gender" aria-label="性別（必填）"><option value="">性別（必填）</option><option value="男">男</option><option value="女">女</option><option value="其他 / 不便透露">其他 / 不便透露</option></select>
             </label>
             <div class="support-human-phone-row">
-              <label class="muted support-human-field"><span class="support-human-required">必填</span>電話所在地
-                <select id="support-page-phone-region" autocomplete="tel-country-code">
-                  <option value="">請選擇電話所在地</option>
+              <label class="muted support-human-field">
+                <select id="support-page-phone-region" autocomplete="tel-country-code" aria-label="電話所在地（必填）">
+                  <option value="">電話所在地（必填）</option>
                   <option value="+886">台灣 +886</option>
                   <option value="+852">香港 +852</option>
                   <option value="+853">澳門 +853</option>
@@ -46,24 +46,24 @@
                   <option value="other">其他國家/地區</option>
                 </select>
               </label>
-              <label class="muted support-human-field"><span class="support-human-required">必填</span>聯絡電話<input id="support-page-phone" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" placeholder="請填寫具體電話"></label>
+              <label class="muted support-human-field"><input id="support-page-phone" type="tel" maxlength="40" autocomplete="tel-national" inputmode="tel" aria-label="聯絡電話（必填）" placeholder="聯絡電話（必填）"></label>
             </div>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>LINE ID<input id="support-page-line" type="text" maxlength="120" placeholder="例：line_id"></label>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>微信 ID<input id="support-page-wechat" type="text" maxlength="120" placeholder="例：wechat_id"></label>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>Email<input id="support-page-email" type="email" maxlength="160" autocomplete="email" placeholder="name@example.com"></label>
+            <label class="muted support-human-field"><input id="support-page-line" type="text" maxlength="120" aria-label="LINE ID（三選一必填）" placeholder="LINE ID（三選一必填，例：line_id）"></label>
+            <label class="muted support-human-field"><input id="support-page-wechat" type="text" maxlength="120" aria-label="微信 ID（三選一必填）" placeholder="微信 ID（三選一必填，例：wechat_id）"></label>
+            <label class="muted support-human-field"><input id="support-page-email" type="email" maxlength="160" autocomplete="email" aria-label="Email（三選一必填）" placeholder="Email（三選一必填，name@example.com）"></label>
           </div>
         </section>
 
         <section class="support-human-section support-human-section--static">
           <h3>二、購屋預算</h3>
           <div class="support-human-section-body support-human-section-body--grid">
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>預計購屋總預算（日圓）<input id="support-page-budget-total-yen" type="text" maxlength="80" inputmode="numeric" placeholder="例如：1000萬～3000萬 / 約4000萬"></label>
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>自備資金（日圓）<input id="support-page-down-payment-yen" type="text" maxlength="80" inputmode="numeric" placeholder="例如：500萬"></label>
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>是否需要申請日本銀行貸款
-              <select id="support-page-loan-need"><option value="">請選擇</option><option value="是">是</option><option value="否">否</option><option value="尚未確定">尚未確定</option></select>
+            <label class="muted support-human-field"><input id="support-page-budget-total-yen" type="text" maxlength="80" inputmode="numeric" aria-label="預計購屋總預算（日圓）（必填）" placeholder="預計購屋總預算（日圓）（必填，例：1000萬～3000萬）"></label>
+            <label class="muted support-human-field"><input id="support-page-down-payment-yen" type="text" maxlength="80" inputmode="numeric" aria-label="自備資金（日圓）（必填）" placeholder="自備資金（日圓）（必填，例：500萬）"></label>
+            <label class="muted support-human-field">
+              <select id="support-page-loan-need" aria-label="是否需要申請日本銀行貸款（必填）"><option value="">是否需要申請日本銀行貸款（必填）</option><option value="是">是</option><option value="否">否</option><option value="尚未確定">尚未確定</option></select>
             </label>
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>預計購屋時間
-              <select id="support-page-purchase-time"><option value="">請選擇</option><option value="一個月內">一個月內</option><option value="三個月內">三個月內</option><option value="六個月內">六個月內</option><option value="六個月以上">六個月以上</option><option value="尚未確定">尚未確定</option></select>
+            <label class="muted support-human-field">
+              <select id="support-page-purchase-time" aria-label="預計購屋時間（必填）"><option value="">預計購屋時間（必填）</option><option value="一個月內">一個月內</option><option value="三個月內">三個月內</option><option value="六個月內">六個月內</option><option value="六個月以上">六個月以上</option><option value="尚未確定">尚未確定</option></select>
             </label>
           </div>
         </section>
@@ -71,7 +71,7 @@
         <section class="support-human-section support-human-section--static">
           <h3>三、物件需求</h3>
           <div class="support-human-section-body support-human-section-body--grid">
-            <div id="support-page-property-type" class="support-human-field support-human-choice-field"><span class="support-human-required">必填</span>希望購買的物件類型（可複選）
+            <div id="support-page-property-type" class="support-human-field support-human-choice-field">希望購買的物件類型（可複選，必填）
               <div class="support-human-choice-grid" data-support-page-group="property-type">
                 <label><input type="checkbox" value="公寓（マンション）">公寓（マンション）</label>
                 <label><input type="checkbox" value="整棟公寓 / 大樓">整棟公寓 / 大樓</label>
@@ -80,11 +80,11 @@
                 <label><input type="checkbox" value="其他">其他</label>
               </div>
             </div>
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>希望購買城市<input id="support-page-target-city" type="text" maxlength="160" placeholder="例如：東京、大阪"></label>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>希望購買區域<input id="support-page-target-region" type="text" maxlength="160" placeholder="例如：新宿區、澀谷區等"></label>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>希望沿線或車站<input id="support-page-target-line-station" type="text" maxlength="160" placeholder="例如：JR 山手線、新宿站等"></label>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>距離最近車站步行<input id="support-page-station-walk-minutes" type="text" maxlength="40" inputmode="numeric" placeholder="例如：10 分鐘內"></label>
-            <div id="support-page-interest-status" class="support-human-field support-human-choice-field"><span class="support-human-required">必填</span>目前是否已有屬意的物件或區域？
+            <label class="muted support-human-field"><input id="support-page-target-city" type="text" maxlength="160" aria-label="希望購買城市（必填）" placeholder="希望購買城市（必填，例：東京、大阪）"></label>
+            <label class="muted support-human-field"><input id="support-page-target-region" type="text" maxlength="160" aria-label="希望購買區域（選填）" placeholder="希望購買區域（選填，例：新宿區、澀谷區等）"></label>
+            <label class="muted support-human-field"><input id="support-page-target-line-station" type="text" maxlength="160" aria-label="希望沿線或車站（選填）" placeholder="希望沿線或車站（選填，例：JR 山手線、新宿站等）"></label>
+            <label class="muted support-human-field"><input id="support-page-station-walk-minutes" type="text" maxlength="40" inputmode="numeric" aria-label="距離最近車站步行（選填）" placeholder="距離最近車站步行（選填，例：10 分鐘內）"></label>
+            <div id="support-page-interest-status" class="support-human-field support-human-choice-field">目前是否已有屬意的物件或區域？（必填）
               <div class="support-human-choice-grid support-human-choice-grid--stack" data-support-page-group="interest-status">
                 <label><input type="radio" name="support-page-interest-status" value="已有屬意物件，可提供物件網址或相關資料">已有屬意物件，可提供物件網址或相關資料</label>
                 <label><input type="radio" name="support-page-interest-status" value="已有希望購買的城市 / 區域，希望協助尋找物件">已有希望購買的城市 / 區域，希望協助尋找物件</label>
@@ -97,22 +97,22 @@
         <section class="support-human-section support-human-section--static">
           <h3>四、購屋需求及使用規劃</h3>
           <div class="support-human-section-body support-human-section-body--grid">
-            <div id="support-page-purpose" class="support-human-field support-human-choice-field"><span class="support-human-required">必填</span>購屋用途（可複選）
+            <div id="support-page-purpose" class="support-human-field support-human-choice-field">購屋用途（可複選，必填）
               <div class="support-human-choice-grid" data-support-page-group="purpose">
                 <label><input type="checkbox" value="投資出租">投資出租</label>
                 <label><input type="checkbox" value="自用（本人、家人或子女居住 / 自用辦公室）">自用（本人、家人或子女居住 / 自用辦公室）</label>
                 <label><input type="checkbox" value="其他">其他</label>
               </div>
             </div>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>其他用途<input id="support-page-purpose-other" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>目前是否持有日本中長期在留資格
-              <select id="support-page-residence-status"><option value="">請選擇</option><option value="是，已持有中長期在留資格">是，已持有中長期在留資格</option><option value="否，目前為短期滯在（旅遊簽證）">否，目前為短期滯在（旅遊簽證）</option><option value="正在申請中長期在留資格">正在申請中長期在留資格</option><option value="其他">其他</option></select>
+            <label class="muted support-human-field"><input id="support-page-purpose-other" type="text" maxlength="160" aria-label="其他用途（選填）" placeholder="其他用途（選填，選擇其他時請填寫）"></label>
+            <label class="muted support-human-field">
+              <select id="support-page-residence-status" aria-label="目前是否持有日本中長期在留資格（必填）"><option value="">目前是否持有日本中長期在留資格（必填）</option><option value="是，已持有中長期在留資格">是，已持有中長期在留資格</option><option value="否，目前為短期滯在（旅遊簽證）">否，目前為短期滯在（旅遊簽證）</option><option value="正在申請中長期在留資格">正在申請中長期在留資格</option><option value="其他">其他</option></select>
             </label>
-            <label class="muted support-human-field"><span class="support-human-optional">選填</span>在留資格補充<input id="support-page-residence-status-other" type="text" maxlength="160" placeholder="選擇其他時請填寫"></label>
-            <label class="muted support-human-field"><span class="support-human-required">必填</span>若目前為短期滯在，預計如何使用物件
-              <select id="support-page-short-stay-usage"><option value="">請選擇</option><option value="赴日時作為短期居住使用">赴日時作為短期居住使用</option><option value="未來取得中長期在留資格後自住">未來取得中長期在留資格後自住</option><option value="其他">其他</option><option value="不適用">不適用</option></select>
+            <label class="muted support-human-field"><input id="support-page-residence-status-other" type="text" maxlength="160" aria-label="在留資格補充（選填）" placeholder="在留資格補充（選填，選擇其他時請填寫）"></label>
+            <label class="muted support-human-field">
+              <select id="support-page-short-stay-usage" aria-label="若目前為短期滯在，預計如何使用物件（必填）"><option value="">短期滯在使用規劃（必填）</option><option value="赴日時作為短期居住使用">赴日時作為短期居住使用</option><option value="未來取得中長期在留資格後自住">未來取得中長期在留資格後自住</option><option value="其他">其他</option><option value="不適用">不適用</option></select>
             </label>
-            <label class="muted support-human-field support-human-field--wide"><span class="support-human-optional">選填</span>其他需求、希望條件或補充說明<textarea id="support-page-other-needs" rows="3" maxlength="2000" placeholder="例如：希望條件、方便聯絡時間、已看中的物件網址等"></textarea></label>
+            <label class="muted support-human-field support-human-field--wide"><textarea id="support-page-other-needs" rows="3" maxlength="2000" aria-label="其他需求、希望條件或補充說明（選填）" placeholder="其他需求、希望條件或補充說明（選填，例如：方便聯絡時間、已看中的物件網址等）"></textarea></label>
           </div>
         </section>
 
@@ -230,6 +230,7 @@
         else if (!phoneRegion) { err = '請選擇電話所在地。'; errIds = ['support-page-phone-region']; }
         else if (!phoneLocal) { err = '請填寫聯絡電話。'; errIds = ['support-page-phone']; }
         else if (!phone.ok) { err = phone.message; errIds = ['support-page-phone-region', 'support-page-phone']; }
+        else if (!line && !wechat && !email) { err = '請至少填寫 LINE、微信或 Email 其中一項。'; errIds = ['support-page-line', 'support-page-wechat', 'support-page-email']; }
         else if (!budgetTotalYen) { err = '請填寫預計購屋總預算。'; errIds = ['support-page-budget-total-yen']; }
         else if (!downPaymentYen) { err = '請填寫自備資金。'; errIds = ['support-page-down-payment-yen']; }
         else if (!loanNeed) { err = '請選擇是否需要申請日本銀行貸款。'; errIds = ['support-page-loan-need']; }
