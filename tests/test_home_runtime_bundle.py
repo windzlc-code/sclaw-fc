@@ -129,6 +129,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("font-size: 8.5px !important;", block)
         self.assertIn("width: min(366px, calc(100vw - 24px)) !important;", block)
         self.assertIn("left: -136px !important;", block)
+        self.assertIn(".bh-title-search.has-query .bh-title-search-keywords", block)
+        self.assertIn("display: block !important;", block)
 
     def test_mobile_header_search_results_expand_beyond_the_compact_input(self):
         header = (ROOT / "templates" / "partials" / "site_header.html").read_text(encoding="utf-8")
