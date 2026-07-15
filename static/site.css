@@ -47731,11 +47731,12 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
 
   body.site-home .bh-site-brand strong {
     max-width: 128px !important;
-    font-size: 7.5px !important;
+    font-size: 8.5px !important;
     line-height: 1.12 !important;
-    letter-spacing: -0.055em !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
+    letter-spacing: -0.04em !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   body.site-home .bh-site-titlebar-actions {
@@ -47775,6 +47776,14 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
   body.site-home .bh-site-nav .bh-title-search .bh-title-search-input {
     height: 28px !important;
     font-size: 8.5px !important;
+    line-height: 1 !important;
+  }
+
+  body.site-home .bh-site-nav .bh-title-search .bh-title-search-icon {
+    width: 12px !important;
+    height: 12px !important;
+    min-width: 12px !important;
+    min-height: 12px !important;
   }
 
   body.site-home .bh-site-nav .bh-title-search .bh-title-search-submit {
