@@ -28220,6 +28220,7 @@
     }
 
     function runSclawStartupChecks() {
+      initAdminLineSecretControls();
       if (isAdminStandalonePage()) {
         setStandaloneAdminLocked(true);
         toggleAdminDrawer(true, { skipExclusive: true });
