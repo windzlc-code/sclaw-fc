@@ -117,7 +117,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("display: block !important;", block)
         self.assertIn("text-align: center !important;", block)
         self.assertIn("height: clamp(54px, 9svh, 68px) !important;", block)
-        self.assertIn("rgba(7, 18, 25, 0.10)", block)
+        self.assertNotIn("background: linear-gradient", block)
 
 
 if __name__ == "__main__":

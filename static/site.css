@@ -47660,7 +47660,6 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     align-items: center !important;
     justify-content: center !important;
     padding: 128px var(--home-mobile-hero-pad) 86px !important;
-    background: linear-gradient(180deg, rgba(7, 18, 25, 0.10) 0%, rgba(7, 18, 25, 0.14) 48%, rgba(7, 18, 25, 0.32) 100%) !important;
   }
 
   body.site-home .hero-media-overlay-copy {
