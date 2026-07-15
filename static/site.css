@@ -47756,8 +47756,10 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     justify-self: center !important;
   }
 
-  body.site-home .bh-title-search-box {
-    min-height: 28px !important;
+  body.site-home .bh-site-nav .bh-title-search .bh-title-search-box {
+    height: 26px !important;
+    min-height: 26px !important;
+    max-height: 26px !important;
     grid-template-columns: 14px minmax(0, 1fr) auto !important;
     gap: 4px !important;
     padding: 0 3px 0 8px !important;
@@ -47765,14 +47767,14 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     border-radius: 12px !important;
   }
 
-  body.site-home .bh-title-search-input {
-    height: 28px !important;
+  body.site-home .bh-site-nav .bh-title-search .bh-title-search-input {
+    height: 26px !important;
     font-size: 9px !important;
   }
 
-  body.site-home .bh-title-search-submit {
-    min-width: 36px !important;
-    height: 20px !important;
+  body.site-home .bh-site-nav .bh-title-search .bh-title-search-submit {
+    min-width: 34px !important;
+    height: 18px !important;
     padding: 0 6px !important;
     font-size: 9px !important;
   }
@@ -47798,9 +47800,10 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
   }
 
   body.site-home .bh-title-search-keyword-list {
-    display: flex !important;
-    flex-wrap: nowrap !important;
-    gap: 4px !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 3px !important;
+    overflow: visible !important;
     padding-bottom: 0 !important;
   }
 
@@ -47809,14 +47812,22 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
   }
 
   body.site-home .bh-title-search-keyword-list a {
-    min-height: 24px !important;
-    padding: 0 7px !important;
-    font-size: 9.5px !important;
+    min-width: 0 !important;
+    min-height: 21px !important;
+    padding: 0 4px !important;
+    font-size: 9px !important;
     color: #2e4a60 !important;
     background: #f6f9fb !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   body.site-home .bh-title-search-keyword-list a::after {
+    display: none !important;
+  }
+
+  body.site-home .bh-title-search-keyword-list a:nth-of-type(n + 6) {
     display: none !important;
   }
 

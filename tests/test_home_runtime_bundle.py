@@ -121,7 +121,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("font-size: clamp(23px, 6.3vw, 26px) !important;", block)
         self.assertIn("line-height: 0.98 !important;", block)
         self.assertIn("gap: 4px !important;", block)
-        self.assertIn("min-height: 28px !important;", block)
+        self.assertIn("height: 26px !important;", block)
+        self.assertIn("max-height: 26px !important;", block)
         self.assertIn("min-height: 38px !important;", block)
         self.assertIn("min-height: 26px !important;", block)
         self.assertIn("grid-template-areas: \"brand search actions\" !important;", block)
@@ -133,6 +134,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("left: -136px !important;", block)
         self.assertIn("body.site-home .bh-title-search-keywords {", block)
         self.assertIn("body.site-home .bh-title-search-keyword-group {", block)
+        self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr)) !important;", block)
+        self.assertIn("a:nth-of-type(n + 6)", block)
         self.assertIn("display: block !important;", block)
 
     def test_mobile_header_search_results_expand_beyond_the_compact_input(self):
