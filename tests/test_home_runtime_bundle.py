@@ -118,6 +118,10 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("text-align: center !important;", block)
         self.assertIn("height: clamp(54px, 9svh, 68px) !important;", block)
         self.assertNotIn("background: linear-gradient", block)
+        self.assertIn("font-size: clamp(25px, 6.8vw, 28px) !important;", block)
+        self.assertIn("min-height: 30px !important;", block)
+        self.assertIn("min-height: 38px !important;", block)
+        self.assertIn("min-height: 36px !important;", block)
 
 
 if __name__ == "__main__":

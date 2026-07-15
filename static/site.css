@@ -47691,13 +47691,52 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: clamp(28px, 7.8vw, 33px) !important;
+    font-size: clamp(25px, 6.8vw, 28px) !important;
     line-height: 1.02 !important;
     text-align: center !important;
   }
 
   body.site-home .bh-hero-proof-row {
-    width: min(288px, calc(100vw - 54px)) !important;
-    margin-top: 4px !important;
+    width: min(258px, calc(100vw - 82px)) !important;
+    gap: 4px !important;
+    margin-top: 2px !important;
+  }
+
+  body.site-home .bh-hero-proof-row a,
+  body.site-home .bh-hero-proof-row button {
+    min-height: 30px !important;
+    padding: 0 5px !important;
+    border-radius: 8px !important;
+    font-size: 9.5px !important;
+  }
+
+  body.site-home .bh-search-dock {
+    width: min(calc(100% - 50px), 282px) !important;
+    margin: -50px auto 14px !important;
+    border-radius: 8px !important;
+  }
+
+  body.site-home .bh-search-dock-item {
+    min-height: 38px !important;
+    grid-template-columns: 20px minmax(0, 1fr) !important;
+    column-gap: 4px !important;
+    padding: 4px !important;
+  }
+
+  body.site-home .bh-search-dock-item span {
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 8px !important;
+  }
+
+  body.site-home .bh-search-dock-item strong {
+    font-size: 9.5px !important;
+    line-height: 1.05 !important;
+  }
+
+  body.site-home .bh-search-dock-button {
+    min-height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 10.5px !important;
   }
 }
