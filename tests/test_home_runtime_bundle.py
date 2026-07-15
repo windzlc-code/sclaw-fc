@@ -126,6 +126,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("grid-template-columns: 132px minmax(0, 1fr) 28px !important;", block)
         self.assertIn("transform: scale(0.62) !important;", block)
         self.assertIn("height: 24px !important;", block)
+        self.assertIn("font-size: 8.5px !important;", block)
 
 
 if __name__ == "__main__":

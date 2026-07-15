@@ -47730,8 +47730,9 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
 
   body.site-home .bh-site-brand strong {
     max-width: 105px !important;
-    font-size: 9px !important;
+    font-size: 8.5px !important;
     line-height: 1.1 !important;
+    letter-spacing: -0.035em !important;
   }
 
   body.site-home .bh-site-titlebar-actions {
