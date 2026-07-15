@@ -47637,3 +47637,68 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
 .admin-secret-input-wrap > input {
   padding-right: 44px !important;
 }
+
+/* 2026-07-15: mobile hero keeps the desktop title hierarchy without obscuring the video. */
+@media (max-width: 760px) {
+  body.site-home .hero-media,
+  body.site-home .hero-media--video-carousel {
+    height: clamp(430px, 112vw, 460px) !important;
+  }
+
+  body.site-home .hero-media::after,
+  body.site-home .hero-media--video-carousel::after {
+    height: clamp(54px, 9svh, 68px) !important;
+    background: rgba(5, 16, 24, 0.18) !important;
+    backdrop-filter: blur(9px) saturate(1.03) !important;
+    -webkit-backdrop-filter: blur(9px) saturate(1.03) !important;
+  }
+
+  body.site-home .hero-media-overlay,
+  body.site-home .hero-media--video-carousel .hero-media-overlay,
+  body.site-home .hero-media[data-home-hero-theme="brand"] .hero-media-overlay,
+  body.site-home .hero-media[data-home-hero-theme="tech"] .hero-media-overlay {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 128px var(--home-mobile-hero-pad) 86px !important;
+    background: linear-gradient(180deg, rgba(7, 18, 25, 0.10) 0%, rgba(7, 18, 25, 0.14) 48%, rgba(7, 18, 25, 0.32) 100%) !important;
+  }
+
+  body.site-home .hero-media-overlay-copy {
+    width: min(100%, calc(100vw - 44px)) !important;
+    max-width: 300px !important;
+    align-items: center !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    gap: 8px !important;
+    text-align: center !important;
+    transform: translateY(8px) !important;
+  }
+
+  body.site-home .hero-media-overlay-copy .hero-english-title {
+    display: block !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    color: rgba(255, 255, 255, 0.94) !important;
+    font-size: clamp(11px, 3vw, 13px) !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0.035em !important;
+    text-align: center !important;
+  }
+
+  body.site-home .hero-media-overlay-copy .hero-kicker {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: clamp(28px, 7.8vw, 33px) !important;
+    line-height: 1.02 !important;
+    text-align: center !important;
+  }
+
+  body.site-home .bh-hero-proof-row {
+    width: min(288px, calc(100vw - 54px)) !important;
+    margin-top: 4px !important;
+  }
+}

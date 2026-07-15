@@ -109,6 +109,16 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("bottom: 22px !important;", css)
         self.assertIn("flex-wrap: nowrap !important;", css)
 
+    def test_mobile_hero_keeps_centered_bilingual_title_and_compact_video_overlay(self):
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+        start = css.index("mobile hero keeps the desktop title hierarchy")
+        block = css[start:]
+
+        self.assertIn("display: block !important;", block)
+        self.assertIn("text-align: center !important;", block)
+        self.assertIn("height: clamp(54px, 9svh, 68px) !important;", block)
+        self.assertIn("rgba(7, 18, 25, 0.10)", block)
+
 
 if __name__ == "__main__":
     unittest.main()
