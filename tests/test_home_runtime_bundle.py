@@ -125,8 +125,16 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("grid-template-areas: \"brand search actions\" !important;", block)
         self.assertIn("grid-template-columns: 132px minmax(0, 1fr) 28px !important;", block)
         self.assertIn("transform: scale(0.62) !important;", block)
-        self.assertIn("height: 24px !important;", block)
+        self.assertIn("height: 22px !important;", block)
         self.assertIn("font-size: 8.5px !important;", block)
+        self.assertIn("width: min(366px, calc(100vw - 24px)) !important;", block)
+        self.assertIn("left: -136px !important;", block)
+
+    def test_mobile_header_search_results_expand_beyond_the_compact_input(self):
+        header = (ROOT / "templates" / "partials" / "site_header.html").read_text(encoding="utf-8")
+
+        self.assertIn("form.classList.toggle('has-query', Boolean(q));", header)
+        self.assertIn("form.classList.remove('is-open', 'is-loading', 'has-query');", header)
 
 
 if __name__ == "__main__":

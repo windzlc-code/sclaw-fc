@@ -47751,27 +47751,78 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     grid-area: search !important;
     grid-column: auto !important;
     order: initial !important;
-    width: 100% !important;
-    justify-self: stretch !important;
+    width: calc(100% - 8px) !important;
+    justify-self: center !important;
   }
 
   body.site-home .bh-title-search-box {
-    min-height: 32px !important;
+    min-height: 30px !important;
     grid-template-columns: 14px minmax(0, 1fr) auto !important;
     gap: 4px !important;
     padding: 0 3px 0 8px !important;
   }
 
   body.site-home .bh-title-search-input {
-    height: 32px !important;
+    height: 30px !important;
     font-size: 9px !important;
   }
 
   body.site-home .bh-title-search-submit {
     min-width: 40px !important;
-    height: 24px !important;
+    height: 22px !important;
     padding: 0 6px !important;
     font-size: 9px !important;
+  }
+
+  body.site-home .bh-title-search-panel {
+    top: calc(100% + 7px) !important;
+    right: auto !important;
+    left: -136px !important;
+    width: min(366px, calc(100vw - 24px)) !important;
+    max-height: min(62dvh, 460px) !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    border-radius: 14px !important;
+  }
+
+  body.site-home .bh-title-search.has-query .bh-title-search-keywords {
+    display: none !important;
+  }
+
+  body.site-home .bh-title-search-results {
+    gap: 6px !important;
+  }
+
+  body.site-home .bh-title-search-card {
+    grid-template-columns: 70px minmax(0, 1fr) !important;
+    gap: 8px !important;
+    min-height: 68px !important;
+    padding: 6px !important;
+    border-radius: 10px !important;
+  }
+
+  body.site-home .bh-title-search-card img {
+    width: 70px !important;
+    height: 56px !important;
+    border-radius: 7px !important;
+  }
+
+  body.site-home .bh-title-search-card-copy {
+    gap: 2px !important;
+  }
+
+  body.site-home .bh-title-search-card-copy strong {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  body.site-home .bh-title-search-card-copy em,
+  body.site-home .bh-title-search-card-copy small {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    font-size: 10px !important;
+    line-height: 1.15 !important;
   }
 
   body.site-home .bh-search-dock {
