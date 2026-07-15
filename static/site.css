@@ -47574,3 +47574,66 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
     text-overflow: ellipsis !important;
   }
 }
+
+/* 2026-07-15: final override for LINE admin reveal buttons. Keep them icon-only
+   even when broad admin/button rules are loaded later in the cascade. */
+body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn,
+.admin-secret-input-wrap > button.admin-secret-eye-btn {
+  position: absolute !important;
+  right: 9px !important;
+  top: 50% !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  transform: translateY(-50%) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: #64748b !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  font-size: 0 !important;
+  overflow: hidden !important;
+  z-index: 3 !important;
+  cursor: pointer !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn:hover,
+body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn.is-visible,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn:hover,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn.is-visible,
+.admin-secret-input-wrap > button.admin-secret-eye-btn:hover,
+.admin-secret-input-wrap > button.admin-secret-eye-btn.is-visible {
+  background: #e8f1f8 !important;
+  color: #0f3d63 !important;
+}
+
+body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn svg,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn svg,
+.admin-secret-input-wrap > button.admin-secret-eye-btn svg {
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  min-height: 17px !important;
+  display: block !important;
+  flex: 0 0 17px !important;
+}
+
+body.site-home .admin-secret-input-wrap > input,
+body.site-admin-standalone .admin-secret-input-wrap > input,
+.admin-secret-input-wrap > input {
+  padding-right: 44px !important;
+}

@@ -13466,7 +13466,13 @@
       document.querySelectorAll('[data-admin-secret-toggle]').forEach((btn) => {
         if (btn.dataset.bound === '1') return;
         btn.dataset.bound = '1';
-        btn.addEventListener('click', () => {
+        btn.addEventListener('pointerdown', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
           const id = String(btn.getAttribute('data-admin-secret-toggle') || '');
           const el = document.getElementById(id);
           if (!el) return;
@@ -13475,7 +13481,6 @@
           btn.classList.toggle('is-visible', show);
           const base = String(btn.getAttribute('aria-label') || '').replace(/^顯示|^隱藏/, '');
           btn.setAttribute('aria-label', `${show ? '隱藏' : '顯示'}${base}`);
-          try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
         });
       });
       adminLineSecretInputIds().forEach((id) => {
