@@ -31762,7 +31762,7 @@ def _build_handoff_telegram_body(
     return full
 
 
-def _build_handoff_boss_line_body(
+def _build_handoff_owner_notice_body(
     *,
     name: str,
     phone: str,
@@ -31773,7 +31773,7 @@ def _build_handoff_boss_line_body(
     questionnaire_text: str = "",
     max_len: int = 3600,
 ) -> str:
-    """Concise LINE notice for the owner/advisor; omit internal routing/debug fields."""
+    """Concise owner/advisor notice for Telegram and LINE; omit internal routing/debug fields."""
 
     def clean(value: object, limit: int = 260) -> str:
         return str(value or "").strip()[:limit]
@@ -31797,8 +31797,8 @@ def _build_handoff_boss_line_body(
         q_lines.append(line)
     q_text = "\n".join(q_lines).strip()
 
-    # `note` may already contain the full questionnaire for DB/Telegram compatibility.
-    # For LINE, keep only any non-form freeform note to avoid showing the same form twice.
+    # `note` may already contain the full questionnaire for DB/internal compatibility.
+    # For owner notices, keep only any non-form freeform note to avoid showing the same form twice.
     note_text = clean(note, 1200)
     if "【購買諮詢申請表】" in note_text:
         note_text = note_text.split("【購買諮詢申請表】", 1)[0].strip()
@@ -32293,23 +32293,7 @@ def _human_intake_phone_login_followup(
             _save_support_bot_self_eval(session_id=session_id, message=eval_msg, bot_eval=bot_eval)
         except Exception as exc:
             _log_backend_error("phone-login-bot-eval", exc)
-        tg_body = _build_handoff_telegram_body(
-            name=name,
-            phone=phone,
-            email=email,
-            note=note,
-            action_id=action_id,
-            session_id=session_id,
-            matched_scene_id=matched_scene_id,
-            matched_scene_label=matched_scene_label,
-            context_message=context_message,
-            opinion=opinion,
-            weights=weights,
-            interest_cases=interest_cases,
-            ai_summary=ai_summary,
-            questionnaire_text=questionnaire_text,
-        )
-        boss_line_body = _build_handoff_boss_line_body(
+        owner_notice_body = _build_handoff_owner_notice_body(
             name=name,
             phone=phone,
             email=email,
@@ -32321,7 +32305,7 @@ def _human_intake_phone_login_followup(
         notify_errors: list[str] = []
         if (not telegram_already_sent) and _support_notify_channel_enabled("telegram"):
             try:
-                _telegram_send_and_bridge(tg_body, session_id, "human_handoff")
+                _telegram_send_and_bridge(owner_notice_body[:3900], session_id, "human_handoff")
                 telegram_sent_now = True
                 with get_conn() as conn:
                     conn.execute(
@@ -32335,7 +32319,7 @@ def _human_intake_phone_login_followup(
                 _log_backend_error("phone-login-telegram-notify", err)
         if (not line_already_sent) and _support_notify_channel_enabled("line"):
             try:
-                _line_send_and_bridge(boss_line_body[:4900], session_id, "human_handoff")
+                _line_send_and_bridge(owner_notice_body[:4900], session_id, "human_handoff")
                 line_sent_now = True
                 with get_conn() as conn:
                     conn.execute(
@@ -32581,23 +32565,7 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
         _save_support_bot_self_eval(session_id=session_id, message=eval_msg, bot_eval=bot_eval)
     except Exception:
         pass
-    tg_body = _build_handoff_telegram_body(
-        name=name,
-        phone=phone,
-        email=email,
-        note=note,
-        action_id=action_id,
-        session_id=session_id,
-        matched_scene_id=matched_scene_id,
-        matched_scene_label=matched_scene_label,
-        context_message=context_message,
-        opinion=opinion,
-        weights=weights,
-        interest_cases=interest_cases,
-        ai_summary=ai_summary,
-        questionnaire_text=questionnaire_text,
-    )
-    boss_line_body = _build_handoff_boss_line_body(
+    owner_notice_body = _build_handoff_owner_notice_body(
         name=name,
         phone=phone,
         email=email,
@@ -32612,13 +32580,13 @@ def _human_intake_core(payload: HumanIntakeRequest, request: Request) -> JSONRes
     line_err = ""
     if _support_notify_channel_enabled("telegram"):
         try:
-            _telegram_send_and_bridge(tg_body, session_id, "human_handoff")
+            _telegram_send_and_bridge(owner_notice_body[:3900], session_id, "human_handoff")
             tg_sent = True
         except Exception as exc:
             tg_err = _sanitize_telegram_error_detail(exc)[:300]
     if _support_notify_channel_enabled("line"):
         try:
-            _line_send_and_bridge(boss_line_body[:4900], session_id, "human_handoff")
+            _line_send_and_bridge(owner_notice_body[:4900], session_id, "human_handoff")
             line_sent = True
         except Exception as exc:
             line_err = _sanitize_line_error_detail(exc)[:300]
