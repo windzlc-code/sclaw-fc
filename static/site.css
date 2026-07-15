@@ -47710,6 +47710,55 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     font-size: 9.5px !important;
   }
 
+  body.site-home .bh-site-nav {
+    gap: 5px 8px !important;
+    padding: 8px 14px 0 !important;
+  }
+
+  body.site-home .bh-site-brand {
+    grid-template-columns: 26px minmax(0, 1fr) !important;
+    gap: 7px !important;
+  }
+
+  body.site-home .bh-site-brand img {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  body.site-home .bh-site-brand strong {
+    max-width: 190px !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+  }
+
+  body.site-home .bh-site-titlebar-actions .site-language-switch {
+    transform: scale(0.72) !important;
+  }
+
+  body.site-home .bh-title-search {
+    width: calc(100% - 10px) !important;
+    justify-self: center !important;
+  }
+
+  body.site-home .bh-title-search-box {
+    min-height: 36px !important;
+    grid-template-columns: 18px minmax(0, 1fr) auto !important;
+    gap: 5px !important;
+    padding: 0 4px 0 10px !important;
+  }
+
+  body.site-home .bh-title-search-input {
+    height: 36px !important;
+    font-size: 10.5px !important;
+  }
+
+  body.site-home .bh-title-search-submit {
+    min-width: 48px !important;
+    height: 28px !important;
+    padding: 0 9px !important;
+    font-size: 10px !important;
+  }
+
   body.site-home .bh-search-dock {
     width: min(calc(100% - 50px), 282px) !important;
     margin: -50px auto 14px !important;
