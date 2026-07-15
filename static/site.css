@@ -47668,19 +47668,20 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     align-items: center !important;
     margin: 0 auto !important;
     padding: 0 !important;
-    gap: 8px !important;
+    gap: 4px !important;
     text-align: center !important;
-    transform: translateY(8px) !important;
+    transform: translateY(6px) !important;
   }
 
   body.site-home .hero-media-overlay-copy .hero-english-title {
     display: block !important;
+    width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
     color: rgba(255, 255, 255, 0.94) !important;
     font-size: clamp(11px, 3vw, 13px) !important;
     font-weight: 800 !important;
-    line-height: 1.2 !important;
+    line-height: 1.08 !important;
     letter-spacing: 0.035em !important;
     text-align: center !important;
   }
@@ -47691,20 +47692,20 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: clamp(25px, 6.8vw, 28px) !important;
-    line-height: 1.02 !important;
+    font-size: clamp(23px, 6.3vw, 26px) !important;
+    line-height: 0.98 !important;
     text-align: center !important;
   }
 
   body.site-home .bh-hero-proof-row {
     width: min(258px, calc(100vw - 82px)) !important;
     gap: 4px !important;
-    margin-top: 2px !important;
+    margin-top: 0 !important;
   }
 
   body.site-home .bh-hero-proof-row a,
   body.site-home .bh-hero-proof-row button {
-    min-height: 30px !important;
+    min-height: 26px !important;
     padding: 0 5px !important;
     border-radius: 8px !important;
     font-size: 9.5px !important;
