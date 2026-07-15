@@ -47756,20 +47756,22 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
   }
 
   body.site-home .bh-title-search-box {
-    min-height: 30px !important;
+    min-height: 28px !important;
     grid-template-columns: 14px minmax(0, 1fr) auto !important;
     gap: 4px !important;
     padding: 0 3px 0 8px !important;
+    border-width: 1px !important;
+    border-radius: 12px !important;
   }
 
   body.site-home .bh-title-search-input {
-    height: 30px !important;
+    height: 28px !important;
     font-size: 9px !important;
   }
 
   body.site-home .bh-title-search-submit {
-    min-width: 40px !important;
-    height: 22px !important;
+    min-width: 36px !important;
+    height: 20px !important;
     padding: 0 6px !important;
     font-size: 9px !important;
   }
@@ -47778,31 +47780,43 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
     top: calc(100% + 7px) !important;
     right: auto !important;
     left: -136px !important;
-    width: min(366px, calc(100vw - 24px)) !important;
+    width: min(344px, calc(100vw - 40px)) !important;
     max-height: min(62dvh, 460px) !important;
-    gap: 8px !important;
-    padding: 10px !important;
-    border-radius: 14px !important;
+    gap: 6px !important;
+    padding: 8px !important;
+    border-radius: 12px !important;
   }
 
-  body.site-home .bh-title-search.has-query .bh-title-search-keywords {
+  /* Keep the desktop keyword shortcuts visible for both empty and typed searches.
+     A full-width group label in the non-wrapping mobile row previously pushed all
+     actual shortcuts beyond the visible horizontal scroll start. */
+  body.site-home .bh-title-search-keywords {
     display: block !important;
-    padding-bottom: 6px !important;
+    padding-bottom: 5px !important;
+    border-bottom-width: 1px !important;
   }
 
-  body.site-home .bh-title-search.has-query .bh-title-search-keyword-list {
-    gap: 5px !important;
+  body.site-home .bh-title-search-keyword-list {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
     padding-bottom: 0 !important;
   }
 
-  body.site-home .bh-title-search.has-query .bh-title-search-keyword-group {
+  body.site-home .bh-title-search-keyword-group {
     display: none !important;
   }
 
-  body.site-home .bh-title-search.has-query .bh-title-search-keyword-list a {
-    min-height: 26px !important;
-    padding: 0 8px !important;
-    font-size: 10px !important;
+  body.site-home .bh-title-search-keyword-list a {
+    min-height: 24px !important;
+    padding: 0 7px !important;
+    font-size: 9.5px !important;
+    color: #2e4a60 !important;
+    background: #f6f9fb !important;
+  }
+
+  body.site-home .bh-title-search-keyword-list a::after {
+    display: none !important;
   }
 
   body.site-home .bh-title-search-results {
