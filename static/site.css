@@ -31810,6 +31810,50 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
   margin: 0 !important;
 }
 
+.admin-secret-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.admin-secret-input-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 42px !important;
+}
+
+.admin-secret-eye-btn {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.admin-secret-eye-btn:hover,
+.admin-secret-eye-btn.is-visible {
+  color: #0f3d63;
+  background: #e8f1f8;
+}
+
+.admin-secret-eye-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 #admin-tab-telegram .admin-notify-account-toolbar {
   display: grid;
   grid-template-columns: minmax(13rem, 1fr) repeat(2, max-content);

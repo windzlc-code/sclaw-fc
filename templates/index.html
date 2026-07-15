@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260715-intake-contact-c">
+  <link rel="stylesheet" href="/static/site.css?v=20260715-line-mask-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -1976,25 +1976,39 @@
           <div class="admin-notify-setup-block">
             <h5>LINE 收件資料</h5>
             <div class="admin-notify-form-grid">
-            <label class="muted">LINE Channel access token（留空不變）
-              <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="Messaging API 頁面產生的 Channel access token">
+            <label class="muted">LINE Channel access token
+              <span class="admin-secret-input-wrap">
+                <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="Messaging API 頁面產生的 Channel access token">
+                <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-access-token" aria-label="顯示 LINE Channel access token" title="顯示 / 隱藏">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </span>
             </label>
-            <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
-              <input id="admin-line-clear-token" type="checkbox"> 清除已儲存 access token
-            </label>
-            <label class="muted">LINE Channel secret（留空不變）
-              <input id="admin-line-channel-secret" type="password" autocomplete="new-password" placeholder="Basic settings 的 Channel secret，不是 Channel ID">
-            </label>
-            <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
-              <input id="admin-line-clear-secret" type="checkbox"> 清除已儲存 Channel secret
+            <label class="muted">LINE Channel secret
+              <span class="admin-secret-input-wrap">
+                <input id="admin-line-channel-secret" type="password" autocomplete="new-password" placeholder="Basic settings 的 Channel secret，不是 Channel ID">
+                <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-channel-secret" aria-label="顯示 LINE Channel secret" title="顯示 / 隱藏">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </span>
             </label>
             <label class="muted">顧問 LINE 收件 ID
-              <input id="admin-line-staff-user-id" type="text" autocomplete="off" placeholder="U / C / R 開頭；不能填數字 Channel ID">
+              <span class="admin-secret-input-wrap">
+                <input id="admin-line-staff-user-id" type="password" autocomplete="off" placeholder="U / C / R 開頭；不能填數字 Channel ID">
+                <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-staff-user-id" aria-label="顯示顧問 LINE 收件 ID" title="顯示 / 隱藏">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </span>
             </label>
             </div>
             <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。</p>
             <label class="muted">LINE Webhook URL
-              <input id="admin-line-webhook-url" type="url" autocomplete="off" placeholder="https://www.manuvip.com/api/line/webhook">
+              <span class="admin-secret-input-wrap">
+                <input id="admin-line-webhook-url" type="password" autocomplete="off" placeholder="https://www.manuvip.com/api/line/webhook">
+                <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-webhook-url" aria-label="顯示 LINE Webhook URL" title="顯示 / 隱藏">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </span>
             </label>
             <div class="search-row-basic" style="margin-top:0.5rem;">
               <button type="button" onclick="saveAdminLineSettings()">儲存 LINE 設定</button>
@@ -2420,7 +2434,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260715-intake-contact-c" defer></script>
+  <script src="/static/index-app.js?v=20260715-line-mask-a" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>

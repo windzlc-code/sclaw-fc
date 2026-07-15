@@ -13425,12 +13425,74 @@
       }
     }
 
+    function adminLineSecretInputIds() {
+      return ['admin-line-access-token', 'admin-line-channel-secret', 'admin-line-staff-user-id', 'admin-line-webhook-url'];
+    }
+
+    function maskAdminLineInputs() {
+      adminLineSecretInputIds().forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.type = 'password';
+        const btn = document.querySelector(`[data-admin-secret-toggle="${id}"]`);
+        if (btn) {
+          btn.classList.remove('is-visible');
+          btn.setAttribute('aria-label', String(btn.getAttribute('aria-label') || '').replace(/^隱藏/, '顯示'));
+        }
+      });
+    }
+
+    function updateAdminLineInlineStatus(prefix) {
+      const msg = document.getElementById('admin-line-msg');
+      if (!msg) return;
+      const token = String(document.getElementById('admin-line-access-token')?.value || '').trim();
+      const secret = String(document.getElementById('admin-line-channel-secret')?.value || '').trim();
+      const staff = String(document.getElementById('admin-line-staff-user-id')?.value || '').trim();
+      const webhook = String(document.getElementById('admin-line-webhook-url')?.value || '').trim();
+      const missing = [];
+      if (!token) missing.push('access token');
+      if (!secret) missing.push('Channel secret');
+      if (!staff) missing.push('收件 ID');
+      if (!webhook) missing.push('Webhook URL');
+      const whHint = webhook && webhook !== 'https://www.manuvip.com/api/line/webhook'
+        ? '；Webhook 目前不是正式站地址，建議改為 https://www.manuvip.com/api/line/webhook'
+        : '';
+      const head = prefix || 'LINE 設定';
+      msg.textContent = missing.length
+        ? `${head}：尚缺 ${missing.join('、')}。清空欄位並儲存會清除該設定。${whHint}`
+        : `${head}：必要欄位已填寫。清空欄位並儲存會清除該設定。${whHint}`;
+    }
+
+    function initAdminLineSecretControls() {
+      document.querySelectorAll('[data-admin-secret-toggle]').forEach((btn) => {
+        if (btn.dataset.bound === '1') return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+          const id = String(btn.getAttribute('data-admin-secret-toggle') || '');
+          const el = document.getElementById(id);
+          if (!el) return;
+          const show = el.type === 'password';
+          el.type = show ? 'text' : 'password';
+          btn.classList.toggle('is-visible', show);
+          const base = String(btn.getAttribute('aria-label') || '').replace(/^顯示|^隱藏/, '');
+          btn.setAttribute('aria-label', `${show ? '隱藏' : '顯示'}${base}`);
+          try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); }
+        });
+      });
+      adminLineSecretInputIds().forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.lineStatusBound === '1') return;
+        el.dataset.lineStatusBound = '1';
+        el.addEventListener('input', () => updateAdminLineInlineStatus('LINE 設定已變更'));
+      });
+    }
+
     async function loadAdminLineSettings() {
       const msg = document.getElementById('admin-line-msg');
       if (!adminPanelPassword) {
         if (msg) msg.textContent = '';
         return;
       }
+      initAdminLineSecretControls();
       if (msg) msg.textContent = '載入 LINE 設定中…';
       try {
         const res = await fetchSclawApiFirstOk(['/api/line/settings', '/api/admin/line-settings'], {
@@ -13439,24 +13501,16 @@
         const data = await parseApiResponseSafe(res);
         const tok = document.getElementById('admin-line-access-token');
         const secret = document.getElementById('admin-line-channel-secret');
-        const clearTok = document.getElementById('admin-line-clear-token');
-        const clearSecret = document.getElementById('admin-line-clear-secret');
-        if (tok) tok.value = '';
-        if (secret) secret.value = '';
-        if (clearTok) clearTok.checked = false;
-        if (clearSecret) clearSecret.checked = false;
+        if (tok) tok.value = String(data.channel_access_token || '');
+        if (secret) secret.value = String(data.channel_secret || '');
         const staff = document.getElementById('admin-line-staff-user-id');
         const webhook = document.getElementById('admin-line-webhook-url');
         if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
+        maskAdminLineInputs();
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
         updateLineTabAutoStatusFromSnapshot(data);
-        const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '已設定';
-        const wh = String(data.webhook_url || '').trim();
-        const whHint = wh && wh !== 'https://www.manuvip.com/api/line/webhook'
-          ? '；Webhook 目前不是正式站地址，建議改為 https://www.manuvip.com/api/line/webhook'
-          : '';
-        if (msg) msg.textContent = `LINE 連線狀態：${data.channel_access_token_set ? masked : '未設定'}${whHint}`;
+        updateAdminLineInlineStatus('LINE 連線狀態');
       } catch (err) {
         if (msg) msg.textContent = `載入 LINE 失敗：${formatApiError(err)}`;
         const cfgEl = document.getElementById('admin-line-config-line');
@@ -13470,11 +13524,12 @@
         if (msg) msg.textContent = '請先登入後台。';
         return;
       }
+      initAdminLineSecretControls();
       const payload = {
         channel_access_token: String(document.getElementById('admin-line-access-token')?.value || '').trim(),
-        clear_channel_access_token: Boolean(document.getElementById('admin-line-clear-token')?.checked),
+        clear_channel_access_token: false,
         channel_secret: String(document.getElementById('admin-line-channel-secret')?.value || '').trim(),
-        clear_channel_secret: Boolean(document.getElementById('admin-line-clear-secret')?.checked),
+        clear_channel_secret: false,
         staff_user_id: String(document.getElementById('admin-line-staff-user-id')?.value || '').trim(),
         webhook_url: String(document.getElementById('admin-line-webhook-url')?.value || '').trim(),
         notify_channels: collectAdminLineNotifyChannels(),
@@ -13489,16 +13544,16 @@
         const data = await parseApiResponseSafe(res);
         const tok = document.getElementById('admin-line-access-token');
         const secret = document.getElementById('admin-line-channel-secret');
-        const clearTok = document.getElementById('admin-line-clear-token');
-        const clearSecret = document.getElementById('admin-line-clear-secret');
-        if (tok) tok.value = '';
-        if (secret) secret.value = '';
-        if (clearTok) clearTok.checked = false;
-        if (clearSecret) clearSecret.checked = false;
+        const staff = document.getElementById('admin-line-staff-user-id');
+        const webhook = document.getElementById('admin-line-webhook-url');
+        if (tok) tok.value = String(data.channel_access_token || '');
+        if (secret) secret.value = String(data.channel_secret || '');
+        if (staff) staff.value = String(data.staff_user_id || '');
+        if (webhook) webhook.value = String(data.webhook_url || '');
+        maskAdminLineInputs();
         applyAdminLineNotifyChannels(data.notify_channels || payload.notify_channels);
         updateLineTabAutoStatusFromSnapshot(data);
-        const masked = data.channel_access_token_masked ? String(data.channel_access_token_masked) : '已設定';
-        if (msg) msg.textContent = `已儲存 LINE 設定。連線狀態：${data.channel_access_token_set ? masked : '未設定'}`;
+        updateAdminLineInlineStatus('已儲存 LINE 設定');
       } catch (err) {
         if (msg) msg.textContent = `儲存 LINE 失敗：${formatApiError(err)}`;
       }

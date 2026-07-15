@@ -17542,8 +17542,11 @@ def admin_line_snapshot() -> dict:
     webhook_url = _line_webhook_url()
     return {
         "channel_access_token_set": bool(token),
+        "channel_access_token": token,
         "channel_access_token_masked": _mask_line_token(token),
         "channel_secret_set": bool(secret),
+        "channel_secret": secret,
+        "channel_secret_masked": _mask_line_token(secret),
         "staff_user_id": staff,
         "webhook_url": webhook_url,
         "notify_channels": _support_notify_channels(),
@@ -17554,13 +17557,21 @@ def admin_line_snapshot() -> dict:
 def _apply_admin_line_settings(payload: AdminLinePut) -> None:
     if payload.clear_channel_access_token:
         delete_kv(KV_LINE_CHANNEL_ACCESS_TOKEN)
-    elif payload.channel_access_token is not None and str(payload.channel_access_token).strip():
-        set_kv(KV_LINE_CHANNEL_ACCESS_TOKEN, _normalize_line_token(str(payload.channel_access_token)))
+    elif payload.channel_access_token is not None:
+        token_target = _normalize_line_token(str(payload.channel_access_token))
+        if token_target:
+            set_kv(KV_LINE_CHANNEL_ACCESS_TOKEN, token_target)
+        else:
+            delete_kv(KV_LINE_CHANNEL_ACCESS_TOKEN)
 
     if payload.clear_channel_secret:
         delete_kv(KV_LINE_CHANNEL_SECRET)
-    elif payload.channel_secret is not None and str(payload.channel_secret).strip():
-        set_kv(KV_LINE_CHANNEL_SECRET, _normalize_line_secret(str(payload.channel_secret)))
+    elif payload.channel_secret is not None:
+        secret_target = _normalize_line_secret(str(payload.channel_secret))
+        if secret_target:
+            set_kv(KV_LINE_CHANNEL_SECRET, secret_target)
+        else:
+            delete_kv(KV_LINE_CHANNEL_SECRET)
 
     if payload.staff_user_id is not None:
         staff_target = _normalize_line_user_id(payload.staff_user_id)
