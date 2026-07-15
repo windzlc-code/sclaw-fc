@@ -148,6 +148,16 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("form.classList.toggle('has-query', Boolean(q));", header)
         self.assertIn("form.classList.remove('is-open', 'is-loading', 'has-query');", header)
 
+    def test_mobile_keyword_dropdown_matches_compact_header_scale(self):
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+        start = css.index("Keep the keyword navigation dropdown proportional")
+        block = css[start:]
+
+        self.assertIn("width: 184px !important;", block)
+        self.assertIn("max-height: 272px !important;", block)
+        self.assertIn("min-height: 24px !important;", block)
+        self.assertIn("font-size: 11px !important;", block)
+
 
 if __name__ == "__main__":
     unittest.main()
