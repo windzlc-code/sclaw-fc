@@ -5350,10 +5350,14 @@
     }
 
     /** 客服氣泡：以口語正文為主，不再套用「結論：／重點：」模板（避免與後台場景標籤疊加）。 */
-    function buildSupportConclusionText(rawText) {
+    function buildSupportConclusionText(rawText, options = {}) {
       const cleaned = compactSupportChatReplyText(normalizeSupportChatDisplayText(stripSupportChatInternalNoise(rawText)));
       if (!cleaned) return { displayText: '', voiceScript: '' };
       const voiceScript = cleaned.replace(/\s+/g, ' ').trim();
+      if (options && options.fullDisplay) {
+        const full = normalizeSupportChatDisplayText(stripSupportChatInternalNoise(rawText));
+        return { displayText: full || cleaned, voiceScript };
+      }
       return { displayText: cleaned, voiceScript };
     }
 
@@ -10956,7 +10960,8 @@
             markLastSupportUserMessageTelegramDelivery(data.advisor_notify || data.telegram_notify || data.line_notify);
           }
           const reply = data.reply || data.detail || '（無回覆）';
-          const cooked = buildSupportConclusionText(typeof reply === 'string' ? reply : String(reply));
+          const fullDisplayReply = Boolean(data && data.llm && data.llm.selected_cases_compare_fast_reply);
+          const cooked = buildSupportConclusionText(typeof reply === 'string' ? reply : String(reply), { fullDisplay: fullDisplayReply });
           supportChatSpeechScript = cooked.voiceScript || '';
           supportChatHistory.push({
             role: 'assistant',
