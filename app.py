@@ -34073,8 +34073,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     line_customer_followup_sent = False
     line_customer_followup_err = ""
     support_has_handoff_thread = _support_session_has_telegram_thread(session_id) or _support_session_has_line_thread(session_id)
-    intake_required_before_human = bool(sales_mcp.get("should_notify_human")) and not support_has_handoff_thread
+    customer_chat_forwarding_disabled = True
+    intake_required_before_human = bool(sales_mcp.get("should_notify_human"))
     sales_mcp["intake_required_before_human_reply"] = intake_required_before_human
+    sales_mcp["customer_chat_forwarding_disabled"] = customer_chat_forwarding_disabled
     if bool(sales_mcp.get("should_notify_human")):
         sid = str((matched or {}).get("id") or "")
         slabel = str((matched or {}).get("label") or "")
@@ -34099,61 +34101,15 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         notify_body = "\n".join(lines)
     else:
         notify_body = ""
-    if (
-        not tg_high_intent_sent
-        and _support_notify_channel_enabled("telegram")
-        and _support_session_has_telegram_thread(session_id)
-    ):
-        tg_customer_followup_attempted = True
-        try:
-            reason = "此 Session 已進入人工/Telegram 接續，客戶在網頁繼續回覆"
-            _telegram_send_support_customer_followup(
-                session_id=session_id,
-                message=msg,
-                reason=reason,
-                selected_cases=list(knowledge_meta.get("selected_cases") or []),
-            )
-            tg_customer_followup_sent = True
-        except Exception as exc:
-            tg_customer_followup_err = _sanitize_telegram_error_detail(exc)
-            _push_backend_error_log(
-                method="POST",
-                path="/api/ai/chat-support",
-                status_code=502,
-                message=f"telegram_customer_followup: {tg_customer_followup_err}"[:900],
-                elapsed_ms=0,
-            )
-    if (
-        not line_high_intent_sent
-        and _support_notify_channel_enabled("line")
-        and _support_session_has_line_thread(session_id)
-    ):
-        line_customer_followup_attempted = True
-        try:
-            reason = "此 Session 已進入人工/LINE 接續，客戶在網頁繼續回覆"
-            _line_send_support_customer_followup(
-                session_id=session_id,
-                message=msg,
-                reason=reason,
-                selected_cases=list(knowledge_meta.get("selected_cases") or []),
-            )
-            line_customer_followup_sent = True
-        except Exception as exc:
-            line_customer_followup_err = _sanitize_line_error_detail(exc)
-            _push_backend_error_log(
-                method="POST",
-                path="/api/ai/chat-support",
-                status_code=502,
-                message=f"line_customer_followup: {line_customer_followup_err}"[:900],
-                elapsed_ms=0,
-            )
+    # 普通智能客服對話只保留在站內 session，不推送到 Telegram/LINE。
+    # 只有正式諮詢表單 `_human_intake_core` 送出的 human_handoff 會通知顧問。
     if bool(sales_mcp.get("should_notify_human")):
         if tg_high_intent_sent or tg_customer_followup_sent or line_high_intent_sent or line_customer_followup_sent:
             reply = (
                 str(reply or "").rstrip()
                 + "\n\n已同步給顧問。"
             )
-        elif intake_required_before_human:
+        elif intake_required_before_human or support_has_handoff_thread:
             reply = (
                 str(reply or "").rstrip()
                 + "\n\n需要對接時，請先填寫諮詢表與聯絡方式。"
