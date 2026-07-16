@@ -31209,11 +31209,13 @@ def _support_lookup_managed_case_rows(
                 ("title", item.get("title_zh_hant") or item.get("title_zh_hans") or item.get("title_original")),
                 ("source", item.get("source_item_id")),
             ]
-            keys = [
-                f"{label}:{re.sub(r'\\s+', '', str(value or '')).strip().lower()}"
-                for label, value in candidates
-                if str(value or "").strip()
-            ]
+            keys = []
+            for label, value in candidates:
+                raw_key = str(value or "").strip()
+                if not raw_key:
+                    continue
+                compact_key = re.sub(r"\s+", "", raw_key).lower()
+                keys.append(f"{label}:{compact_key}")
             if not keys:
                 keys = [f"content:{item.get('content_id') or ''}"]
             if any(key in seen for key in keys):
