@@ -18746,8 +18746,12 @@ def _bind_session_to_line_user(*, session_id: str, line_user_id: str, display_na
     return {"session_id": sid, "line_user_id": luid}
 
 
+def _strip_line_internal_truncation_marker(text: str) -> str:
+    return re.sub(r"\s*[（(]\s*[內内]容[過过][長长][，,]\s*已截[斷断]\s*[）)]\s*", "", str(text or "")).strip()
+
+
 def _line_text_messages(text: str, *, limit: int = 4900, max_messages: int = 5) -> list[dict[str, str]]:
-    raw = str(text or "").strip()
+    raw = _strip_line_internal_truncation_marker(text)
     if not raw:
         raw = "（無內容）"
     chunks: list[str] = []
@@ -18763,8 +18767,7 @@ def _line_text_messages(text: str, *, limit: int = 4900, max_messages: int = 5) 
         chunks.append(rest[:cut].strip())
         rest = rest[cut:].strip()
     if rest and chunks:
-        tail = "\n\n（內容過長，已截斷）"
-        chunks[-1] = (chunks[-1][: max(0, limit - len(tail))] + tail).strip()
+        chunks[-1] = chunks[-1][:limit].strip()
     return [{"type": "text", "text": chunk[:limit]} for chunk in chunks[:max_messages] if chunk]
 
 
@@ -19065,7 +19068,7 @@ def _line_load_conversation(session_id: str) -> list[dict[str, str]]:
             if not isinstance(it, dict):
                 continue
             role = str(it.get("role") or "").strip()
-            content = str(it.get("content") or "").strip()
+            content = _strip_line_internal_truncation_marker(str(it.get("content") or ""))
             if role in {"user", "assistant"} and content:
                 out.append({"role": role, "content": content[:8000]})
         return out
@@ -19121,7 +19124,9 @@ def _line_build_smart_support_reply(session_id: str, text_raw: str) -> str:
         data = json.loads(body.decode("utf-8"))
     except Exception:
         data = {}
-    reply = str(data.get("reply") or data.get("detail") or "已收到，我先幫您整理資訊。").strip()
+    reply = _strip_line_internal_truncation_marker(
+        str(data.get("reply") or data.get("detail") or "已收到，我先幫您整理資訊。")
+    )
     history.append({"role": "user", "content": text_raw[:8000]})
     history.append({"role": "assistant", "content": reply[:8000]})
     _line_save_conversation(session_id, history)
@@ -19236,7 +19241,7 @@ def _process_line_customer_message(event: dict[str, Any], line_source_id: str, r
         )
         reply = "已收到訊息，但智能客服暫時無法產生完整回覆。請稍後再試，或輸入「人工」讓顧問接手。"
     try:
-        _line_reply_or_push(reply_token, line_source_id, reply[:12000])
+        _line_reply_or_push(reply_token, line_source_id, _strip_line_internal_truncation_marker(reply)[:12000])
     except Exception as exc:
         _push_telegram_debug_event(
             "line_reply_error",
