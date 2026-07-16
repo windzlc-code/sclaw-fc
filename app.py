@@ -5553,7 +5553,9 @@ def _home_featured_case_public_row(row: dict[str, Any], *, sync_static: bool = T
         "title": title,
         "title_zh_hant": title,
         "title_zh_hans": title,
-        "title_original": str(row.get("title_original") or title),
+        # Public card payloads must not expose the crawler's raw Japanese
+        # title.  Keep that source field in the database only.
+        "title_original": title,
         "source_name": source_name,
         "region": region,
         "jp_region_display_zh": region,
@@ -5665,7 +5667,7 @@ def _home_featured_case_public_row_fast(
         "title": title,
         "title_zh_hant": title,
         "title_zh_hans": title,
-        "title_original": str(row.get("title_original") or title),
+        "title_original": title,
         "source_name": source_name,
         "region": region,
         "jp_region_display_zh": region,
@@ -37118,6 +37120,13 @@ def _related_article_row_lite(row: Any, *, allow_thumb_sync_fetch: bool = False)
         title = f"{src or '站內'} 案件 #{sid}" if sid > 0 else (src or "站內案件")
     d["seo_title"] = title
     d["thumb_url"] = _related_article_thumb_url(d, allow_sync_fetch=allow_thumb_sync_fetch)
+    # This public lightweight endpoint is consumed by the browser.  Raw
+    # crawler text is only needed while selecting a thumbnail above; never
+    # send it back to the client where an untranslated Japanese fragment could
+    # be exposed through a future UI change.
+    source_label = _portal_case_source_name_display(d.get("source_name") or "", d.get("item_url") or "")
+    d["source_name"] = source_label if source_label and not _portal_case_has_kana(source_label) else "來源站"
+    d.pop("body_original", None)
     return d
 
 

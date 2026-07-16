@@ -1037,6 +1037,10 @@ def _portal_case_text_hant(raw: Any, *, max_len: int = 260) -> str:
         out = out.replace(jp, zh)
     for jp, zh in _PORTAL_CASE_TEXT_HANT_REPL:
         out = out.replace(jp, zh)
+    # 交通欄位常見「○○駅より徒歩10分」或「○○駅から徒歩10分」。
+    # 前面的詞彙替換會先轉成「○○站より步行10分」，須移除助詞才不會把日文直接帶到前台。
+    out = re.sub(r"(站)\s*(?:より|から)\s*(步行)", r"\1\2", out)
+    out = re.sub(r"(站)\s*(?:より|から)\s*(巴士)", r"\1搭\2", out)
     out = out.replace("｜", " | ")
     out = re.sub(r"\s+", " ", out)
     out = re.sub(r"\s*([|/・、，,])\s*", r"\1", out)

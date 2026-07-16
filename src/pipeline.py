@@ -7,6 +7,8 @@ from urllib.parse import unquote
 from datetime import datetime, timezone
 from pathlib import Path
 
+from opencc import OpenCC
+
 from src.classifier import classify_content, infer_region_code
 from src.db import get_conn
 from src.ingest_gate import should_write_content_item
@@ -31,6 +33,59 @@ _JP_ACCESS_LINE_RE = re.compile(
 )
 _JP_WARD_RE = re.compile(r"([\u3040-\u30FF\u3400-\u9FFF]{1,16}区)")
 _JP_CITY_RE = re.compile(r"([\u3040-\u30FF\u3400-\u9FFF]{1,16}市)")
+_CC_T2S = OpenCC("t2s")
+
+
+def _listing_text_zh(raw: object, *, max_len: int = 220) -> str:
+    """Return a display-safe Chinese rendition for a raw listing fragment.
+
+    Listing cache fields are rendered directly on public article pages.  The
+    crawler's original Japanese is deliberately kept in ``source_items``, but
+    it must never be copied back into ``*_zh_*`` fields when machine
+    translation is unavailable.  The portal formatter covers common Japanese
+    real-estate vocabulary; anything that still contains kana is omitted
+    rather than presented as Chinese.
+    """
+    try:
+        from src.portal_case_search import _portal_case_kana_safe
+
+        return _portal_case_kana_safe(raw, max_len=max_len)
+    except Exception:
+        return ""
+
+
+def _listing_address_zh(raw: object) -> str:
+    text = _listing_text_zh(raw, max_len=220)
+    if not text:
+        return ""
+    # Parser fallback strings often concatenate address, map and construction
+    # metadata.  The address is the useful public part.
+    text = re.split(r"\s*(?:地圖|地図|築年月|主要採光面|交通)\s*", text, maxsplit=1)[0]
+    return text.strip(" ：:|、，,")[:100]
+
+
+def _build_listing_zh_title(src: dict, fields: dict | None = None) -> tuple[str, str]:
+    """Build a Chinese-only public listing title without mutating raw source data."""
+    if fields is None:
+        try:
+            from src.case_metadata import infer_case_metadata
+            from src.portal_case_search import _extract_listing_fields
+
+            d = dict(src or {})
+            fields = _extract_listing_fields(d, meta=infer_case_metadata(d))
+        except Exception:
+            fields = {}
+    f = dict(fields or {})
+    parts = [
+        "日本房產案件",
+        _listing_address_zh(f.get("address_line_jp")),
+        _listing_text_zh(f.get("building_type_zh"), max_len=36),
+        _listing_text_zh(f.get("price_text_hant"), max_len=48),
+    ]
+    hant = "｜".join(x for x in parts if x).strip("｜")[:500]
+    if not hant:
+        hant = "日本房產案件"
+    return hant, _CC_T2S.convert(hant)[:500]
 
 
 def _parse_jp_access_station_walk(access: str) -> tuple[str, int, str]:
@@ -249,7 +304,7 @@ def _bind_jp_transit_to_content_item(conn, *, source_item_id: int, src_row: dict
 
 
 def _build_listing_zh_fallback(src: dict) -> tuple[str, str]:
-    """翻譯服務失敗時，依已抽取欄位生成可讀的中日房源摘要。"""
+    """依已抽取欄位生成可讀、且不含日文假名的房源摘要。"""
     try:
         from src.case_metadata import infer_case_metadata
         from src.portal_case_search import _extract_listing_fields
@@ -260,87 +315,11 @@ def _build_listing_zh_fallback(src: dict) -> tuple[str, str]:
     f = _extract_listing_fields(d, meta=meta)
 
     def _v(raw: object, *, max_len: int = 220) -> str:
-        s = re.sub(r"\s+", " ", str(raw or "")).strip(" ：:-")
-        if not s or s in {"—", "-", "None", "null"}:
-            return "—"
-        return s[:max_len]
+        return _listing_text_zh(raw, max_len=max_len)
 
-    def _source_highlights(*, max_items: int = 6) -> list[str]:
-        body = re.sub(r"\s+", " ", str(d.get("body_original") or "")).strip()
-        if not body:
-            return []
-        parts = re.split(r"(?<=[。！？!?])\s+", body)
-        if len(parts) <= 1:
-            parts = re.split(r"\s{2,}|(?<=\))\s+|(?<=）)\s+", body)
-        good_tokens = (
-            "徒歩",
-            "駅",
-            "専有面積",
-            "平米",
-            "㎡",
-            "LDK",
-            "収納",
-            "ウォークイン",
-            "キッチン",
-            "ディスポーザ",
-            "食器洗い",
-            "オートロック",
-            "宅配ボックス",
-            "スーパー",
-            "コンビニ",
-            "学校",
-            "公園",
-            "バルコニー",
-            "南向き",
-            "眺望",
-            "総戸数",
-            "新築",
-            "分譲",
-            "即入居",
-            "価格",
-            "管理費",
-            "修繕",
-            "ペット",
-        )
-        bad_tokens = (
-            "メインコンテンツ",
-            "最近見た物件",
-            "お気に入り",
-            "メニュー",
-            "資料請求",
-            "無料",
-            "問合せ",
-            "QRコード",
-            "電話",
-            "会社情報",
-            "営業時",
-            "免許番号",
-            "口コミ",
-            "この物件が気にな",
-            "ご意見",
-            "利用規約",
-            "個人情報",
-            "※",
-        )
-        out: list[str] = []
-        seen: set[str] = set()
-        for raw in parts:
-            s = re.sub(r"\s+", " ", str(raw or "")).strip(" ・、。")
-            if len(s) < 24 or len(s) > 220:
-                continue
-            if any(tok in s for tok in bad_tokens):
-                continue
-            if not any(tok in s for tok in good_tokens):
-                continue
-            s = s[:118].strip(" ・、。")
-            key = re.sub(r"[0-9０-９,，.．]", "", s)[:42]
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(s)
-            if len(out) >= max_items:
-                break
-        return out
+    def _line(label: str, raw: object, *, max_len: int = 220) -> str:
+        value = _v(raw, max_len=max_len)
+        return f"{label}：{value}" if value else ""
 
     img_count = 0
     img_lines = [x.strip() for x in str(d.get("image_urls") or "").splitlines() if x.strip()]
@@ -364,58 +343,44 @@ def _build_listing_zh_fallback(src: dict) -> tuple[str, str]:
     else:
         floor_label = "樓層"
     lines_hant = [
-        "日本房產案源（本地快取重整）",
-        f"物件名：{_v(f.get('building_name_jp'))}",
-        f"價格：{_v(f.get('price_text_hant'))}",
-        f"格局：{_v(f.get('layout_line_jp') or f.get('layout_text_hant'))}",
-        f"專有面積：{_v(f.get('exclusive_area_jp') or f.get('area_text_hant'))}",
-        f"所在地：{_v(f.get('address_line_jp'))}",
-        f"交通：{_v(f.get('access_line_jp') or meta.get('transit_line_zh'), max_len=320)}",
-        f"{floor_label}：{floor_text}",
-        f"築年月：{_v(f.get('built_ym_jp') or f.get('age_text_hant'))}",
-        f"總戶數：{_v(f.get('total_units_jp'))}",
-        f"建物構造：{_v(f.get('structure_jp'))}",
-        f"管理費：{_v(f.get('manage_fee_jp'))}",
-        f"修繕積立金：{_v(f.get('reserve_fee_jp'))}",
-        f"停車場：{_v(f.get('parking_jp'))}",
-        f"現況：{_v(f.get('status_jp'))}",
-        f"引渡：{_v(f.get('handover_jp'))}",
+        "日本房產案件摘要",
+        _line("物件名稱", f.get("building_name_jp")),
+        _line("價格", f.get("price_text_hant")),
+        _line("格局", f.get("layout_line_jp") or f.get("layout_text_hant")),
+        _line("專有面積", f.get("exclusive_area_jp") or f.get("area_text_hant")),
+        _line("所在地", _listing_address_zh(f.get("address_line_jp"))),
+        _line("交通", f.get("access_line_jp") or meta.get("transit_line_zh"), max_len=320),
+        _line(floor_label, floor_text),
+        _line("築年月", f.get("built_ym_jp") or f.get("age_text_hant")),
+        _line("總戶數", f.get("total_units_jp")),
+        _line("建物構造", f.get("structure_jp")),
+        _line("管理費", f.get("manage_fee_jp")),
+        _line("修繕積立金", f.get("reserve_fee_jp")),
+        _line("停車場", f.get("parking_jp")),
+        _line("現況", f.get("status_jp")),
+        _line("交屋", f.get("handover_jp")),
     ]
+    lines_hant = [x for x in lines_hant if x]
     if img_count > 0:
         lines_hant.append(f"圖片：已保留原站素材（{img_count} 張）")
-    feature_tags = [str(x).strip() for x in (f.get("feature_tags_hant") or []) if str(x).strip()]
+    feature_tags = [_v(x, max_len=30) for x in (f.get("feature_tags_hant") or [])]
+    feature_tags = [x for x in feature_tags if x]
     if feature_tags:
         lines_hant.append("標籤：" + "、".join(feature_tags[:8]))
     date_parts = [
-        f"公開：{_v(f.get('info_open_jp'), max_len=80)}" if f.get("info_open_jp") else "",
-        f"更新：{_v(f.get('next_update_jp'), max_len=80)}" if f.get("next_update_jp") else "",
+        _line("公開", f.get("info_open_jp"), max_len=80),
+        _line("更新", f.get("next_update_jp"), max_len=80),
     ]
     date_line = "；".join([x for x in date_parts if x])
     if date_line:
         lines_hant.append(f"資訊日期：{date_line}")
-    highlights = _source_highlights(max_items=6)
-    if highlights:
-        lines_hant.append("原站重點：")
-        lines_hant.extend([f"- {x}" for x in highlights])
     if f.get("property_no_jp"):
-        lines_hant.append(f"物件番號：{_v(f.get('property_no_jp'))}")
-    lines_hant.append(f"來源：{_v(d.get('item_url'), max_len=360)}")
+        number = _v(f.get("property_no_jp"))
+        if number:
+            lines_hant.append(f"物件編號：{number}")
+    lines_hant.append(f"來源：{str(d.get('item_url') or '').strip()[:360]}")
     hant = "\n".join(lines_hant).strip()
-    hans = (
-        hant.replace("房產", "房产")
-        .replace("本地快取重整", "本地缓存重整")
-        .replace("專有面積", "专有面积")
-        .replace("樓層", "楼层")
-        .replace("建物階數", "建筑层数")
-        .replace("總戶數", "总户数")
-        .replace("建物構造", "建筑构造")
-        .replace("停車場", "停车场")
-        .replace("現況", "现况")
-        .replace("圖片", "图片")
-        .replace("已保留原站素材", "已保留原站素材")
-        .replace("來源", "来源")
-        .replace("幣", "币")
-    )
+    hans = _CC_T2S.convert(hant)
     return hant, hans
 
 
@@ -623,16 +588,13 @@ def generate_content_for_source(conn, source_item_id: int) -> None:
             (tit_orig, source_item_id),
         )
     ck = str(src["content_kind"] or "") if src and "content_kind" in src.keys() else ""
-    if ck == "jp_listing" and _env_enabled("SCLAW_FAST_JP_LISTING_CONTENT"):
+    if ck == "jp_listing":
         fb_hant, fb_hans = _build_listing_zh_fallback(dict(src))
-        body_hant = fb_hant or (
-            "日本房產案源（列表摘要）\n"
-            + str(src["body_original"] or "")[:3600]
-            + f"\n來源：{src['item_url'] or ''}"
-        )
-        body_hans = fb_hans or _simple_hans(body_hant)
-        title_hant = f"日本房產案源：{tit_orig}"[:500]
-        title_hans = _simple_hans(title_hant)[:500]
+        # Never fall back to raw Japanese here: these fields are public page
+        # content, while the original is retained separately in source_items.
+        body_hant = fb_hant or f"日本房產案件摘要\n來源：{str(src['item_url'] or '').strip()}"
+        body_hans = fb_hans or _CC_T2S.convert(body_hant)
+        title_hant, title_hans = _build_listing_zh_title(dict(src))
         _save_content_item_fast(
             conn,
             source_item_id=source_item_id,
@@ -644,7 +606,7 @@ def generate_content_for_source(conn, source_item_id: int) -> None:
             keyword_type="case",
             intent_target="房地產",
             topic_category="日本房產案源",
-            keyword_tags="日本房產案源,日本買屋,買屋,中古マンション,新築マンション,一戸建て,1R,1K,平屋,駅徒歩",
+            keyword_tags="日本房產案件,日本買房,中古住宅,新成屋,獨棟住宅,公寓大樓,車站步行",
         )
         _bind_jp_transit_to_content_item(conn, source_item_id=source_item_id, src_row=dict(src))
         return
