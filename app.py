@@ -33503,7 +33503,14 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     selected_compare_request = bool(
         selected_cases
         and len(selected_cases) >= 2
-        and re.search(r"(比較|比较|比對|比对|對比|对比|分析|評估|评估|優劣|优劣|哪個好|哪个好|建議|建议)", msg, re.I)
+        and re.search(
+            r"(比較|比较|比對|比对|對比|对比|分析|評估|评估|優劣|优劣|"
+            r"性價比|性价比|划算|劃算|值得|更值|最高|更高|更低|"
+            r"哪個|哪个|哪一個|哪一个|哪筆|哪笔|哪間|哪间|哪套|"
+            r"適合|适合|自住|投資|投资|收租|風險|风险|建議|建议)",
+            msg,
+            re.I,
+        )
     )
     if selected_compare_request:
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
