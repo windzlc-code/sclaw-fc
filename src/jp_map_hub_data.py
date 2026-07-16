@@ -152,7 +152,7 @@ HOMES_STYLE_HUB_RAIL: list[dict[str, str]] = [
     {
         "id": "commute",
         "icon": "🕒",
-        "label": "通勤・駅",
-        "hint": "都市圈→路線→駅（HOME'S 駅・路線／通勤・通学）；完成後按「帶入③並查詢案件」。",
+        "label": "通勤與車站",
+        "hint": "都市圈 → 路線 → 車站（HOME'S 車站／路線與通勤／通學）；完成後按「帶入③並查詢案件」。",
     },
 ]

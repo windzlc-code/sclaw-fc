@@ -143,8 +143,10 @@ from src.knowledge_service import (
     build_social_knowledge_digest,
     fetch_knowledge_for_chat,
     fetch_knowledge_snippets,
+    format_managed_cases_for_prompt,
     format_knowledge_for_prompt,
     knowledge_items_for_api,
+    managed_items_for_api,
     pick_article_title_for_ui,
     transaction_hint_from_message,
 )
@@ -8658,6 +8660,13 @@ class AdminLinePut(BaseModel):
     notify_channels: list[str] | None = None
 
 
+class AdminLineRecipientPut(BaseModel):
+    line_target_id: str = ""
+    original_line_target_id: str = ""
+    display_name: str = ""
+    enabled: bool = True
+
+
 class AdminLineTestPost(BaseModel):
     message: str = "SCLAW LINE 連線測試"
     to_user_id: str | None = None
@@ -12594,6 +12603,8 @@ def _message_wants_human_or_advisor(message: str) -> bool:
     if not text:
         return False
     compact = re.sub(r"\s+", "", text)
+    if re.search(r"(?:不需要|不用|不要|暫不|暂不|先不|无需|無需)(?:轉|转|找|接|安排)?(?:人工|真人|顧問|顾问|專人|专人|業務|业务|銷售|销售)", compact):
+        return False
     if any(k.lower() in compact for k in _SUPPORT_HUMAN_DIRECT_TERMS):
         return True
     has_contact = any(k.lower() in compact for k in _SUPPORT_CONTACT_TERMS)
@@ -17129,6 +17140,7 @@ KV_LINE_CHANNEL_ACCESS_TOKEN = "line_channel_access_token"
 KV_LINE_CHANNEL_SECRET = "line_channel_secret"
 KV_LINE_STAFF_USER_ID = "line_staff_user_id"
 KV_LINE_RECIPIENT_MODE = "line_recipient_mode"
+KV_LINE_RECIPIENT_LIST_MIGRATED = "line_recipient_list_migrated"
 KV_LINE_WEBHOOK_URL = "line_webhook_url"
 
 
@@ -17501,18 +17513,19 @@ def _line_recipient_mode() -> str:
     mode = _normalize_line_recipient_mode(get_kv(KV_LINE_RECIPIENT_MODE, "") or os.getenv("LINE_RECIPIENT_MODE", ""))
     if mode:
         return mode
-    return "auto"
+    return "manual"
 
 
-def _line_auto_recipient_rows(limit: int = 200) -> list[dict[str, str]]:
+def _line_recipient_rows(limit: int = 200, *, enabled_only: bool = False) -> list[dict[str, Any]]:
     try:
         _ensure_support_channel_tables()
+        where = "WHERE enabled = 1" if enabled_only else ""
         with get_conn() as conn:
             rows = conn.execute(
-                """
-                SELECT line_target_id, target_kind, source_type, display_name, first_seen_at, last_seen_at
+                f"""
+                SELECT id, line_target_id, target_kind, source_type, display_name, enabled, first_seen_at, last_seen_at
                 FROM line_auto_recipients
-                WHERE enabled = 1
+                {where}
                 ORDER BY last_seen_at DESC, id DESC
                 LIMIT ?
                 """,
@@ -17523,7 +17536,35 @@ def _line_auto_recipient_rows(limit: int = 200) -> list[dict[str, str]]:
         return []
 
 
+def _line_auto_recipient_rows(limit: int = 200) -> list[dict[str, Any]]:
+    return _line_recipient_rows(limit, enabled_only=True)
+
+
+def _line_recipient_table_has_any_rows() -> bool:
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            row = conn.execute("SELECT COUNT(1) AS c FROM line_auto_recipients").fetchone()
+        return bool(row and int(row["c"] or 0) > 0)
+    except Exception:
+        return False
+
+
+def _line_migrate_legacy_staff_ids_once() -> None:
+    if str(get_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "") or "").strip() == "1":
+        return
+    for target in _line_staff_user_ids():
+        _upsert_line_auto_recipient(
+            line_target_id=target,
+            source_type="manual",
+            display_name="手動匯入",
+            enabled=True,
+        )
+    set_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "1")
+
+
 def _line_auto_recipient_ids() -> list[str]:
+    _line_migrate_legacy_staff_ids_once()
     out: list[str] = []
     for row in _line_auto_recipient_rows():
         target = _normalize_line_user_id(str(row.get("line_target_id") or ""))
@@ -17533,12 +17574,15 @@ def _line_auto_recipient_ids() -> list[str]:
 
 
 def _line_effective_staff_user_ids() -> list[str]:
+    _line_migrate_legacy_staff_ids_once()
     manual = _line_staff_user_ids()
+    table_initialized = _line_recipient_table_has_any_rows() or str(get_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "") or "").strip() == "1"
+    listed = _line_auto_recipient_ids()
     if _line_recipient_mode() == "manual":
-        return manual
-    auto = _line_auto_recipient_ids()
+        return listed if table_initialized else manual
     out: list[str] = []
-    for target in [*auto, *manual]:
+    fallback = [] if table_initialized else manual
+    for target in [*listed, *fallback]:
         if target and target not in out:
             out.append(target)
     return out
@@ -17549,13 +17593,14 @@ def _upsert_line_auto_recipient(
     line_target_id: str,
     source_type: str = "",
     display_name: str = "",
+    enabled: bool = True,
 ) -> bool:
     target = _normalize_line_user_id(line_target_id)
     kind = _line_push_target_id_kind(target)
     if not target or not kind:
         return False
     stype = str(source_type or "").strip().lower()[:30]
-    if stype not in {"user", "group", "room"}:
+    if stype not in {"user", "group", "room", "manual", "admin"}:
         stype = kind
     try:
         _ensure_support_channel_tables()
@@ -17565,15 +17610,18 @@ def _upsert_line_auto_recipient(
                 INSERT INTO line_auto_recipients (
                     line_target_id, target_kind, source_type, display_name, enabled, first_seen_at, last_seen_at
                 )
-                VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT(line_target_id) DO UPDATE SET
                     target_kind = excluded.target_kind,
                     source_type = excluded.source_type,
                     display_name = COALESCE(NULLIF(excluded.display_name, ''), line_auto_recipients.display_name),
-                    enabled = 1,
+                    enabled = CASE
+                        WHEN line_auto_recipients.enabled = 0 AND excluded.source_type IN ('user', 'group', 'room') THEN 0
+                        ELSE excluded.enabled
+                    END,
                     last_seen_at = CURRENT_TIMESTAMP
                 """,
-                (target, kind, stype, str(display_name or "")[:200]),
+                (target, kind, stype, str(display_name or "")[:200], 1 if enabled else 0),
             )
             conn.commit()
         return True
@@ -17630,11 +17678,12 @@ def _line_api_error_line(r) -> str:
 
 
 def admin_line_snapshot() -> dict:
+    _line_migrate_legacy_staff_ids_once()
     token = _line_channel_access_token()
     secret = _line_channel_secret()
     staff = ",".join(_line_staff_user_ids())
-    auto_rows = _line_auto_recipient_rows()
-    auto_ids = [str(row.get("line_target_id") or "") for row in auto_rows if row.get("line_target_id")]
+    auto_rows = _line_recipient_rows(enabled_only=False)
+    enabled_ids = _line_auto_recipient_ids()
     effective_ids = _line_effective_staff_user_ids()
     webhook_url = _line_webhook_url()
     return {
@@ -17646,9 +17695,10 @@ def admin_line_snapshot() -> dict:
         "channel_secret_masked": _mask_line_token(secret),
         "staff_user_id": staff,
         "recipient_mode": _line_recipient_mode(),
-        "auto_recipient_count": len(auto_ids),
-        "auto_recipient_ids": ",".join(auto_ids),
+        "auto_recipient_count": len(enabled_ids),
+        "auto_recipient_ids": ",".join(enabled_ids),
         "auto_recipients": auto_rows,
+        "line_recipients": auto_rows,
         "effective_recipient_count": len(effective_ids),
         "effective_staff_user_id": ",".join(effective_ids),
         "webhook_url": webhook_url,
@@ -17689,6 +17739,14 @@ def _apply_admin_line_settings(payload: AdminLinePut) -> None:
                 ),
             )
         set_kv(KV_LINE_STAFF_USER_ID, ",".join(staff_targets))
+        for target in staff_targets:
+            _upsert_line_auto_recipient(
+                line_target_id=target,
+                source_type="manual",
+                display_name="手動新增",
+                enabled=True,
+            )
+        set_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "1")
 
     if payload.recipient_mode is not None:
         mode = _normalize_line_recipient_mode(payload.recipient_mode)
@@ -20769,6 +20827,84 @@ def api_line_settings_public_path(request: Request):
 def api_line_settings_put_public_path(payload: AdminLinePut, request: Request):
     _require_admin_password(request)
     _apply_admin_line_settings(payload)
+    return JSONResponse({"ok": True, **admin_line_snapshot()})
+
+
+@app.get("/api/admin/line-recipients")
+def api_admin_line_recipients(request: Request):
+    _require_admin_password(request)
+    _line_migrate_legacy_staff_ids_once()
+    rows = _line_recipient_rows(enabled_only=False)
+    return JSONResponse(
+        {
+            "ok": True,
+            "count": len(rows),
+            "enabled_count": len([r for r in rows if int(r.get("enabled") or 0) == 1]),
+            "items": rows,
+        }
+    )
+
+
+@app.put("/api/admin/line-recipients")
+def api_admin_put_line_recipient(payload: AdminLineRecipientPut, request: Request):
+    _require_admin_password(request)
+    targets = _normalize_line_push_target_ids(payload.line_target_id, max_items=100)
+    if not targets:
+        raise HTTPException(status_code=400, detail="請填寫至少一個 U/C/R 開頭的 LINE ID。")
+    invalid_targets = [target for target in targets if not _line_push_target_id_kind(target)]
+    if invalid_targets:
+        raise HTTPException(status_code=400, detail=f"LINE ID 格式不正確：{', '.join(invalid_targets[:3])}")
+    original = _normalize_line_user_id(payload.original_line_target_id or "")
+    display = str(payload.display_name or "").strip()[:200]
+    enabled_int = 1 if bool(payload.enabled) else 0
+    _ensure_support_channel_tables()
+    with get_conn() as conn:
+        for target in targets:
+            kind = _line_push_target_id_kind(target)
+            if original and original != target and len(targets) == 1:
+                conn.execute("DELETE FROM line_auto_recipients WHERE line_target_id = ?", (original,))
+            existing = conn.execute(
+                "SELECT source_type, display_name FROM line_auto_recipients WHERE line_target_id = ? LIMIT 1",
+                (target,),
+            ).fetchone()
+            source_type = str(existing["source_type"] or "").strip() if existing else "admin"
+            if source_type not in {"user", "group", "room", "manual", "admin"}:
+                source_type = "admin"
+            next_display = display if len(targets) == 1 else (display or (str(existing["display_name"] or "") if existing else "手動新增"))
+            conn.execute(
+                """
+                INSERT INTO line_auto_recipients (
+                    line_target_id, target_kind, source_type, display_name, enabled, first_seen_at, last_seen_at
+                )
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(line_target_id) DO UPDATE SET
+                    target_kind = excluded.target_kind,
+                    source_type = CASE
+                        WHEN line_auto_recipients.source_type IN ('user', 'group', 'room') THEN line_auto_recipients.source_type
+                        ELSE excluded.source_type
+                    END,
+                    display_name = excluded.display_name,
+                    enabled = excluded.enabled,
+                    last_seen_at = CURRENT_TIMESTAMP
+                """,
+                (target, kind, source_type, next_display, enabled_int),
+            )
+        conn.commit()
+    set_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "1")
+    return JSONResponse({"ok": True, **admin_line_snapshot()})
+
+
+@app.delete("/api/admin/line-recipients")
+def api_admin_delete_line_recipient(request: Request, line_target_id: str = Query(default="")):
+    _require_admin_password(request)
+    target = _normalize_line_user_id(line_target_id)
+    if not target:
+        raise HTTPException(status_code=400, detail="missing line_target_id")
+    _ensure_support_channel_tables()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM line_auto_recipients WHERE line_target_id = ?", (target,))
+        conn.commit()
+    set_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "1")
     return JSONResponse({"ok": True, **admin_line_snapshot()})
 
 
@@ -30928,6 +31064,176 @@ def _build_support_selected_case_fast_reply(
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
 
 
+def _support_should_lookup_managed_cases(
+    message: str,
+    *,
+    case_request: bool = False,
+    purchase_discovery_mode: bool = False,
+) -> bool:
+    raw = str(message or "").strip()
+    if not raw or purchase_discovery_mode:
+        return False
+    if case_request:
+        return True
+    return bool(
+        re.search(
+            r"(案件|案源|物件|房源|找房|看房|公寓|大樓|大楼|マンション|一戶建|一户建|戸建|"
+            r"東京|东京|大阪|福岡|福冈|京都|神奈川|橫濱|横浜|埼玉|千葉|千叶|"
+            r"地區|地区|區域|区域|房價|房价|價格|价格|單價|单价|便宜|低價|低价|"
+            r"預算|预算|總價|总价|租金|投資|投资|自住|投報|投报|報酬|报酬|"
+            r"收益|利回|利回り|毛利|淨利|净利|現金流|现金流)",
+            raw,
+            flags=re.I,
+        )
+    )
+
+
+def _support_managed_case_query_terms(message: str, *, region_hint: str = "", keyword_hint: str = "") -> tuple[str, str]:
+    raw = str(message or "")
+    raw_l = raw.lower()
+    regions = (
+        "東京", "东京", "大阪", "京都", "福岡", "福冈", "名古屋", "神奈川", "横浜", "橫濱",
+        "埼玉", "千葉", "千叶", "札幌", "北海道", "沖縄", "冲绳", "首都圈", "首都圏", "關東", "关东",
+    )
+    props = (
+        "公寓", "大樓", "大楼", "マンション", "一戶建", "一户建", "戸建", "別墅", "别墅",
+        "套房", "1LDK", "2LDK", "3LDK", "商辦", "商办", "店面", "土地",
+    )
+    region = str(region_hint or "").strip()
+    if not region:
+        region = " ".join(dict.fromkeys([x for x in regions if x.lower() in raw_l][:2]))
+    found_props = [x for x in props if x.lower() in raw_l]
+    explicit_kw = str(keyword_hint or "").strip()
+    if explicit_kw and len(explicit_kw) <= 40:
+        found_props.insert(0, explicit_kw)
+    broad_market_only = bool(
+        re.search(
+            r"(投報|投报|報酬|报酬|收益|利回|利回り|毛利|淨利|净利|現金流|现金流|"
+            r"地區|地区|區域|区域|房價|房价|價格|价格|單價|单价|便宜|低價|低价)",
+            raw,
+            flags=re.I,
+        )
+    )
+    if broad_market_only and not region and not found_props and not explicit_kw:
+        return "", ""
+    keyword = " ".join(dict.fromkeys(found_props[:3])).strip()
+    if not keyword:
+        terms = [
+            p
+            for p in re.findall(r"[A-Za-z0-9]{2,12}|[\u4e00-\u9fff]{2,8}", raw)
+            if p not in {"資料庫", "目前", "已有案件", "整理方向", "下一步"}
+        ]
+        keyword = " ".join(dict.fromkeys(terms[:4]))
+    return region[:80], keyword[:80]
+
+
+def _support_lookup_managed_case_rows(
+    *,
+    message: str,
+    region_hint: str = "",
+    keyword_hint: str = "",
+    tx_hint: str = "",
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    region, query = _support_managed_case_query_terms(message, region_hint=region_hint, keyword_hint=keyword_hint)
+    tx = str(tx_hint or transaction_hint_from_message(message) or "buy").strip().lower()
+    if tx not in {"buy", "sell", "rent"}:
+        tx = "buy"
+    try:
+        lim = max(1, min(12, int(limit or 6)))
+        if tx == "rent":
+            tx_sql = "(lower(COALESCE(s.item_url,'')) LIKE '%chintai%' OR c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ?)"
+            tx_params: list[Any] = ["%租%", "%租%"]
+        else:
+            tx_sql = "(lower(COALESCE(s.item_url,'')) NOT LIKE '%chintai%' OR c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ?)"
+            tx_params = ["%買%", "%买%"]
+        terms = [x for x in re.split(r"\s+", f"{region} {query}".strip()) if x][:5]
+        where_parts = [
+            "s.content_kind = 'jp_listing'",
+            tx_sql,
+        ]
+        params: list[Any] = list(tx_params)
+        for term in terms:
+            like = f"%{term}%"
+            where_parts.append(
+                """
+                (
+                  COALESCE(c.title_zh_hant,'') LIKE ? OR COALESCE(c.title_zh_hans,'') LIKE ?
+                  OR COALESCE(c.case_jp_region_override,'') LIKE ? OR COALESCE(c.case_transit_override,'') LIKE ?
+                  OR COALESCE(c.topic_category,'') LIKE ? OR COALESCE(s.title_original,'') LIKE ?
+                  OR COALESCE(s.source_name,'') LIKE ?
+                )
+                """
+            )
+            params.extend([like, like, like, like, like, like, like])
+        params.append(lim * 3)
+        with get_conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                  c.id AS content_id,
+                  c.source_item_id,
+                  c.title_zh_hant,
+                  c.title_zh_hans,
+                  c.seo_slug,
+                  c.topic_category,
+                  c.case_transaction_override,
+                  c.case_jp_region_override,
+                  c.case_transit_override,
+                  c.region_code,
+                  COALESCE(c.featured_weight, 0) AS featured_weight,
+                  substr(COALESCE(c.body_zh_hant, ''), 1, 500) AS body_zh_hant,
+                  substr(COALESCE(c.body_zh_hans, ''), 1, 500) AS body_zh_hans,
+                  s.title_original,
+                  substr(COALESCE(s.body_original, ''), 1, 800) AS body_original,
+                  s.item_url,
+                  s.source_name,
+                  s.content_kind,
+                  s.image_urls,
+                  c.updated_at
+                FROM content_items c
+                JOIN source_items s ON s.id = c.source_item_id
+                WHERE {" AND ".join(where_parts)}
+                ORDER BY COALESCE(c.featured_weight, 0) DESC, datetime(c.updated_at) DESC, c.id DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for row in rows:
+            item = dict(row)
+            candidates = [
+                ("url", item.get("item_url")),
+                ("slug", item.get("seo_slug")),
+                ("title", item.get("title_zh_hant") or item.get("title_zh_hans") or item.get("title_original")),
+                ("source", item.get("source_item_id")),
+            ]
+            keys = [
+                f"{label}:{re.sub(r'\\s+', '', str(value or '')).strip().lower()}"
+                for label, value in candidates
+                if str(value or "").strip()
+            ]
+            if not keys:
+                keys = [f"content:{item.get('content_id') or ''}"]
+            if any(key in seen for key in keys):
+                continue
+            seen.update(keys)
+            out.append(item)
+            if len(out) >= lim:
+                break
+        return out
+    except Exception as exc:
+        _push_backend_error_log(
+            method="POST",
+            path="/api/ai/chat-support",
+            status_code=500,
+            message=f"support_managed_cases_lookup_error: {type(exc).__name__}: {exc}"[:900],
+            elapsed_ms=0,
+        )
+        return []
+
+
 def _support_keyword_preset_reply(
     message: str,
     *,
@@ -31020,19 +31326,6 @@ def _support_keyword_preset_reply(
             "成本主要看稅費、登記費、管理費和修繕金。您有預算或案件價格嗎？"
         )
         return _payload("cost_loan", reply, sales_mcp, intent_score=34)
-
-    search_terms = ("查案件", "找案件", "找房", "篩選", "筛选", "東京", "东京", "大阪", "福岡", "福冈", "公寓", "一戶建", "一户建")
-    if len(raw) <= 80 and any(term in compact for term in search_terms):
-        sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
-        sales_mcp["next_actions"] = [
-            {"id": "browse_tokyo_cases", "label": "看站內案件"},
-            {"id": "confirm_budget", "label": "補預算"},
-            {"id": "compare_cases", "label": "比較已選案件"},
-        ]
-        reply = (
-            "可以，我先幫您收斂找房方向。您先說想看的城市、房型或大概價位其中幾項就好。"
-        )
-        return _payload("case_search", reply, sales_mcp, intent_score=30)
 
     return None
 
@@ -33143,6 +33436,25 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     managed_api: list[dict] = []
     featured_text = ""
     featured_recommendations: list[dict] = []
+    if _support_should_lookup_managed_cases(
+        msg,
+        case_request=case_request_sig,
+        purchase_discovery_mode=purchase_discovery_mode,
+    ):
+        managed_rows = _support_lookup_managed_case_rows(
+            message=msg,
+            region_hint=fr,
+            keyword_hint=dlgk or fk,
+            tx_hint=tx_hint or transaction_hint_from_message(msg) or "buy",
+            limit=6,
+        )
+        managed_text = format_managed_cases_for_prompt(
+            managed_rows,
+            site_url=get_effective_site_url(),
+            zh_variant=zh_v,
+            max_chars=2600,
+        )
+        managed_api = managed_items_for_api(managed_rows, zh_variant=zh_v)[:6]
     wants_kb = bool(payload.use_knowledge)
     suggests_kb = _chat_message_suggests_knowledge_lookup(msg)
     run_kb = wants_kb and suggests_kb and not purchase_discovery_mode

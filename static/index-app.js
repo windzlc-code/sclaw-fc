@@ -1643,7 +1643,7 @@
       kinki: { label: '近畿', region: '關西', tokens: ['近畿', '關西', '関西', '大阪', '京都'] },
       chugoku: { label: '中國', region: '中國地方', tokens: ['中國地方', '中國', '中国地方', '広島', '廣島'] },
       shikoku: { label: '四國', region: '四國', tokens: ['四國', '四国', '香川', '高松'] },
-      kyushu_okinawa: { label: '九州・沖繩', region: '', tokens: ['九州', '沖繩', '福岡', '熊本'] },
+      kyushu_okinawa: { label: '九州與沖繩', region: '', tokens: ['九州', '沖繩', '福岡', '熊本'] },
     };
 
     /* 交通 token 避免「徒歩10分」等過細字串（站內日文摘要很少整段相同），改以駅近／地下鉄等較易命中 */
@@ -10346,7 +10346,7 @@
         `<h3>三、物件需求</h3>` +
         `<div class="support-human-section-body support-human-section-body--grid">` +
         `<div id="support-human-property-type-${seq}" class="support-human-field support-human-choice-field">希望購買的物件類型（可複選，必填）<div class="support-human-choice-grid" data-support-human-group="property-type" data-seq="${seq}">` +
-        `<label><input type="checkbox" value="公寓（マンション）">公寓（マンション）</label><label><input type="checkbox" value="整棟公寓 / 大樓">整棟公寓 / 大樓</label><label><input type="checkbox" value="獨棟住宅（一戶建）">獨棟住宅（一戶建）</label><label><input type="checkbox" value="辦公室 / 事務所">辦公室 / 事務所</label><label><input type="checkbox" value="其他">其他</label>` +
+        `<label><input type="checkbox" value="公寓">公寓</label><label><input type="checkbox" value="整棟公寓 / 大樓">整棟公寓 / 大樓</label><label><input type="checkbox" value="獨棟住宅">獨棟住宅</label><label><input type="checkbox" value="辦公室">辦公室</label><label><input type="checkbox" value="其他">其他</label>` +
         `</div></div>` +
         `<label class="muted support-human-field"><input id="support-human-target-city-${seq}" type="text" maxlength="160" aria-label="希望購買城市（必填）" placeholder="希望購買城市（必填，例：東京、大阪）"></label>` +
         `<label class="muted support-human-field"><input id="support-human-target-region-${seq}" type="text" maxlength="160" aria-label="希望購買區域（選填）" placeholder="希望購買區域（選填，例：新宿區、澀谷區等）"></label>` +
@@ -10784,11 +10784,12 @@
           const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
           const roleLabel = '線上客服';
           const roleCls = 'support-chat-role';
+          const shouldOpenHumanIntake = supportSalesMcpShouldOpenHumanIntake(row.sales_mcp);
           const managedBlock = row.contentHtml || isStaffReply ? '' : supportChatManagedCasesHtml(row.knowledge);
           const purchaseDiscovery = row.knowledge && row.knowledge.purchase_discovery_mode;
           const featBlock = row.contentHtml || isStaffReply || purchaseDiscovery ? '' : supportChatFeaturedHtml(row.featured_recommendations);
           const kbBlock = row.contentHtml || isStaffReply ? '' : supportChatKnowledgeHtml(row.knowledge, row.llm);
-          const salesBlock = row.contentHtml || isStaffReply ? '' : supportChatSalesMcpHtml(row.sales_mcp, row.llm);
+          const salesBlock = row.contentHtml || isStaffReply || shouldOpenHumanIntake ? '' : supportChatSalesMcpHtml(row.sales_mcp, row.llm);
           const reasonBlock = row.contentHtml || isStaffReply ? '' : supportChatMatchReasonHtml(row.matched_scene, row.matched_qa);
           const suggestionBlock = row.contentHtml || isStaffReply ? '' : supportChatSuggestedPromptsHtml(row.sales_mcp, row.knowledge);
           const bodyHtml = row.contentHtml
@@ -10796,7 +10797,7 @@
             : formatSupportChatRichText(sanitizeSupportChatPublicCopy(row.content || ''));
           const assistantImageHtml = row.contentHtml ? '' : supportChatImageHtml(row.image || null);
           const bubbleExtra = '';
-          const intakeCtaBlock = row.contentHtml || isStaffReply ? '' : supportChatIntakeCtaHtml();
+          const intakeCtaBlock = row.contentHtml || isStaffReply || shouldOpenHumanIntake ? '' : supportChatIntakeCtaHtml();
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}${assistantImageHtml}</div></div>`;
@@ -11899,7 +11900,7 @@
       if (!cfgEl) return;
       const hasTok = Boolean(data && data.channel_access_token_set);
       const hasSecret = Boolean(data && data.channel_secret_set);
-      const mode = String(data && data.recipient_mode || adminLineRecipientMode || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
+      const mode = String(data && data.recipient_mode || adminLineRecipientMode || 'manual').toLowerCase() === 'auto' ? 'auto' : 'manual';
       const staffRaw = String(data && data.staff_user_id || '').trim();
       const staffCount = staffRaw ? staffRaw.split(/[\s,;，；、]+/).filter(Boolean).length : 0;
       const autoCount = Number(data && data.auto_recipient_count || 0);
@@ -13384,10 +13385,20 @@
       return ['admin-line-access-token', 'admin-line-channel-secret', 'admin-line-staff-user-id', 'admin-line-webhook-url'];
     }
 
-    let adminLineRecipientMode = 'auto';
+    const ADMIN_LINE_RECIPIENT_MODE_CACHE_KEY = 'sclaw_admin_line_recipient_mode_v1';
+    let adminLineRecipientMode = (() => {
+      try {
+        return localStorage.getItem(ADMIN_LINE_RECIPIENT_MODE_CACHE_KEY) === 'auto' ? 'auto' : 'manual';
+      } catch (_) {
+        return 'manual';
+      }
+    })();
 
-    function setAdminLineRecipientMode(mode) {
-      adminLineRecipientMode = String(mode || '').toLowerCase() === 'manual' ? 'manual' : 'auto';
+    function setAdminLineRecipientMode(mode, options = {}) {
+      adminLineRecipientMode = String(mode || '').toLowerCase() === 'auto' ? 'auto' : 'manual';
+      if (options.persist !== false) {
+        try { localStorage.setItem(ADMIN_LINE_RECIPIENT_MODE_CACHE_KEY, adminLineRecipientMode); } catch (_) {}
+      }
       document.querySelectorAll('[data-admin-line-mode]').forEach((btn) => {
         const active = String(btn.getAttribute('data-admin-line-mode') || '') === adminLineRecipientMode;
         btn.classList.toggle('is-active', active);
@@ -13422,6 +13433,162 @@
       hint.textContent = count
         ? `已自動識別 ${count} 個收件 ID${ids.length ? '：' + ids.slice(0, 3).join('、') : ''}${ids.length > 3 ? '…' : ''}${manualIds.length ? `；並合併手動 ${manualIds.length} 個` : ''}`
         : `尚未識別到收件 ID。請讓顧問加 Bot 或傳送任意訊息後，再按刷新${manualIds.length ? `；目前先使用已保存的手動 ${manualIds.length} 個，手填欄位已暫停編輯` : ''}。`;
+    }
+
+    function adminLineRecipientSourceLabel(sourceType, targetKind) {
+      const source = String(sourceType || '').toLowerCase();
+      const kind = String(targetKind || '').toLowerCase();
+      if (source === 'manual' || source === 'admin') return '手動';
+      if (kind === 'group' || source === 'group') return '群組';
+      if (kind === 'room' || source === 'room') return '聊天室';
+      return '自動';
+    }
+
+    function renderAdminLineRecipientList(data) {
+      const wrap = document.getElementById('admin-line-recipient-list');
+      const countEl = document.getElementById('admin-line-recipient-list-count');
+      if (!wrap) return;
+      const items = Array.isArray(data?.line_recipients)
+        ? data.line_recipients
+        : (Array.isArray(data?.auto_recipients) ? data.auto_recipients : []);
+      const enabledCount = items.filter((row) => Number(row?.enabled || 0) === 1).length;
+      if (countEl) countEl.textContent = `共 ${items.length} 個，啟用 ${enabledCount} 個`;
+      if (!items.length) {
+        wrap.innerHTML = '<p class="muted">尚未有 LINE ID。可手動新增，或請用戶添加 Bot / 發送訊息後再刷新。</p>';
+        return;
+      }
+      const rowsHtml = items.map((row) => {
+        const id = String(row?.line_target_id || '').trim();
+        const name = String(row?.display_name || '').trim();
+        const source = adminLineRecipientSourceLabel(row?.source_type, row?.target_kind);
+        const enabled = Number(row?.enabled || 0) === 1;
+        const firstSeen = String(row?.first_seen_at || '').trim();
+        const lastSeen = String(row?.last_seen_at || '').trim();
+        return `
+          <div class="admin-line-recipient-row${enabled ? '' : ' is-disabled'}" data-line-recipient-row data-original-id="${esc(id)}">
+            <label class="muted admin-line-recipient-cell-label"><span>LINE ID</span>
+              <input class="admin-line-recipient-id" type="text" value="${esc(id)}" autocomplete="off">
+            </label>
+            <label class="muted admin-line-recipient-cell-label"><span>備註</span>
+              <input class="admin-line-recipient-name" type="text" value="${esc(name)}" placeholder="例如：Franklin / 客戶A" autocomplete="off">
+            </label>
+            <div class="admin-line-recipient-meta">
+              <span>${esc(source)}</span>
+              <small>${esc(lastSeen || firstSeen || '-')}</small>
+            </div>
+            <label class="admin-line-recipient-enabled">
+              <input class="admin-line-recipient-enabled-input" type="checkbox"${enabled ? ' checked' : ''}> 啟用
+            </label>
+            <button type="button" class="secondary admin-line-recipient-icon-btn" onclick="saveAdminLineRecipient(this)" aria-label="保存 LINE ID" title="保存">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+            </button>
+            <button type="button" class="secondary admin-line-recipient-icon-btn admin-line-recipient-delete" onclick="deleteAdminLineRecipient(this)" aria-label="刪除 LINE ID" title="刪除">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
+            </button>
+          </div>
+        `;
+      }).join('');
+      wrap.innerHTML = `
+        <div class="admin-line-recipient-table" role="table" aria-label="LINE 用戶 ID 列表">
+          <div class="admin-line-recipient-table-head" role="row">
+            <span role="columnheader">LINE ID</span>
+            <span role="columnheader">備註</span>
+            <span role="columnheader">來源 / 最後更新</span>
+            <span role="columnheader">狀態</span>
+            <span role="columnheader">存</span>
+            <span role="columnheader">刪</span>
+          </div>
+          ${rowsHtml}
+        </div>
+      `;
+    }
+
+    async function addAdminLineRecipient() {
+      const msg = document.getElementById('admin-line-msg');
+      const idEl = document.getElementById('admin-line-recipient-add-id');
+      const nameEl = document.getElementById('admin-line-recipient-add-name');
+      const ids = String(idEl?.value || '').trim();
+      const name = String(nameEl?.value || '').trim();
+      if (!ids) {
+        if (msg) msg.textContent = '請先填寫要新增的 LINE ID。';
+        return;
+      }
+      try {
+        if (msg) msg.textContent = '新增 LINE ID 中…';
+        const res = await fetch('/api/admin/line-recipients', {
+          method: 'PUT',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({ line_target_id: ids, display_name: name, enabled: true }),
+        });
+        const data = await parseApiResponseSafe(res);
+        if (!res.ok) throw new Error(data.detail || data.message || 'request failed');
+        if (idEl) idEl.value = '';
+        if (nameEl) nameEl.value = '';
+        renderAdminLineAutoRecipientHint(data);
+        renderAdminLineRecipientList(data);
+        updateLineTabAutoStatusFromSnapshot(data);
+        if (msg) msg.textContent = '已新增 LINE ID。';
+      } catch (err) {
+        if (msg) msg.textContent = `新增 LINE ID 失敗：${formatApiError(err)}`;
+      }
+    }
+
+    async function saveAdminLineRecipient(btn) {
+      const msg = document.getElementById('admin-line-msg');
+      const row = btn?.closest?.('[data-line-recipient-row]');
+      if (!row) return;
+      const original = String(row.getAttribute('data-original-id') || '').trim();
+      const target = String(row.querySelector('.admin-line-recipient-id')?.value || '').trim();
+      const name = String(row.querySelector('.admin-line-recipient-name')?.value || '').trim();
+      const enabled = Boolean(row.querySelector('.admin-line-recipient-enabled-input')?.checked);
+      if (!target) {
+        if (msg) msg.textContent = 'LINE ID 不可為空。';
+        return;
+      }
+      try {
+        if (msg) msg.textContent = '保存 LINE ID 中…';
+        const res = await fetch('/api/admin/line-recipients', {
+          method: 'PUT',
+          headers: adminApiHeaders(true),
+          body: JSON.stringify({
+            original_line_target_id: original,
+            line_target_id: target,
+            display_name: name,
+            enabled,
+          }),
+        });
+        const data = await parseApiResponseSafe(res);
+        if (!res.ok) throw new Error(data.detail || data.message || 'request failed');
+        renderAdminLineAutoRecipientHint(data);
+        renderAdminLineRecipientList(data);
+        updateLineTabAutoStatusFromSnapshot(data);
+        if (msg) msg.textContent = '已保存 LINE ID 列表。';
+      } catch (err) {
+        if (msg) msg.textContent = `保存 LINE ID 失敗：${formatApiError(err)}`;
+      }
+    }
+
+    async function deleteAdminLineRecipient(btn) {
+      const msg = document.getElementById('admin-line-msg');
+      const row = btn?.closest?.('[data-line-recipient-row]');
+      const target = String(row?.getAttribute('data-original-id') || row?.querySelector('.admin-line-recipient-id')?.value || '').trim();
+      if (!target) return;
+      if (!window.confirm(`確定刪除這個 LINE ID？\n${target}`)) return;
+      try {
+        if (msg) msg.textContent = '刪除 LINE ID 中…';
+        const res = await fetch(`/api/admin/line-recipients?line_target_id=${encodeURIComponent(target)}`, {
+          method: 'DELETE',
+          headers: adminApiHeaders(false),
+        });
+        const data = await parseApiResponseSafe(res);
+        if (!res.ok) throw new Error(data.detail || data.message || 'request failed');
+        renderAdminLineAutoRecipientHint(data);
+        renderAdminLineRecipientList(data);
+        updateLineTabAutoStatusFromSnapshot(data);
+        if (msg) msg.textContent = '已刪除 LINE ID。';
+      } catch (err) {
+        if (msg) msg.textContent = `刪除 LINE ID 失敗：${formatApiError(err)}`;
+      }
     }
 
     function refreshAdminLineAutoRecipients() {
@@ -13558,8 +13725,9 @@
         if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
         maskAdminLineInputs();
-        setAdminLineRecipientMode(data.recipient_mode || 'auto');
+        setAdminLineRecipientMode(data.recipient_mode || adminLineRecipientMode || 'manual', { persist: true });
         renderAdminLineAutoRecipientHint(data);
+        renderAdminLineRecipientList(data);
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
         updateLineTabAutoStatusFromSnapshot(data);
         updateAdminLineInlineStatus('LINE 連線狀態');
@@ -13582,7 +13750,7 @@
         clear_channel_access_token: false,
         channel_secret: String(document.getElementById('admin-line-channel-secret')?.value || '').trim(),
         clear_channel_secret: false,
-        staff_user_id: String(document.getElementById('admin-line-staff-user-id')?.value || '').trim(),
+        staff_user_id: adminLineRecipientMode === 'manual' ? String(document.getElementById('admin-line-staff-user-id')?.value || '').trim() : null,
         recipient_mode: adminLineRecipientMode,
         webhook_url: String(document.getElementById('admin-line-webhook-url')?.value || '').trim(),
         notify_channels: collectAdminLineNotifyChannels(),
@@ -13606,6 +13774,7 @@
         maskAdminLineInputs();
         setAdminLineRecipientMode(data.recipient_mode || payload.recipient_mode);
         renderAdminLineAutoRecipientHint(data);
+        renderAdminLineRecipientList(data);
         applyAdminLineNotifyChannels(data.notify_channels || payload.notify_channels);
         updateLineTabAutoStatusFromSnapshot(data);
         updateAdminLineInlineStatus('已儲存 LINE 設定');
@@ -25434,7 +25603,7 @@
           const opt = selS.selectedOptions && selS.selectedOptions[0];
           const stationName = sid && opt ? String(opt.textContent || '').trim() : '';
           if (stationName && typeof updateJpMapHubCrumbTail === 'function') {
-            updateJpMapHubCrumbTail(`通勤・駅 › ${stationName}`);
+            updateJpMapHubCrumbTail(`通勤與車站 › ${stationName}`);
           }
           syncFigureKeywordFromJpTransit();
         });
@@ -26542,7 +26711,7 @@
       const dealEl = document.getElementById('jp-map-hub-crumb-deal');
       const tailEl = document.getElementById('jp-map-hub-crumb-tail');
       const isRent = getJpMapHubDealRent();
-      if (dealEl) dealEl.textContent = '買屋・中古公寓類';
+      if (dealEl) dealEl.textContent = '買屋中古公寓類';
       if (tailEl) tailEl.textContent = tailText || (isRent ? '地圖／區域' : '地圖／區域');
     }
 
@@ -27176,21 +27345,17 @@
           const latLng = JP_LEAFLET_REGION_LABELS[broad];
           if (!latLng) return;
           const titleBtn = sec.querySelector('.jp-map-pref-overlay-title, .jp-map-region-label');
-          const label = String(
-            titleBtn?.getAttribute('data-jp-pref-label') ||
-              titleBtn?.getAttribute('data-jp-orbit-title') ||
-              title ||
-              ''
-          ).trim();
+          const orbitTitle = String(titleBtn?.getAttribute('data-jp-orbit-title') || title || '').trim();
+          const label = String(titleBtn?.getAttribute('data-jp-pref-label') || orbitTitle).trim();
           if (!label) return;
-          const wideClass = label === '甲信越・北陸' ? ' jp-map-region-label--wide' : '';
+          const wideClass = orbitTitle === '甲信越・北陸' ? ' jp-map-region-label--wide' : '';
           const marker = window.L.marker(latLng, {
             interactive: true,
             keyboard: true,
             title: label,
             icon: window.L.divIcon({
               className: 'jp-leaflet-region-marker',
-              html: `<button type="button" class="jp-map-region-label jp-map-leaflet-region-label${wideClass}" data-jp-orbit-title="${label}" data-jp-pref-region="${broad}" data-jp-pref-label="${label}" data-jp-broad-key="${broad}">${label}</button>`,
+              html: `<button type="button" class="jp-map-region-label jp-map-leaflet-region-label${wideClass}" data-jp-orbit-title="${orbitTitle}" data-jp-pref-region="${broad}" data-jp-pref-label="${label}" data-jp-broad-key="${broad}">${label}</button>`,
               iconSize: [1, 1],
               iconAnchor: [0, 0],
             }),
@@ -28164,6 +28329,7 @@
 
     function runSclawStartupChecks() {
       initAdminLineSecretControls();
+      setAdminLineRecipientMode(adminLineRecipientMode || 'manual', { persist: false });
       if (isAdminStandalonePage()) {
         setStandaloneAdminLocked(true);
         toggleAdminDrawer(true, { skipExclusive: true });

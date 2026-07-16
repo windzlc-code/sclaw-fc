@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260716-line-auto-recipients-b">
+  <link rel="stylesheet" href="/static/site.css?v=20260716-support-chat-dedupe-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -322,7 +322,7 @@
                           <path class="jp-map-broad-hit" data-jp-hub-region="北海道" title="北海道" d="M103.4 22.2C107.8 18.5 117.9 17.2 126.1 20.0C132.8 22.3 135.0 26.4 130.8 29.8C126.1 33.6 116.5 34.8 109.1 31.5C103.2 28.9 100.3 24.8 103.4 22.2Z"/>
                           <path class="jp-map-broad-hit" data-jp-hub-region="東北" title="東北" d="M100.0 33.2C104.3 31.2 111.8 32.8 116.2 37.1C121.2 42.0 123.2 50.4 120.2 57.1C117.8 62.3 111.8 64.4 106.8 60.5C102.5 57.0 98.8 50.8 96.7 44.7C94.8 39.2 96.0 35.1 100.0 33.2Z"/>
                           <path class="jp-map-broad-hit" data-jp-hub-region="關東" title="關東" d="M101.8 60.4C105.3 57.7 112.4 57.7 118.6 60.6C124.3 63.2 126.4 67.5 123.6 71.1C120.7 74.7 113.8 75.5 108.0 72.7C102.8 70.3 99.0 64.1 101.8 60.4Z"/>
-                          <path class="jp-map-broad-hit" data-jp-hub-region="甲信越・北陸" title="甲信越・北陸" d="M67.5 57.0C72.8 53.7 80.7 52.1 88.5 52.6C95.0 53.1 100.0 56.0 101.0 59.2C96.1 58.6 90.8 58.9 85.2 59.7C77.7 60.8 70.8 61.8 66.8 59.8C65.7 59.0 66.2 57.8 67.5 57.0Z M75.0 61.5C79.2 59.1 85.4 59.0 90.2 61.2C94.0 63.0 92.1 66.4 88.0 68.0C82.1 70.4 75.5 67.5 72.8 64.4C71.7 62.8 72.8 62.0 75.0 61.5Z"/>
+                          <path class="jp-map-broad-hit" data-jp-hub-region="甲信越・北陸" title="甲信越與北陸" d="M67.5 57.0C72.8 53.7 80.7 52.1 88.5 52.6C95.0 53.1 100.0 56.0 101.0 59.2C96.1 58.6 90.8 58.9 85.2 59.7C77.7 60.8 70.8 61.8 66.8 59.8C65.7 59.0 66.2 57.8 67.5 57.0Z M75.0 61.5C79.2 59.1 85.4 59.0 90.2 61.2C94.0 63.0 92.1 66.4 88.0 68.0C82.1 70.4 75.5 67.5 72.8 64.4C71.7 62.8 72.8 62.0 75.0 61.5Z"/>
                           <path class="jp-map-broad-hit" data-jp-hub-region="東海" title="東海" d="M74.0 65.2C78.2 63.2 85.6 64.0 92.3 67.6C98.2 70.7 101.2 76.0 99.1 80.0C96.8 84.1 89.7 84.2 83.8 80.5C78.4 77.2 72.5 69.6 74.0 65.2Z"/>
                           <path class="jp-map-broad-hit" data-jp-hub-region="關西" title="關西" d="M59.3 66.7C62.9 64.2 70.1 64.7 75.0 67.9C79.8 71.0 80.2 76.0 76.0 80.8C72.4 84.9 66.4 85.1 61.8 81.6C57.1 78.1 55.8 69.2 59.3 66.7Z"/>
                         </g>
@@ -331,8 +331,9 @@
                         {% for cluster in jp_map_pref_map_clusters | default(jp_map_pref_clusters, true) %}
                         {% set cluster_region = '中國地方' if cluster.title == '中國' else cluster.title %}
                         {% set cluster_kw = '中國 不動產' if cluster.title == '中國' else cluster.title ~ ' 不動產' %}
+                        {% set cluster_display_title = '甲信越與北陸' if cluster.title == '甲信越・北陸' else cluster.title %}
                         <section class="jp-map-pref-overlay jp-map-hub-cluster" data-jp-pref-cluster="{{ cluster.title }}">
-                          <button type="button" class="jp-map-region-label jp-map-pref-overlay-title{% if cluster.title == '甲信越・北陸' %} jp-map-region-label--wide{% endif %}" data-jp-orbit-title="{{ cluster.title }}" data-jp-pref-region="{{ cluster_region }}" data-jp-pref-kw="{{ cluster_kw }}" data-jp-pref-label="{{ cluster.title }}">{{ cluster.title }}</button>
+                          <button type="button" class="jp-map-region-label jp-map-pref-overlay-title{% if cluster.title == '甲信越・北陸' %} jp-map-region-label--wide{% endif %}" data-jp-orbit-title="{{ cluster.title }}" data-jp-pref-region="{{ cluster_region }}" data-jp-pref-kw="{{ cluster_kw }}" data-jp-pref-label="{{ cluster_display_title }}">{{ cluster_display_title }}</button>
                           <div class="jp-map-hub-cluster-chips">
                             {% for it in cluster['items'] %}
                             <button type="button" class="jp-map-hub-chip" data-jp-pref-region="{{ it.region }}" data-jp-pref-kw="{{ it.kw }}" data-jp-pref-label="{{ it.label }}">{{ it.label }}</button>
@@ -363,8 +364,8 @@
               </div>
             </div>
             <details class="jp-map-hub-more panel" id="jp-map-hub-details-commute" style="display:none;">
-              <summary class="jp-map-hub-more-summary">通勤・駅（進階）</summary>
-              <p class="muted" style="font-size:12px;margin:0 0 0.5rem;">通勤・駅條件可用於站內案件查詢（若資料仍稀疏，會自動退回以關鍵字加權）。</p>
+              <summary class="jp-map-hub-more-summary">通勤與車站（進階）</summary>
+              <p class="muted" style="font-size:12px;margin:0 0 0.5rem;">通勤與車站條件可用於站內案件查詢（若資料仍稀疏，會自動退回以關鍵字加權）。</p>
               <div id="jp-transit-smart-wrapper-home">
                 <div id="jp-transit-smart-wrapper">
                   <div class="jp-transit-smart-grid">
@@ -384,7 +385,7 @@
                       <input id="jp-transit-walk-max" type="number" min="0" max="240" value="0" class="jp-transit-walk">
                     </label>
                   </div>
-                  <p id="jp-transit-query-hint" class="muted" style="font-size:12px;margin:0.45rem 0;">選完都市圈後可連動路線・駅；案件查詢會套用路線／車站與徒步上限（資料不足時以關鍵字加權）。</p>
+                  <p id="jp-transit-query-hint" class="muted" style="font-size:12px;margin:0.45rem 0;">選完都市圈後可連動路線與車站；案件查詢會套用路線／車站與徒步上限（資料不足時以關鍵字加權）。</p>
                   <div class="jp-map-hub-aside-actions">
                     <button type="button" class="secondary" onclick="clearJpTransitSmartFilters()">清除交通條件</button>
                   </div>
@@ -1578,11 +1579,11 @@
           <label class="muted">日本區域／交通
             <select id="admin-cases-jp-area">
               <option value="">全部</option>
-              <option value="首都圏">首都圏</option>
+              <option value="首都圏">首都圈</option>
               <option value="關東">關東</option>
-              <option value="関東">関東</option>
+              <option value="関東">關東</option>
               <option value="關西">關西</option>
-              <option value="関西">関西</option>
+              <option value="関西">關西</option>
               <option value="北海道">北海道</option>
               <option value="東北">東北</option>
               <option value="甲信越">甲信越</option>
@@ -1965,8 +1966,8 @@
             <h5>LINE 收件資料</h5>
             <div class="admin-line-recipient-mode" aria-label="LINE 收件模式">
               <span class="admin-line-mode-toggle" role="group" aria-label="LINE 收件模式切換">
-                <button type="button" class="admin-line-mode-pill is-active" data-admin-line-mode="auto" onclick="setAdminLineRecipientMode('auto')">自動識別</button>
-                <button type="button" class="admin-line-mode-pill" data-admin-line-mode="manual" onclick="setAdminLineRecipientMode('manual')">手動填寫</button>
+                <button type="button" class="admin-line-mode-pill" data-admin-line-mode="auto" onclick="setAdminLineRecipientMode('auto')">自動識別</button>
+                <button type="button" class="admin-line-mode-pill is-active" data-admin-line-mode="manual" onclick="setAdminLineRecipientMode('manual')">手動填寫</button>
               </span>
               <button type="button" class="secondary admin-line-refresh-recipients" onclick="refreshAdminLineAutoRecipients()">刷新已識別 ID</button>
               <span id="admin-line-auto-recipient-hint" class="muted">顧問加 Bot 或傳送任意訊息後，會自動加入收件清單。</span>
@@ -2025,6 +2026,18 @@
               <button type="button" onclick="registerAdminLineWebhook()">設定 LINE Webhook</button>
             </div>
             <pre id="admin-line-webhook-status" class="muted" style="white-space:pre-wrap;max-height:10rem;overflow:auto;font-size:12px;background:#f9fafb;padding:8px;border-radius:6px;border:1px solid #e5e7eb;"></pre>
+            <div class="admin-line-recipient-list-panel" aria-label="LINE 用戶 ID 列表">
+              <div class="admin-line-recipient-list-head">
+                <strong>LINE 用戶 ID 列表</strong>
+                <span id="admin-line-recipient-list-count" class="muted">尚未載入</span>
+              </div>
+              <div class="admin-line-recipient-add-row">
+                <input id="admin-line-recipient-add-id" type="text" autocomplete="off" placeholder="貼上 U/C/R ID；多個可用逗號、空格或換行分隔">
+                <input id="admin-line-recipient-add-name" type="text" autocomplete="off" placeholder="備註名稱（選填）">
+                <button type="button" class="secondary" onclick="addAdminLineRecipient()">新增到列表</button>
+              </div>
+              <div id="admin-line-recipient-list" class="admin-line-recipient-list muted">尚未載入。</div>
+            </div>
           </div>
           <p id="admin-line-msg" class="muted" style="margin:0.5rem 0 0;padding:8px 10px;border-radius:6px;background:#f8fafc;border:1px solid #e2e8f0;min-height:1.25em;"></p>
         </div>
@@ -2442,7 +2455,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260716-line-auto-recipients-b" defer></script>
+  <script src="/static/index-app.js?v=20260716-support-chat-dedupe-a" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>
