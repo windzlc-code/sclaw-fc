@@ -18755,6 +18755,7 @@ def _line_text_messages(text: str, *, limit: int = 4900, max_messages: int = 5) 
     while rest and len(chunks) < max_messages:
         if len(rest) <= limit:
             chunks.append(rest)
+            rest = ""
             break
         cut = rest.rfind("\n", 0, limit)
         if cut < 1200:
