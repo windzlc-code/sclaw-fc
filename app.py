@@ -31118,7 +31118,7 @@ def _build_support_selected_cases_compare_reply(
         lines.append("價格先看：目前選中的案件有價格未定或缺少可解析金額，建議先確認最新售價、管理費與修繕積立金，再做投報或總成本排序。")
     if areas_known:
         lines.append("使用性先看：面積與格局要和用途綁在一起，自住重生活機能與舒適度，投資則要看出租需求、交通與持有成本。")
-    lines.append("如果要做更準的結論，下一步我建議先補一個條件：您這幾筆主要是要自住，還是投資收租？")
+    lines.append("下一步建議：您可以先告訴我這幾筆主要是自住還是投資收租，我會再按用途、預算與持有成本幫您重新排序；如果想直接由顧問接上，也可以先填寫諮詢表。")
     lines.append("")
     lines.append("提醒：以上為站內已選案件的初步整理，實際價格、稅費、貸款與成交條件仍以契約、原站資料與銀行審核為準。")
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
@@ -31139,7 +31139,8 @@ def _build_support_selected_cases_ai_compare_reply(
         "缺少資料要明確寫待確認，禁止自行補不存在的投報率、租金、價格、區域熱度或市場結論。"
         "請用繁體中文，語氣像顧問在 LINE/微信回覆，專業但不要官腔。"
         "格式：先用一句話總結；再逐筆列出重點（價格/面積格局/區域交通/風險或資料缺口）；"
-        "最後給綜合建議與最多一個需要補充的問題。"
+        "最後一定要用「下一步建議：」收尾，提出1個最適合使用者繼續回答的問題，"
+        "並自然引導使用者補預算、用途或請顧問核算，不要回答完就停。"
         "不要使用 Markdown 星號、粗體或斜體；若要列點，請用「1.」「2.」或「-」。"
     )
     user = (
@@ -33573,6 +33574,24 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             llm_meta["selected_cases_compare_fallback_reply"] = True
             reply = _build_support_selected_cases_compare_reply(msg, selected_cases=selected_cases)
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
+        sales_mcp["next_actions"] = [
+            {
+                "id": "compare_budget",
+                "label": "按預算排序",
+                "prompt": "我的預算大約是____萬日圓，請幫我按總價、貸款壓力和持有成本重新排序這幾筆案件。",
+            },
+            {
+                "id": "compare_usage",
+                "label": "按用途判斷",
+                "prompt": "我是以自住／投資收租為目的，請幫我判斷目前加入對比的案件哪一筆更適合。",
+            },
+            {
+                "id": "compare_cost",
+                "label": "看持有成本",
+                "prompt": "請幫我整理這幾筆案件下一步需要確認的稅費、管理費、修繕積立金和貸款條件。",
+            },
+            {"id": "handoff_human", "label": "填表找顧問", "prompt": "人工", "send": True},
+        ]
         return JSONResponse(
             {
                 "ok": True,
