@@ -10884,6 +10884,10 @@
       } catch (_) {
         window.__sclawSupportConsultEntryOnce = '';
       }
+      try {
+        await refreshSupportSelectedCasesFromSharedStorage({ force: true, persistRemote: true });
+        await hydrateSupportSelectedCasesDetails({ force: true });
+      } catch (_) {}
       const selectedCasesForThisSend = inlineCaseContextForThisSend
         ? [inlineCaseContextForThisSend]
         : (suppressSelectedCasesForThisSend ? [] : supportSelectedCases.slice(0, 20));

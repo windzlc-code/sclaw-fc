@@ -13627,7 +13627,7 @@ def _sanitize_support_selected_cases(raw_rows: list[Any], *, max_items: int = 16
             "building_type_zh": str(raw.get("building_type_zh") or "").strip()[:80],
             "thumb_url": _normalize_case_interest_url(raw.get("thumb_url")),
         }
-        if not row["title"] and not row["item_url"]:
+        if not row["title"] and not row["item_url"] and not row["source_item_id"] and not row["content_id"]:
             continue
         case_key = _support_case_key_from_dict(row)
         if not case_key or case_key in seen:
@@ -20196,7 +20196,7 @@ def _support_message_explicit_case_request(message: str) -> bool:
     if re.search(r"(找房|看房|找物件|看物件|找案件|看案件|推薦.*(?:房|物件|案件)|推荐.*(?:房|物件|案件))", text, re.I):
         return True
     has_case_word = re.search(r"(案件|物件|房源|房子|公寓|一戶建|一户建|マンション|房產|房地產|不動產|不动产)", text, re.I)
-    has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|諮詢|咨询|確認|确认|了解|瞭解|協助|协助|比較|比较|比對|比对|清單|清单|連結|链接|URL|編號|编号|已選|已选|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
+    has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|諮詢|咨询|確認|确认|了解|瞭解|協助|协助|比較|比较|比對|比对|對比|对比|分析|評估|评估|清單|清单|連結|链接|URL|編號|编号|已選|已选|加入|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
     return bool(has_case_word and has_action)
 
 
@@ -31064,6 +31064,66 @@ def _build_support_selected_case_fast_reply(
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
 
 
+def _support_case_display_value(case: dict[str, Any], *keys: str, fallback: str = "待確認", max_len: int = 80) -> str:
+    for key in keys:
+        value = str(case.get(key) or "").strip()
+        if value:
+            return value[:max_len]
+    return fallback
+
+
+def _build_support_selected_cases_compare_reply(
+    message: str,
+    *,
+    selected_cases: list[dict] | None = None,
+) -> str:
+    rows = [x for x in list(selected_cases or []) if isinstance(x, dict)]
+    if not rows:
+        return "目前還沒有讀到已加入對比的案件。請先把案件加入對比清單後，再輸入「比較這幾筆」。"
+    if len(rows) == 1:
+        return _build_support_selected_case_fast_reply(message, selected_cases=rows)
+
+    lines: list[str] = [
+        f"可以，我已讀到您加入對比的 {len(rows)} 筆案件。先按價格、區域交通、面積格局與投資風險做初步比較：",
+        "",
+    ]
+    for idx, case in enumerate(rows[:6], start=1):
+        title = _support_case_display_value(case, "title", fallback=f"案件 {idx}", max_len=72)
+        price = _support_case_display_value(case, "price_text_hant", "price_fx_hant", fallback="價格待確認", max_len=42)
+        area = _support_case_display_value(case, "area_text_hant", "building_area", "land_area", fallback="面積待確認", max_len=42)
+        layout = _support_case_display_value(case, "layout_text_hant", "layout_structure", fallback="格局待確認", max_len=42)
+        region = _support_case_display_value(case, "jp_region_display_zh", "region", "address_hint_zh", fallback="區域待確認", max_len=58)
+        transit = _support_case_display_value(case, "transit_line_zh", "transit", fallback="交通待確認", max_len=70)
+        sid = int(case.get("source_item_id") or 0)
+        prefix = f"{idx}. "
+        if sid > 0:
+            prefix += f"#{sid} "
+        lines.append(f"{prefix}{title}")
+        lines.append(f"   價格：{price}｜面積：{area}｜格局：{layout}")
+        lines.append(f"   區域：{region}｜交通：{transit}")
+
+    priced_rows = [
+        (r, _case_price_man_from_text(str(r.get("price_text_hant") or r.get("price_fx_hant") or "")))
+        for r in rows
+    ]
+    priced_rows = [(r, price_man) for r, price_man in priced_rows if price_man is not None]
+    areas_known = [r for r in rows if str(r.get("area_text_hant") or "").strip()]
+    lines.extend(["", "初步看法："])
+    if priced_rows:
+        low, _ = min(priced_rows, key=lambda item: float(item[1] or 0))
+        lines.append(
+            f"價格先看：目前資料中「{_support_case_display_value(low, 'title', max_len=46)}」可先作為低總價參考，但仍要回頭確認管理費、修繕積立金與實際可租性。"
+        )
+    else:
+        lines.append("價格先看：目前選中的案件有價格未定或缺少可解析金額，建議先確認最新售價、管理費與修繕積立金，再做投報或總成本排序。")
+    if areas_known:
+        lines.append("使用性先看：面積與格局要和用途綁在一起，自住重生活機能與舒適度，投資則要看出租需求、交通與持有成本。")
+    lines.append("如果要做更準的結論，下一步我建議先補一個條件：您這幾筆主要是要自住，還是投資收租？")
+    lines.append("")
+    lines.append("提醒：以上為站內已選案件的初步整理，實際價格、稅費、貸款與成交條件仍以契約、原站資料與銀行審核為準。")
+    return sanitize_support_chat_visible_reply("\n".join(lines).strip())
+
+
 def _support_should_lookup_managed_cases(
     message: str,
     *,
@@ -33147,6 +33207,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         session_id = f"sess-{uuid4().hex[:16]}"
     support_turn_index = _support_user_turn_count(payload.history, msg)
     selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
+    if selected_cases_input:
+        enriched_selected_cases = _enrich_support_selected_cases(selected_cases_input, max_items=20)
+        if enriched_selected_cases:
+            selected_cases_input = enriched_selected_cases
     if image_payload:
         meta = image_payload["meta"]
         return JSONResponse(
@@ -33398,6 +33462,39 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         session_id, _ = _replace_support_session_interest_cases(session_id, selected_cases_input)
     selected_cases = _load_support_session_interest_cases(session_id, limit=20)
     selected_cases_text = _format_interest_cases_for_prompt(selected_cases, max_chars=3200, max_items=6)
+    selected_compare_request = bool(
+        selected_cases
+        and len(selected_cases) >= 2
+        and re.search(r"(比較|比较|比對|比对|對比|对比|分析|評估|评估|優劣|优劣|哪個好|哪个好|建議|建议)", msg, re.I)
+    )
+    if selected_compare_request:
+        knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
+        knowledge_meta["property_listing_intent"] = True
+        knowledge_meta["managed_case_count"] = len(selected_cases)
+        sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": _build_support_selected_cases_compare_reply(msg, selected_cases=selected_cases),
+                "knowledge": knowledge_meta,
+                "llm": {
+                    "provider": "",
+                    "enabled": False,
+                    "model": "",
+                    "fast_mode": True,
+                    "knowledge_skipped": True,
+                    "selected_cases_compare_fast_reply": True,
+                },
+                "sales_mcp": sales_mcp,
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
     kq = (payload.knowledge_query or msg).strip()
     kb_text = ""
     kb_rows: list[dict] = []
