@@ -33574,24 +33574,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             llm_meta["selected_cases_compare_fallback_reply"] = True
             reply = _build_support_selected_cases_compare_reply(msg, selected_cases=selected_cases)
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
-        sales_mcp["next_actions"] = [
-            {
-                "id": "compare_budget",
-                "label": "按預算排序",
-                "prompt": "我的預算大約是____萬日圓，請幫我按總價、貸款壓力和持有成本重新排序這幾筆案件。",
-            },
-            {
-                "id": "compare_usage",
-                "label": "按用途判斷",
-                "prompt": "我是以自住／投資收租為目的，請幫我判斷目前加入對比的案件哪一筆更適合。",
-            },
-            {
-                "id": "compare_cost",
-                "label": "看持有成本",
-                "prompt": "請幫我整理這幾筆案件下一步需要確認的稅費、管理費、修繕積立金和貸款條件。",
-            },
-            {"id": "handoff_human", "label": "填表找顧問", "prompt": "人工", "send": True},
-        ]
         return JSONResponse(
             {
                 "ok": True,

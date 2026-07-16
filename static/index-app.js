@@ -9864,45 +9864,9 @@
     }
 
     function supportChatSuggestedPromptsHtml(salesMeta, knowledgeMeta) {
-      const actions = Array.isArray(salesMeta && salesMeta.next_actions) ? salesMeta.next_actions : [];
-      const selectedCount = Number(knowledgeMeta && knowledgeMeta.selected_case_count || 0);
-      const mapPrompt = (action) => {
-        const id = String((action && action.id) || '').trim();
-        const label = String((action && action.label) || '').trim();
-        const prompt = String((action && action.prompt) || '').trim();
-        if (prompt) return { label: label || prompt.slice(0, 12), prompt, send: action && action.send === true };
-        if (id === 'compare_budget') return { label: label || '按預算排序', prompt: '我的預算大約是____萬日圓，請幫我按總價、貸款壓力和持有成本重新排序這幾筆案件。' };
-        if (id === 'compare_usage') return { label: label || '按用途判斷', prompt: '我是以自住／投資收租為目的，請幫我判斷目前加入對比的案件哪一筆更適合。' };
-        if (id === 'compare_cost') return { label: label || '看持有成本', prompt: '請幫我整理這幾筆案件下一步需要確認的稅費、管理費、修繕積立金和貸款條件。' };
-        if (id === 'handoff_human') return { label: label || '顧問協助', prompt: '人工', send: true };
-        if (id === 'confirm_budget') return { label: label || '確認預算', prompt: '我的預算大約是____萬日圓，請幫我判斷下一步應該看哪些條件。' };
-        if (id === 'buying_consult') return { label: label || '買房方向', prompt: '我想買日本房產，請先幫我釐清用途、預算和適合看的區域。' };
-        if (id === 'risk_brief') return { label: label || '風險重點', prompt: '請幫我整理這類日本不動產案件購買前最需要注意的風險。' };
-        if (id === 'ask_one_followup') return { label: label || '下一個問題', prompt: selectedCount ? '請根據我已選的案件，下一步先問我一個最關鍵的問題。' : '請先問我一個最關鍵的買房條件。' };
-        return null;
-      };
-      let pills = actions.map(mapPrompt).filter(Boolean);
-      if (!pills.length && selectedCount > 0) {
-        pills = [
-          { label: '按預算排序', prompt: '我的預算大約是____萬日圓，請幫我按總價、貸款壓力和持有成本重新排序這幾筆案件。' },
-          { label: '按用途判斷', prompt: '我是以自住／投資收租為目的，請幫我判斷目前加入對比的案件哪一筆更適合。' },
-          { label: '顧問協助', prompt: '人工', send: true },
-        ];
-      }
-      const unique = [];
-      const seen = new Set();
-      for (const item of pills) {
-        const key = `${item.label}|${item.prompt}`;
-        if (!item.label || !item.prompt || seen.has(key)) continue;
-        seen.add(key);
-        unique.push(item);
-        if (unique.length >= 4) break;
-      }
-      if (!unique.length) return '';
-      const buttons = unique.map((item) => (
-        `<button type="button" data-support-quick-prompt="${esc(item.prompt)}"${item.send ? ' data-support-quick-send="1"' : ''}>${esc(item.label)}</button>`
-      )).join('');
-      return `<div class="support-chat-suggestion-pills">${buttons}</div>`;
+      void salesMeta;
+      void knowledgeMeta;
+      return '';
     }
 
     function ensureSupportChatWelcomeMessage() {
