@@ -1011,6 +1011,7 @@ def chat_support_reply_gemini(
     managed_case_count: int = 0,
     featured_case_count: int = 0,
     qa_match_label: str = "",
+    selected_case_compare_intent: bool = False,
 ) -> str:
     region = _resolve_region_label(persona_region)
     coach = (scenario_coaching or "").strip()
@@ -1070,7 +1071,16 @@ def chat_support_reply_gemini(
         if kb_attached
         else "（本次未取得站內摘錄；請簡短引導使用者補充地區、預算與用途。）"
     )
-    if property_listing_intent:
+    compare_mode = bool(selected_case_compare_intent)
+    if compare_mode:
+        pipeline_hint = (
+            "【回覆優先順序（已選案件 AI 對比，嚴格）】"
+            "使用者明確要求分析/對比已加入的案件；你必須直接輸出分析結果，不可只說「我來分析」或「我可以協助」。"
+            "只能依據下方【近半月站內知識庫】內的「使用者已選案件／已選站內案件」資料比較，禁止自行補不存在的價格、收益、區域熱度或投報率。"
+            "輸出需包含：1句總結；逐筆比較價格/面積格局/區域交通/資料缺口或風險；最後給綜合建議與最多1個需要補充的問題。"
+            "可使用簡短條列或編號，這一類對比不受一般 2～4 句限制；缺少欄位就寫「待確認」。"
+        )
+    elif property_listing_intent:
         pipeline_hint = (
             "【回覆優先順序（嚴格）】"
             "第一步：先判斷使用者是在問知識/流程/稅費，還是真的要求看案件；一般問答不推薦案件、不列 URL。"
@@ -1092,6 +1102,12 @@ def chat_support_reply_gemini(
         "若摘錄不足以支撐某個具體結論，請改說「站內目前有相關案件可再按預算與用途篩選」，不要自行補城市熱度、價格、房型或投報說法。"
         if int(managed_case_count or 0) > 0
         else "本輪未附站內案件；凡涉及具體房源、價格、地區、車站、面積、URL、投報率、市場收益區間或案例比較，必須先請使用者補條件或請他查看站內案件，不可自行編造。"
+    )
+    compare_contract = (
+        "\n\n【已選案件對比輸出特例】本輪若是在比較已選案件，允許使用編號/條列；必須列出每筆案件的可核對欄位與差異，"
+        "不要壓縮成一句話，也不要省略執行結果。"
+        if compare_mode
+        else ""
     )
     reminder_line = "提醒：以上為資訊整理與初步方向，實際仍以契約、法規與官方公告為準。"
     if kv == "hans":
@@ -1143,7 +1159,7 @@ def chat_support_reply_gemini(
         f"{pipeline_hint}"
         "可說明：站內查詢方式、日本不動產資訊閱讀重點、資料來源與免責；避免保證報酬、避免違法建議。"
         "每一輪回覆都必須可獨立閱讀且對當前問題有用：先釐清需求再給可行方向，禁止堆疊無關站名與廣告語。"
-        f"{format_contract.strip()}\n\n"
+        f"{format_contract.strip()}{compare_contract}\n\n"
         f"{coach_block}"
         f"{qa_block}"
         f"【近半月站內知識庫（僅供參考）】\n{(knowledge_text or '')[:kb_cap]}"
@@ -1162,6 +1178,6 @@ def chat_support_reply_gemini(
         temperature=0.28 if fast else 0.36,
         timeout_sec=22.0 if fast else 55.0,
         provider=provider,
-        max_tokens=900 if fast else 1200,
+        max_tokens=1800 if compare_mode else (900 if fast else 1200),
     )
     return sanitize_support_chat_visible_reply(content)[:8000]

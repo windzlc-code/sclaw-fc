@@ -31124,6 +31124,43 @@ def _build_support_selected_cases_compare_reply(
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
 
 
+def _build_support_selected_cases_ai_compare_reply(
+    message: str,
+    *,
+    selected_cases: list[dict[str, Any]],
+    provider: str,
+    model: str,
+) -> str:
+    cases_text = _format_interest_cases_for_prompt(selected_cases, max_chars=5200, max_items=8)
+    system = (
+        "你是資深日本不動產資訊顧問。使用者已在網站加入多筆案件，現在要求你做案件對比分析。"
+        "你必須直接輸出分析結果，不可只說「我來分析」或只做承接句。"
+        "只能使用使用者已選案件資料中的價格、面積、格局、區域、交通、來源與站內編號；"
+        "缺少資料要明確寫待確認，禁止自行補不存在的投報率、租金、價格、區域熱度或市場結論。"
+        "請用繁體中文，語氣像顧問在 LINE/微信回覆，專業但不要官腔。"
+        "格式：先用一句話總結；再逐筆列出重點（價格/面積格局/區域交通/風險或資料缺口）；"
+        "最後給綜合建議與最多一個需要補充的問題。"
+        "不要使用 Markdown 星號、粗體或斜體；若要列點，請用「1.」「2.」或「-」。"
+    )
+    user = (
+        f"使用者問題：{str(message or '').strip()[:800]}\n\n"
+        f"{cases_text}\n\n"
+        "請基於以上已選案件做真正的比較分析，回覆中要能看出你已讀取每一筆案件。"
+    )
+    reply = chat_completion(
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        model=model,
+        provider=provider,
+        temperature=0.32,
+        timeout_sec=34.0,
+        max_tokens=1600,
+    )
+    cleaned = re.sub(r"(?m)^\s*\*\s+", "- ", reply)
+    cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"(?<!\*)\*(?!\*)", "", cleaned)
+    return sanitize_support_chat_visible_reply(cleaned)[:8000]
+
+
 def _support_should_lookup_managed_cases(
     message: str,
     *,
@@ -33471,21 +33508,78 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
         knowledge_meta["property_listing_intent"] = True
         knowledge_meta["managed_case_count"] = len(selected_cases)
+        requested_provider = (payload.llm_provider or "").strip()
+        rp = resolve_llm_provider(requested_provider or None)
+        if not requested_provider and is_llm_configured("gemini"):
+            rp = "gemini"  # type: ignore[assignment]
+        provider_fallback_from = ""
+        if not requested_provider and not is_llm_configured(rp):
+            for cand in ("gemini", "deepseek"):
+                if cand != rp and is_llm_configured(cand):
+                    provider_fallback_from = rp
+                    rp = cand  # type: ignore[assignment]
+                    break
+        _, _, use_model = get_chat_credentials(rp)
+        use_model = (payload.gemini_model or "").strip() or use_model
+        llm_meta = {
+            "provider": rp,
+            "enabled": bool(is_llm_configured(rp)),
+            "model": use_model,
+            "fast_mode": False,
+            "knowledge_skipped": True,
+            "selected_cases_compare_ai_requested": True,
+            "selected_cases_compare_lightweight": True,
+        }
+        if provider_fallback_from:
+            llm_meta["provider_fallback_from"] = provider_fallback_from
+        reply = ""
+        if bool(llm_meta["enabled"]):
+            try:
+                reply = _build_support_selected_cases_ai_compare_reply(
+                    msg,
+                    selected_cases=selected_cases,
+                    provider=rp,
+                    model=use_model,
+                )
+                llm_meta["selected_cases_compare_ai_reply"] = True
+            except Exception as exc:
+                fallback_provider = ""
+                for cand in ("gemini", "deepseek"):
+                    if cand != rp and is_llm_configured(cand):
+                        fallback_provider = cand
+                        break
+                llm_meta["provider_error"] = f"{type(exc).__name__}: {exc}"[:900]
+                if fallback_provider:
+                    try:
+                        _, _, fallback_model = get_chat_credentials(fallback_provider)
+                        llm_meta["provider_retry_from"] = rp
+                        llm_meta["provider"] = fallback_provider
+                        llm_meta["model"] = fallback_model
+                        reply = _build_support_selected_cases_ai_compare_reply(
+                            msg,
+                            selected_cases=selected_cases,
+                            provider=fallback_provider,
+                            model=fallback_model,
+                        )
+                        llm_meta["enabled"] = True
+                        llm_meta["provider_retry_succeeded"] = True
+                        llm_meta["selected_cases_compare_ai_reply"] = True
+                    except Exception as fallback_exc:
+                        llm_meta["enabled"] = False
+                        llm_meta["provider_retry_succeeded"] = False
+                        llm_meta["error"] = f"{type(fallback_exc).__name__}: {fallback_exc}"[:900]
+        if not reply:
+            llm_meta["enabled"] = False
+            llm_meta["selected_cases_compare_fallback_reply"] = True
+            reply = _build_support_selected_cases_compare_reply(msg, selected_cases=selected_cases)
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
         return JSONResponse(
             {
                 "ok": True,
                 "session_id": session_id,
-                "reply": _build_support_selected_cases_compare_reply(msg, selected_cases=selected_cases),
+                "reply": reply,
                 "knowledge": knowledge_meta,
-                "llm": {
-                    "provider": "",
-                    "enabled": False,
-                    "model": "",
-                    "fast_mode": True,
-                    "knowledge_skipped": True,
-                    "selected_cases_compare_fast_reply": True,
-                },
+                "llm": llm_meta,
                 "sales_mcp": sales_mcp,
                 "matched_scene": None,
                 "matched_qa": None,
@@ -33588,6 +33682,12 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         interest_head.append(sc_ctx)
     if (selected_cases_text or "").strip() and not purchase_discovery_mode and case_request_sig:
         interest_head.append(selected_cases_text)
+    if selected_compare_request:
+        interest_head.append(
+            "【AI 任務：已選案件對比】\n"
+            "使用者要求你分析目前加入對比的案件。請直接基於上方已選案件資料產出對比分析，"
+            "不要只回覆「我來分析」或泛泛邀請補資料。需要逐筆比較可核對欄位，缺資料請標示待確認。"
+        )
     interest_bundle = "\n\n".join([x for x in interest_head if (x or "").strip()])
     rag_parts = [p for p in (interest_bundle, managed_text, featured_text, kb_text) if (p or "").strip()]
     combined_kb_text = "\n\n".join(rag_parts)
@@ -33651,7 +33751,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 break
     _, _, default_m = get_chat_credentials(rp)
     use_model = (payload.gemini_model or "").strip() or default_m
-    llm_fast = not run_kb
+    llm_fast = (not run_kb) and (not selected_compare_request)
     llm_meta = {
         "provider": rp,
         "enabled": bool(is_llm_configured(rp)),
@@ -33662,6 +33762,8 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     }
     if provider_fallback_from:
         llm_meta["provider_fallback_from"] = provider_fallback_from
+    if selected_compare_request:
+        llm_meta["selected_cases_compare_ai_requested"] = True
     matched = _match_support_scenario(msg)
     matched_qa = _match_support_qa_training(msg)
     scenario_coaching = _support_coaching_with_tone(
@@ -33721,9 +33823,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 crm_system_addon=crm_addon,
                 consultant_qa_addon=qa_addon,
                 property_listing_intent=bool(prop_sig),
-                managed_case_count=len(managed_api),
+                managed_case_count=len(managed_api) + (len(selected_cases) if selected_compare_request else 0),
                 featured_case_count=len(featured_recommendations),
                 qa_match_label=str((matched_qa or {}).get("label") or "").strip(),
+                selected_case_compare_intent=selected_compare_request,
             )
         except Exception as exc:
             fallback_provider = ""
@@ -33765,9 +33868,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                         crm_system_addon=crm_addon,
                         consultant_qa_addon=qa_addon,
                         property_listing_intent=bool(prop_sig),
-                        managed_case_count=len(managed_api),
+                        managed_case_count=len(managed_api) + (len(selected_cases) if selected_compare_request else 0),
                         featured_case_count=len(featured_recommendations),
                         qa_match_label=str((matched_qa or {}).get("label") or "").strip(),
+                        selected_case_compare_intent=selected_compare_request,
                     )
                     llm_meta["enabled"] = True
                     llm_meta["provider_retry_succeeded"] = True
@@ -33781,6 +33885,8 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                         persona_region=str(payload.persona_region or "tw"),
                     )
         try:
+            if selected_compare_request:
+                raise RuntimeError("skip_refine_for_selected_case_compare")
             reply, refine_meta = refine_long_support_reply_dual_stage(
                 reply,
                 persona_region=str(payload.persona_region or "tw"),
@@ -33791,26 +33897,35 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "steps": refine_meta.get("steps") or [],
                 }
         except Exception as exc:
-            llm_meta["enabled"] = False
-            llm_meta["error"] = f"{type(exc).__name__}: {exc}"
-            _push_backend_error_log(
-                method="POST",
-                path="/api/ai/chat-support",
-                status_code=502,
-                message=f"llm_chat_error: {type(exc).__name__}: {exc}",
-                elapsed_ms=0,
-            )
-            reply = _build_offline_support_reply(
-                message=msg,
-                knowledge_meta=knowledge_meta,
-                persona_region=str(payload.persona_region or "tw"),
-            )
+            if selected_compare_request and str(exc) == "skip_refine_for_selected_case_compare":
+                pass
+            else:
+                llm_meta["enabled"] = False
+                llm_meta["error"] = f"{type(exc).__name__}: {exc}"
+                _push_backend_error_log(
+                    method="POST",
+                    path="/api/ai/chat-support",
+                    status_code=502,
+                    message=f"llm_chat_error: {type(exc).__name__}: {exc}",
+                    elapsed_ms=0,
+                )
+                reply = _build_offline_support_reply(
+                    message=msg,
+                    knowledge_meta=knowledge_meta,
+                    persona_region=str(payload.persona_region or "tw"),
+                )
     else:
         reply = _build_offline_support_reply(
             message=msg,
             knowledge_meta=knowledge_meta,
             persona_region=str(payload.persona_region or "tw"),
         )
+    if selected_compare_request:
+        if bool(llm_meta.get("enabled")):
+            llm_meta["selected_cases_compare_ai_reply"] = True
+        else:
+            llm_meta["selected_cases_compare_fallback_reply"] = True
+            reply = _build_support_selected_cases_compare_reply(msg, selected_cases=selected_cases)
     if purchase_discovery_mode and _support_reply_violates_purchase_discovery(reply):
         reply = _build_purchase_discovery_reply(
             msg,

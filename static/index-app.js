@@ -10960,7 +10960,13 @@
             markLastSupportUserMessageTelegramDelivery(data.advisor_notify || data.telegram_notify || data.line_notify);
           }
           const reply = data.reply || data.detail || '（無回覆）';
-          const fullDisplayReply = Boolean(data && data.llm && data.llm.selected_cases_compare_fast_reply);
+          const fullDisplayReply = Boolean(
+            data && data.llm && (
+              data.llm.selected_cases_compare_ai_reply ||
+              data.llm.selected_cases_compare_fallback_reply ||
+              data.llm.selected_cases_compare_fast_reply
+            )
+          );
           const cooked = buildSupportConclusionText(typeof reply === 'string' ? reply : String(reply), { fullDisplay: fullDisplayReply });
           supportChatSpeechScript = cooked.voiceScript || '';
           supportChatHistory.push({
