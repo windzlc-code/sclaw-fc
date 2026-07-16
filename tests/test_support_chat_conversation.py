@@ -25,20 +25,18 @@ class SupportChatConversationTests(unittest.TestCase):
             conn.execute("DELETE FROM human_handoff_requests WHERE session_id = ?", (session_id,))
             conn.commit()
 
-    def test_bootstrap_welcome_is_short_and_not_queueing(self):
+    def test_bootstrap_welcome_has_no_simulated_service(self):
         resp = self.client.get("/api/ai/chat-support/bootstrap", params={"session_id": "sess-test-bootstrap"})
         self.assertEqual(resp.status_code, 200, resp.text)
         data = resp.json()
 
         self.assertTrue(data["ok"])
         self.assertIn("日本不動產線上客服", data["reply"])
-        self.assertIn("站內案件", data["reply"])
+        self.assertIn("日本房產", data["reply"])
         self.assertNotIn("工單", data["reply"])
         self.assertNotIn("排隊", data["reply"])
         self.assertNotIn("接待等待", data["reply"])
-        service = data["sales_mcp"]["simulated_service"]
-        self.assertFalse(service["active"])
-        self.assertEqual(service["mode"], "welcome")
+        self.assertNotIn("simulated_service", data["sales_mcp"])
 
     def test_greeting_returns_project_welcome_and_options(self):
         resp = app_module.api_ai_chat_support(
@@ -52,36 +50,31 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertNotIn("顧問接待", data["reply"])
         self.assertTrue(data["llm"]["knowledge_skipped"])
 
-    def test_identity_question_stays_in_service_tone_without_ai_jargon(self):
+    def test_identity_question_is_transparent_and_does_not_fabricate_advisor(self):
         resp = app_module.api_ai_chat_support(
             app_module.ChatSupportRequest(message="你是真人嗎", sales_session_id="sess-test-identity")
         )
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertIn("工號", data["reply"])
-        self.assertTrue(any(name in data["reply"] for name in ("小美", "小帥", "安琪", "阿哲")))
-        self.assertTrue("地區" in data["reply"] or "預算" in data["reply"])
-        self.assertNotIn("AI", data["reply"])
-        self.assertNotIn("機器人", data["reply"])
-        self.assertNotIn("机器人", data["reply"])
+        self.assertIn("網站線上客服", data["reply"])
+        self.assertIn("不是人工顧問", data["reply"])
+        self.assertNotIn("工號", data["reply"])
+        self.assertNotIn("小美", data["reply"])
         self.assertTrue(data["llm"]["light_chat_only"])
-        service = data["sales_mcp"]["simulated_service"]
-        self.assertTrue(service["active"])
-        self.assertEqual(service["mode"], "queueing")
-        self.assertIn("工號", service["display_text"])
+        self.assertNotIn("simulated_service", data["sales_mcp"])
 
-    def test_simplified_identity_question_returns_current_service_code(self):
+    def test_simplified_identity_question_uses_same_transparent_identity(self):
         resp = app_module.api_ai_chat_support(
             app_module.ChatSupportRequest(message="你是谁", sales_session_id="sess-test-identity-simplified")
         )
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertIn("工號", data["reply"])
-        self.assertTrue(any(name in data["reply"] for name in ("小美", "小帥", "安琪", "阿哲")))
-        self.assertNotIn("AI", data["reply"])
-        self.assertEqual(data["sales_mcp"]["simulated_service"]["mode"], "queueing")
+        self.assertIn("網站線上客服", data["reply"])
+        self.assertIn("不是人工顧問", data["reply"])
+        self.assertNotIn("工號", data["reply"])
+        self.assertNotIn("simulated_service", data["sales_mcp"])
 
     def test_small_talk_is_natural_but_guides_back_to_site_journey(self):
         resp = app_module.api_ai_chat_support(
@@ -90,9 +83,8 @@ class SupportChatConversationTests(unittest.TestCase):
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertIn("日本買房", data["reply"])
-        self.assertTrue("東京" in data["reply"] or "大阪" in data["reply"])
-        self.assertTrue("自住" in data["reply"] or "投資" in data["reply"])
+        self.assertIn("整理方向", data["reply"])
+        self.assertTrue("地區" in data["reply"] or "用途" in data["reply"] or "預算" in data["reply"])
         self.assertNotIn("離線模式", data["reply"])
         self.assertNotIn("本次查詢結果", data["reply"])
         self.assertTrue(data["llm"]["light_chat_only"])
@@ -153,7 +145,8 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertTrue(sales["lead_capture"]["ready"])
         action_ids = [str(x.get("id") or "") for x in sales["next_actions"]]
         self.assertIn("handoff_human", action_ids)
-        self.assertIn("工號", data["reply"])
+        self.assertIn("填寫需求表", data["reply"])
+        self.assertNotIn("工號", data["reply"])
         self.assertTrue(data["llm"].get("keyword_preset"))
         self.assertEqual(data["llm"].get("keyword_preset_kind"), "human_handoff")
 
@@ -173,8 +166,9 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertTrue(data["llm"]["knowledge_skipped"])
         self.assertTrue(data["knowledge"]["skipped_lookup"])
         self.assertTrue(data["sales_mcp"]["human_handoff_intent"])
-        self.assertIn("LINE", data["reply"])
-        self.assertIn("真人顧問", data["reply"])
+        self.assertIn("填寫需求表", data["reply"])
+        self.assertIn("實際顧問", data["reply"])
+        self.assertNotIn("工號", data["reply"])
 
     def test_buying_flow_keyword_uses_fast_preset_without_llm_or_knowledge(self):
         resp = app_module.api_ai_chat_support(
@@ -190,7 +184,7 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertEqual(data["llm"]["keyword_preset_kind"], "buying_flow")
         self.assertFalse(data["llm"]["enabled"])
         self.assertTrue(data["knowledge"]["skipped_lookup"])
-        self.assertIn("5 步", data["reply"])
+        self.assertIn("日本買房", data["reply"])
 
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"
@@ -247,9 +241,9 @@ class SupportChatConversationTests(unittest.TestCase):
                 f"/api/admin/handoff-requests/{handoff_id}/reply",
                 headers={"x-admin-password": app_module.ADMIN_PANEL_PASSWORD},
                 json={
-                    "message": "您好，这里是人工顾问小美，已经收到您的需求，我先帮您整理东京 2LDK 看房方向。",
+                    "message": "您好，顧問團隊已收到您的需求，我先幫您整理東京 2LDK 看房方向。",
                     "channel": "web",
-                    "sender_name": "工号1001小美",
+                    "sender_name": "顧問團隊",
                 },
             )
             self.assertEqual(reply_resp.status_code, 200, reply_resp.text)
@@ -265,7 +259,7 @@ class SupportChatConversationTests(unittest.TestCase):
             inbox_data = inbox_resp.json()
             self.assertTrue(inbox_data["ok"])
             bodies = [str(row.get("body") or "") for row in inbox_data["items"]]
-            self.assertTrue(any("人工顾问小美" in body or "人工顧問小美" in body or "东京 2LDK" in body for body in bodies))
+            self.assertTrue(any("顧問團隊" in body or "東京 2LDK" in body for body in bodies))
         finally:
             self._cleanup_session(session_id)
 

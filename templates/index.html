@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260716-line-auto-recipients-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260716-line-auto-recipients-b">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -1292,18 +1292,6 @@
         <label class="muted">範例對話（風格參考，可留空）
           <textarea id="admin-support-crm-examples" rows="8" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
         </label>
-        <label class="muted">模擬值班顧問（每行：工號 | 名稱 | 職稱）
-          <textarea id="admin-support-crm-simulated-advisors" rows="5" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
-        </label>
-        <label class="muted">排隊提示模板（每行一則）
-          <textarea id="admin-support-crm-queue-templates" rows="4" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
-        </label>
-        <label class="muted">接待提示模板（每行一則）
-          <textarea id="admin-support-crm-service-templates" rows="4" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
-        </label>
-        <label class="muted">真人接手提示模板（每行一則）
-          <textarea id="admin-support-crm-handoff-templates" rows="3" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:0.85rem;"></textarea>
-        </label>
         <div class="search-row-basic" style="margin-top:0.5rem;flex-wrap:wrap;gap:0.5rem;">
           <button type="button" onclick="saveAdminSupportCrmPrompt()">儲存 CRM 提示詞</button>
           <button type="button" class="secondary" onclick="loadAdminSupportCrmPrompt()">重新載入</button>
@@ -1976,8 +1964,10 @@
           <div class="admin-notify-setup-block">
             <h5>LINE 收件資料</h5>
             <div class="admin-line-recipient-mode" aria-label="LINE 收件模式">
-              <button type="button" class="admin-line-mode-pill is-active" data-admin-line-mode="auto" onclick="setAdminLineRecipientMode('auto')">自動識別</button>
-              <button type="button" class="admin-line-mode-pill" data-admin-line-mode="manual" onclick="setAdminLineRecipientMode('manual')">手動填寫</button>
+              <span class="admin-line-mode-toggle" role="group" aria-label="LINE 收件模式切換">
+                <button type="button" class="admin-line-mode-pill is-active" data-admin-line-mode="auto" onclick="setAdminLineRecipientMode('auto')">自動識別</button>
+                <button type="button" class="admin-line-mode-pill" data-admin-line-mode="manual" onclick="setAdminLineRecipientMode('manual')">手動填寫</button>
+              </span>
               <button type="button" class="secondary admin-line-refresh-recipients" onclick="refreshAdminLineAutoRecipients()">刷新已識別 ID</button>
               <span id="admin-line-auto-recipient-hint" class="muted">顧問加 Bot 或傳送任意訊息後，會自動加入收件清單。</span>
             </div>
@@ -2452,7 +2442,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260716-line-auto-recipients-a" defer></script>
+  <script src="/static/index-app.js?v=20260716-line-auto-recipients-b" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>

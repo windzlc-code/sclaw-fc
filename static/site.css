@@ -10655,7 +10655,6 @@ body.selected-compare-body {
 
 .support-chat-row--enter .support-chat-bubble,
 .support-chat-row--enter .support-chat-welcome-card,
-.support-chat-row--enter .support-chat-service-banner,
 .support-chat-row--enter .support-chat-suggestion-pills {
   animation: supportChatBubbleSoftIn 0.46s cubic-bezier(0.16, 1, 0.3, 1) 0.035s both;
 }
@@ -10715,7 +10714,6 @@ body.selected-compare-body {
   .support-chat-row--enter,
   .support-chat-row--enter .support-chat-bubble,
   .support-chat-row--enter .support-chat-welcome-card,
-  .support-chat-row--enter .support-chat-service-banner,
   .support-chat-row--enter .support-chat-suggestion-pills {
     animation: none !important;
     opacity: 1 !important;
@@ -10849,84 +10847,6 @@ body.selected-compare-body {
 
 .support-chat-advisor-bubble {
   margin-top: 0;
-}
-
-.support-chat-service-banner {
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(88, 112, 136, 0.18);
-  background: linear-gradient(180deg, #f8fbfd 0%, #eef4f7 100%);
-  color: #334155;
-}
-
-.support-chat-service-banner--queueing {
-  background: linear-gradient(180deg, #f8fbfd 0%, #edf5fa 100%);
-  border-color: rgba(86, 129, 163, 0.2);
-}
-
-.support-chat-service-banner--handoff_ready {
-  background: linear-gradient(180deg, #f6fbf8 0%, #ebf7ef 100%);
-  border-color: rgba(43, 124, 82, 0.24);
-}
-
-.support-chat-service-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: rgba(72, 102, 126, 0.12);
-  color: #24425a;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.support-chat-service-label {
-  display: inline-block;
-  margin-left: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #203246;
-}
-
-.support-chat-service-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-
-.support-chat-service-dots span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #5f819a;
-  animation: dialogThinkDot 1s ease-in-out infinite;
-}
-
-.support-chat-service-dots span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.support-chat-service-dots span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.support-chat-service-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: #587086;
-}
-
-.support-chat-service-text {
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.55;
-  color: #42536a;
 }
 
 .support-chat-welcome-card {
@@ -31818,20 +31738,33 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
   margin: 0 0 10px;
 }
 
+.admin-line-mode-toggle {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid #b7c7d5;
+  border-radius: 999px;
+  background: #eaf1f6;
+  box-shadow: inset 0 1px 2px rgba(15, 61, 99, 0.08);
+}
+
 .admin-line-mode-pill {
-  border: 1px solid #cbd5e1 !important;
+  border: 0 !important;
   border-radius: 999px !important;
-  background: #fff !important;
+  background: transparent !important;
   color: #334155 !important;
-  padding: 6px 14px !important;
-  min-height: 34px !important;
+  padding: 6px 16px !important;
+  min-width: 86px !important;
+  min-height: 32px !important;
   box-shadow: none !important;
+  line-height: 1.15 !important;
 }
 
 .admin-line-mode-pill.is-active {
-  border-color: #0f766e !important;
   background: #0f766e !important;
   color: #fff !important;
+  box-shadow: 0 1px 4px rgba(15, 118, 110, 0.22) !important;
 }
 
 .admin-line-refresh-recipients {
@@ -31847,6 +31780,25 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
 
 .is-line-manual-disabled {
   opacity: 0.72;
+}
+
+.is-line-manual-disabled .admin-secret-input-wrap {
+  cursor: not-allowed;
+}
+
+.is-line-manual-disabled input:disabled {
+  background: #eef3f6 !important;
+  color: #64748b !important;
+  cursor: not-allowed !important;
+  -webkit-text-fill-color: #64748b;
+}
+
+.is-line-manual-disabled .admin-secret-copy-btn:disabled,
+.is-line-manual-disabled .admin-secret-eye-btn:disabled {
+  color: #94a3b8 !important;
+  background: transparent !important;
+  cursor: not-allowed !important;
+  opacity: 0.55 !important;
 }
 
 .admin-secret-input-wrap {

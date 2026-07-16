@@ -75,10 +75,6 @@ from src.support_crm_prompt_defaults import (
     SUPPORT_CRM_DEFAULT_COMPACT,
     SUPPORT_CRM_DEFAULT_EXAMPLES,
     SUPPORT_CRM_DEFAULT_FULL,
-    SUPPORT_SIMULATED_ADVISOR_ROSTER_DEFAULT,
-    SUPPORT_SIMULATED_HANDOFF_TEMPLATES_DEFAULT,
-    SUPPORT_SIMULATED_QUEUE_TEMPLATES_DEFAULT,
-    SUPPORT_SIMULATED_SERVICE_TEMPLATES_DEFAULT,
 )
 from src.dialog_ai import run_dialog_ai_summary, run_smart_nav_graph_ai
 from src.homes_media_filter import (
@@ -8573,10 +8569,6 @@ class SupportCrmPromptPut(BaseModel):
     full_prompt: str | None = None
     compact_prompt: str | None = None
     examples: str | None = None
-    simulated_advisors: str | None = None
-    queue_templates: str | None = None
-    service_templates: str | None = None
-    handoff_templates: str | None = None
     inject_mode: str | None = None
     enabled: bool | None = None
 
@@ -8584,10 +8576,6 @@ class SupportCrmPromptPut(BaseModel):
 KV_SUPPORT_CRM_FULL = "support_crm_prompt_full"
 KV_SUPPORT_CRM_COMPACT = "support_crm_prompt_compact"
 KV_SUPPORT_CRM_EXAMPLES = "support_crm_prompt_examples"
-KV_SUPPORT_SIMULATED_ADVISORS = "support_simulated_advisors"
-KV_SUPPORT_QUEUE_TEMPLATES = "support_queue_templates"
-KV_SUPPORT_SERVICE_TEMPLATES = "support_service_templates"
-KV_SUPPORT_HANDOFF_TEMPLATES = "support_handoff_templates"
 KV_SUPPORT_CRM_MODE = "support_crm_prompt_inject_mode"
 KV_SUPPORT_CRM_ENABLED = "support_crm_prompt_enabled"
 
@@ -12802,21 +12790,13 @@ def _build_sales_mcp_payload(
         else "客戶已明確要求人工／顧問／留單，需開啟正式問卷並取得聯絡方式"
         if human_intent and should_notify
         else (
-            "客戶目前想找顧問，但尚未明確進入買房決策；先由模擬顧問接待並補一個關鍵條件"
+            "客戶目前想找顧問，但尚未明確進入買房決策；先由線上客服補一個關鍵條件"
             if human_intent
             else ("客戶已送出有興趣的站內案件，先整理需求，暫不人工轉接" if selected_interest else "")
         )
     )
     lead_capture = _support_lead_capture_blueprint(message, knowledge_meta, human_intent=human_intent)
     case_intro = _support_case_intro_items(knowledge_meta, limit=3)
-    simulated_service = _build_support_simulated_service_meta(
-        session_id=session_id,
-        message=message,
-        turn_index=turn_index,
-        queue_only=False,
-        human_intent=human_intent,
-        real_handoff_ready=should_notify,
-    )
     return {
         "session_id": session_id,
         "stage": stage,
@@ -12833,7 +12813,6 @@ def _build_sales_mcp_payload(
         "next_actions": next_actions,
         "lead_capture": lead_capture,
         "case_intro": case_intro,
-        "simulated_service": simulated_service,
         "knowledge_upgrade": [
             "將本次對話重點回寫為顧問問答模版",
             "補齊對應區域的稅費、流程與成本明細",
@@ -19386,7 +19365,7 @@ def _process_line_event(event: dict[str, Any]) -> None:
     reply_token = str(event.get("replyToken") or "").strip()
     if not line_source_id:
         return
-    if _line_recipient_mode() == "auto" and etype in {"follow", "join", "message", "memberJoined"}:
+    if etype in {"follow", "join", "message", "memberJoined"}:
         _upsert_line_auto_recipient(
             line_target_id=line_source_id,
             source_type=source_type,
@@ -19819,150 +19798,6 @@ def support_crm_system_addon_for_llm() -> str:
     return _compose_support_crm_addon_from_parts(sf, sc, se, _support_crm_inject_mode())
 
 
-def _support_multiline_runtime_value(kv_key: str, default_value: str) -> str:
-    raw = get_kv(kv_key).strip()
-    text = raw or str(default_value or "").strip()
-    lines = [str(line or "").strip() for line in text.splitlines() if str(line or "").strip()]
-    return "\n".join(lines).strip()
-
-
-def _support_parse_simulated_advisors(text: str) -> list[dict[str, str]]:
-    out: list[dict[str, str]] = []
-    for idx, raw_line in enumerate(str(text or "").splitlines(), start=1):
-        line = str(raw_line or "").strip()
-        if not line:
-            continue
-        parts = [p.strip() for p in re.split(r"[|｜]", line) if p.strip()]
-        if not parts:
-            continue
-        if len(parts) >= 2:
-            code_raw, name = parts[0], parts[1]
-            title = parts[2] if len(parts) >= 3 else "置業顧問"
-        else:
-            code_raw, name, title = "", parts[0], "置業顧問"
-        digits = re.sub(r"\D+", "", code_raw)
-        code = digits[:8] if digits else str(1000 + idx)
-        out.append(
-            {
-                "code": code,
-                "name": name[:24] or f"顧問{idx}",
-                "title": title[:36] or "置業顧問",
-            }
-        )
-    if out:
-        return out
-    return [
-        {"code": "1001", "name": "小美", "title": "海外置產顧問"},
-        {"code": "1002", "name": "小帥", "title": "日本買房顧問"},
-    ]
-
-
-def _support_runtime_simulated_advisors() -> list[dict[str, str]]:
-    return _support_parse_simulated_advisors(
-        _support_multiline_runtime_value(KV_SUPPORT_SIMULATED_ADVISORS, SUPPORT_SIMULATED_ADVISOR_ROSTER_DEFAULT)
-    )
-
-
-def _support_runtime_queue_templates() -> list[str]:
-    text = _support_multiline_runtime_value(KV_SUPPORT_QUEUE_TEMPLATES, SUPPORT_SIMULATED_QUEUE_TEMPLATES_DEFAULT)
-    return [line for line in text.splitlines() if line.strip()]
-
-
-def _support_runtime_service_templates() -> list[str]:
-    text = _support_multiline_runtime_value(KV_SUPPORT_SERVICE_TEMPLATES, SUPPORT_SIMULATED_SERVICE_TEMPLATES_DEFAULT)
-    return [line for line in text.splitlines() if line.strip()]
-
-
-def _support_runtime_handoff_templates() -> list[str]:
-    text = _support_multiline_runtime_value(KV_SUPPORT_HANDOFF_TEMPLATES, SUPPORT_SIMULATED_HANDOFF_TEMPLATES_DEFAULT)
-    return [line for line in text.splitlines() if line.strip()]
-
-
-def _support_hash_pick_index(seed: str, size: int) -> int:
-    if size <= 0:
-        return 0
-    digest = hashlib.md5(str(seed or "support").encode("utf-8")).hexdigest()
-    return int(digest[:8], 16) % size
-
-
-def _support_pick_simulated_advisor(session_id: str) -> dict[str, str]:
-    rows = _support_runtime_simulated_advisors()
-    return rows[_support_hash_pick_index(session_id or "support", len(rows))]
-
-
-def _support_fill_simulated_template(
-    template: str,
-    advisor: dict[str, str],
-    *,
-    queue_position: int = 0,
-    wait_minutes: int = 0,
-    wait_seconds: int = 0,
-    turn_index: int = 0,
-) -> str:
-    safe = str(template or "").strip()
-    if not safe:
-        return ""
-    values = {
-        "code": str(advisor.get("code") or "").strip(),
-        "name": str(advisor.get("name") or "").strip(),
-        "title": str(advisor.get("title") or "").strip(),
-        "queue": queue_position,
-        "wait": wait_minutes,
-        "wait_seconds": wait_seconds,
-        "turn": max(1, int(turn_index or 0)),
-    }
-
-    class _SafeDict(dict):
-        def __missing__(self, key: str) -> str:
-            return "{" + str(key or "") + "}"
-
-    try:
-        return _compact_support_service_copy(safe.format_map(_SafeDict(values)).strip())
-    except Exception:
-        return _compact_support_service_copy(safe)
-
-
-def _sanitize_support_service_copy(text: str) -> str:
-    s = str(text or "")
-    if not s:
-        return ""
-    replacements = (
-        ("像真人顧問一樣", ""),
-        ("像真人顾问一样", ""),
-        ("像真人一樣", ""),
-        ("像真人一样", ""),
-        ("像真人顧問", ""),
-        ("像真人顾问", ""),
-        ("真人顧問私訊口吻", "自然私訊口吻"),
-        ("真人顾问私讯口吻", "自然私訊口吻"),
-        ("真人顧問私訊", "自然私訊"),
-        ("真人顾问私讯", "自然私訊"),
-        ("真人顧問", "人工顧問"),
-        ("真人顾问", "人工顧問"),
-        ("真人接手", "人工接手"),
-        ("真人需求", "人工需求"),
-        ("真人服務感", "服務感"),
-        ("真人銷售口吻", "自然客服口吻"),
-        ("真人私訊", "自然私訊"),
-    )
-    for old, new in replacements:
-        s = s.replace(old, new)
-    s = re.sub(r"(?:預計|预计)?\s*(?:約|约)?\s*\d+\s*(?:分鐘|分钟|分鍾)(?:內|内)?", "幾秒內", s)
-    s = re.sub(r"\s{2,}", " ", s)
-    return s.strip()
-
-
-def _compact_support_service_copy(text: str) -> str:
-    s = _sanitize_support_service_copy(text)
-    if not s:
-        return ""
-    parts = [p.strip() for p in re.split(r"(?<=[。！？!?])\s*", s) if p.strip()]
-    compact = " ".join(parts[:2]).strip() if parts else s
-    if len(compact) > 78:
-        compact = compact[:78].rstrip("，、；：,. ") + "…"
-    return compact
-
-
 def _support_has_direct_buying_commitment(message: str) -> bool:
     raw = str(message or "").strip()
     if not raw:
@@ -20023,82 +19858,7 @@ def _support_user_turn_count(history: list[dict[str, Any]] | None = None, curren
     return max(0, turns)
 
 
-def _build_support_simulated_service_meta(
-    *,
-    session_id: str,
-    message: str,
-    turn_index: int = 0,
-    queue_only: bool = False,
-    human_intent: bool = False,
-    real_handoff_ready: bool = False,
-) -> dict[str, Any]:
-    queue_phase = bool(queue_only or human_intent) and not real_handoff_ready and int(turn_index or 0) <= 1
-    mode = "handoff_ready" if real_handoff_ready else ("queueing" if queue_phase else "serving")
-    advisor_seed = (
-        f"{session_id}:handoff"
-        if real_handoff_ready
-        else (f"{session_id}:queue" if mode == "queueing" else f"{session_id}:serving")
-    )
-    advisor = _support_pick_simulated_advisor(advisor_seed)
-    queue_position = 1 + _support_hash_pick_index(f"{session_id}:{message}:queue-position", 4)
-    wait_seconds = 1 + _support_hash_pick_index(f"{session_id}:{message}:queue-wait", 2)
-    wait_minutes = wait_seconds
-    queue_text = _support_fill_simulated_template(
-        _support_runtime_queue_templates()[
-            _support_hash_pick_index(f"{session_id}:{message}:queue", len(_support_runtime_queue_templates()))
-        ],
-        advisor,
-        queue_position=queue_position,
-        wait_minutes=wait_minutes,
-        wait_seconds=wait_seconds,
-        turn_index=turn_index,
-    )
-    service_text = _support_fill_simulated_template(
-        _support_runtime_service_templates()[
-            _support_hash_pick_index(f"{session_id}:{message}:service", len(_support_runtime_service_templates()))
-        ],
-        advisor,
-        queue_position=queue_position,
-        wait_minutes=wait_minutes,
-        wait_seconds=wait_seconds,
-        turn_index=turn_index,
-    )
-    handoff_text = _support_fill_simulated_template(
-        _support_runtime_handoff_templates()[
-            _support_hash_pick_index(f"{session_id}:{message}:handoff", len(_support_runtime_handoff_templates()))
-        ],
-        advisor,
-        queue_position=queue_position,
-        wait_minutes=wait_minutes,
-        wait_seconds=wait_seconds,
-        turn_index=turn_index,
-    )
-    display_text = handoff_text if real_handoff_ready else (queue_text if mode == "queueing" else service_text)
-    advisor_label = f"工號{advisor.get('code') or ''}{advisor.get('name') or ''}".strip()
-    advisor_title = str(advisor.get("title") or "").strip()
-    title_hint = f"（{advisor_title}）" if advisor_title else ""
-    if advisor_label and advisor_label not in display_text:
-        display_text = f"目前由{advisor_label}{title_hint}先幫您整理。{display_text}"
-    return {
-        "active": True,
-        "mode": mode,
-        "advisor_code": str(advisor.get("code") or "").strip(),
-        "advisor_name": str(advisor.get("name") or "").strip(),
-        "advisor_title": str(advisor.get("title") or "").strip(),
-        "service_label": f"工號{advisor.get('code') or ''}｜{advisor.get('name') or ''}",
-        "queue_position": queue_position,
-        "wait_minutes": 0,
-        "wait_seconds": wait_seconds,
-        "turn_index": max(0, int(turn_index or 0)),
-        "queue_text": queue_text,
-        "service_text": service_text,
-        "handoff_text": handoff_text,
-        "display_text": _compact_support_service_copy(display_text),
-    }
-
-
-def _build_support_welcome_text(advisor: dict[str, str] | None = None) -> str:
-    _ = advisor
+def _build_support_welcome_text() -> str:
     return "您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。"
 
 
@@ -20106,17 +19866,9 @@ def admin_support_crm_prompt_snapshot() -> dict[str, Any]:
     sf_raw = get_kv(KV_SUPPORT_CRM_FULL).strip()
     sc_raw = get_kv(KV_SUPPORT_CRM_COMPACT).strip()
     se_raw = get_kv(KV_SUPPORT_CRM_EXAMPLES).strip()
-    sa_raw = get_kv(KV_SUPPORT_SIMULATED_ADVISORS).strip()
-    sq_raw = get_kv(KV_SUPPORT_QUEUE_TEMPLATES).strip()
-    ss_raw = get_kv(KV_SUPPORT_SERVICE_TEMPLATES).strip()
-    sh_raw = get_kv(KV_SUPPORT_HANDOFF_TEMPLATES).strip()
     sf = sf_raw or SUPPORT_CRM_DEFAULT_FULL
     sc = sc_raw or SUPPORT_CRM_DEFAULT_COMPACT
     se = se_raw or SUPPORT_CRM_DEFAULT_EXAMPLES
-    sa = sa_raw or _support_multiline_runtime_value(KV_SUPPORT_SIMULATED_ADVISORS, SUPPORT_SIMULATED_ADVISOR_ROSTER_DEFAULT)
-    sq = sq_raw or _support_multiline_runtime_value(KV_SUPPORT_QUEUE_TEMPLATES, SUPPORT_SIMULATED_QUEUE_TEMPLATES_DEFAULT)
-    ss = ss_raw or _support_multiline_runtime_value(KV_SUPPORT_SERVICE_TEMPLATES, SUPPORT_SIMULATED_SERVICE_TEMPLATES_DEFAULT)
-    sh = sh_raw or _support_multiline_runtime_value(KV_SUPPORT_HANDOFF_TEMPLATES, SUPPORT_SIMULATED_HANDOFF_TEMPLATES_DEFAULT)
     mode = _support_crm_inject_mode()
     en = _support_crm_enabled_runtime()
     addon = _compose_support_crm_addon_from_parts(sf, sc, se, mode) if en else ""
@@ -20126,18 +19878,10 @@ def admin_support_crm_prompt_snapshot() -> dict[str, Any]:
         "full_prompt": sf,
         "compact_prompt": sc,
         "examples": se,
-        "simulated_advisors": sa,
-        "queue_templates": sq,
-        "service_templates": ss,
-        "handoff_templates": sh,
         "stored_empty": {
             "full": not sf_raw,
             "compact": not sc_raw,
             "examples": not se_raw,
-            "simulated_advisors": not sa_raw,
-            "queue_templates": not sq_raw,
-            "service_templates": not ss_raw,
-            "handoff_templates": not sh_raw,
         },
         "injected_char_count": len(addon),
     }
@@ -20174,8 +19918,8 @@ def _support_coaching_with_tone(scenario_coaching: str, matched: dict | None) ->
     tone = (
         "【第一步｜後台場景與語氣】若下列有場景命中，請先順著場景結論方向理解使用者，不要硬套無關話術。"
         "語氣務必口語化、親切、有溫度，像一般 LINE／私訊接待；可用「您」「我這邊先幫您對了一下站內案件」；"
-        "避免公文腔、避免一次丟出過長清單。除非客戶直接問身份或技術來源，否則不要主動提 AI、模型、系統、自動生成。"
-        "若客戶直接追問是不是 AI／機器人／真人，請簡短回覆目前接待工號與名稱，能先協助整理需求，若要顧問接手可安排；不要展開身份辯論。\n\n"
+        "避免公文腔、避免一次丟出過長清單。"
+        "若客戶直接追問是不是 AI／機器人／真人，請如實說明這裡是網站線上客服，不可假稱人工顧問、值班人員或提供虛構工號；需要人工協助時可請客戶填表安排實際顧問跟進。\n\n"
     )
     body = (scenario_coaching or "").strip()
     if body:
@@ -20868,14 +20612,6 @@ def api_admin_put_support_crm_prompt(payload: SupportCrmPromptPut, request: Requ
         set_kv(KV_SUPPORT_CRM_COMPACT, str(payload.compact_prompt))
     if payload.examples is not None:
         set_kv(KV_SUPPORT_CRM_EXAMPLES, str(payload.examples))
-    if payload.simulated_advisors is not None:
-        set_kv(KV_SUPPORT_SIMULATED_ADVISORS, str(payload.simulated_advisors))
-    if payload.queue_templates is not None:
-        set_kv(KV_SUPPORT_QUEUE_TEMPLATES, str(payload.queue_templates))
-    if payload.service_templates is not None:
-        set_kv(KV_SUPPORT_SERVICE_TEMPLATES, str(payload.service_templates))
-    if payload.handoff_templates is not None:
-        set_kv(KV_SUPPORT_HANDOFF_TEMPLATES, str(payload.handoff_templates))
     return JSONResponse({"ok": True, **admin_support_crm_prompt_snapshot()})
 
 
@@ -20887,10 +20623,6 @@ def api_admin_delete_support_crm_prompt(request: Request):
         KV_SUPPORT_CRM_FULL,
         KV_SUPPORT_CRM_COMPACT,
         KV_SUPPORT_CRM_EXAMPLES,
-        KV_SUPPORT_SIMULATED_ADVISORS,
-        KV_SUPPORT_QUEUE_TEMPLATES,
-        KV_SUPPORT_SERVICE_TEMPLATES,
-        KV_SUPPORT_HANDOFF_TEMPLATES,
         KV_SUPPORT_CRM_MODE,
         KV_SUPPORT_CRM_ENABLED,
     ):
@@ -31118,68 +30850,21 @@ def _is_support_identity_question(text: str) -> bool:
     return bool(raw and len(raw) <= 40 and _CHAT_IDENTITY_QUESTION.match(raw))
 
 
-def _build_support_identity_reply(
-    persona_region: str = "tw",
-    *,
-    service_meta: dict[str, Any] | None = None,
-) -> str:
+def _build_support_identity_reply(persona_region: str = "tw") -> str:
     _ = persona_region
-    meta = service_meta or {}
-    code = str(meta.get("advisor_code") or "").strip()
-    name = str(meta.get("advisor_name") or "").strip()
-    title = str(meta.get("advisor_title") or "").strip()
-    service_label = f"工號{code}{name}" if code or name else "線上客服"
-    role_hint = f"（{title}）" if title else ""
     return (
-        f"目前由{service_label}{role_hint}為您接待。您可以把想了解的情況簡單說給我，我先幫您整理。"
+        "這裡是網站線上客服，不是人工顧問。您可以把想了解的情況簡單說給我，我先幫您整理；需要人工協助時可填表安排實際顧問跟進。"
     )
-
-
-def _build_support_simulated_service_reply(
-    message: str,
-    *,
-    sales_mcp: dict[str, Any] | None = None,
-    persona_region: str = "tw",
-) -> str:
-    _ = persona_region
-    msg = str(message or "").strip()
-    meta = (sales_mcp or {}).get("simulated_service") if isinstance(sales_mcp, dict) else None
-    if not isinstance(meta, dict) or not meta.get("active"):
-        return _build_support_greeting_reply(persona_region)
-    display = str(meta.get("display_text") or meta.get("service_text") or "").strip()
-    code = str(meta.get("advisor_code") or "").strip()
-    name = str(meta.get("advisor_name") or "").strip()
-    title = str(meta.get("advisor_title") or "").strip()
-    label = f"工號{code}{name}" if code or name else "線上客服"
-    title_hint = f"（{title}）" if title else ""
-    mode = str(meta.get("mode") or "serving").strip()
-    if not display:
-        display = f"目前由{label}{title_hint}為您接待。"
-    elif label != "線上客服" and label not in display and (not name or name not in display):
-        display = f"目前由{label}{title_hint}為您接待。"
-    if mode == "handoff_ready":
-        next_line = "請補充預算或地區。"
-    elif mode == "queueing":
-        next_line = ""
-    else:
-        next_line = "您把目前想看的方向補充一下，我會接著幫您整理。"
-    if _is_support_identity_question(msg):
-        return (
-            f"目前由{label}{title_hint}為您接待。您可以直接說想看的地區或預算。"
-        )
-    return sanitize_support_chat_visible_reply(f"{display}\n\n{next_line}".strip())
 
 
 def _build_support_light_chat_reply(
     message: str,
     persona_region: str = "tw",
-    *,
-    service_meta: dict[str, Any] | None = None,
 ) -> str:
     _ = persona_region
     raw = (message or "").strip()
     if _is_support_identity_question(raw):
-        return _build_support_identity_reply(persona_region, service_meta=service_meta)
+        return _build_support_identity_reply(persona_region)
     if _CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_SMALL_TALK_HINT.search(raw):
         return (
             "可以，我先幫您整理方向。您回地區、用途或預算其中一項就好。"
@@ -31216,18 +30901,11 @@ def _build_support_selected_case_fast_reply(
     message: str,
     *,
     selected_cases: list[dict] | None = None,
-    sales_mcp: dict[str, Any] | None = None,
 ) -> str:
     rows = [x for x in list(selected_cases or []) if isinstance(x, dict)]
     if not rows:
         return "您好，這裡是線上客服，我先幫您接住這筆案件需求。您想先確認價格條件、稅費貸款，還是安排後續顧問跟進？"
     case = rows[0]
-    meta = (sales_mcp or {}).get("simulated_service") if isinstance(sales_mcp, dict) else {}
-    code = str((meta or {}).get("advisor_code") or "").strip()
-    name = str((meta or {}).get("advisor_name") or "").strip()
-    title = str((meta or {}).get("advisor_title") or "").strip()
-    service_label = f"工號{code}{name}" if code or name else "線上客服"
-    title_hint = f"（{title}）" if title else ""
     case_title = str(case.get("title") or "這筆案件").strip()[:80]
     price = str(case.get("price_text_hant") or "").strip()
     layout = str(case.get("layout_text_hant") or "").strip()
@@ -31236,7 +30914,7 @@ def _build_support_selected_case_fast_reply(
     meta_line = "｜".join(x for x in [price, layout, area, region] if x)
     next_q = _support_single_followup_question(message, intent_ref=46)
     lines = [
-        f"您好，這裡是{service_label}{title_hint}，我先為您接待。",
+        "您好，這裡是線上客服，我先為您整理。",
         f"已收到您想諮詢的「{case_title}」。",
     ]
     if meta_line:
@@ -31248,27 +30926,6 @@ def _build_support_selected_case_fast_reply(
         ]
     )
     return sanitize_support_chat_visible_reply("\n".join(lines).strip())
-
-
-def _normalize_selected_case_fast_service_meta(meta: dict[str, Any] | None) -> dict[str, Any]:
-    base = dict(meta or {})
-    code = str(base.get("advisor_code") or "").strip()
-    name = str(base.get("advisor_name") or "").strip()
-    title = str(base.get("advisor_title") or "").strip()
-    base["active"] = True
-    base["mode"] = "queueing"
-    base["wait_minutes"] = 0
-    base["wait_seconds"] = 5
-    base["service_label"] = f"工號{code}｜{name}" if code or name else "線上客服"
-    if code or name:
-        base["display_text"] = f"目前由工號{code}{name}{f'（{title}）' if title else ''}先為您接待。"
-        base["queue_text"] = f"工號{code}{name}正在接待，請稍候。"
-        base["service_text"] = f"工號{code}{name}為您服務。"
-    else:
-        base["display_text"] = "目前由線上客服先為您接待。"
-        base["queue_text"] = "線上客服正在接待，請稍候。"
-        base["service_text"] = "線上客服為您服務。"
-    return base
 
 
 def _support_keyword_preset_reply(
@@ -31294,13 +30951,9 @@ def _support_keyword_preset_reply(
         knowledge_meta["property_listing_intent"] = True
         knowledge_meta["managed_case_count"] = len(selected)
         sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
-        sales_mcp["simulated_service"] = _normalize_selected_case_fast_service_meta(
-            sales_mcp.get("simulated_service") if isinstance(sales_mcp, dict) else None
-        )
         reply = _build_support_selected_case_fast_reply(
             raw,
             selected_cases=selected,
-            sales_mcp=sales_mcp,
         )
         return {
             "kind": "selected_case_consult_fast_track",
@@ -31339,11 +30992,7 @@ def _support_keyword_preset_reply(
 
     if _message_wants_human_or_advisor(raw):
         sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
-        simulated = sales_mcp.get("simulated_service") if isinstance(sales_mcp, dict) else {}
-        display = str((simulated or {}).get("display_text") or "").strip()
-        if not display:
-            display = "我先幫您接入顧問流程，先把需求整理清楚。"
-        reply = display
+        reply = "可以。請先填寫需求表，送出後會由實際顧問依您留下的聯絡方式跟進。"
         return _payload("human_handoff", reply, sales_mcp, intent_score=int(sales_mcp.get("intent_score") or 82))
 
     flow_terms = ("買房流程", "买房流程", "購買流程", "购买流程", "怎麼買", "怎么买", "如何買", "如何买", "怎麼開始", "怎么开始")
@@ -33116,7 +32765,6 @@ def api_ai_chat_support_bootstrap(session_id: str = Query("", description="客�
                     {"id": "confirm_budget", "label": "先抓預算"},
                     {"id": "clarify_purchase_plan", "label": "顧問接待"},
                 ],
-                "simulated_service": {"active": False, "mode": "welcome"},
             },
         }
     )
@@ -33247,7 +32895,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "case_intro": [],
                     "next_actions": [],
                     "sales_pitch": [],
-                    "simulated_service": {"active": False, "mode": "image_review"},
                 },
                 "matched_scene": None,
                 "matched_qa": None,
@@ -33340,14 +32987,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         }
         human_handoff_intent = bool(_message_wants_human_or_advisor(msg))
         real_handoff_ready = bool(_support_has_direct_buying_commitment(msg) or human_handoff_intent)
-        simulated_service = _build_support_simulated_service_meta(
-            session_id=session_id,
-            message=msg,
-            turn_index=support_turn_index,
-            queue_only=not real_handoff_ready,
-            human_intent=human_handoff_intent,
-            real_handoff_ready=real_handoff_ready,
-        )
         return JSONResponse(
             {
                 "ok": True,
@@ -33381,7 +33020,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     ],
                     "lead_capture": _support_lead_capture_blueprint(msg, knowledge_meta, human_intent=human_handoff_intent),
                     "sales_pitch": [],
-                    "simulated_service": simulated_service,
                 },
                 "matched_scene": None,
                 "matched_qa": None,
@@ -33415,18 +33053,9 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             "purchase_discovery": {"active": False, "dimensions": {}, "missing_fields": [], "skip_reason": skip_reason},
             "client_search": {"figure_keyword": "", "figure_region": "", "dialog_keyword": "", "query_blend": msg},
         }
-        simulated_service = _build_support_simulated_service_meta(
-            session_id=session_id,
-            message=msg,
-            turn_index=support_turn_index,
-            queue_only=True,
-            human_intent=False,
-            real_handoff_ready=False,
-        )
         reply = _build_support_light_chat_reply(
             msg,
             str(payload.persona_region or "tw"),
-            service_meta=simulated_service,
         )
         return JSONResponse(
             {
@@ -33461,7 +33090,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                         {"id": "clarify_purchase_plan", "label": "顧問接待"},
                     ],
                     "sales_pitch": [],
-                    "simulated_service": simulated_service,
                 },
                 "matched_scene": None,
                 "matched_qa": None,
@@ -33786,12 +33414,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         matched_scenario=matched,
     )
     if _message_wants_human_or_advisor(msg):
-        reply = _build_support_simulated_service_reply(
-            msg,
-            sales_mcp=sales_mcp,
-            persona_region=str(payload.persona_region or "tw"),
-        )
-        llm_meta["simulated_service_reply_applied"] = True
+        reply = "可以。請先填寫需求表，送出後會由實際顧問依您留下的聯絡方式跟進。"
     sales_mcp["case_intro"] = []
     if purchase_discovery_mode:
         purchase_human_intent = bool(sales_mcp.get("human_handoff_intent") or _message_wants_human_or_advisor(msg))

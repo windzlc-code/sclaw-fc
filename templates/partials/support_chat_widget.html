@@ -656,35 +656,6 @@
       );
     }
 
-    function supportFallbackServiceBannerHtml(meta) {
-      if (!meta || typeof meta !== 'object' || !meta.active) return '';
-      var mode = String(meta.mode || 'serving');
-      if (mode !== 'queueing' && mode !== 'handoff_ready') return '';
-      var label = esc(String(meta.service_label || '值班顧問'));
-      var modeText = mode === 'handoff_ready' ? '人工接手準備' : '排隊接待中';
-      var queueHint = mode === 'handoff_ready' ? '正在為您接入值班顧問，請稍候…' : '正在確認值班順序，請稍候…';
-      return (
-        '<div class="support-chat-service-banner support-chat-service-banner--' + esc(mode) + '">' +
-          '<span class="support-chat-service-badge">' + esc(modeText) + '</span>' +
-          '<span class="support-chat-service-label">' + label + '</span>' +
-          '<span class="support-chat-service-dots" aria-hidden="true"><span></span><span></span><span></span></span>' +
-          '<div class="support-chat-service-hint">' + esc(queueHint) + '</div>' +
-        '</div>'
-      );
-    }
-
-    function supportFallbackShouldStageServiceReply(salesMeta) {
-      var service = salesMeta && typeof salesMeta === 'object' ? salesMeta.simulated_service : null;
-      if (!service || typeof service !== 'object' || !service.active) return false;
-      var mode = String(service.mode || '');
-      return mode === 'queueing' || mode === 'handoff_ready';
-    }
-
-    function waitSupportFallbackServiceQueue(ms) {
-      var safeMs = Math.min(10000, Math.max(0, Number(ms) || 0));
-      return new Promise(function (resolve) { window.setTimeout(resolve, safeMs); });
-    }
-
     function setSupportFallbackThinking(on, labelText) {
       var thinking = document.getElementById('support-chat-thinking');
       var send = document.getElementById('support-chat-send-btn');
@@ -1096,20 +1067,6 @@
           var msg = typeof d === 'string' ? d : ('請求失敗（HTTP ' + res.status + '），請稍後再試。');
           supportFallbackHistory.push({ role: 'assistant', content: msg });
         } else {
-          var stageServiceReply = supportFallbackShouldStageServiceReply(data && data.sales_mcp);
-          if (stageServiceReply) {
-            setSupportFallbackThinking(false);
-            supportFallbackHistory.push({
-              role: 'assistant',
-              content: '',
-              contentHtml: supportFallbackServiceBannerHtml(data && data.sales_mcp && data.sales_mcp.simulated_service),
-              supportQueueNotice: true
-            });
-            renderSupportFallbackChatMessages();
-            await waitSupportFallbackServiceQueue(
-              Math.max(1000, Number(data && data.sales_mcp && data.sales_mcp.simulated_service && data.sales_mcp.simulated_service.wait_seconds || 0) * 1000)
-            );
-          }
           var reply = data && (data.reply || data.detail || '已收到，我這邊先幫您整理。');
           supportFallbackHistory.push({
             role: 'assistant',

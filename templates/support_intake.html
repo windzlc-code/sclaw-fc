@@ -57,8 +57,8 @@
         <section class="support-human-section support-human-section--static">
           <h3>二、購屋預算</h3>
           <div class="support-human-section-body support-human-section-body--grid">
-            <label class="muted support-human-field"><input id="support-page-budget-total-yen" type="text" maxlength="80" inputmode="numeric" aria-label="預計購屋總預算（日圓）（必填）" placeholder="預計購屋總預算（日圓）（必填，例：1000萬～3000萬）"></label>
-            <label class="muted support-human-field"><input id="support-page-down-payment-yen" type="text" maxlength="80" inputmode="numeric" aria-label="自備資金（日圓）（必填）" placeholder="自備資金（日圓）（必填，例：500萬）"></label>
+            <label class="muted support-human-field"><input id="support-page-budget-total-yen" type="text" maxlength="80" inputmode="text" aria-label="預計購屋總預算（日圓）（必填）" placeholder="預計購屋總預算（日圓）（必填，例：1000萬～3000萬）"></label>
+            <label class="muted support-human-field"><input id="support-page-down-payment-yen" type="text" maxlength="80" inputmode="text" aria-label="自備資金（日圓）（必填）" placeholder="自備資金（日圓）（必填，例：500萬）"></label>
             <label class="muted support-human-field">
               <select id="support-page-loan-need" aria-label="是否需要申請日本銀行貸款（必填）"><option value="">是否需要申請日本銀行貸款（必填）</option><option value="是">是</option><option value="否">否</option><option value="尚未確定">尚未確定</option></select>
             </label>
@@ -83,7 +83,7 @@
             <label class="muted support-human-field"><input id="support-page-target-city" type="text" maxlength="160" aria-label="希望購買城市（必填）" placeholder="希望購買城市（必填，例：東京、大阪）"></label>
             <label class="muted support-human-field"><input id="support-page-target-region" type="text" maxlength="160" aria-label="希望購買區域（選填）" placeholder="希望購買區域（選填，例：新宿區、澀谷區等）"></label>
             <label class="muted support-human-field"><input id="support-page-target-line-station" type="text" maxlength="160" aria-label="希望沿線或車站（選填）" placeholder="希望沿線或車站（選填，例：JR 山手線、新宿站等）"></label>
-            <label class="muted support-human-field"><input id="support-page-station-walk-minutes" type="text" maxlength="40" inputmode="numeric" aria-label="距離最近車站步行（選填）" placeholder="距離最近車站步行（選填，例：10 分鐘內）"></label>
+            <label class="muted support-human-field"><input id="support-page-station-walk-minutes" type="text" maxlength="40" inputmode="text" aria-label="距離最近車站步行（選填）" placeholder="距離最近車站步行（選填，例：10 分鐘內）"></label>
             <div id="support-page-interest-status" class="support-human-field support-human-choice-field">目前是否已有屬意的物件或區域？（必填）
               <div class="support-human-choice-grid support-human-choice-grid--stack" data-support-page-group="interest-status">
                 <label><input type="radio" name="support-page-interest-status" value="已有屬意物件，可提供物件網址或相關資料">已有屬意物件，可提供物件網址或相關資料</label>

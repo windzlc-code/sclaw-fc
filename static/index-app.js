@@ -2348,7 +2348,7 @@
       if (send) send.disabled = !!on;
       if (input) input.disabled = !!on;
       if (panel) panel.setAttribute('aria-busy', on ? 'true' : 'false');
-      if (label) label.textContent = on ? (String(hintText || '').trim() || '正在安排值班顧問整理回覆…') : '思考中…';
+      if (label) label.textContent = on ? (String(hintText || '').trim() || '正在整理回覆…') : '思考中…';
       const wrap = document.getElementById('support-chat-messages');
       if (wrap && on) {
         requestAnimationFrame(() => {
@@ -9747,41 +9747,6 @@
       return Boolean(salesMeta.human_handoff_intent && actions.some((a) => String((a && a.id) || '') === 'handoff_human'));
     }
 
-    function supportChatSimulatedServiceHtml(meta) {
-      if (!meta || typeof meta !== 'object' || !meta.active) return '';
-      const mode = String(meta.mode || 'serving');
-      if (!['queueing', 'handoff_ready'].includes(mode)) return '';
-      const label = esc(String(meta.service_label || '值班顧問'));
-      const modeText = mode === 'handoff_ready'
-        ? '人工接手準備'
-        : mode === 'queueing'
-          ? '排隊接待中'
-          : '顧問接待中';
-      const queueHint = mode === 'handoff_ready'
-        ? '正在為您接入值班顧問，請稍候…'
-        : '正在確認值班順序，請稍候…';
-      return (
-        `<div class="support-chat-service-banner support-chat-service-banner--${esc(mode)}">` +
-        `<span class="support-chat-service-badge">${esc(modeText)}</span>` +
-        `<span class="support-chat-service-label">${label}</span>` +
-        `<span class="support-chat-service-dots" aria-hidden="true"><span></span><span></span><span></span></span>` +
-        `<div class="support-chat-service-hint">${esc(queueHint)}</div>` +
-        '</div>'
-      );
-    }
-
-    function supportChatShouldStageServiceReply(salesMeta) {
-      const service = salesMeta && typeof salesMeta === 'object' ? salesMeta.simulated_service : null;
-      if (!service || typeof service !== 'object' || !service.active) return false;
-      const mode = String(service.mode || '');
-      return mode === 'queueing' || mode === 'handoff_ready';
-    }
-
-    function waitSupportChatServiceQueue(ms = 520) {
-      const safeMs = Math.min(10000, Math.max(0, Number(ms) || 0));
-      return new Promise((resolve) => window.setTimeout(resolve, safeMs));
-    }
-
     function supportChatMatchReasonHtml(scene, qa) {
       void scene;
       void qa;
@@ -9878,7 +9843,7 @@
       reader.readAsDataURL(file);
     }
 
-    function supportChatWelcomeHtml(serviceMeta, welcomeText) {
+    function supportChatWelcomeHtml(welcomeText) {
       const serviceBlock = '';
       const intro = esc(String(
         sanitizeSupportChatPublicCopy(welcomeText)
@@ -9929,13 +9894,13 @@
         const text = String(row.content || '').trim();
         return !/(我想填|想填|填寫|填写).{0,12}(客戶|客户|聯絡|联系|資料|资料|信息).{0,12}(表單|表单|開啟|开启)?/.test(text);
       });
-      const staleRe = /(排隊|工單|今天值班|顧問接待的方式|人工接待|值班顧問|人工顧問|真人顧問)/;
+      const staleRe = /(排隊|工單|今天值班|顧問接待的方式|人工接待|值班顧問|真人顧問)/;
       for (const row of supportChatHistory) {
         if (!row || !row.supportWelcome) continue;
         const blob = `${row.content || ''} ${row.contentHtml || ''} ${JSON.stringify(row.sales_mcp || {})}`;
         if (!staleRe.test(blob) && row.content === SUPPORT_CHAT_DEFAULT_WELCOME_TEXT) continue;
           row.content = SUPPORT_CHAT_DEFAULT_WELCOME_TEXT;
-          row.contentHtml = supportChatWelcomeHtml(null, SUPPORT_CHAT_DEFAULT_WELCOME_TEXT);
+          row.contentHtml = supportChatWelcomeHtml(SUPPORT_CHAT_DEFAULT_WELCOME_TEXT);
           row.sales_mcp = null;
           row.supportWelcomeHydrated = false;
       }
@@ -9956,7 +9921,7 @@
           if (!res.ok || !data || data.ok === false) return;
           row.content = sanitizeSupportChatPublicCopy(String(data.reply || row.content || '').trim() || row.content);
           row.sales_mcp = data.sales_mcp || null;
-          row.contentHtml = supportChatWelcomeHtml(data.sales_mcp && data.sales_mcp.simulated_service, row.content);
+          row.contentHtml = supportChatWelcomeHtml(row.content);
           row.supportWelcomeHydrated = true;
           renderSupportChatMessages();
         } catch (_) {
@@ -10368,8 +10333,8 @@
         `<section class="support-human-section support-human-section--static">` +
         `<h3>二、購屋預算</h3>` +
         `<div class="support-human-section-body support-human-section-body--grid">` +
-        `<label class="muted support-human-field"><input id="support-human-budget-total-yen-${seq}" type="text" maxlength="80" inputmode="numeric" aria-label="預計購屋總預算（日圓）（必填）" placeholder="預計購屋總預算（日圓）（必填，例：1000萬～3000萬）"></label>` +
-        `<label class="muted support-human-field"><input id="support-human-down-payment-yen-${seq}" type="text" maxlength="80" inputmode="numeric" aria-label="自備資金（日圓）（必填）" placeholder="自備資金（日圓）（必填，例：500萬）"></label>` +
+        `<label class="muted support-human-field"><input id="support-human-budget-total-yen-${seq}" type="text" maxlength="80" inputmode="text" aria-label="預計購屋總預算（日圓）（必填）" placeholder="預計購屋總預算（日圓）（必填，例：1000萬～3000萬）"></label>` +
+        `<label class="muted support-human-field"><input id="support-human-down-payment-yen-${seq}" type="text" maxlength="80" inputmode="text" aria-label="自備資金（日圓）（必填）" placeholder="自備資金（日圓）（必填，例：500萬）"></label>` +
         `<label class="muted support-human-field">` +
         `<select id="support-human-loan-need-${seq}" aria-label="是否需要申請日本銀行貸款（必填）"><option value="">是否需要申請日本銀行貸款（必填）</option><option value="是">是</option><option value="否">否</option><option value="尚未確定">尚未確定</option></select></label>` +
         `<label class="muted support-human-field">` +
@@ -10386,7 +10351,7 @@
         `<label class="muted support-human-field"><input id="support-human-target-city-${seq}" type="text" maxlength="160" aria-label="希望購買城市（必填）" placeholder="希望購買城市（必填，例：東京、大阪）"></label>` +
         `<label class="muted support-human-field"><input id="support-human-target-region-${seq}" type="text" maxlength="160" aria-label="希望購買區域（選填）" placeholder="希望購買區域（選填，例：新宿區、澀谷區等）"></label>` +
         `<label class="muted support-human-field"><input id="support-human-target-line-station-${seq}" type="text" maxlength="160" aria-label="希望沿線或車站（選填）" placeholder="希望沿線或車站（選填，例：JR 山手線、新宿站等）"></label>` +
-        `<label class="muted support-human-field"><input id="support-human-station-walk-minutes-${seq}" type="text" maxlength="40" inputmode="numeric" aria-label="距離最近車站步行（選填）" placeholder="距離最近車站步行（選填，例：10 分鐘內）"></label>` +
+        `<label class="muted support-human-field"><input id="support-human-station-walk-minutes-${seq}" type="text" maxlength="40" inputmode="text" aria-label="距離最近車站步行（選填）" placeholder="距離最近車站步行（選填，例：10 分鐘內）"></label>` +
         `<div id="support-human-interest-status-${seq}" class="support-human-field support-human-choice-field">目前是否已有屬意的物件或區域？（必填）<div class="support-human-choice-grid support-human-choice-grid--stack" data-support-human-group="interest-status" data-seq="${seq}">` +
         `<label><input type="radio" name="support-human-interest-status-${seq}" value="已有屬意物件，可提供物件網址或相關資料">已有屬意物件，可提供物件網址或相關資料</label><label><input type="radio" name="support-human-interest-status-${seq}" value="已有希望購買的城市 / 區域，希望協助尋找物件">已有希望購買的城市 / 區域，希望協助尋找物件</label><label><input type="radio" name="support-human-interest-status-${seq}" value="尚未確定，希望依需求推薦合適物件">尚未確定，希望依需求推薦合適物件</label>` +
         `</div></div>` +
@@ -10824,7 +10789,6 @@
           const featBlock = row.contentHtml || isStaffReply || purchaseDiscovery ? '' : supportChatFeaturedHtml(row.featured_recommendations);
           const kbBlock = row.contentHtml || isStaffReply ? '' : supportChatKnowledgeHtml(row.knowledge, row.llm);
           const salesBlock = row.contentHtml || isStaffReply ? '' : supportChatSalesMcpHtml(row.sales_mcp, row.llm);
-          const serviceBlock = row.contentHtml || isStaffReply || row.suppressServiceBanner ? '' : supportChatSimulatedServiceHtml(row.sales_mcp && row.sales_mcp.simulated_service);
           const reasonBlock = row.contentHtml || isStaffReply ? '' : supportChatMatchReasonHtml(row.matched_scene, row.matched_qa);
           const suggestionBlock = row.contentHtml || isStaffReply ? '' : supportChatSuggestedPromptsHtml(row.sales_mcp, row.knowledge);
           const bodyHtml = row.contentHtml
@@ -10836,7 +10800,7 @@
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}${assistantImageHtml}</div></div>`;
-          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${serviceBlock}${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
       wrap.innerHTML = html || '<p class="muted">尚無對話。</p>';
@@ -10889,8 +10853,8 @@
       const thinkingLabel = pendingImage
         ? '正在查看圖片…'
         : (isHumanHandoffMsg || /買房|买房|看屋|看房/.test(visibleUserMsg)
-        ? '正在安排值班顧問整理需求…'
-        : '顧問正在整理回覆…');
+        ? '正在整理您的需求…'
+        : '正在整理回覆…');
       setSupportChatThinking(true, `${geminiModel || ph || 'model'}（${provHint}）`, thinkingLabel);
       const persona_region = document.getElementById('seo-draft-persona-region')?.value || 'tw';
       // 後端會把 message 再 append 一則 user，history 勿含本則以免重複
@@ -10986,20 +10950,6 @@
           if (data.advisor_notify || data.telegram_notify || data.line_notify) {
             markLastSupportUserMessageTelegramDelivery(data.advisor_notify || data.telegram_notify || data.line_notify);
           }
-          const stageServiceReply = supportChatShouldStageServiceReply(data.sales_mcp);
-          if (stageServiceReply) {
-            setSupportChatThinking(false);
-            supportChatHistory.push({
-              role: 'assistant',
-              content: '',
-              contentHtml: supportChatSimulatedServiceHtml(data.sales_mcp && data.sales_mcp.simulated_service),
-              supportQueueNotice: true,
-            });
-            renderSupportChatMessages();
-            await waitSupportChatServiceQueue(
-              Math.max(1000, Number(data.sales_mcp?.simulated_service?.wait_seconds || 0) * 1000)
-            );
-          }
           const reply = data.reply || data.detail || '（無回覆）';
           const cooked = buildSupportConclusionText(typeof reply === 'string' ? reply : String(reply));
           supportChatSpeechScript = cooked.voiceScript || '';
@@ -11010,7 +10960,6 @@
             knowledge: data.knowledge || null,
             llm: data.llm || null,
             sales_mcp: data.sales_mcp || null,
-            suppressServiceBanner: stageServiceReply,
             matched_scene: data.matched_scene || null,
             featured_recommendations: Array.isArray(data.featured_recommendations) ? data.featured_recommendations : [],
           });
@@ -13440,11 +13389,22 @@
     function setAdminLineRecipientMode(mode) {
       adminLineRecipientMode = String(mode || '').toLowerCase() === 'manual' ? 'manual' : 'auto';
       document.querySelectorAll('[data-admin-line-mode]').forEach((btn) => {
-        btn.classList.toggle('is-active', String(btn.getAttribute('data-admin-line-mode') || '') === adminLineRecipientMode);
+        const active = String(btn.getAttribute('data-admin-line-mode') || '') === adminLineRecipientMode;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
       const staff = document.getElementById('admin-line-staff-user-id');
       if (staff) {
-        staff.closest('label')?.classList.toggle('is-line-manual-disabled', adminLineRecipientMode !== 'manual');
+        const manualDisabled = adminLineRecipientMode !== 'manual';
+        staff.disabled = manualDisabled;
+        staff.setAttribute('aria-disabled', manualDisabled ? 'true' : 'false');
+        staff.title = manualDisabled ? '自動識別模式下暫停手動編輯；切換到手動填寫後可修改。' : '';
+        staff.closest('label')?.classList.toggle('is-line-manual-disabled', manualDisabled);
+        document.querySelectorAll('[data-admin-secret-copy="admin-line-staff-user-id"], [data-admin-secret-toggle="admin-line-staff-user-id"]').forEach((btn) => {
+          btn.disabled = manualDisabled;
+          btn.setAttribute('aria-disabled', manualDisabled ? 'true' : 'false');
+          btn.title = manualDisabled ? '自動識別模式下暫停手動操作' : (btn.classList.contains('admin-secret-copy-btn') ? '複製' : '顯示 / 隱藏');
+        });
       }
       updateAdminLineInlineStatus('LINE 收件模式已切換');
     }
@@ -13461,7 +13421,7 @@
       const manualIds = String(data?.staff_user_id || '').split(/[\s,;，；、]+/).map((x) => x.trim()).filter(Boolean);
       hint.textContent = count
         ? `已自動識別 ${count} 個收件 ID${ids.length ? '：' + ids.slice(0, 3).join('、') : ''}${ids.length > 3 ? '…' : ''}${manualIds.length ? `；並合併手動 ${manualIds.length} 個` : ''}`
-        : `尚未識別到收件 ID。請讓顧問加 Bot 或傳送任意訊息後，再按刷新${manualIds.length ? `；目前先使用手動 ${manualIds.length} 個` : ''}。`;
+        : `尚未識別到收件 ID。請讓顧問加 Bot 或傳送任意訊息後，再按刷新${manualIds.length ? `；目前先使用已保存的手動 ${manualIds.length} 個，手填欄位已暫停編輯` : ''}。`;
     }
 
     function refreshAdminLineAutoRecipients() {
@@ -20387,29 +20347,17 @@
         const full = document.getElementById('admin-support-crm-full');
         const compact = document.getElementById('admin-support-crm-compact');
         const ex = document.getElementById('admin-support-crm-examples');
-        const sa = document.getElementById('admin-support-crm-simulated-advisors');
-        const sq = document.getElementById('admin-support-crm-queue-templates');
-        const ss = document.getElementById('admin-support-crm-service-templates');
-        const sh = document.getElementById('admin-support-crm-handoff-templates');
         if (en) en.checked = Boolean(data.enabled);
         if (mode) mode.value = String(data.inject_mode || 'both');
         if (full) full.value = String(data.full_prompt || '');
         if (compact) compact.value = String(data.compact_prompt || '');
         if (ex) ex.value = String(data.examples || '');
-        if (sa) sa.value = String(data.simulated_advisors || '');
-        if (sq) sq.value = String(data.queue_templates || '');
-        if (ss) ss.value = String(data.service_templates || '');
-        if (sh) sh.value = String(data.handoff_templates || '');
         if (meta) {
           const se = data.stored_empty || {};
           const bits = [];
           if (se.full) bits.push('完整：內建預設');
           if (se.compact) bits.push('精簡：內建預設');
           if (se.examples) bits.push('範例：內建預設');
-          if (se.simulated_advisors) bits.push('顧問名單：內建預設');
-          if (se.queue_templates) bits.push('排隊模板：內建預設');
-          if (se.service_templates) bits.push('接待模板：內建預設');
-          if (se.handoff_templates) bits.push('轉接模板：內建預設');
           meta.textContent = (bits.length ? bits.join('；') : '後台已覆寫（非空鍵）') + `｜注入約 ${Number(data.injected_char_count || 0)} 字`;
         }
         if (msg) msg.textContent = '已載入。';
@@ -20430,10 +20378,6 @@
         full_prompt: String(document.getElementById('admin-support-crm-full')?.value || ''),
         compact_prompt: String(document.getElementById('admin-support-crm-compact')?.value || ''),
         examples: String(document.getElementById('admin-support-crm-examples')?.value || ''),
-        simulated_advisors: String(document.getElementById('admin-support-crm-simulated-advisors')?.value || ''),
-        queue_templates: String(document.getElementById('admin-support-crm-queue-templates')?.value || ''),
-        service_templates: String(document.getElementById('admin-support-crm-service-templates')?.value || ''),
-        handoff_templates: String(document.getElementById('admin-support-crm-handoff-templates')?.value || ''),
       };
       if (msg) msg.textContent = '儲存中…';
       try {
