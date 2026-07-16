@@ -2451,6 +2451,16 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                         reason = "site-plan"
                     elif sat_mean <= 0.20 and light_ratio <= 0.13 and dark_ratio <= 0.01 and mid_gray_ratio >= 0.58 and edge_mean >= 0.14:
                         reason = "site-plan"
+                    elif (
+                        sat_mean <= 0.07
+                        and dark_ratio <= 0.02
+                        and mid_gray_ratio >= 0.24
+                        and 0.05 <= edge_mean <= 0.14
+                        and dominant_color_ratio >= 0.26
+                    ):
+                        reason = "site-plan"
+                    elif sat_mean <= 0.26 and light_ratio >= 0.18 and mid_gray_ratio >= 0.30 and edge_mean >= 0.18 and aspect <= 1.35:
+                        reason = "floor-plan"
                     # A parcel diagram can be a large, lightly textured green
                     # block with a compass/measurement border rather than the
                     # black-line look of a conventional floor plan. Reject that
@@ -2772,6 +2782,8 @@ def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "buil
         return "opaque-yahoo-proxy"
     if is_likely_agent_portrait_image_url(s):
         return "agent"
+    if _is_yahoo_auxiliary_listing_image_url(s):
+        return "yahoo-auxiliary-image"
     if is_portal_non_property_image_url(s):
         return "portal-asset"
     reject_tokens = (
@@ -2780,11 +2792,25 @@ def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "buil
         "floor_plan",
         "layout",
         "heimen",
+        "kukaku",
+        "menseki",
+        "siteplan",
+        "site_plan",
         "間取",
         "間取り",
         "平面図",
         "図面",
         "圖面",
+        "区画図",
+        "區劃圖",
+        "配置図",
+        "配置圖",
+        "敷地図",
+        "敷地圖",
+        "測量図",
+        "測量圖",
+        "公図",
+        "公圖",
         "户型",
         "戶型",
         "toire",
@@ -2836,6 +2862,7 @@ def _case_representative_url_reject_reason(raw_url: Any, *, profile: str = "buil
         "shuuhen",
         "environment",
         "案内図",
+        "案內圖",
         "現地案内",
         "周辺",
         "周邊",
@@ -5816,6 +5843,28 @@ def _home_featured_item_homepage_eligible(item: dict[str, Any]) -> bool:
     )
 
 
+def _home_featured_items_homepage_eligible(items: Any, *, excluded_ids: set[int] | None = None) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    excluded = excluded_ids or set()
+    out: list[dict[str, Any]] = []
+    seen: set[int | str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        sid = int(item.get("source_item_id") or 0)
+        if sid and sid in excluded:
+            continue
+        key: int | str = sid or str(item.get("case_path") or item.get("title") or item.get("thumb_url") or "").strip()
+        if not key or key in seen:
+            continue
+        if not _home_featured_item_homepage_eligible(item):
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
 # Homepage recommendation batches are intentionally stable for a whole day.
 # A manual "change batch" request only selects another already-cached offset.
 _HOME_FEATURED_CASES_CACHE_TTL_SECONDS = 24 * 60 * 60.0
@@ -6452,7 +6501,7 @@ _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY: tuple[int, int] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v20-gallery-first"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v21-card-photo-only"
 _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS = 7
 _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # Representative card images are intentionally fixed/static. Keep the preload
@@ -6476,20 +6525,16 @@ def _home_featured_index_preload_file_key() -> tuple[int, int] | None:
 def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bool:
     if not isinstance(bundle, dict):
         return False
-    hot_items = [
-        item
-        for item in list(((bundle.get("home_featured_preload") or {}).get("items") or []))
-        if isinstance(item, dict)
-    ]
+    hot_items = _home_featured_items_homepage_eligible(
+        list(((bundle.get("home_featured_preload") or {}).get("items") or []))
+    )
     if len(hot_items) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS:
         return True
     type_payloads = bundle.get("home_featured_type_preloads") or {}
     if isinstance(type_payloads, dict):
-        generic_items = [
-            item
-            for item in list(((type_payloads.get("") or {}).get("items") or []))
-            if isinstance(item, dict)
-        ]
+        generic_items = _home_featured_items_homepage_eligible(
+            list(((type_payloads.get("") or {}).get("items") or []))
+        )
         return len(generic_items) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS
     return False
 
@@ -6505,16 +6550,8 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
         fixed["home_featured_type_preloads"] = type_payloads
     hot_payload = fixed.get("home_featured_preload") if isinstance(fixed.get("home_featured_preload"), dict) else {}
     generic_payload = type_payloads.get("") if isinstance(type_payloads.get(""), dict) else {}
-    generic_items = [
-        item
-        for item in list((generic_payload or {}).get("items") or [])
-        if isinstance(item, dict)
-    ]
-    hot_items = [
-        item
-        for item in list((hot_payload or {}).get("items") or [])
-        if isinstance(item, dict)
-    ]
+    generic_items = _home_featured_items_homepage_eligible(list((generic_payload or {}).get("items") or []))
+    hot_items = _home_featured_items_homepage_eligible(list((hot_payload or {}).get("items") or []))
 
     def set_spotlight_items(items: list[dict[str, Any]]) -> None:
         if not isinstance(hot_payload, dict) or not items:
@@ -6545,7 +6582,7 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
     def add_items(items: Any) -> None:
         if not isinstance(items, list):
             return
-        for item in items:
+        for item in _home_featured_items_homepage_eligible(items):
             if not isinstance(item, dict):
                 continue
             key = str(item.get("source_item_id") or item.get("case_path") or item.get("title") or "").strip()
@@ -6719,6 +6756,7 @@ def _home_featured_cases_payload_from_preload(
         if isinstance(item, dict)
         and int(item.get("source_item_id") or 0) not in excluded_ids
     ]
+    items = _home_featured_items_homepage_eligible(items, excluded_ids=excluded_ids)
     # A stale/static hot preload can be sparse after client-side de-duplication.
     # Property-specific sparse preloads should still return quickly; the client
     # supplements them from the hot pool instead of forcing a slow DB scan.
@@ -6769,7 +6807,7 @@ def _home_featured_preload_thumb_sources(bundle: dict[str, Any], *, limit: int =
     def add_from_payload(payload: Any) -> None:
         if not isinstance(payload, dict):
             return
-        for item in list(payload.get("items") or []):
+        for item in _home_featured_items_homepage_eligible(list(payload.get("items") or [])):
             if not isinstance(item, dict):
                 continue
             candidates = [
@@ -10935,6 +10973,26 @@ def _is_yahoo_noimage_fallback_listing_url(text: str) -> bool:
     return "nf_path=" in query and ("no_image" in query or "noimage" in query)
 
 
+def _yahoo_realestate_buy_image_category(url: Any) -> str:
+    raw = str(url or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return ""
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").lower()
+    if not host.endswith("realestate-pctr.c.yimg.jp") or "/realestate-buy-image/bld_image/" not in path:
+        return ""
+    match = re.search(r"_(\d{2})_\d+(?:\.[a-z0-9]+)?$", path)
+    return match.group(1) if match else ""
+
+
+def _is_yahoo_auxiliary_listing_image_url(url: Any) -> bool:
+    return _yahoo_realestate_buy_image_category(url) in {"02", "05"}
+
+
 def _is_case_property_gallery_image_url(u: str) -> bool:
     """案件主相簿只收室內/室外/建物照片；地圖、交通、站台 UI 與平面碎片不進展示與影片素材。"""
     s = str(u or "").strip()
@@ -10954,6 +11012,8 @@ def _is_case_property_gallery_image_url(u: str) -> bool:
         host = ""
         path = ""
     if host.endswith("realestate-pctr.c.yimg.jp") and _is_yahoo_noimage_fallback_listing_url(s):
+        return False
+    if host.endswith("realestate-pctr.c.yimg.jp") and _is_yahoo_auxiliary_listing_image_url(s):
         return False
     if host.endswith("realestate-pctr.c.yimg.jp") and path:
         return True
@@ -14123,6 +14183,11 @@ def _case_gallery_category_for_url(url: str, context: str = "") -> str:
         return "map"
     if athome_group in {"project_detail_slide", "project_free", "energy_saving"}:
         return "ad"
+    yahoo_group = _yahoo_realestate_buy_image_category(url)
+    if yahoo_group == "02":
+        return "floorplan"
+    if yahoo_group == "05":
+        return "environment"
     if any(
         t in bag
         for t in (
@@ -14149,7 +14214,37 @@ def _case_gallery_category_for_url(url: str, context: str = "") -> str:
         )
     ):
         return "facility_detail"
-    if any(t in bag for t in ("madori", "floorplan", "floor_plan", "layout", "間取", "間取り", "平面", "図面", "圖面", "户型", "戶型")):
+    if any(
+        t in bag
+        for t in (
+            "madori",
+            "floorplan",
+            "floor_plan",
+            "layout",
+            "heimen",
+            "間取",
+            "間取り",
+            "平面",
+            "図面",
+            "圖面",
+            "区画図",
+            "區劃圖",
+            "配置図",
+            "配置圖",
+            "敷地図",
+            "敷地圖",
+            "測量図",
+            "測量圖",
+            "公図",
+            "公圖",
+            "kukaku",
+            "menseki",
+            "siteplan",
+            "site_plan",
+            "户型",
+            "戶型",
+        )
+    ):
         return "floorplan"
     if any(t in bag for t in ("toilet", "toire", "トイレ", "便所", "廁", "厕")) or re.search(
         r"(?:^|[/_\-\s])wc(?:$|[/_\-\s.])",
@@ -29914,7 +30009,7 @@ def api_home_featured_type_preloads():
         item_limit = 24 if not property_type else 12
         items = [
             copy.deepcopy(item)
-            for item in list(raw.get("items") or [])[:item_limit]
+            for item in _home_featured_items_homepage_eligible(list(raw.get("items") or []))[:item_limit]
             if isinstance(item, dict)
         ]
         if not items:
