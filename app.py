@@ -8665,6 +8665,7 @@ class AdminLinePut(BaseModel):
     channel_secret: str | None = None
     clear_channel_secret: bool = False
     staff_user_id: str | None = None
+    recipient_mode: str | None = None
     webhook_url: str | None = None
     notify_channels: list[str] | None = None
 
@@ -17148,6 +17149,7 @@ KV_SUPPORT_NOTIFY_CHANNELS = "support_notify_channels"
 KV_LINE_CHANNEL_ACCESS_TOKEN = "line_channel_access_token"
 KV_LINE_CHANNEL_SECRET = "line_channel_secret"
 KV_LINE_STAFF_USER_ID = "line_staff_user_id"
+KV_LINE_RECIPIENT_MODE = "line_recipient_mode"
 KV_LINE_WEBHOOK_URL = "line_webhook_url"
 
 
@@ -17470,6 +17472,15 @@ def _normalize_line_push_target_ids(raw: str, *, max_items: int = 20) -> list[st
     return out
 
 
+def _normalize_line_recipient_mode(raw: str) -> str:
+    mode = str(raw or "").strip().lower()
+    if mode in {"auto", "automatic", "auto_detect", "auto-detect"}:
+        return "auto"
+    if mode in {"manual", "staff", "custom"}:
+        return "manual"
+    return ""
+
+
 def _line_push_target_id_kind(raw: str) -> str:
     s = _normalize_line_user_id(raw)
     if re.match(r"^U[0-9a-f]{20,}$", s, flags=re.I):
@@ -17507,12 +17518,96 @@ def _line_staff_user_ids() -> list[str]:
     return _normalize_line_push_target_ids(raw)
 
 
+def _line_recipient_mode() -> str:
+    mode = _normalize_line_recipient_mode(get_kv(KV_LINE_RECIPIENT_MODE, "") or os.getenv("LINE_RECIPIENT_MODE", ""))
+    if mode:
+        return mode
+    return "auto"
+
+
+def _line_auto_recipient_rows(limit: int = 200) -> list[dict[str, str]]:
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT line_target_id, target_kind, source_type, display_name, first_seen_at, last_seen_at
+                FROM line_auto_recipients
+                WHERE enabled = 1
+                ORDER BY last_seen_at DESC, id DESC
+                LIMIT ?
+                """,
+                (max(1, min(500, int(limit or 200))),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def _line_auto_recipient_ids() -> list[str]:
+    out: list[str] = []
+    for row in _line_auto_recipient_rows():
+        target = _normalize_line_user_id(str(row.get("line_target_id") or ""))
+        if target and _line_push_target_id_kind(target) and target not in out:
+            out.append(target)
+    return out
+
+
+def _line_effective_staff_user_ids() -> list[str]:
+    manual = _line_staff_user_ids()
+    if _line_recipient_mode() == "manual":
+        return manual
+    auto = _line_auto_recipient_ids()
+    out: list[str] = []
+    for target in [*auto, *manual]:
+        if target and target not in out:
+            out.append(target)
+    return out
+
+
+def _upsert_line_auto_recipient(
+    *,
+    line_target_id: str,
+    source_type: str = "",
+    display_name: str = "",
+) -> bool:
+    target = _normalize_line_user_id(line_target_id)
+    kind = _line_push_target_id_kind(target)
+    if not target or not kind:
+        return False
+    stype = str(source_type or "").strip().lower()[:30]
+    if stype not in {"user", "group", "room"}:
+        stype = kind
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO line_auto_recipients (
+                    line_target_id, target_kind, source_type, display_name, enabled, first_seen_at, last_seen_at
+                )
+                VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(line_target_id) DO UPDATE SET
+                    target_kind = excluded.target_kind,
+                    source_type = excluded.source_type,
+                    display_name = COALESCE(NULLIF(excluded.display_name, ''), line_auto_recipients.display_name),
+                    enabled = 1,
+                    last_seen_at = CURRENT_TIMESTAMP
+                """,
+                (target, kind, stype, str(display_name or "")[:200]),
+            )
+            conn.commit()
+        return True
+    except Exception:
+        return False
+
+
 def _line_webhook_url() -> str:
     return str(get_kv(KV_LINE_WEBHOOK_URL, "") or os.getenv("LINE_WEBHOOK_URL", "")).strip()[:500]
 
 
 def _line_configured_for_staff_push() -> bool:
-    return bool(_line_channel_access_token() and _line_staff_user_ids())
+    return bool(_line_channel_access_token() and _line_effective_staff_user_ids())
 
 
 def _line_signature_ok(raw_body: bytes, signature: str, secret: str) -> bool:
@@ -17559,6 +17654,9 @@ def admin_line_snapshot() -> dict:
     token = _line_channel_access_token()
     secret = _line_channel_secret()
     staff = ",".join(_line_staff_user_ids())
+    auto_rows = _line_auto_recipient_rows()
+    auto_ids = [str(row.get("line_target_id") or "") for row in auto_rows if row.get("line_target_id")]
+    effective_ids = _line_effective_staff_user_ids()
     webhook_url = _line_webhook_url()
     return {
         "channel_access_token_set": bool(token),
@@ -17568,9 +17666,15 @@ def admin_line_snapshot() -> dict:
         "channel_secret": secret,
         "channel_secret_masked": _mask_line_token(secret),
         "staff_user_id": staff,
+        "recipient_mode": _line_recipient_mode(),
+        "auto_recipient_count": len(auto_ids),
+        "auto_recipient_ids": ",".join(auto_ids),
+        "auto_recipients": auto_rows,
+        "effective_recipient_count": len(effective_ids),
+        "effective_staff_user_id": ",".join(effective_ids),
         "webhook_url": webhook_url,
         "notify_channels": _support_notify_channels(),
-        "configured": bool(token and secret and staff),
+        "configured": bool(token and secret and effective_ids),
     }
 
 
@@ -17606,6 +17710,12 @@ def _apply_admin_line_settings(payload: AdminLinePut) -> None:
                 ),
             )
         set_kv(KV_LINE_STAFF_USER_ID, ",".join(staff_targets))
+
+    if payload.recipient_mode is not None:
+        mode = _normalize_line_recipient_mode(payload.recipient_mode)
+        if not mode:
+            raise HTTPException(status_code=400, detail="LINE 收件模式必須是 auto 或 manual。")
+        set_kv(KV_LINE_RECIPIENT_MODE, mode)
 
     if payload.webhook_url is not None:
         set_kv(KV_LINE_WEBHOOK_URL, str(payload.webhook_url or "").strip()[:500])
@@ -18016,6 +18126,19 @@ def _ensure_support_channel_tables() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_line_inbox_session_id
             ON line_staff_inbox(session_id, id);
+
+            CREATE TABLE IF NOT EXISTS line_auto_recipients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                line_target_id TEXT NOT NULL UNIQUE,
+                target_kind TEXT NOT NULL DEFAULT '',
+                source_type TEXT NOT NULL DEFAULT '',
+                display_name TEXT NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_line_auto_recipients_enabled
+            ON line_auto_recipients(enabled, last_seen_at DESC, id DESC);
             """
         )
         cols = {str(row[1]) for row in conn.execute("PRAGMA table_info(line_chat_sessions)").fetchall()}
@@ -18849,7 +18972,7 @@ def _line_reply_or_push(reply_token: str, to_user_id: str, text: str) -> dict:
 
 
 def _line_send_and_bridge(text: str, session_id: str, kind: str = "notify") -> dict:
-    staff_user_ids = _line_staff_user_ids()
+    staff_user_ids = _line_effective_staff_user_ids()
     if not staff_user_ids:
         raise RuntimeError("LINE staff user ID not configured")
     sent_items: list[dict[str, Any]] = []
@@ -19259,9 +19382,16 @@ def _process_line_event(event: dict[str, Any]) -> None:
     source = event.get("source") or {}
     line_source_id = _line_source_id(source)
     line_user_id = str(source.get("userId") or "").strip()
+    source_type = str(source.get("type") or "").strip().lower()
     reply_token = str(event.get("replyToken") or "").strip()
     if not line_source_id:
         return
+    if _line_recipient_mode() == "auto" and etype in {"follow", "join", "message", "memberJoined"}:
+        _upsert_line_auto_recipient(
+            line_target_id=line_source_id,
+            source_type=source_type,
+            display_name=str(source.get("displayName") or ""),
+        )
     if etype == "follow":
         sid = _upsert_line_chat_session(line_user_id=line_source_id)
         try:
@@ -19273,11 +19403,17 @@ def _process_line_event(event: dict[str, Any]) -> None:
         except Exception:
             pass
         return
+    if etype == "join":
+        try:
+            _line_reply_or_push(reply_token, line_source_id, "已加入 LINE 顧問通知收件。")
+        except Exception:
+            pass
+        return
     if etype != "message":
         return
     msg = event.get("message") or {}
     text_raw = str(msg.get("text") or "").strip() if isinstance(msg, dict) else ""
-    staff_ids = set(_line_staff_user_ids())
+    staff_ids = set(_line_effective_staff_user_ids())
     is_staff = bool(staff_ids and (line_user_id in staff_ids or line_source_id in staff_ids))
     if is_staff:
         _process_line_staff_message(event, line_user_id or line_source_id, reply_token)
@@ -20908,9 +21044,9 @@ def _line_admin_test_response(payload: AdminLineTestPost) -> JSONResponse:
     if not _line_channel_access_token():
         raise HTTPException(status_code=400, detail="尚未儲存 LINE Channel access token。")
     explicit_targets = _normalize_line_push_target_ids(payload.to_user_id or "")
-    target_ids = explicit_targets or _line_staff_user_ids()
+    target_ids = explicit_targets or _line_effective_staff_user_ids()
     if not target_ids:
-        raise HTTPException(status_code=400, detail="尚未儲存 LINE 顧問 User ID。")
+        raise HTTPException(status_code=400, detail="尚未取得 LINE 顧問收件 ID。請先讓顧問加 Bot 並傳送任意訊息，或切換手動填寫。")
     invalid_targets = [target for target in target_ids if not _line_push_target_id_kind(target)]
     if invalid_targets:
         raise HTTPException(

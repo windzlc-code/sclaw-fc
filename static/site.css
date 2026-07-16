@@ -31810,6 +31810,45 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
   margin: 0 !important;
 }
 
+.admin-line-recipient-mode {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.admin-line-mode-pill {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: #334155 !important;
+  padding: 6px 14px !important;
+  min-height: 34px !important;
+  box-shadow: none !important;
+}
+
+.admin-line-mode-pill.is-active {
+  border-color: #0f766e !important;
+  background: #0f766e !important;
+  color: #fff !important;
+}
+
+.admin-line-refresh-recipients {
+  min-height: 34px !important;
+  border-radius: 999px !important;
+}
+
+#admin-line-auto-recipient-hint {
+  flex: 1 1 260px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.is-line-manual-disabled {
+  opacity: 0.72;
+}
+
 .admin-secret-input-wrap {
   position: relative;
   display: block;

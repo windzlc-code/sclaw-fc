@@ -11950,16 +11950,19 @@
       if (!cfgEl) return;
       const hasTok = Boolean(data && data.channel_access_token_set);
       const hasSecret = Boolean(data && data.channel_secret_set);
+      const mode = String(data && data.recipient_mode || adminLineRecipientMode || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
       const staffRaw = String(data && data.staff_user_id || '').trim();
       const staffCount = staffRaw ? staffRaw.split(/[\s,;，；、]+/).filter(Boolean).length : 0;
-      const hasStaff = staffCount > 0;
+      const autoCount = Number(data && data.auto_recipient_count || 0);
+      const recipientCount = mode === 'manual' ? staffCount : Number(data && data.effective_recipient_count || autoCount + staffCount);
+      const hasStaff = recipientCount > 0;
       const channels = Array.isArray(data && data.notify_channels) ? data.notify_channels : [];
       const chText = channels.length ? channels.join(' + ') : 'telegram';
       const ready = hasTok && hasSecret && hasStaff;
       cfgEl.textContent =
         'LINE 通知：' +
         (ready ? '已完成' : '尚未完整') +
-        (staffCount > 1 ? `；LINE 收件人 ${staffCount} 個` : '') +
+        `；${mode === 'manual' ? '手動收件' : '自動識別'} ${recipientCount} 個` +
         `；目前通知：${chText}`;
     }
 
@@ -13432,6 +13435,39 @@
       return ['admin-line-access-token', 'admin-line-channel-secret', 'admin-line-staff-user-id', 'admin-line-webhook-url'];
     }
 
+    let adminLineRecipientMode = 'auto';
+
+    function setAdminLineRecipientMode(mode) {
+      adminLineRecipientMode = String(mode || '').toLowerCase() === 'manual' ? 'manual' : 'auto';
+      document.querySelectorAll('[data-admin-line-mode]').forEach((btn) => {
+        btn.classList.toggle('is-active', String(btn.getAttribute('data-admin-line-mode') || '') === adminLineRecipientMode);
+      });
+      const staff = document.getElementById('admin-line-staff-user-id');
+      if (staff) {
+        staff.closest('label')?.classList.toggle('is-line-manual-disabled', adminLineRecipientMode !== 'manual');
+      }
+      updateAdminLineInlineStatus('LINE 收件模式已切換');
+    }
+
+    function renderAdminLineAutoRecipientHint(data) {
+      const hint = document.getElementById('admin-line-auto-recipient-hint');
+      if (!hint) return;
+      const count = Number(data?.auto_recipient_count || 0);
+      const ids = String(data?.auto_recipient_ids || '').split(',').map((x) => x.trim()).filter(Boolean);
+      if (adminLineRecipientMode === 'manual') {
+        hint.textContent = '目前使用手動填寫的收件 ID；自動識別清單會保留但不參與推播。';
+        return;
+      }
+      const manualIds = String(data?.staff_user_id || '').split(/[\s,;，；、]+/).map((x) => x.trim()).filter(Boolean);
+      hint.textContent = count
+        ? `已自動識別 ${count} 個收件 ID${ids.length ? '：' + ids.slice(0, 3).join('、') : ''}${ids.length > 3 ? '…' : ''}${manualIds.length ? `；並合併手動 ${manualIds.length} 個` : ''}`
+        : `尚未識別到收件 ID。請讓顧問加 Bot 或傳送任意訊息後，再按刷新${manualIds.length ? `；目前先使用手動 ${manualIds.length} 個` : ''}。`;
+    }
+
+    function refreshAdminLineAutoRecipients() {
+      loadAdminLineSettings();
+    }
+
     function maskAdminLineInputs() {
       adminLineSecretInputIds().forEach((id) => {
         const el = document.getElementById(id);
@@ -13454,7 +13490,7 @@
       const missing = [];
       if (!token) missing.push('access token');
       if (!secret) missing.push('Channel secret');
-      if (!staff) missing.push('收件 ID');
+      if (adminLineRecipientMode === 'manual' && !staff) missing.push('收件 ID');
       if (!webhook) missing.push('Webhook URL');
       const whHint = webhook && webhook !== 'https://www.manuvip.com/api/line/webhook'
         ? '；Webhook 目前不是正式站地址，建議改為 https://www.manuvip.com/api/line/webhook'
@@ -13462,7 +13498,7 @@
       const head = prefix || 'LINE 設定';
       msg.textContent = missing.length
         ? `${head}：尚缺 ${missing.join('、')}。清空欄位並儲存會清除該設定。${whHint}`
-        : `${head}：必要欄位已填寫。清空欄位並儲存會清除該設定。${whHint}`;
+        : `${head}：必要欄位已填寫，收件模式為${adminLineRecipientMode === 'manual' ? '手動填寫' : '自動識別'}。清空欄位並儲存會清除該設定。${whHint}`;
     }
 
     async function copyAdminLineInputValue(inputId) {
@@ -13562,6 +13598,8 @@
         if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
         maskAdminLineInputs();
+        setAdminLineRecipientMode(data.recipient_mode || 'auto');
+        renderAdminLineAutoRecipientHint(data);
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
         updateLineTabAutoStatusFromSnapshot(data);
         updateAdminLineInlineStatus('LINE 連線狀態');
@@ -13585,6 +13623,7 @@
         channel_secret: String(document.getElementById('admin-line-channel-secret')?.value || '').trim(),
         clear_channel_secret: false,
         staff_user_id: String(document.getElementById('admin-line-staff-user-id')?.value || '').trim(),
+        recipient_mode: adminLineRecipientMode,
         webhook_url: String(document.getElementById('admin-line-webhook-url')?.value || '').trim(),
         notify_channels: collectAdminLineNotifyChannels(),
       };
@@ -13605,6 +13644,8 @@
         if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
         maskAdminLineInputs();
+        setAdminLineRecipientMode(data.recipient_mode || payload.recipient_mode);
+        renderAdminLineAutoRecipientHint(data);
         applyAdminLineNotifyChannels(data.notify_channels || payload.notify_channels);
         updateLineTabAutoStatusFromSnapshot(data);
         updateAdminLineInlineStatus('已儲存 LINE 設定');

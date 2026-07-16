@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260716-line-copy-controls-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260716-line-auto-recipients-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -1975,6 +1975,12 @@
           </div>
           <div class="admin-notify-setup-block">
             <h5>LINE 收件資料</h5>
+            <div class="admin-line-recipient-mode" aria-label="LINE 收件模式">
+              <button type="button" class="admin-line-mode-pill is-active" data-admin-line-mode="auto" onclick="setAdminLineRecipientMode('auto')">自動識別</button>
+              <button type="button" class="admin-line-mode-pill" data-admin-line-mode="manual" onclick="setAdminLineRecipientMode('manual')">手動填寫</button>
+              <button type="button" class="secondary admin-line-refresh-recipients" onclick="refreshAdminLineAutoRecipients()">刷新已識別 ID</button>
+              <span id="admin-line-auto-recipient-hint" class="muted">顧問加 Bot 或傳送任意訊息後，會自動加入收件清單。</span>
+            </div>
             <div class="admin-notify-form-grid">
             <label class="muted">LINE Channel access token
               <span class="admin-secret-input-wrap">
@@ -2010,7 +2016,7 @@
               </span>
             </label>
             </div>
-            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。若要多位顧問都收到通知，請填多個 U 開頭 User ID，或填一個 C/R 開頭的群組/聊天室 ID。</p>
+            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。自動識別模式會合併已互動的 U/C/R 收件 ID 與手動 ID；手動模式只使用上方手填 ID。</p>
             <label class="muted">LINE Webhook URL
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-webhook-url" type="password" autocomplete="off" placeholder="https://www.manuvip.com/api/line/webhook">
@@ -2446,7 +2452,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260716-line-copy-controls-a" defer></script>
+  <script src="/static/index-app.js?v=20260716-line-auto-recipients-a" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>
