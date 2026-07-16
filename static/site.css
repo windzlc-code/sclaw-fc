@@ -31818,12 +31818,12 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
 .admin-secret-input-wrap input {
   width: 100%;
   box-sizing: border-box;
-  padding-right: 42px !important;
+  padding-right: 76px !important;
 }
 
-.admin-secret-eye-btn {
+.admin-secret-eye-btn,
+.admin-secret-copy-btn {
   position: absolute;
-  right: 9px;
   top: 50%;
   width: 28px;
   height: 28px;
@@ -31838,13 +31838,24 @@ body.site-admin-standalone .admin-drawer #admin-tg-auto-status.admin-console-sec
   cursor: pointer;
 }
 
+.admin-secret-eye-btn {
+  right: 9px;
+}
+
+.admin-secret-copy-btn {
+  right: 43px;
+}
+
 .admin-secret-eye-btn:hover,
-.admin-secret-eye-btn.is-visible {
+.admin-secret-eye-btn.is-visible,
+.admin-secret-copy-btn:hover,
+.admin-secret-copy-btn.is-copied {
   color: #0f3d63;
   background: #e8f1f8;
 }
 
-.admin-secret-eye-btn svg {
+.admin-secret-eye-btn svg,
+.admin-secret-copy-btn svg {
   width: 17px;
   height: 17px;
   fill: none;
@@ -47609,9 +47620,11 @@ body.site-home.support-saved-cases-open .support-chat-widget:not(.is-expanded) #
    even when broad admin/button rules are loaded later in the cascade. */
 body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn,
 body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn,
-.admin-secret-input-wrap > button.admin-secret-eye-btn {
+body.site-home .admin-secret-input-wrap > button.admin-secret-copy-btn,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-copy-btn,
+.admin-secret-input-wrap > button.admin-secret-eye-btn,
+.admin-secret-input-wrap > button.admin-secret-copy-btn {
   position: absolute !important;
-  right: 9px !important;
   top: 50% !important;
   bottom: auto !important;
   left: auto !important;
@@ -47641,19 +47654,40 @@ body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-bt
   -webkit-appearance: none !important;
 }
 
+body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn,
+.admin-secret-input-wrap > button.admin-secret-eye-btn {
+  right: 9px !important;
+}
+
+body.site-home .admin-secret-input-wrap > button.admin-secret-copy-btn,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-copy-btn,
+.admin-secret-input-wrap > button.admin-secret-copy-btn {
+  right: 43px !important;
+}
+
 body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn:hover,
 body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn.is-visible,
 body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn:hover,
 body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn.is-visible,
 .admin-secret-input-wrap > button.admin-secret-eye-btn:hover,
-.admin-secret-input-wrap > button.admin-secret-eye-btn.is-visible {
+body.site-home .admin-secret-input-wrap > button.admin-secret-copy-btn:hover,
+body.site-home .admin-secret-input-wrap > button.admin-secret-copy-btn.is-copied,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-copy-btn:hover,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-copy-btn.is-copied,
+.admin-secret-input-wrap > button.admin-secret-eye-btn.is-visible,
+.admin-secret-input-wrap > button.admin-secret-copy-btn:hover,
+.admin-secret-input-wrap > button.admin-secret-copy-btn.is-copied {
   background: #e8f1f8 !important;
   color: #0f3d63 !important;
 }
 
 body.site-home .admin-secret-input-wrap > button.admin-secret-eye-btn svg,
 body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-btn svg,
-.admin-secret-input-wrap > button.admin-secret-eye-btn svg {
+body.site-home .admin-secret-input-wrap > button.admin-secret-copy-btn svg,
+body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-copy-btn svg,
+.admin-secret-input-wrap > button.admin-secret-eye-btn svg,
+.admin-secret-input-wrap > button.admin-secret-copy-btn svg {
   width: 17px !important;
   height: 17px !important;
   min-width: 17px !important;
@@ -47665,7 +47699,7 @@ body.site-admin-standalone .admin-secret-input-wrap > button.admin-secret-eye-bt
 body.site-home .admin-secret-input-wrap > input,
 body.site-admin-standalone .admin-secret-input-wrap > input,
 .admin-secret-input-wrap > input {
-  padding-right: 44px !important;
+  padding-right: 78px !important;
 }
 
 /* 2026-07-15: mobile hero keeps the desktop title hierarchy without obscuring the video. */

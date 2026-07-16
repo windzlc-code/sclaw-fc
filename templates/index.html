@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260716-line-multi-recipient-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260716-line-copy-controls-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -1979,6 +1979,9 @@
             <label class="muted">LINE Channel access token
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-access-token" type="password" autocomplete="new-password" placeholder="Messaging API 頁面產生的 Channel access token">
+                <button type="button" class="admin-secret-copy-btn" data-admin-secret-copy="admin-line-access-token" aria-label="複製 LINE Channel access token" title="複製">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
+                </button>
                 <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-access-token" aria-label="顯示 LINE Channel access token" title="顯示 / 隱藏">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
@@ -1987,6 +1990,9 @@
             <label class="muted">LINE Channel secret
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-channel-secret" type="password" autocomplete="new-password" placeholder="Basic settings 的 Channel secret，不是 Channel ID">
+                <button type="button" class="admin-secret-copy-btn" data-admin-secret-copy="admin-line-channel-secret" aria-label="複製 LINE Channel secret" title="複製">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
+                </button>
                 <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-channel-secret" aria-label="顯示 LINE Channel secret" title="顯示 / 隱藏">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
@@ -1995,6 +2001,9 @@
             <label class="muted">顧問 LINE 收件 ID（可多個）
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-staff-user-id" type="password" autocomplete="off" placeholder="U / C / R 開頭；多個用逗號、空格或換行分隔">
+                <button type="button" class="admin-secret-copy-btn" data-admin-secret-copy="admin-line-staff-user-id" aria-label="複製顧問 LINE 收件 ID" title="複製">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
+                </button>
                 <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-staff-user-id" aria-label="顯示顧問 LINE 收件 ID" title="顯示 / 隱藏">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
@@ -2005,6 +2014,9 @@
             <label class="muted">LINE Webhook URL
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-webhook-url" type="password" autocomplete="off" placeholder="https://www.manuvip.com/api/line/webhook">
+                <button type="button" class="admin-secret-copy-btn" data-admin-secret-copy="admin-line-webhook-url" aria-label="複製 LINE Webhook URL" title="複製">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
+                </button>
                 <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-webhook-url" aria-label="顯示 LINE Webhook URL" title="顯示 / 隱藏">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
@@ -2434,7 +2446,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260716-line-multi-recipient-a" defer></script>
+  <script src="/static/index-app.js?v=20260716-line-copy-controls-a" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>

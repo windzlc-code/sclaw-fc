@@ -13465,6 +13465,34 @@
         : `${head}：必要欄位已填寫。清空欄位並儲存會清除該設定。${whHint}`;
     }
 
+    async function copyAdminLineInputValue(inputId) {
+      const el = document.getElementById(inputId);
+      const value = String(el?.value || '');
+      if (!value.trim()) {
+        updateAdminLineInlineStatus('沒有可複製的內容');
+        return false;
+      }
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const previousSelectionStart = typeof el?.selectionStart === 'number' ? el.selectionStart : null;
+          const previousSelectionEnd = typeof el?.selectionEnd === 'number' ? el.selectionEnd : null;
+          el?.focus({ preventScroll: true });
+          el?.select();
+          document.execCommand('copy');
+          if (previousSelectionStart !== null && previousSelectionEnd !== null) {
+            el?.setSelectionRange(previousSelectionStart, previousSelectionEnd);
+          }
+          el?.blur();
+        }
+        return true;
+      } catch (_) {
+        window.prompt('請複製此內容', value);
+        return true;
+      }
+    }
+
     function initAdminLineSecretControls() {
       document.querySelectorAll('[data-admin-secret-toggle]').forEach((btn) => {
         if (btn.dataset.bound === '1') return;
@@ -13484,6 +13512,24 @@
           btn.classList.toggle('is-visible', show);
           const base = String(btn.getAttribute('aria-label') || '').replace(/^顯示|^隱藏/, '');
           btn.setAttribute('aria-label', `${show ? '隱藏' : '顯示'}${base}`);
+        });
+      });
+      document.querySelectorAll('[data-admin-secret-copy]').forEach((btn) => {
+        if (btn.dataset.copyBound === '1') return;
+        btn.dataset.copyBound = '1';
+        btn.addEventListener('pointerdown', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        btn.addEventListener('click', async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const id = String(btn.getAttribute('data-admin-secret-copy') || '');
+          const ok = await copyAdminLineInputValue(id);
+          if (!ok) return;
+          btn.classList.add('is-copied');
+          window.setTimeout(() => btn.classList.remove('is-copied'), 900);
+          updateAdminLineInlineStatus('已複製 LINE 欄位');
         });
       });
       adminLineSecretInputIds().forEach((id) => {
