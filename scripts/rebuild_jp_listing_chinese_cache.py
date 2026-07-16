@@ -73,10 +73,10 @@ def _iter_rows(conn: sqlite3.Connection, limit: int):
     return conn.execute(sql, params)
 
 
-def run(*, apply: bool, limit: int, batch_size: int, backup: Path | None) -> dict[str, Any]:
+def run(*, apply: bool, limit: int, batch_size: int, backup: Path | None, no_backup: bool) -> dict[str, Any]:
     safe_limit = max(0, int(limit or 0))
     safe_batch = max(50, min(2000, int(batch_size or 500)))
-    if apply:
+    if apply and not no_backup:
         backup_path = backup or _default_backup_path()
         _snapshot_database(backup_path)
     else:
@@ -142,12 +142,18 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="0 means every jp_listing row")
     parser.add_argument("--batch-size", type=int, default=500)
     parser.add_argument("--backup", type=Path, help="SQLite snapshot path; automatic under /tmp on --apply")
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="only when an external recoverable backup has already been created",
+    )
     args = parser.parse_args()
     report = run(
         apply=bool(args.apply),
         limit=int(args.limit or 0),
         batch_size=int(args.batch_size or 500),
         backup=args.backup,
+        no_backup=bool(args.no_backup),
     )
     import json
 
