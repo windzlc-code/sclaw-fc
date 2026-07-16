@@ -17455,6 +17455,21 @@ def _normalize_line_user_id(raw: str) -> str:
     return str(raw or "").strip()[:120]
 
 
+def _normalize_line_push_target_ids(raw: str, *, max_items: int = 20) -> list[str]:
+    text = str(raw or "").replace("\ufeff", "").strip()
+    if not text:
+        return []
+    parts = re.split(r"[\s,;，；、]+", text)
+    out: list[str] = []
+    for part in parts:
+        target = _normalize_line_user_id(part)
+        if target and target not in out:
+            out.append(target)
+        if len(out) >= max_items:
+            break
+    return out
+
+
 def _line_push_target_id_kind(raw: str) -> str:
     s = _normalize_line_user_id(raw)
     if re.match(r"^U[0-9a-f]{20,}$", s, flags=re.I):
@@ -17487,12 +17502,17 @@ def _line_staff_user_id() -> str:
     return _normalize_line_user_id(get_kv(KV_LINE_STAFF_USER_ID, "") or os.getenv("LINE_STAFF_USER_ID", ""))
 
 
+def _line_staff_user_ids() -> list[str]:
+    raw = get_kv(KV_LINE_STAFF_USER_ID, "") or os.getenv("LINE_STAFF_USER_ID", "")
+    return _normalize_line_push_target_ids(raw)
+
+
 def _line_webhook_url() -> str:
     return str(get_kv(KV_LINE_WEBHOOK_URL, "") or os.getenv("LINE_WEBHOOK_URL", "")).strip()[:500]
 
 
 def _line_configured_for_staff_push() -> bool:
-    return bool(_line_channel_access_token() and _line_staff_user_id())
+    return bool(_line_channel_access_token() and _line_staff_user_ids())
 
 
 def _line_signature_ok(raw_body: bytes, signature: str, secret: str) -> bool:
@@ -17538,7 +17558,7 @@ def _line_api_error_line(r) -> str:
 def admin_line_snapshot() -> dict:
     token = _line_channel_access_token()
     secret = _line_channel_secret()
-    staff = _line_staff_user_id()
+    staff = ",".join(_line_staff_user_ids())
     webhook_url = _line_webhook_url()
     return {
         "channel_access_token_set": bool(token),
@@ -17574,16 +17594,18 @@ def _apply_admin_line_settings(payload: AdminLinePut) -> None:
             delete_kv(KV_LINE_CHANNEL_SECRET)
 
     if payload.staff_user_id is not None:
-        staff_target = _normalize_line_user_id(payload.staff_user_id)
-        if staff_target and not _line_push_target_id_kind(staff_target):
+        staff_targets = _normalize_line_push_target_ids(payload.staff_user_id)
+        invalid_targets = [target for target in staff_targets if not _line_push_target_id_kind(target)]
+        if invalid_targets:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     "LINE 顧問收件 ID 必須是 U 開頭的使用者 ID、C 開頭的群組 ID，"
-                    "或 R 開頭的聊天室 ID；Channel ID（例如 2010088821）不能接收推播。"
+                    "或 R 開頭的聊天室 ID；多個 ID 可用逗號、空格或換行分隔；"
+                    f"Channel ID（例如 2010088821）不能接收推播。錯誤值：{', '.join(invalid_targets[:3])}"
                 ),
             )
-        set_kv(KV_LINE_STAFF_USER_ID, staff_target)
+        set_kv(KV_LINE_STAFF_USER_ID, ",".join(staff_targets))
 
     if payload.webhook_url is not None:
         set_kv(KV_LINE_WEBHOOK_URL, str(payload.webhook_url or "").strip()[:500])
@@ -18823,31 +18845,41 @@ def _line_reply_or_push(reply_token: str, to_user_id: str, text: str) -> dict:
 
 
 def _line_send_and_bridge(text: str, session_id: str, kind: str = "notify") -> dict:
-    staff_user_id = _line_staff_user_id()
-    if not staff_user_id:
+    staff_user_ids = _line_staff_user_ids()
+    if not staff_user_ids:
         raise RuntimeError("LINE staff user ID not configured")
-    data = _line_push_text(staff_user_id, text)
+    sent_items: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for staff_user_id in staff_user_ids:
+        try:
+            data = _line_push_text(staff_user_id, text)
+            sent_items.append({"to": staff_user_id, **(data or {})})
+        except Exception as exc:
+            errors.append(f"{staff_user_id}: {_sanitize_line_error_detail(exc)}")
     sid = _normalize_support_session_id(session_id)
-    if sid:
+    if sid and sent_items:
         try:
             _ensure_support_channel_tables()
             with get_conn() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO line_outbound_bridge (line_user_id, line_request_id, session_id, kind)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (
-                        staff_user_id,
-                        str((data or {}).get("request_id") or "")[:120],
-                        sid,
-                        str(kind or "notify")[:40],
-                    ),
-                )
+                for item in sent_items:
+                    conn.execute(
+                        """
+                        INSERT INTO line_outbound_bridge (line_user_id, line_request_id, session_id, kind)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            str(item.get("to") or "")[:120],
+                            str(item.get("request_id") or "")[:120],
+                            sid,
+                            str(kind or "notify")[:40],
+                        ),
+                    )
                 conn.commit()
         except Exception:
             pass
-    return data
+    if errors and not sent_items:
+        raise RuntimeError("；".join(errors)[:700])
+    return {"ok": not errors, "sent": sent_items, "errors": errors, "recipient_count": len(sent_items)}
 
 
 def _insert_line_staff_inbox_message(session_id: str, body: str, from_id: str = "") -> bool:
@@ -19239,8 +19271,8 @@ def _process_line_event(event: dict[str, Any]) -> None:
         return
     msg = event.get("message") or {}
     text_raw = str(msg.get("text") or "").strip() if isinstance(msg, dict) else ""
-    staff_id = _line_staff_user_id()
-    is_staff = bool(staff_id and (line_user_id == staff_id or line_source_id == staff_id))
+    staff_ids = set(_line_staff_user_ids())
+    is_staff = bool(staff_ids and (line_user_id in staff_ids or line_source_id in staff_ids))
     if is_staff:
         _process_line_staff_message(event, line_user_id or line_source_id, reply_token)
         return
@@ -20869,43 +20901,65 @@ def api_line_settings_put_public_path(payload: AdminLinePut, request: Request):
 def _line_admin_test_response(payload: AdminLineTestPost) -> JSONResponse:
     if not _line_channel_access_token():
         raise HTTPException(status_code=400, detail="尚未儲存 LINE Channel access token。")
-    to_user_id = _normalize_line_user_id(payload.to_user_id or "") or _line_staff_user_id()
-    if not to_user_id:
+    explicit_targets = _normalize_line_push_target_ids(payload.to_user_id or "")
+    target_ids = explicit_targets or _line_staff_user_ids()
+    if not target_ids:
         raise HTTPException(status_code=400, detail="尚未儲存 LINE 顧問 User ID。")
-    target_kind = _line_push_target_id_kind(to_user_id)
-    if not target_kind:
+    invalid_targets = [target for target in target_ids if not _line_push_target_id_kind(target)]
+    if invalid_targets:
         raise HTTPException(
             status_code=400,
             detail=(
                 "LINE 測試收件 ID 必須是 U 開頭的使用者 ID、C 開頭的群組 ID，"
-                "或 R 開頭的聊天室 ID；Channel ID 不能接收推播。"
+                "或 R 開頭的聊天室 ID；多個 ID 可用逗號、空格或換行分隔；"
+                f"Channel ID 不能接收推播。錯誤值：{', '.join(invalid_targets[:3])}"
             ),
         )
     try:
         bot_info = _line_get_bot_info_json()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"LINE bot info 失敗：{_sanitize_line_error_detail(exc)}") from exc
-    target_profile = {}
-    target_profile_error = ""
-    if target_kind == "user":
-        try:
-            target_profile = _line_get_profile_json(to_user_id)
-        except Exception as exc:
-            target_profile_error = _sanitize_line_error_detail(exc)
     msg = str(payload.message or "SCLAW LINE 連線測試").strip()[:500] or "SCLAW LINE 連線測試"
-    try:
-        sent = _line_push_text(to_user_id, msg)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=_sanitize_line_error_detail(exc)) from exc
+    targets: list[dict[str, Any]] = []
+    send_errors: list[str] = []
+    for to_user_id in target_ids:
+        target_kind = _line_push_target_id_kind(to_user_id)
+        target_profile = {}
+        target_profile_error = ""
+        if target_kind == "user":
+            try:
+                target_profile = _line_get_profile_json(to_user_id)
+            except Exception as exc:
+                target_profile_error = _sanitize_line_error_detail(exc)
+        try:
+            sent = _line_push_text(to_user_id, msg)
+        except Exception as exc:
+            err = _sanitize_line_error_detail(exc)
+            send_errors.append(f"{to_user_id}: {err}")
+            sent = {"ok": False, "error": err}
+        targets.append(
+            {
+                "to_user_id": to_user_id,
+                "target_kind": target_kind,
+                "target_profile": target_profile,
+                "target_profile_error": target_profile_error,
+                "push": sent,
+            }
+        )
+    if send_errors and len(send_errors) == len(target_ids):
+        raise HTTPException(status_code=400, detail="；".join(send_errors)[:700])
     return JSONResponse(
         {
             "ok": True,
             "bot": bot_info,
-            "push": sent,
-            "to_user_id": to_user_id,
-            "target_kind": target_kind,
-            "target_profile": target_profile,
-            "target_profile_error": target_profile_error,
+            "push": targets[0].get("push") if targets else {},
+            "to_user_id": ",".join(target_ids),
+            "target_kind": "multi" if len(targets) > 1 else (targets[0].get("target_kind") if targets else ""),
+            "target_profile": targets[0].get("target_profile") if len(targets) == 1 else {},
+            "target_profile_error": targets[0].get("target_profile_error") if len(targets) == 1 else "",
+            "targets": targets,
+            "recipient_count": len(targets),
+            "errors": send_errors,
         }
     )
 

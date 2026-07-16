@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260715-mobile-keyword-dropdown-compact-o">
+  <link rel="stylesheet" href="/static/site.css?v=20260716-line-multi-recipient-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -1992,16 +1992,16 @@
                 </button>
               </span>
             </label>
-            <label class="muted">顧問 LINE 收件 ID
+            <label class="muted">顧問 LINE 收件 ID（可多個）
               <span class="admin-secret-input-wrap">
-                <input id="admin-line-staff-user-id" type="password" autocomplete="off" placeholder="U / C / R 開頭；不能填數字 Channel ID">
+                <input id="admin-line-staff-user-id" type="password" autocomplete="off" placeholder="U / C / R 開頭；多個用逗號、空格或換行分隔">
                 <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-staff-user-id" aria-label="顯示顧問 LINE 收件 ID" title="顯示 / 隱藏">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </span>
             </label>
             </div>
-            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。</p>
+            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。若要多位顧問都收到通知，請填多個 U 開頭 User ID，或填一個 C/R 開頭的群組/聊天室 ID。</p>
             <label class="muted">LINE Webhook URL
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-webhook-url" type="password" autocomplete="off" placeholder="https://www.manuvip.com/api/line/webhook">
@@ -2434,7 +2434,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260715-desktop-nav-align-a" defer></script>
+  <script src="/static/index-app.js?v=20260716-line-multi-recipient-a" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>

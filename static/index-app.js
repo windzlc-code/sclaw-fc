@@ -11950,13 +11950,16 @@
       if (!cfgEl) return;
       const hasTok = Boolean(data && data.channel_access_token_set);
       const hasSecret = Boolean(data && data.channel_secret_set);
-      const hasStaff = Boolean(data && String(data.staff_user_id || '').trim());
+      const staffRaw = String(data && data.staff_user_id || '').trim();
+      const staffCount = staffRaw ? staffRaw.split(/[\s,;，；、]+/).filter(Boolean).length : 0;
+      const hasStaff = staffCount > 0;
       const channels = Array.isArray(data && data.notify_channels) ? data.notify_channels : [];
       const chText = channels.length ? channels.join(' + ') : 'telegram';
       const ready = hasTok && hasSecret && hasStaff;
       cfgEl.textContent =
         'LINE 通知：' +
         (ready ? '已完成' : '尚未完整') +
+        (staffCount > 1 ? `；LINE 收件人 ${staffCount} 個` : '') +
         `；目前通知：${chText}`;
     }
 
@@ -13581,9 +13584,14 @@
         const data = await parseApiResponseSafe(res);
         const bot = data.bot && typeof data.bot === 'object' ? data.bot : {};
         const name = String(bot.displayName || bot.basicId || 'LINE Bot');
-        const profile = data.target_profile && typeof data.target_profile === 'object' ? data.target_profile : {};
-        const targetName = String(profile.displayName || '').trim();
-        const targetHint = targetName ? `；收件人：${targetName}` : '';
+        const profiles = Array.isArray(data.targets)
+          ? data.targets.map((it) => it && typeof it === 'object' ? it.target_profile : null).filter(Boolean)
+          : [];
+        const names = profiles.map((profile) => String(profile.displayName || '').trim()).filter(Boolean);
+        const count = Number(data.recipient_count || (Array.isArray(data.targets) ? data.targets.length : 0) || 1);
+        const targetHint = count > 1
+          ? `；已發送 ${count} 個收件人${names.length ? '：' + names.slice(0, 3).join('、') : ''}`
+          : (names[0] ? `；收件人：${names[0]}` : '');
         if (msg) msg.textContent = `LINE bot info 與推播成功：${name}${targetHint}`;
       } catch (err) {
         if (msg) msg.textContent = `LINE 測試失敗：${formatApiError(err)}`;
