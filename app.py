@@ -17704,17 +17704,56 @@ def _line_recipient_table_has_any_rows() -> bool:
         return False
 
 
+def _line_target_auto_display_name(target: str, *, explicit: str = "", existing: str = "") -> str:
+    explicit_name = str(explicit or "").strip()
+    if explicit_name:
+        return explicit_name[:200]
+    normalized = _normalize_line_user_id(target)
+    kind = _line_push_target_id_kind(normalized)
+    if kind == "user" and _line_channel_access_token():
+        try:
+            profile = _line_get_profile_json(normalized)
+            name = str((profile or {}).get("displayName") or "").strip()
+            if name:
+                return name[:200]
+        except Exception:
+            pass
+    old_name = str(existing or "").strip()
+    if old_name and old_name not in {"手動匯入", "手動新增"}:
+        return old_name[:200]
+    return old_name[:200]
+
+
 def _line_migrate_legacy_staff_ids_once() -> None:
-    if str(get_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "") or "").strip() == "1":
+    legacy_targets = _line_staff_user_ids()
+    if not legacy_targets:
+        set_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "1")
         return
-    for target in _line_staff_user_ids():
+    existing_names: dict[str, str] = {}
+    try:
+        _ensure_support_channel_tables()
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT line_target_id, display_name FROM line_auto_recipients WHERE source_type IN ('manual', 'admin')"
+            ).fetchall()
+        existing_names = {
+            _normalize_line_user_id(str(row["line_target_id"] or "")): str(row["display_name"] or "")
+            for row in rows
+        }
+    except Exception:
+        existing_names = {}
+    for target in legacy_targets:
         _upsert_line_auto_recipient(
             line_target_id=target,
             source_type="manual",
-            display_name="手動匯入",
+            display_name=_line_target_auto_display_name(
+                target,
+                existing=existing_names.get(target, "") or "手動匯入",
+            ),
             enabled=True,
         )
     set_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "1")
+    delete_kv(KV_LINE_STAFF_USER_ID)
 
 
 def _line_auto_recipient_ids() -> list[str]:
@@ -17732,10 +17771,7 @@ def _line_auto_recipient_ids() -> list[str]:
 
 def _line_effective_staff_user_ids() -> list[str]:
     _line_migrate_legacy_staff_ids_once()
-    manual = _line_staff_user_ids()
-    table_initialized = _line_recipient_table_has_any_rows() or str(get_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "") or "").strip() == "1"
-    listed = _line_auto_recipient_ids()
-    return listed if table_initialized else manual
+    return _line_auto_recipient_ids()
 
 
 def _upsert_line_auto_recipient(
@@ -17831,7 +17867,6 @@ def admin_line_snapshot() -> dict:
     _line_migrate_legacy_staff_ids_once()
     token = _line_channel_access_token()
     secret = _line_channel_secret()
-    staff = ",".join(_line_staff_user_ids())
     auto_rows = _line_recipient_rows(enabled_only=False)
     enabled_ids = _line_auto_recipient_ids()
     effective_ids = _line_effective_staff_user_ids()
@@ -17843,12 +17878,13 @@ def admin_line_snapshot() -> dict:
         "channel_secret_set": bool(secret),
         "channel_secret": secret,
         "channel_secret_masked": _mask_line_token(secret),
-        "staff_user_id": staff,
+        "staff_user_id": "",
         "recipient_mode": _line_recipient_mode(),
         "auto_recipient_count": len(enabled_ids),
         "auto_recipient_ids": ",".join(enabled_ids),
         "auto_recipients": auto_rows,
         "line_recipients": auto_rows,
+        "sendable_recipient_count": len(effective_ids),
         "effective_recipient_count": len(effective_ids),
         "effective_staff_user_id": ",".join(effective_ids),
         "webhook_url": webhook_url,
@@ -17888,15 +17924,15 @@ def _apply_admin_line_settings(payload: AdminLinePut) -> None:
                     f"Channel ID（例如 2010088821）不能接收推播。錯誤值：{', '.join(invalid_targets[:3])}"
                 ),
             )
-        set_kv(KV_LINE_STAFF_USER_ID, ",".join(staff_targets))
         for target in staff_targets:
             _upsert_line_auto_recipient(
                 line_target_id=target,
                 source_type="manual",
-                display_name="手動新增",
+                display_name=_line_target_auto_display_name(target, existing="手動新增"),
                 enabled=True,
             )
         set_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "1")
+        delete_kv(KV_LINE_STAFF_USER_ID)
 
     if payload.recipient_mode is not None:
         mode = _normalize_line_recipient_mode(payload.recipient_mode)
@@ -21009,6 +21045,7 @@ def api_admin_line_recipients(request: Request):
             "ok": True,
             "count": len(rows),
             "enabled_count": len([r for r in rows if int(r.get("enabled") or 0) == 1]),
+            "sendable_recipient_count": len(_line_effective_staff_user_ids()),
             "items": rows,
         }
     )
@@ -21037,7 +21074,12 @@ def api_admin_put_line_recipient(payload: AdminLineRecipientPut, request: Reques
                 (target,),
             ).fetchone()
             source_type = "admin"
-            next_display = display if len(targets) == 1 else (display or (str(existing["display_name"] or "") if existing else "手動新增"))
+            existing_display = str(existing["display_name"] or "") if existing else ""
+            next_display = _line_target_auto_display_name(
+                target,
+                explicit=display if len(targets) == 1 else "",
+                existing=existing_display or "手動新增",
+            )
             conn.execute(
                 """
                 INSERT INTO line_auto_recipients (

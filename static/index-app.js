@@ -11925,9 +11925,7 @@
       if (!cfgEl) return;
       const hasTok = Boolean(data && data.channel_access_token_set);
       const hasSecret = Boolean(data && data.channel_secret_set);
-      const staffRaw = String(data && data.staff_user_id || '').trim();
-      const staffCount = staffRaw ? staffRaw.split(/[\s,;，；、]+/).filter(Boolean).length : 0;
-      const recipientCount = Number(data && data.effective_recipient_count || staffCount);
+      const recipientCount = Number(data && (data.effective_recipient_count || data.sendable_recipient_count || 0));
       const hasStaff = recipientCount > 0;
       const channels = Array.isArray(data && data.notify_channels) ? data.notify_channels : [];
       const chText = channels.length ? channels.join(' + ') : 'telegram';
@@ -11935,7 +11933,7 @@
       cfgEl.textContent =
         'LINE 通知：' +
         (ready ? '已完成' : '尚未完整') +
-        `；手動收件 ${recipientCount} 個` +
+        `；列表可發送 ${recipientCount} 個` +
         `；目前通知：${chText}`;
     }
 
@@ -13405,7 +13403,7 @@
     }
 
     function adminLineSecretInputIds() {
-      return ['admin-line-access-token', 'admin-line-channel-secret', 'admin-line-staff-user-id', 'admin-line-webhook-url'];
+      return ['admin-line-access-token', 'admin-line-channel-secret', 'admin-line-webhook-url'];
     }
 
     const ADMIN_LINE_RECIPIENT_PAGE_SIZE_KEY = 'sclaw_admin_line_recipient_page_size_v1';
@@ -13422,26 +13420,14 @@
 
     function setAdminLineRecipientMode(mode, options = {}) {
       adminLineRecipientMode = 'manual';
-      const staff = document.getElementById('admin-line-staff-user-id');
-      if (staff) {
-        staff.disabled = false;
-        staff.setAttribute('aria-disabled', 'false');
-        staff.title = '';
-        staff.closest('label')?.classList.remove('is-line-manual-disabled');
-        document.querySelectorAll('[data-admin-secret-copy="admin-line-staff-user-id"], [data-admin-secret-toggle="admin-line-staff-user-id"]').forEach((btn) => {
-          btn.disabled = false;
-          btn.setAttribute('aria-disabled', 'false');
-          btn.title = btn.classList.contains('admin-secret-copy-btn') ? '複製' : '顯示 / 隱藏';
-        });
-      }
-      if (options.persist !== false) updateAdminLineInlineStatus('LINE 收件模式為手動填寫');
+      if (options.persist !== false) updateAdminLineInlineStatus('LINE 收件模式為下方列表');
     }
 
     function renderAdminLineAutoRecipientHint(data) {
       const hint = document.getElementById('admin-line-auto-recipient-hint');
       if (!hint) return;
-      const enabledCount = Number(data?.effective_recipient_count || data?.auto_recipient_count || 0);
-      hint.textContent = `目前只使用手動新增的 LINE ID；已啟用 ${enabledCount} 個收件人。`;
+      const enabledCount = Number(data?.effective_recipient_count || data?.sendable_recipient_count || data?.auto_recipient_count || 0);
+      hint.textContent = `目前只使用下方 LINE 用戶 ID 列表；可發送 ${enabledCount} 個收件人。`;
     }
 
     function adminLineRecipientSourceLabel(sourceType, targetKind) {
@@ -13481,11 +13467,12 @@
         ? data.line_recipients
         : (Array.isArray(data?.auto_recipients) ? data.auto_recipients : []);
       const enabledCount = items.filter((row) => Number(row?.enabled || 0) === 1).length;
+      const sendableCount = Number(data?.effective_recipient_count || data?.sendable_recipient_count || enabledCount);
       const totalPages = Math.max(1, Math.ceil(items.length / Math.max(1, adminLineRecipientPageSize)));
       adminLineRecipientPage = Math.min(Math.max(1, adminLineRecipientPage), totalPages);
       const startIndex = (adminLineRecipientPage - 1) * adminLineRecipientPageSize;
       const pageItems = items.slice(startIndex, startIndex + adminLineRecipientPageSize);
-      if (countEl) countEl.textContent = `共 ${items.length} 個，啟用 ${enabledCount} 個，第 ${adminLineRecipientPage}/${totalPages} 頁`;
+      if (countEl) countEl.textContent = `共 ${items.length} 個，可發送 ${sendableCount} 個，第 ${adminLineRecipientPage}/${totalPages} 頁`;
       if (!items.length) {
         wrap.innerHTML = '<p class="muted">尚未有 LINE ID。請手動新增 U / C / R 開頭的收件 ID。</p>';
         return;
@@ -13503,14 +13490,14 @@
               <input class="admin-line-recipient-id" type="text" value="${esc(id)}" autocomplete="off">
             </label>
             <label class="muted admin-line-recipient-cell-label"><span>備註</span>
-              <input class="admin-line-recipient-name" type="text" value="${esc(name)}" placeholder="例如：Franklin / 客戶A" autocomplete="off">
+              <input class="admin-line-recipient-name" type="text" value="${esc(name)}" placeholder="自動識別，可手動覆寫" autocomplete="off">
             </label>
             <div class="admin-line-recipient-meta">
               <span>${esc(source)}</span>
               <small>${esc(lastSeen || firstSeen || '-')}</small>
             </div>
             <label class="admin-line-recipient-enabled">
-              <input class="admin-line-recipient-enabled-input" type="checkbox"${enabled ? ' checked' : ''}> 啟用
+              <input class="admin-line-recipient-enabled-input" type="checkbox"${enabled ? ' checked' : ''}> ${enabled ? '可發送' : '停用'}
             </label>
             <button type="button" class="secondary admin-line-recipient-icon-btn" onclick="saveAdminLineRecipient(this)" aria-label="保存 LINE ID" title="保存">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
@@ -13562,7 +13549,7 @@
         return;
       }
       try {
-        if (msg) msg.textContent = '新增 LINE ID 中…';
+        if (msg) msg.textContent = '新增 LINE ID 中，正在嘗試自動識別名稱…';
         const res = await fetch('/api/admin/line-recipients', {
           method: 'PUT',
           headers: adminApiHeaders(true),
@@ -13656,21 +13643,20 @@
       if (!msg) return;
       const token = String(document.getElementById('admin-line-access-token')?.value || '').trim();
       const secret = String(document.getElementById('admin-line-channel-secret')?.value || '').trim();
-      const staff = String(document.getElementById('admin-line-staff-user-id')?.value || '').trim();
       const webhook = String(document.getElementById('admin-line-webhook-url')?.value || '').trim();
-      const savedRecipients = Number(window.__adminLineLastSnapshot?.effective_recipient_count || 0);
+      const savedRecipients = Number(window.__adminLineLastSnapshot?.effective_recipient_count || window.__adminLineLastSnapshot?.sendable_recipient_count || 0);
       const missing = [];
       if (!token) missing.push('access token');
       if (!secret) missing.push('Channel secret');
-      if (!staff && savedRecipients <= 0) missing.push('收件 ID');
+      if (savedRecipients <= 0) missing.push('可發送 LINE ID');
       if (!webhook) missing.push('Webhook URL');
       const whHint = webhook && webhook !== 'https://www.manuvip.com/api/line/webhook'
         ? '；Webhook 目前不是正式站地址，建議改為 https://www.manuvip.com/api/line/webhook'
         : '';
       const head = prefix || 'LINE 設定';
       msg.textContent = missing.length
-        ? `${head}：尚缺 ${missing.join('、')}。清空欄位並儲存會清除該設定。${whHint}`
-        : `${head}：必要欄位已填寫，收件方式為手動列表。清空欄位並儲存會清除該設定。${whHint}`;
+        ? `${head}：尚缺 ${missing.join('、')}。LINE 收件人請統一在下方列表新增；清空欄位並儲存會清除該設定。${whHint}`
+        : `${head}：必要欄位已填寫，會發送給下方列表中已啟用的 LINE ID。清空欄位並儲存會清除該設定。${whHint}`;
     }
 
     async function copyAdminLineInputValue(inputId) {
@@ -13765,9 +13751,7 @@
         const secret = document.getElementById('admin-line-channel-secret');
         if (tok) tok.value = String(data.channel_access_token || '');
         if (secret) secret.value = String(data.channel_secret || '');
-        const staff = document.getElementById('admin-line-staff-user-id');
         const webhook = document.getElementById('admin-line-webhook-url');
-        if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
         maskAdminLineInputs();
         setAdminLineRecipientMode('manual', { persist: false });
@@ -13795,7 +13779,6 @@
         clear_channel_access_token: false,
         channel_secret: String(document.getElementById('admin-line-channel-secret')?.value || '').trim(),
         clear_channel_secret: false,
-        staff_user_id: String(document.getElementById('admin-line-staff-user-id')?.value || '').trim(),
         recipient_mode: 'manual',
         webhook_url: String(document.getElementById('admin-line-webhook-url')?.value || '').trim(),
         notify_channels: collectAdminLineNotifyChannels(),
@@ -13810,11 +13793,9 @@
         const data = await parseApiResponseSafe(res);
         const tok = document.getElementById('admin-line-access-token');
         const secret = document.getElementById('admin-line-channel-secret');
-        const staff = document.getElementById('admin-line-staff-user-id');
         const webhook = document.getElementById('admin-line-webhook-url');
         if (tok) tok.value = String(data.channel_access_token || '');
         if (secret) secret.value = String(data.channel_secret || '');
-        if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
         maskAdminLineInputs();
         setAdminLineRecipientMode('manual');

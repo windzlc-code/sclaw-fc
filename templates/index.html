@@ -1965,7 +1965,7 @@
           <div class="admin-notify-setup-block">
             <h5>LINE 收件資料</h5>
             <div class="admin-line-recipient-mode" aria-label="LINE 收件模式">
-              <span id="admin-line-auto-recipient-hint" class="muted">只使用手動新增的 LINE ID 作為顧問通知收件人。</span>
+              <span id="admin-line-auto-recipient-hint" class="muted">只使用下方列表中已啟用的 LINE ID 作為顧問通知收件人。</span>
             </div>
             <div class="admin-notify-form-grid">
             <label class="muted">LINE Channel access token
@@ -1990,19 +1990,6 @@
                 </button>
               </span>
             </label>
-            <label class="muted">顧問 LINE 收件 ID（可多個）
-              <span class="admin-secret-input-wrap">
-                <input id="admin-line-staff-user-id" type="password" autocomplete="off" placeholder="U / C / R 開頭；多個用逗號、空格或換行分隔">
-                <button type="button" class="admin-secret-copy-btn" data-admin-secret-copy="admin-line-staff-user-id" aria-label="複製顧問 LINE 收件 ID" title="複製">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>
-                </button>
-                <button type="button" class="admin-secret-eye-btn" data-admin-secret-toggle="admin-line-staff-user-id" aria-label="顯示顧問 LINE 收件 ID" title="顯示 / 隱藏">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.1 12S5.8 5.5 12 5.5 21.9 12 21.9 12 18.2 18.5 12 18.5 2.1 12 2.1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-              </span>
-            </label>
-            </div>
-            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。顧問可在 LINE 對 Bot 發送「查詢用戶ID」取得自己的 ID，再由後台手動新增。</p>
             <label class="muted">LINE Webhook URL
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-webhook-url" type="password" autocomplete="off" placeholder="https://www.manuvip.com/api/line/webhook">
@@ -2014,6 +2001,8 @@
                 </button>
               </span>
             </label>
+            </div>
+            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。顧問可在 LINE 對 Bot 發送「查詢用戶ID」取得自己的 ID，再統一新增到下方列表。</p>
             <div class="search-row-basic" style="margin-top:0.5rem;">
               <button type="button" onclick="saveAdminLineSettings()">儲存 LINE 設定</button>
               <button type="button" class="secondary" onclick="loadAdminLineSettings()">重新載入 LINE</button>
@@ -2036,7 +2025,7 @@
               </div>
               <div class="admin-line-recipient-add-row">
                 <input id="admin-line-recipient-add-id" type="text" autocomplete="off" placeholder="貼上 U/C/R ID；多個可用逗號、空格或換行分隔">
-                <input id="admin-line-recipient-add-name" type="text" autocomplete="off" placeholder="備註名稱（選填）">
+                <input id="admin-line-recipient-add-name" type="text" autocomplete="off" placeholder="備註名稱（可留空，自動識別）">
                 <button type="button" class="secondary" onclick="addAdminLineRecipient()">新增到列表</button>
               </div>
               <div id="admin-line-recipient-list" class="admin-line-recipient-list muted">尚未載入。</div>
