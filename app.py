@@ -19377,28 +19377,6 @@ def _support_session_has_line_thread(session_id: str) -> bool:
         return False
 
 
-def _line_latest_session_for_staff(line_user_id: str) -> str:
-    luid = _normalize_line_user_id(line_user_id)
-    if not luid:
-        return ""
-    try:
-        _ensure_support_channel_tables()
-        with get_conn() as conn:
-            row = conn.execute(
-                """
-                SELECT session_id
-                FROM line_outbound_bridge
-                WHERE line_user_id = ?
-                ORDER BY id DESC
-                LIMIT 1
-                """,
-                (luid,),
-            ).fetchone()
-        return _normalize_support_session_id(str(row["session_id"] or "")) if row else ""
-    except Exception:
-        return ""
-
-
 def _line_load_conversation(session_id: str) -> list[dict[str, str]]:
     sid = _normalize_support_session_id(session_id)
     if not sid:
@@ -19512,8 +19490,6 @@ def _process_line_staff_message(event: dict[str, Any], line_from_id: str, reply_
         if m_session:
             session_id = _normalize_support_session_id(m_session.group(1))
             body_text = (text_raw[: m_session.start()] + text_raw[m_session.end() :]).strip(" \t\r\n-—:：") or text_raw
-    if not session_id:
-        session_id = _line_latest_session_for_staff(line_from_id)
     if not session_id or not body_text:
         _push_telegram_debug_event(
             "line_staff_message_ignored",
@@ -19526,7 +19502,7 @@ def _process_line_staff_message(event: dict[str, Any], line_from_id: str, reply_
             _line_reply_or_push(
                 reply_token,
                 line_from_id,
-                "請使用：\n/reply <Session> 您的文字\n\nSession 見通知內「Session：」欄位。",
+                "請使用：\n/reply <Session完整ID> 您的文字\n\n為避免不同客戶會話串線，LINE 顧問回覆必須帶完整 Session ID。",
             )
         except Exception:
             pass
