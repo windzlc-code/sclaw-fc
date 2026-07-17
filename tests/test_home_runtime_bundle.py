@@ -90,6 +90,15 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("supportFallbackCompactReply", fallback)
         self.assertNotIn("compact.slice(0, 118)", fallback)
 
+    def test_market_price_recommendations_keep_the_database_fast_path(self):
+        app = APP.read_text(encoding="utf-8")
+        route_start = app.index("def api_ai_chat_support(payload: ChatSupportRequest):")
+        fast_reply_start = app.index("market_price_fast =", route_start)
+        fast_reply_block = app[fast_reply_start:app.index("if market_price_fast:", fast_reply_start)]
+
+        self.assertIn("market_price_fast = _support_market_price_reply(msg)", fast_reply_block)
+        self.assertNotIn("market_price_ai_context", fast_reply_block)
+
     def test_mobile_support_open_state_does_not_tint_the_homepage(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
         self.assertIn("Mobile support open state must not tint the homepage", css)

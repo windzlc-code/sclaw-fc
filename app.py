@@ -34133,12 +34133,9 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
             }
         )
-    market_price_ai_context = (
-        _support_market_price_reply(msg, force=True)
-        if _support_message_requests_recommendation_analysis(msg) and _SUPPORT_MARKET_PRICE_TERMS.search(msg)
-        else None
-    )
-    market_price_fast = None if market_price_ai_context else _support_market_price_reply(msg)
+    # 市場價格／最低房價問題必須先直接回覆站內統計。即使訊息帶有「推薦」，
+    # 也只引導使用者補一項篩選條件，不能落入外部模型的慢速分析流程。
+    market_price_fast = _support_market_price_reply(msg)
     if market_price_fast:
         reply, market_stats = market_price_fast
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
@@ -34186,24 +34183,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     fk = (payload.figure_keyword or "").strip()
     fr = (payload.figure_region or "").strip()
     dlgk = (payload.dialog_keyword or "").strip()
-    market_price_context_text = ""
-    market_price_context_stats: dict[str, Any] = {}
-    market_region_hint = ""
-    market_case_context_text = ""
-    market_case_samples: list[dict[str, Any]] = []
-    if market_price_ai_context:
-        market_price_context_text, market_price_context_stats = market_price_ai_context
-        market_regions = [
-            item
-            for item in list(market_price_context_stats.get("regions") or [])
-            if isinstance(item, dict) and str(item.get("region") or "").strip()
-        ]
-        if market_regions:
-            market_region_hint = str(market_regions[0].get("region") or "").strip()
-            market_case_context_text, market_case_samples = _support_market_low_price_case_samples(
-                market_region_hint,
-                limit=4,
-            )
     kq_blend = " ".join(dict.fromkeys([p for p in (fr, fk, dlgk, kq) if p]))[:600].strip() or kq
     purchase_dimensions = _support_purchase_discovery_dimensions(
         kq or msg,
@@ -34243,7 +34222,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     ):
         managed_rows = _support_lookup_managed_case_rows(
             message=msg,
-            region_hint=fr or market_region_hint,
+            region_hint=fr,
             keyword_hint=dlgk or fk,
             tx_hint=tx_hint or transaction_hint_from_message(msg) or "buy",
             limit=6,
@@ -34322,16 +34301,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 missing_fields=purchase_missing_fields,
             )
         )
-    elif market_price_context_text:
-        market_context_parts = [
-            "【站內市場統計，供本輪推薦分析使用】\n"
-            f"{market_price_context_text}\n"
-            "請基於這份站內可比統計與下方站內案件資料回答；不可改用泛泛城市印象取代站內資料。"
-        ]
-        if market_case_context_text:
-            market_context_parts.append(market_case_context_text)
-            market_context_parts.append("若使用者要求推薦，請簡短點名 1-3 筆候選樣本並說明為何仍需確認用途與持有成本。")
-        interest_head.append("\n\n".join(market_context_parts))
     elif selected_cases and case_request_sig:
         interest_head.append(_support_interest_coaching_block(selected_cases))
     sc_ctx = _format_support_client_search_context(fk, fr, dlgk)
