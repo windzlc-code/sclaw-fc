@@ -111,6 +111,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("purchase_context = _support_purchase_discovery_context(payload.history, msg)", route)
         self.assertIn("purchase_ready_for_database", route)
         self.assertIn("managed_case_database_fast_reply", route)
+        self.assertNotIn("market_price_context_stats", route)
 
     def test_mobile_support_open_state_does_not_tint_the_homepage(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")

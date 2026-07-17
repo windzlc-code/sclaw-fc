@@ -34454,18 +34454,9 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         "selected_cases": selected_cases,
         "selected_case_count": len(selected_cases),
         "property_listing_intent": prop_sig,
-        "market_data": (
-            {
-                "source": "managed_case_database",
-                "metric": "listing_total_price_median_man_jpy",
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                **market_price_context_stats,
-            }
-            if market_price_context_stats
-            else {}
-        ),
-        "market_case_samples": market_case_samples,
-        "market_case_sample_count": len(market_case_samples),
+        "market_data": {},
+        "market_case_samples": [],
+        "market_case_sample_count": 0,
         "purchase_discovery_mode": purchase_discovery_mode,
         "purchase_discovery": {
             "active": purchase_discovery_mode,

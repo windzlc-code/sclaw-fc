@@ -8,7 +8,7 @@ import app as app_module
 class SupportChatDatabaseOnlyTests(unittest.TestCase):
     def test_completed_multi_turn_purchase_requirements_use_only_managed_cases(self):
         history = [
-            {"role": "user", "content": "請幫我找東京自住房"},
+            {"role": "user", "content": "我想買東京自住房，請幫我推薦"},
             {"role": "assistant", "content": "請問您這次主要是自住、收租，還是資產配置？"},
             {"role": "user", "content": "自住"},
             {"role": "assistant", "content": "您方便先給一個總預算上限嗎？"},
