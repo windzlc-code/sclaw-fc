@@ -258,7 +258,7 @@ _CASE_PAGE_RENDER_LOCKS_MAX = 480
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-gallery-ad-cleanup-20260717c"
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-energy-label-cleanup-20260717d"
 _CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
@@ -2447,10 +2447,26 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                             green_band_rows += 1
                     green_band_ratio = green_band_rows / max(1, small.height)
                     reason = ""
+                    # Japanese energy-efficiency labels are not floor plans: they
+                    # combine a mostly-white information board with broad, repeated
+                    # flat-green strips.  Check this *before* the floor-plan rules;
+                    # otherwise the text-and-grid layout below can be mistaken for
+                    # a legitimate 房型圖 and survive the gallery cleanup.
+                    if (
+                        0.90 <= aspect <= 1.75
+                        and sat_mean >= 0.18
+                        and light_ratio >= 0.30
+                        and dark_ratio <= 0.03
+                        and greenish_ratio >= 0.32
+                        and dominant_color_ratio >= 0.20
+                        and green_band_ratio >= 0.16
+                        and edge_mean >= 0.06
+                    ):
+                        reason = "promotional-text-board"
                     # Floor plans and structure diagrams are usually bright, low-saturation
                     # line drawings with many hard edges. Keep the thresholds conservative
                     # so normal room photos with bright walls are not rejected.
-                    if (
+                    elif (
                         sat_mean <= 0.04
                         and light_ratio >= 0.82
                         and 0.035 <= mid_gray_ratio <= 0.22
@@ -19152,6 +19168,45 @@ def _line_reply_or_push(reply_token: str, to_user_id: str, text: str) -> dict:
     return _line_push_text(to_user_id, text)
 
 
+def _line_user_id_query_keyword(text: Any) -> bool:
+    compact = re.sub(r"[\s　:：,，。.!！?？/\\_-]+", "", str(text or "")).lower()
+    return compact in {
+        "查询用户id",
+        "查詢用戶id",
+        "查询用戶id",
+        "查詢用户id",
+        "查詢使用者id",
+        "查询使用者id",
+        "查询lineid",
+        "查詢lineid",
+        "我的lineid",
+        "我的userid",
+        "我的用户id",
+        "我的用戶id",
+        "lineid",
+        "userid",
+    }
+
+
+def _line_user_id_query_reply(source: dict[str, Any]) -> str:
+    if not isinstance(source, dict):
+        source = {}
+    source_type = str(source.get("type") or "").strip().lower()
+    user_id = str(source.get("userId") or "").strip()
+    group_id = str(source.get("groupId") or "").strip()
+    room_id = str(source.get("roomId") or "").strip()
+    lines = ["LINE ID 查詢結果"]
+    if user_id:
+        lines.append(f"目前使用者 LINE user ID：{user_id}")
+    else:
+        lines.append("目前事件未帶 userId。請在與 Bot 的一對一聊天中輸入「查詢用戶ID」。")
+    if source_type == "group" and group_id:
+        lines.append(f"目前群組 ID：{group_id}")
+    elif source_type == "room" and room_id:
+        lines.append(f"目前聊天室 ID：{room_id}")
+    return "\n".join(lines)
+
+
 def _line_send_and_bridge(text: str, session_id: str, kind: str = "notify") -> dict:
     staff_user_ids = _line_effective_staff_user_ids()
     if not staff_user_ids:
@@ -19594,6 +19649,18 @@ def _process_line_event(event: dict[str, Any]) -> None:
         return
     msg = event.get("message") or {}
     text_raw = str(msg.get("text") or "").strip() if isinstance(msg, dict) else ""
+    if text_raw and _line_user_id_query_keyword(text_raw):
+        try:
+            _line_reply_or_push(reply_token, line_user_id or line_source_id, _line_user_id_query_reply(source))
+        except Exception as exc:
+            _push_telegram_debug_event(
+                "line_user_id_query_reply_error",
+                channel="line",
+                line_user_id=line_user_id,
+                line_source_id=line_source_id,
+                detail=_sanitize_line_error_detail(exc),
+            )
+        return
     staff_ids = set(_line_effective_staff_user_ids())
     is_staff = bool(staff_ids and (line_user_id in staff_ids or line_source_id in staff_ids))
     if is_staff:
