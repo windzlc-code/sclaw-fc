@@ -58,8 +58,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         runtime = RUNTIME.read_text(encoding="utf-8")
         self.assertIn("sclaw.homeFeatured.v28.promo-image-clean.", runtime)
         self.assertIn("gallery-v22-promo-image-clean", runtime)
-        self.assertRegex(index, r"index-app\.js\?v=20260715-[A-Za-z0-9-]+")
-        self.assertRegex(index, r"site\.css\?v=20260715-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"index-app\.js\?v=20260717-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"site\.css\?v=20260717-[A-Za-z0-9-]+")
 
     def test_mobile_featured_cards_keep_price_and_specs_visible_without_hover(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
@@ -78,6 +78,17 @@ class HomeRuntimeBundleTests(unittest.TestCase):
 
         self.assertIn("widget.insertBefore(panel, widget.firstChild);", block)
         self.assertNotIn("document.body.appendChild(panel);", runtime)
+
+    def test_support_chat_does_not_abort_real_data_or_truncate_its_reply(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        fallback = (ROOT / "templates" / "partials" / "support_chat_widget.html").read_text(encoding="utf-8")
+
+        self.assertIn("const SUPPORT_CHAT_REQUEST_TIMEOUT_MS = 35000;", runtime)
+        self.assertIn("window.setTimeout(() => supportRequestController.abort(), SUPPORT_CHAT_REQUEST_TIMEOUT_MS)", runtime)
+        self.assertNotIn("const limit = 118;", runtime)
+        self.assertNotIn("compactSupportChatReplyText", runtime)
+        self.assertNotIn("supportFallbackCompactReply", fallback)
+        self.assertNotIn("compact.slice(0, 118)", fallback)
 
     def test_mobile_support_open_state_does_not_tint_the_homepage(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")

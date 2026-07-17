@@ -247,21 +247,10 @@
         .replace(/自動生成/gi, '整理回覆');
     }
 
-    function supportFallbackCompactReply(value) {
+    function supportFallbackDisplayReply(value) {
       var text = supportFallbackSanitizePublicCopy(value).trim();
       if (!text) return '';
-      var blocks = text.split(/\n{2,}/).map(function (block) {
-        return String(block || '').trim();
-      }).filter(Boolean).filter(function (block) {
-        return !/^(?:若需要人工顧問|若想留資料|請輸入「人工」|（已同步給顧問|（顧問通知未送出)/.test(block);
-      });
-      var compact = blocks[0] || '';
-      if (blocks.length > 1) {
-        var candidate = blocks[0] + '\n\n' + blocks[1];
-        if (candidate.length <= 118) compact = candidate;
-      }
-      if (compact.length > 118) compact = compact.slice(0, 118).replace(/[，、；：]\S*$/, '').trim() + '…';
-      return compact;
+      return text;
     }
 
     function supportFallbackIntakeCtaHtml() {
@@ -576,7 +565,7 @@
     window.submitSupportFallbackHumanIntake = window.submitSupportFallbackHumanIntake || submitSupportFallbackHumanIntake;
 
     function supportFallbackFormatText(value) {
-      var text = supportFallbackCompactReply(value).trim();
+      var text = supportFallbackDisplayReply(value).trim();
       if (!text) return '';
       return text.split(/\n{2,}/).map(function (block) {
         var lines = String(block || '').split('\n').map(function (line) { return esc(line.trim()); }).filter(Boolean);

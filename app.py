@@ -9021,6 +9021,7 @@ def startup_event() -> None:
     else:
         print("SCLAW: 案件自動更新與品質批次已停用（由外部排程按需執行）", flush=True)
     try:
+        _start_support_market_price_prewarm()
         if (os.getenv("SCLAW_COVERAGE_MATRIX_PREWARM") or "0").strip().lower() not in (
             "0",
             "false",
@@ -31404,6 +31405,8 @@ _SUPPORT_MARKET_PRICE_TERMS = re.compile(
 _SUPPORT_MARKET_PRICE_CACHE: dict[str, Any] = {"at": 0.0, "rows": []}
 _SUPPORT_MARKET_PRICE_CACHE_LOCK = threading.Lock()
 _SUPPORT_MARKET_PRICE_CACHE_SECONDS = 300.0
+_SUPPORT_MARKET_PRICE_PREWARM_LOCK = threading.Lock()
+_SUPPORT_MARKET_PRICE_PREWARM_STARTED = False
 
 # 站內案件會以「大區, 都道府縣, 市區町村」或中文相近名稱保存；市場比較統一
 # 到都道府縣層級，避免用一兩筆市區案件得出「全日本最低」的錯誤結論。
@@ -31513,6 +31516,41 @@ def _support_market_price_rows() -> list[dict[str, Any]]:
         _SUPPORT_MARKET_PRICE_CACHE["at"] = now
         _SUPPORT_MARKET_PRICE_CACHE["rows"] = [dict(row) for row in out]
     return out
+
+
+def _prewarm_support_market_price_cache() -> None:
+    """Populate the real-listing price cache before the first chat request.
+
+    Computing this statistic needs to read and normalize the current listing set.  It
+    must not be paid by the first visitor who asks a market-price question.
+    """
+    try:
+        rows = _support_market_price_rows()
+        print(f"SCLAW: 客服房價資料快取預熱完成（{len(rows)} 筆可比較案件）", flush=True)
+    except Exception as exc:
+        _log_backend_error("support-market-price-prewarm", exc)
+
+
+def _start_support_market_price_prewarm() -> None:
+    """Start one non-blocking price-cache warmup per application process."""
+    global _SUPPORT_MARKET_PRICE_PREWARM_STARTED
+    enabled = (os.getenv("SCLAW_SUPPORT_MARKET_PRICE_PREWARM") or "1").strip().lower()
+    if enabled in ("0", "false", "no", "off"):
+        return
+    with _SUPPORT_MARKET_PRICE_PREWARM_LOCK:
+        if _SUPPORT_MARKET_PRICE_PREWARM_STARTED:
+            return
+        _SUPPORT_MARKET_PRICE_PREWARM_STARTED = True
+    try:
+        threading.Thread(
+            target=_prewarm_support_market_price_cache,
+            daemon=True,
+            name="support-market-price-prewarm",
+        ).start()
+    except Exception as exc:
+        with _SUPPORT_MARKET_PRICE_PREWARM_LOCK:
+            _SUPPORT_MARKET_PRICE_PREWARM_STARTED = False
+        _log_backend_error("support-market-price-prewarm-start", exc)
 
 
 def _support_median(values: list[float]) -> float | None:

@@ -1847,6 +1847,9 @@
     let supportChatTtsEnabled = false;
     let supportChatSpeechPrimed = false;
     let supportChatSpeechScript = '';
+    // Cold real-data aggregation may need to hydrate the listing cache once after a deploy.
+    // Keep this longer than that measured path so the browser never discards a valid reply.
+    const SUPPORT_CHAT_REQUEST_TIMEOUT_MS = 35000;
     let supportSelectedCases = [];
     let supportSelectedCasesCollapsed = true;
     let supportSelectedCasesHydrated = false;
@@ -5349,36 +5352,11 @@
       return s.replace(/\n{3,}/g, '\n\n').trim();
     }
 
-    /** 客服氣泡：以口語正文為主，不再套用「結論：／重點：」模板（避免與後台場景標籤疊加）。 */
-    function buildSupportConclusionText(rawText, options = {}) {
-      const cleaned = compactSupportChatReplyText(normalizeSupportChatDisplayText(stripSupportChatInternalNoise(rawText)));
-      if (!cleaned) return { displayText: '', voiceScript: '' };
-      const voiceScript = cleaned.replace(/\s+/g, ' ').trim();
-      if (options && options.fullDisplay) {
-        const full = normalizeSupportChatDisplayText(stripSupportChatInternalNoise(rawText));
-        return { displayText: full || cleaned, voiceScript };
-      }
-      return { displayText: cleaned, voiceScript };
-    }
-
-    function compactSupportChatReplyText(value) {
-      const text = String(value || '').trim();
-      if (!text) return '';
-      const blocks = text
-        .split(/\n{2,}/)
-        .map((block) => String(block || '').trim())
-        .filter(Boolean)
-        .filter((block) => !/^(?:若需要人工顧問|若想留資料|請輸入「人工」|（已同步給顧問|（顧問通知未送出)/.test(block));
-      let compact = blocks[0] || '';
-      if (blocks.length > 1) {
-        const candidate = `${blocks[0]}\n\n${blocks[1]}`;
-        if (candidate.length <= 118) compact = candidate;
-      }
-      const limit = 118;
-      if (compact.length > limit) {
-        compact = compact.slice(0, limit).replace(/[，、；：]\S*$/, '').trim() + '…';
-      }
-      return compact;
+    /** 客服氣泡完整保留可核對的資料與限制說明，不能以省略號替代內容。 */
+    function buildSupportConclusionText(rawText) {
+      const displayText = normalizeSupportChatDisplayText(stripSupportChatInternalNoise(rawText));
+      if (!displayText) return { displayText: '', voiceScript: '' };
+      return { displayText, voiceScript: displayText.replace(/\s+/g, ' ').trim() };
     }
 
     function speakSupportChatScript(text) {
@@ -10910,7 +10888,7 @@
       const cond = getCurrentFigureSmartConditionLabels();
       let appendedHumanForm = false;
       const supportRequestController = new AbortController();
-      const supportRequestTimeout = window.setTimeout(() => supportRequestController.abort(), 18000);
+      const supportRequestTimeout = window.setTimeout(() => supportRequestController.abort(), SUPPORT_CHAT_REQUEST_TIMEOUT_MS);
       try {
         const res = await fetch('/api/ai/chat-support', {
           method: 'POST',
@@ -10963,14 +10941,7 @@
             markLastSupportUserMessageTelegramDelivery(data.advisor_notify || data.telegram_notify || data.line_notify);
           }
           const reply = data.reply || data.detail || '（無回覆）';
-          const fullDisplayReply = Boolean(
-            data && data.llm && (
-              data.llm.selected_cases_compare_ai_reply ||
-              data.llm.selected_cases_compare_fallback_reply ||
-              data.llm.selected_cases_compare_fast_reply
-            )
-          );
-          const cooked = buildSupportConclusionText(typeof reply === 'string' ? reply : String(reply), { fullDisplay: fullDisplayReply });
+          const cooked = buildSupportConclusionText(typeof reply === 'string' ? reply : String(reply));
           supportChatSpeechScript = cooked.voiceScript || '';
           supportChatHistory.push({
             role: 'assistant',
