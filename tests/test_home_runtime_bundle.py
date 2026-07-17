@@ -99,6 +99,10 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("market_price_fast = _support_market_price_reply(msg)", fast_reply_block)
         self.assertNotIn("market_price_ai_context", fast_reply_block)
 
+        market_guard_start = app.index("def _support_is_market_price_question")
+        market_guard = app[market_guard_start:app.index("def _support_market_region_label", market_guard_start)]
+        self.assertNotIn("if _support_message_requests_recommendation_analysis(raw):", market_guard)
+
     def test_mobile_support_open_state_does_not_tint_the_homepage(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
         self.assertIn("Mobile support open state must not tint the homepage", css)

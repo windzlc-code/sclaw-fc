@@ -31465,8 +31465,6 @@ def _support_is_market_price_question(message: str) -> bool:
     # regional aggregate just because the user used the word "price".
     if re.search(r"(這筆|这笔|這個|这个|該案|该案|案件編號|案件编号|物件編號|物件编号|/case/)", raw, re.I):
         return False
-    if _support_message_requests_recommendation_analysis(raw):
-        return False
     return bool(_SUPPORT_MARKET_PRICE_TERMS.search(raw))
 
 
