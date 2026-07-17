@@ -11530,6 +11530,150 @@
       }).join('')}${rows.length > 10 ? `<small>另有 ${adminVisitorNumber(rows.length - 10)} 项，点详情查看</small>` : ''}</div>`;
     }
 
+    function adminVisitorFieldValueMap(fields) {
+      const rows = adminVisitorNormalizedFields(fields);
+      const out = {};
+      rows.forEach((field) => {
+        const key = field.key;
+        const label = field.label;
+        const value = field.value;
+        if (!value) return;
+        if (key && !out[key]) out[key] = value;
+        if (label && !out[label]) out[label] = value;
+      });
+      return out;
+    }
+
+    function adminVisitorNormalizedFields(fields) {
+      const rows = Array.isArray(fields) ? fields : [];
+      return rows.map((field) => ({
+        key: String(field && field.key || '').trim(),
+        label: String(field && field.label || field && field.key || '字段').trim(),
+        value: String(field && field.value || '').trim(),
+      })).filter((field) => field.value);
+    }
+
+    function adminVisitorPickField(map, keys, fallback = '-') {
+      for (const key of keys) {
+        const value = String(map && map[key] || '').trim();
+        if (value) return value;
+      }
+      return fallback;
+    }
+
+    function adminVisitorFieldMatches(field, keys) {
+      return keys.includes(field.key) || keys.includes(field.label);
+    }
+
+    function adminVisitorNormalizeComparable(value) {
+      return String(value || '').toLowerCase().replace(/[\s:：/／,，;；|｜\-_\(\)（）\[\]【】]+/g, '');
+    }
+
+    function adminVisitorValueIsDuplicate(value, seenValues) {
+      const normalized = adminVisitorNormalizeComparable(value);
+      if (!normalized) return true;
+      return Array.from(seenValues).some((seen) => seen === normalized || seen.includes(normalized) || normalized.includes(seen));
+    }
+
+    function adminVisitorCleanPreviewValue(value, displayedValues) {
+      let text = String(value || '').trim();
+      if (!text) return '';
+      text = text
+        .replace(/Session\s*[:：]\s*[A-Za-z0-9_-]+/gi, '')
+        .replace(/同意聲明\s*[:：]\s*(是|否)/g, '')
+        .replace(/同意声明\s*[:：]\s*(是|否)/g, '')
+        .replace(/電話識別\s*[:：]\s*[\+\d\s()-]+/g, '')
+        .replace(/电话识别\s*[:：]\s*[\+\d\s()-]+/g, '');
+      (Array.isArray(displayedValues) ? displayedValues : []).forEach((valueItem) => {
+        String(valueItem || '').split(/[\/／,，;；|｜]+/).forEach((part) => {
+          const cleanPart = String(part || '').replace(/^(電話|电话|電子信箱|电子信箱|LINE\/微信|LINE|微信|聯絡方式|联系方式)\s+/i, '').trim();
+          if (!cleanPart || cleanPart.length < 2) return;
+          text = text.split(cleanPart).join('');
+        });
+      });
+      text = text
+        .replace(/【[^】]{1,18}】\s*/g, '')
+        .replace(/\s*[:：]\s*(?=[;；,，]|$)/g, '')
+        .replace(/[;；,，\s]+$/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      return text;
+    }
+
+    function adminVisitorPushUniquePart(parts, seenLabels, seenValues, label, value) {
+      const cleanLabel = String(label || '字段').trim();
+      const cleanValue = String(value || '').trim();
+      if (!cleanValue || cleanValue === '-' || cleanValue === '—') return false;
+      if (seenLabels.has(cleanLabel)) return false;
+      if (adminVisitorValueIsDuplicate(cleanValue, seenValues)) return false;
+      seenLabels.add(cleanLabel);
+      seenValues.add(adminVisitorNormalizeComparable(cleanValue));
+      parts.push(`${cleanLabel} ${cleanValue}`);
+      return true;
+    }
+
+    function adminVisitorInferContactLabel(value) {
+      const text = String(value || '').trim();
+      if (/@/.test(text)) return '電子信箱';
+      if (/line/i.test(text)) return 'LINE';
+      if (/wechat|微信/i.test(text)) return '微信';
+      if (/^\+?\d[\d\s\-()（）]{4,}$/.test(text)) return '電話';
+      return '聯絡方式';
+    }
+
+    function adminVisitorCollectContactText(fields, fallback = '-') {
+      const rows = adminVisitorNormalizedFields(fields);
+      const seen = new Set();
+      const seenLabels = new Set();
+      const parts = [];
+      const pick = (keys) => rows.find((field) => adminVisitorFieldMatches(field, keys));
+      const phone = pick(['phone', '電話', '电话', '聯絡電話', '联系电话']);
+      const region = pick(['contact_phone_region_code', '電話區碼', '电话区码']);
+      const local = pick(['contact_phone_local', '電話號碼', '电话号码']);
+      const phoneValue = phone ? phone.value : [region && region.value, local && local.value].filter(Boolean).join(' ');
+      adminVisitorPushUniquePart(parts, seenLabels, seen, '電話', phoneValue);
+      [
+        ['電子信箱', ['email', '電子信箱', '电子信箱', 'Email']],
+        ['LINE', ['contact_line', 'LINE', 'LINE ID', 'line', 'line_id']],
+        ['微信', ['contact_wechat', '微信', '微信 ID', 'WeChat', 'wechat', 'wechat_id']],
+        ['LINE/微信', ['contact_line_wechat', 'LINE/微信']],
+        ['聯絡方式', ['联系方式', '聯絡方式', '联系方法', '聯繫方式']],
+      ].forEach(([label, keys]) => {
+        const field = pick(keys);
+        if (field) adminVisitorPushUniquePart(parts, seenLabels, seen, label, field.value);
+      });
+      String(fallback || '').split(/[\/／,，;；|｜]+/).forEach((value) => {
+        adminVisitorPushUniquePart(parts, seenLabels, seen, adminVisitorInferContactLabel(value), value);
+      });
+      return parts.length ? parts.join(' / ') : '-';
+    }
+
+    function adminVisitorRemainingPreviewText(fields, excludedKeys, displayedValues, fallback = '-') {
+      const seenLabels = new Set();
+      const seenValues = new Set((Array.isArray(displayedValues) ? displayedValues : []).map(adminVisitorNormalizeComparable).filter(Boolean));
+      const parts = [];
+      const skippedKeys = ['matched_scene_label', 'action_id', 'session_id', 'consent_agreed'];
+      const skippedLabels = ['命中場景', '命中场景', '轉接動作', '转接动作', 'Session', '同意聲明', '同意声明'];
+      adminVisitorNormalizedFields(fields).forEach((field) => {
+        if (adminVisitorFieldMatches(field, excludedKeys)) return;
+        if (skippedKeys.includes(field.key) || skippedLabels.includes(field.label)) return;
+        const label = field.label || field.key || '字段';
+        const value = ['note', 'context_message', 'opinion'].includes(field.key) || ['備註', '备注', '諮詢內容', '咨询内容', '顧問意見', '顾问意见'].includes(label)
+          ? adminVisitorCleanPreviewValue(field.value, displayedValues)
+          : field.value;
+        if (seenLabels.has(label) || adminVisitorValueIsDuplicate(value, seenValues)) return;
+        seenLabels.add(label);
+        seenValues.add(adminVisitorNormalizeComparable(value));
+        parts.push(`${label}: ${value}`);
+      });
+      return parts.length ? parts.join('；') : fallback;
+    }
+
+    function adminVisitorPreviewCell(value, className = '') {
+      const text = String(value || '').trim() || '-';
+      return `<td class="admin-visitor-form-preview-cell ${className}" title="${esc(text)}"><span>${esc(text)}</span></td>`;
+    }
+
     function openAdminVisitorFormDetail(index) {
       const items = Array.isArray(window.__adminVisitorFormRecords) ? window.__adminVisitorFormRecords : [];
       const it = items[Number(index)];
@@ -11565,20 +11709,58 @@
         const page = Number(pageInfo.page || 1);
         const pageSize = Number(pageInfo.page_size || items.length || 20);
         const no = (page - 1) * pageSize + idx + 1;
+        const fieldMap = adminVisitorFieldValueMap(it.filled_fields);
+        const nameKeys = ['姓名', '稱呼', '称呼', 'name'];
+        const contactKeys = ['LINE', 'LINE ID', 'line', 'line_id', '微信', '微信 ID', 'WeChat', 'wechat', 'wechat_id', 'LINE/微信', '联系方式', '聯絡方式', '联系方法', '聯繫方式', '電子信箱', '电子信箱', 'Email', 'email', '電話', '电话', '聯絡電話', '联系电话', '電話區碼', '电话区码', '電話號碼', '电话号码'];
+        const budgetKeys = ['總預算（日幣）', '總預算', '总预算', '預計購屋總預算（日圓）', '预计购屋总预算（日圆）'];
+        const downPaymentKeys = ['自備款（日幣）', '自备款（日币）', '自備款', '自备款', '自備資金（日圓）'];
+        const cityKeys = ['希望購買城市', '希望购买城市', '城市'];
+        const propertyTypeKeys = ['物件類型', '物件类型', '希望購買的物件類型', '希望购买的物件类型'];
+        const purposeKeys = ['購買目的', '购买目的', '購屋用途', '购屋用途'];
+        const displayedKeys = [
+          ...nameKeys,
+          ...contactKeys,
+          ...budgetKeys,
+          ...downPaymentKeys,
+          ...cityKeys,
+          ...propertyTypeKeys,
+          ...purposeKeys,
+        ];
+        const fallbackContact = String(it.contact || '').trim();
+        const contactMethod = adminVisitorCollectContactText(it.filled_fields, fallbackContact);
+        const budget = adminVisitorPickField(fieldMap, budgetKeys);
+        const downPayment = adminVisitorPickField(fieldMap, downPaymentKeys);
+        const city = adminVisitorPickField(fieldMap, cityKeys);
+        const propertyType = adminVisitorPickField(fieldMap, propertyTypeKeys);
+        const purpose = adminVisitorPickField(fieldMap, purposeKeys);
+        const previewText = adminVisitorRemainingPreviewText(it.filled_fields, displayedKeys, [
+          it.name,
+          contactMethod,
+          budget,
+          downPayment,
+          city,
+          propertyType,
+          purpose,
+        ], '-');
         return `<tr>
-          <td>${adminVisitorNumber(no)}</td>
-          <td class="admin-visitor-record-primary"><strong>#${adminVisitorNumber(it.id || 0)}</strong><span>${esc(it.created_at || '-')}</span></td>
-          <td>${esc(it.name || '未填稱呼')}</td>
-          <td>${esc(it.contact || '-')}</td>
-          <td>${adminVisitorFilledFieldsHtml(it.filled_fields)}</td>
-          <td><button type="button" class="secondary" onclick="openAdminVisitorFormDetail(${idx})">详情</button></td>
+          <td class="admin-visitor-form-index">${adminVisitorNumber(no)}</td>
+          <td class="admin-visitor-record-primary admin-visitor-form-id"><strong>#${adminVisitorNumber(it.id || 0)}</strong><span>${esc(it.created_at || '-')}</span></td>
+          <td class="admin-visitor-form-name" title="${esc(it.name || '未填稱呼')}"><span>${esc(it.name || '未填稱呼')}</span></td>
+          ${adminVisitorPreviewCell(contactMethod, 'admin-visitor-form-contact')}
+          ${adminVisitorPreviewCell(budget)}
+          ${adminVisitorPreviewCell(downPayment)}
+          ${adminVisitorPreviewCell(city)}
+          ${adminVisitorPreviewCell(propertyType)}
+          ${adminVisitorPreviewCell(purpose)}
+          ${adminVisitorPreviewCell(previewText, 'admin-visitor-form-note')}
+          <td class="admin-visitor-form-action"><button type="button" class="secondary" onclick="openAdminVisitorFormDetail(${idx})">详情</button></td>
         </tr>`;
       }).join('');
       root.innerHTML = `
         <div class="admin-visitor-record-summary">共 ${adminVisitorNumber(pageInfo.total_records || 0)} 组填单游客，当前第 ${adminVisitorNumber(pageInfo.page || 1)} / ${adminVisitorNumber(pageInfo.total_pages || 1)} 页。</div>
         <div class="admin-table-scroll">
           <table class="admin-visitor-record-table admin-visitor-form-record-table">
-            <thead><tr><th>#</th><th>留单</th><th>称呼</th><th>联系方式</th><th>实际填写资料</th><th>操作</th></tr></thead>
+            <thead><tr><th>#</th><th>留单</th><th>称呼</th><th>联系</th><th>总预算</th><th>自备款</th><th>城市</th><th>物件</th><th>用途</th><th>预览</th><th>操作</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>

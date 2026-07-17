@@ -29455,7 +29455,93 @@ body.site-admin-standalone .admin-drawer .admin-tab-panel .admin-visitor-setting
 }
 
 .admin-visitor-form-record-table {
-  min-width: 1080px;
+  width: 100%;
+  min-width: 1280px;
+  table-layout: fixed;
+}
+
+.admin-visitor-form-record-table th,
+.admin-visitor-form-record-table td {
+  box-sizing: border-box;
+  padding: 8px 9px;
+  vertical-align: middle;
+}
+
+.admin-visitor-form-record-table th:nth-child(1),
+.admin-visitor-form-record-table td:nth-child(1) {
+  width: 42px;
+}
+
+.admin-visitor-form-record-table th:nth-child(2),
+.admin-visitor-form-record-table td:nth-child(2) {
+  width: 140px;
+}
+
+.admin-visitor-form-record-table th:nth-child(3),
+.admin-visitor-form-record-table td:nth-child(3) {
+  width: 90px;
+}
+
+.admin-visitor-form-record-table th:nth-child(4),
+.admin-visitor-form-record-table td:nth-child(4) {
+  width: 170px;
+}
+
+.admin-visitor-form-record-table th:nth-child(5),
+.admin-visitor-form-record-table th:nth-child(6),
+.admin-visitor-form-record-table td:nth-child(5),
+.admin-visitor-form-record-table td:nth-child(6) {
+  width: 96px;
+}
+
+.admin-visitor-form-record-table th:nth-child(7),
+.admin-visitor-form-record-table th:nth-child(8),
+.admin-visitor-form-record-table th:nth-child(9),
+.admin-visitor-form-record-table td:nth-child(7),
+.admin-visitor-form-record-table td:nth-child(8),
+.admin-visitor-form-record-table td:nth-child(9) {
+  width: 118px;
+}
+
+.admin-visitor-form-record-table th:nth-child(10),
+.admin-visitor-form-record-table td:nth-child(10) {
+  width: 260px;
+}
+
+.admin-visitor-form-record-table th:nth-child(11),
+.admin-visitor-form-record-table td:nth-child(11) {
+  width: 62px;
+}
+
+.admin-visitor-form-preview-cell,
+.admin-visitor-form-name {
+  min-width: 0;
+}
+
+.admin-visitor-form-preview-cell span,
+.admin-visitor-form-name span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #21384f;
+  font-weight: 750;
+}
+
+.admin-visitor-form-note span {
+  color: #5d7082;
+  font-weight: 650;
+}
+
+.admin-visitor-form-action {
+  text-align: center;
+}
+
+.admin-visitor-form-action .secondary {
+  min-width: 46px;
+  padding: 6px 9px;
+  white-space: nowrap;
 }
 
 .admin-visitor-form-detail-table {
