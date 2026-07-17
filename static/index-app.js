@@ -13348,8 +13348,8 @@
         html += `<div class="search-row-basic" style="flex-wrap:wrap;gap:0.35rem;align-items:flex-end;">`;
         html += `<input type="hidden" class="admin-tg-acc-id" value="${id}">`;
         html += `<label class="muted">顧問名稱 <input type="text" class="admin-tg-acc-label" value="${label}" placeholder="例如：顧問A群" style="width:10rem;"/></label>`;
-        html += `<label class="muted">Telegram 收件 ID <input type="text" class="admin-tg-acc-chat" value="${chat}" placeholder="數字 ID" style="width:11rem;"/></label>`;
-        html += `<label class="muted">Telegram 授權碼（留空不變） <input type="password" class="admin-tg-acc-token" autocomplete="new-password" style="width:14rem;"/></label>`;
+        html += `<label class="muted">Telegram Chat ID <input type="text" class="admin-tg-acc-chat" value="${chat}" placeholder="使用者或群組數字 ID" style="width:11rem;"/></label>`;
+        html += `<label class="muted">Telegram Bot Token（留空不變） <input type="password" class="admin-tg-acc-token" autocomplete="new-password" placeholder="@BotFather 完整 token" style="width:14rem;"/></label>`;
         html += `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-clear"/> 清除已儲存授權碼</label>`;
         html += `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-remove"/> 刪除此列</label>`;
         html += `<span class="muted" style="font-size:12px;">授權碼狀態：${tokHint}</span>`;
@@ -13371,8 +13371,8 @@
         `<div class="search-row-basic" style="flex-wrap:wrap;gap:0.35rem;align-items:flex-end;">` +
         `<input type="hidden" class="admin-tg-acc-id" value="${esc(id)}">` +
         `<label class="muted">顧問名稱 <input type="text" class="admin-tg-acc-label" value="" placeholder="新顧問" style="width:10rem;"/></label>` +
-        `<label class="muted">Telegram 收件 ID <input type="text" class="admin-tg-acc-chat" value="" style="width:11rem;"/></label>` +
-        `<label class="muted">Telegram 授權碼 <input type="password" class="admin-tg-acc-token" autocomplete="new-password" style="width:14rem;"/></label>` +
+        `<label class="muted">Telegram Chat ID <input type="text" class="admin-tg-acc-chat" value="" placeholder="使用者或群組數字 ID" style="width:11rem;"/></label>` +
+        `<label class="muted">Telegram Bot Token <input type="password" class="admin-tg-acc-token" autocomplete="new-password" placeholder="@BotFather 完整 token" style="width:14rem;"/></label>` +
         `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-clear"/> 清除已儲存授權碼</label>` +
         `<label class="muted" style="display:flex;align-items:center;gap:0.25rem;"><input type="checkbox" class="admin-tg-acc-remove"/> 刪除此列</label>` +
         `</div>`;
@@ -13802,14 +13802,14 @@
       if (!token) missing.push('access token');
       if (!secret) missing.push('Channel secret');
       if (savedRecipients <= 0) missing.push('可發送 LINE ID');
-      if (!webhook) missing.push('Webhook URL');
       const whHint = webhook && webhook !== 'https://www.manuvip.com/api/line/webhook'
         ? '；Webhook 目前不是正式站地址，建議改為 https://www.manuvip.com/api/line/webhook'
         : '';
+      const webhookHint = webhook ? '' : '；Webhook 可留空，只有需要 LINE 回調、查詢用戶 ID 或雙向訊息時才設定。';
       const head = prefix || 'LINE 設定';
       msg.textContent = missing.length
-        ? `${head}：尚缺 ${missing.join('、')}。LINE 收件人請統一在下方列表新增；清空欄位並儲存會清除該設定。${whHint}`
-        : `${head}：必要欄位已填寫，會發送給下方列表中已啟用的 LINE ID。清空欄位並儲存會清除該設定。${whHint}`;
+        ? `${head}：尚缺 ${missing.join('、')}。LINE 收件人請統一在下方列表新增；清空欄位並儲存會清除該設定。${whHint || webhookHint}`
+        : `${head}：推播必要欄位已填寫，會發送給下方列表中已啟用的 LINE ID。清空欄位並儲存會清除該設定。${whHint || webhookHint}`;
     }
 
     async function copyAdminLineInputValue(inputId) {

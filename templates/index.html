@@ -25,7 +25,7 @@
   <link rel="canonical" href="{{ site_url }}/">
   {% endif %}
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4">
-  <link rel="stylesheet" href="/static/site.css?v=20260717-admin-form-preview-a">
+  <link rel="stylesheet" href="/static/site.css?v=20260717-admin-notify-copy-a">
   <script src="/static/portal-feature-rows.js?v=20260630-mobile-c" defer></script>
   <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
   <script type="application/ld+json">{{ default_schema | safe }}</script>
@@ -1950,7 +1950,7 @@
         <div class="admin-notify-main-grid">
         <div class="panel admin-telegram-line-panel admin-notify-card" style="margin:0 0 0.75rem;padding:12px 14px;border:1px solid #bbf7d0;background:#f7fef9;">
           <h4 class="config-subhead" style="margin-top:0;">LINE 顧問通知</h4>
-          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">適合顧問用 LINE 收到提醒。首次接入時填同一個 LINE Messaging API Channel 的 access token、secret 與 Webhook URL。</p>
+          <p class="muted" style="margin:0 0 0.65rem;line-height:1.5;">適合顧問用 LINE 收到填單提醒。推播必填 Channel access token 與下方已啟用的 U/C/R 收件 ID；Channel secret 與 Webhook URL 用於驗證回調、查詢用戶 ID 與雙向訊息。</p>
           <div class="admin-notify-channel-toggle" style="align-items:center;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.55rem;">
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-telegram" type="checkbox"> 自動通知 Telegram</label>
             <label class="muted" style="display:flex;align-items:center;gap:0.35rem;"><input id="admin-line-notify-line" type="checkbox"> 自動通知 LINE</label>
@@ -1963,7 +1963,7 @@
             <button type="button" class="secondary" onclick="testAdminLine()">測試 LINE</button>
           </div>
           <div class="admin-notify-setup-block">
-            <h5>LINE 收件資料</h5>
+            <h5>LINE 推播與收件設定</h5>
             <div class="admin-line-recipient-mode" aria-label="LINE 收件模式">
               <span id="admin-line-auto-recipient-hint" class="muted">只使用下方列表中已啟用的 LINE ID 作為顧問通知收件人。</span>
             </div>
@@ -2002,7 +2002,7 @@
               </span>
             </label>
             </div>
-            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。顧問可在 LINE 對 Bot 發送「查詢用戶ID」取得自己的 ID，再統一新增到下方列表。</p>
+            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">推播發送至少需要 Channel access token 與下方可發送 LINE ID。若要接收 LINE 回調或讓顧問用「查詢用戶ID」取得 ID，Channel access token、Channel secret 與 LINE Developers 設定的 Webhook 必須屬於同一個 Messaging API Channel；Channel ID 不能填在收件 ID。</p>
             <div class="search-row-basic" style="margin-top:0.5rem;">
               <button type="button" onclick="saveAdminLineSettings()">儲存 LINE 設定</button>
               <button type="button" class="secondary" onclick="loadAdminLineSettings()">重新載入 LINE</button>
@@ -2094,16 +2094,16 @@
         <div class="panel slim admin-notify-advanced" style="margin-top:0.35rem;">
           <h4 class="config-subhead" style="margin-top:0;">高級設定</h4>
           <div style="margin-top:0.65rem;">
-        <label class="muted">Telegram 收件 ID
+        <label class="muted">Telegram Chat ID（收件人 / 群組）
           <input id="admin-tg-chat-id" type="text" autocomplete="off" placeholder="例：7601992552">
         </label>
-        <label class="muted">Telegram 授權碼（留空不變；已儲存的不會顯示在框內）
-          <input id="admin-tg-bot-token" type="password" autocomplete="new-password" placeholder="貼上 Telegram 後台提供的授權碼">
+        <label class="muted">Telegram Bot Token（BotFather；留空不變）
+          <input id="admin-tg-bot-token" type="password" autocomplete="new-password" placeholder="貼上 @BotFather 提供的完整 Bot Token">
         </label>
         <label class="muted" style="display:flex;align-items:center;gap:0.4rem;">
           <input id="admin-tg-clear-token" type="checkbox"> 清除已儲存授權碼
         </label>
-        <p class="muted" style="margin:0.5rem 0 0;font-size:12px;line-height:1.45;">這裡只在首次接 Telegram 或更換收件帳號時使用；平時不用打開。</p>
+        <p class="muted" style="margin:0.5rem 0 0;font-size:12px;line-height:1.45;">Telegram 推播只需要 Bot Token 與 Chat ID。下方 Webhook 只用於顧問回覆同步回網站 Session，非填單通知必填。</p>
         <div class="search-row-basic" style="margin-top:0.5rem;">
           <button type="button" onclick="saveAdminTelegramSettings()">儲存 Telegram</button>
           <button type="button" class="secondary" onclick="loadAdminTelegramSettings()">重新載入</button>
@@ -2447,7 +2447,7 @@
       homeFeaturedTypePreloads: {{ home_featured_type_preloads|default({})|tojson }},
     };
   </script>
-  <script src="/static/index-app.js?v=20260717-support-chat-full-reply-b" defer></script>
+  <script src="/static/index-app.js?v=20260717-admin-notify-copy-a" defer></script>
   <script src="/static/selected-cases-compare.js?v=20260701-selected-sync-b" defer></script>
 </body>
 </html>
