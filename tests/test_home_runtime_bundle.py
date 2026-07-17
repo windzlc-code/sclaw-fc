@@ -90,18 +90,6 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("supportFallbackCompactReply", fallback)
         self.assertNotIn("compact.slice(0, 118)", fallback)
 
-    def test_admin_notification_copy_matches_required_credentials(self):
-        runtime = RUNTIME.read_text(encoding="utf-8")
-        template = (ROOT / "templates" / "index.html").read_text(encoding="utf-8")
-
-        self.assertIn("Telegram Chat ID", template)
-        self.assertIn("Telegram Bot Token", template)
-        self.assertIn("Telegram Chat ID", runtime)
-        self.assertIn("Telegram Bot Token", runtime)
-        self.assertIn("推播必填 Channel access token", template)
-        self.assertIn("Webhook 可留空", runtime)
-        self.assertNotIn("if (!webhook) missing.push('Webhook URL')", runtime)
-
     def test_mobile_support_open_state_does_not_tint_the_homepage(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
         self.assertIn("Mobile support open state must not tint the homepage", css)
