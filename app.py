@@ -258,7 +258,7 @@ _CASE_PAGE_RENDER_LOCKS_MAX = 480
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-no-fallback-gallery-20260713d"
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-local-thumbs-20260717a"
 _CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
@@ -36917,10 +36917,12 @@ def _article_related_news_fast(
                     s.source_name, s.item_url, s.access_status,
                     s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
                     s.thumbnail_url, s.hero_image_url,
+                    COALESCE(r.representative_static_url, '') AS representative_static_url,
                     COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                     COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                 FROM content_items c INDEXED BY {idx_name}
                 JOIN source_items s ON s.id = c.source_item_id
+                LEFT JOIN case_representative_images r ON r.source_item_id = c.source_item_id
                 WHERE c.source_item_id <> ?
                   AND c.{col_name} = ?
                 ORDER BY c.id DESC
@@ -37148,7 +37150,9 @@ def _related_article_thumb_url(row: dict[str, Any], *, allow_sync_fetch: bool = 
     # before parsing the complete gallery: the card image itself is lazy, so a
     # remote candidate can be resolved by the image endpoint after the detail
     # document has been delivered instead of delaying navigation by seconds.
-    for raw in (row.get("thumbnail_url"), row.get("hero_image_url")):
+    # Reviewed representatives are local files, so they remain reliable when
+    # third-party listing portals throttle, expire, or reject image requests.
+    for raw in (row.get("representative_static_url"), row.get("thumbnail_url"), row.get("hero_image_url")):
         s = str(raw or "").strip()
         if not s:
             continue
@@ -37322,10 +37326,12 @@ def _related_articles_lite_fallback_rows(
                     s.source_name, s.item_url, s.access_status,
                     s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
                     s.thumbnail_url, s.hero_image_url,
+                    COALESCE(r.representative_static_url, '') AS representative_static_url,
                     COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                     COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                 FROM content_items c
                 JOIN source_items s ON s.id = c.source_item_id
+                LEFT JOIN case_representative_images r ON r.source_item_id = c.source_item_id
                 WHERE c.source_item_id <> ?
                   AND TRIM(COALESCE(c.seo_slug, '')) <> ''
                   AND {extra_sql}
@@ -37376,11 +37382,13 @@ def _related_articles_lite_fallback_rows(
                         s.source_name, s.item_url, s.access_status,
                         s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
                         s.thumbnail_url, s.hero_image_url,
+                        COALESCE(r.representative_static_url, '') AS representative_static_url,
                         COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                         COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                     FROM jp_listing_region_index ri INDEXED BY idx_jp_listing_region_sort_time
                     JOIN content_items c ON c.source_item_id = ri.source_item_id
                     JOIN source_items s ON s.id = c.source_item_id
+                    LEFT JOIN case_representative_images r ON r.source_item_id = c.source_item_id
                     WHERE ri.region_key = ?
                       AND ri.source_item_id <> ?
                       AND TRIM(COALESCE(c.seo_slug, '')) <> ''
@@ -37403,10 +37411,12 @@ def _related_articles_lite_fallback_rows(
                     s.source_name, s.item_url, s.access_status,
                     s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
                     s.thumbnail_url, s.hero_image_url,
+                    COALESCE(r.representative_static_url, '') AS representative_static_url,
                     COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                     COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
                 FROM content_items c
                 JOIN source_items s ON s.id = c.source_item_id
+                LEFT JOIN case_representative_images r ON r.source_item_id = c.source_item_id
                 WHERE c.source_item_id <> ?
                   AND TRIM(COALESCE(c.seo_slug, '')) <> ''
                   AND COALESCE(s.content_kind, '') = 'jp_listing'
@@ -37442,10 +37452,12 @@ def _related_articles_lite_visual_backfill_rows(
                 s.source_name, s.item_url, s.access_status,
                 s.image_urls, substr(COALESCE(s.body_original, ''), 1, 2400) AS body_original,
                 s.thumbnail_url, s.hero_image_url,
+                COALESCE(r.representative_static_url, '') AS representative_static_url,
                 COALESCE(c.listing_media_json, '[]') AS listing_media_json,
                 COALESCE(NULLIF(TRIM(s.content_kind), ''), '') AS source_content_kind
             FROM content_items c
             JOIN source_items s ON s.id = c.source_item_id
+            LEFT JOIN case_representative_images r ON r.source_item_id = c.source_item_id
             WHERE c.source_item_id <> ?
               AND TRIM(COALESCE(c.seo_slug, '')) <> ''
               AND COALESCE(s.content_kind, '') = 'jp_listing'
@@ -37494,8 +37506,10 @@ def _related_articles_lite_for_item(
         if dup_keys & seen:
             sync_fetch_budget = before_sync_budget
             return
-        # Keep the related article/link even if its media is still warming.
-        # The established template has a clear fallback tile for this state.
+        # Related cards are visual navigation. Do not retain an empty tile in
+        # the day-long page cache; the visual backfill below finds a ready one.
+        if not str(d.get("thumb_url") or "").strip():
+            return
         if not dup_keys:
             return
         seen.update(dup_keys)
