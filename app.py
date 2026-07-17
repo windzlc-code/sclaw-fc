@@ -31760,6 +31760,50 @@ def _support_budget_ceiling_man(message: str) -> float | None:
     return max(values) if values else None
 
 
+def _support_fast_market_case_rows(
+    *,
+    message: str,
+    region_hint: str = "",
+    keyword_hint: str = "",
+    limit: int = 6,
+) -> list[dict[str, Any]]:
+    """Filter the prewarmed, database-backed listing index without a slow SQL scan."""
+    region, query = _support_managed_case_query_terms(message, region_hint=region_hint, keyword_hint=keyword_hint)
+    canonical_region = _support_market_region_label(region) if region else ""
+    budget_ceiling_man = _support_budget_ceiling_man(message)
+    property_terms = [term.lower() for term in query.split() if term.strip()]
+    if not canonical_region and budget_ceiling_man is None and not property_terms:
+        return []
+    rows: list[dict[str, Any]] = []
+    for source in _support_market_price_rows():
+        source_region = str(source.get("region") or "").strip()
+        price_man = source.get("price_man")
+        if canonical_region and source_region != canonical_region:
+            continue
+        if not isinstance(price_man, (int, float)) or float(price_man) <= 0:
+            continue
+        if budget_ceiling_man is not None and float(price_man) > budget_ceiling_man:
+            continue
+        title_hant = str(source.get("title_zh_hant") or "").strip()
+        title_hans = str(source.get("title_zh_hans") or "").strip()
+        title_blob = f"{title_hant} {title_hans}".lower()
+        if property_terms and not all(term in title_blob for term in property_terms):
+            continue
+        rows.append(
+            {
+                "source_item_id": int(source.get("source_item_id") or 0),
+                "title_zh_hant": title_hant,
+                "title_zh_hans": title_hans,
+                "case_jp_region_override": source_region,
+                "case_transit_override": "",
+                "item_url": str(source.get("item_url") or "").strip(),
+                "price_man": float(price_man),
+            }
+        )
+    rows.sort(key=lambda row: (float(row.get("price_man") or 0), int(row.get("source_item_id") or 0)))
+    return rows[: max(1, min(12, int(limit or 6)))]
+
+
 def _support_lookup_managed_case_rows(
     *,
     message: str,
@@ -31767,7 +31811,16 @@ def _support_lookup_managed_case_rows(
     keyword_hint: str = "",
     tx_hint: str = "",
     limit: int = 6,
+    allow_slow_fallback: bool = True,
 ) -> list[dict[str, Any]]:
+    fast_rows = _support_fast_market_case_rows(
+        message=message,
+        region_hint=region_hint,
+        keyword_hint=keyword_hint,
+        limit=limit,
+    )
+    if fast_rows or not allow_slow_fallback:
+        return fast_rows
     region, query = _support_managed_case_query_terms(message, region_hint=region_hint, keyword_hint=keyword_hint)
     budget_ceiling_man = _support_budget_ceiling_man(message)
     tx = str(tx_hint or transaction_hint_from_message(message) or "buy").strip().lower()
@@ -34282,6 +34335,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             keyword_hint=dlgk or fk,
             tx_hint=tx_hint or transaction_hint_from_message(purchase_context) or "buy",
             limit=6,
+            allow_slow_fallback=not purchase_ready_for_database,
         )
         managed_text = format_managed_cases_for_prompt(
             managed_rows,

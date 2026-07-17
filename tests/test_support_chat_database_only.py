@@ -6,6 +6,32 @@ import app as app_module
 
 
 class SupportChatDatabaseOnlyTests(unittest.TestCase):
+    def test_completed_requirements_use_the_prewarmed_database_index_without_sql_fallback(self):
+        indexed_rows = [
+            {
+                "source_item_id": 302,
+                "title_zh_hant": "東京公寓 2LDK｜2,680萬日圓",
+                "title_zh_hans": "东京公寓 2LDK｜2,680万日元",
+                "region": "東京",
+                "price_man": 2680.0,
+                "item_url": "https://example.test/case/302",
+            }
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=indexed_rows), patch.object(
+            app_module,
+            "get_conn",
+            side_effect=AssertionError("completed requirements must not use the slow SQL fallback"),
+        ):
+            rows = app_module._support_lookup_managed_case_rows(
+                message="我想買東京自住房，預算 3,000 萬日圓，公寓 2LDK",
+                tx_hint="buy",
+                allow_slow_fallback=False,
+            )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["source_item_id"], 302)
+        self.assertEqual(rows[0]["price_man"], 2680.0)
+
     def test_partial_multi_turn_requirements_continue_with_one_question(self):
         history = [
             {"role": "user", "content": "我想買東京自住房，請幫我推薦"},
