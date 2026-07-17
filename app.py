@@ -20122,6 +20122,24 @@ def _support_user_turn_count(history: list[dict[str, Any]] | None = None, curren
     return max(0, turns)
 
 
+def _support_purchase_discovery_context(
+    history: list[dict[str, Any]] | None = None,
+    current_message: str = "",
+) -> str:
+    """Combine only the customer's recent answers for deterministic requirement matching."""
+    answers: list[str] = []
+    for row in list(history or [])[-12:]:
+        if not isinstance(row, dict) or str(row.get("role") or "").strip().lower() != "user":
+            continue
+        content = str(row.get("content") or "").strip()
+        if content:
+            answers.append(content[:500])
+    current = str(current_message or "").strip()
+    if current:
+        answers.append(current[:500])
+    return "\n".join(answers)[-5000:].strip()
+
+
 def _build_support_welcome_text() -> str:
     return "您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。"
 
@@ -31729,6 +31747,19 @@ def _support_managed_case_query_terms(message: str, *, region_hint: str = "", ke
     return region[:80], keyword[:80]
 
 
+def _support_budget_ceiling_man(message: str) -> float | None:
+    """Extract the customer's stated purchase-budget ceiling in ten-thousand JPY."""
+    raw = str(message or "")
+    values: list[float] = []
+    for value, unit in re.findall(r"(\d[\d,]*(?:\.\d+)?)\s*(萬|万|億|亿)\s*(?:日圓|日元|円|元|JPY|YEN)?", raw, re.I):
+        try:
+            amount = float(str(value).replace(",", ""))
+        except Exception:
+            continue
+        values.append(amount * (10_000.0 if unit in {"億", "亿"} else 1.0))
+    return max(values) if values else None
+
+
 def _support_lookup_managed_case_rows(
     *,
     message: str,
@@ -31738,6 +31769,7 @@ def _support_lookup_managed_case_rows(
     limit: int = 6,
 ) -> list[dict[str, Any]]:
     region, query = _support_managed_case_query_terms(message, region_hint=region_hint, keyword_hint=keyword_hint)
+    budget_ceiling_man = _support_budget_ceiling_man(message)
     tx = str(tx_hint or transaction_hint_from_message(message) or "buy").strip().lower()
     if tx not in {"buy", "sell", "rent"}:
         tx = "buy"
@@ -31810,6 +31842,16 @@ def _support_lookup_managed_case_rows(
         seen: set[str] = set()
         for row in rows:
             item = dict(row)
+            price_man = _case_price_man_from_text(
+                " ".join(
+                    str(item.get(key) or "")
+                    for key in ("title_zh_hant", "title_zh_hans", "body_zh_hant", "body_zh_hans", "body_original")
+                )
+            )
+            if budget_ceiling_man is not None and (price_man is None or price_man > budget_ceiling_man):
+                continue
+            if price_man is not None:
+                item["price_man"] = float(price_man)
             candidates = [
                 ("url", item.get("item_url")),
                 ("slug", item.get("seo_slug")),
@@ -31857,6 +31899,9 @@ def _build_support_managed_cases_fast_reply(message: str, rows: list[dict[str, A
         source_id = int(item.get("source_item_id") or 0)
         details = "｜".join(part for part in (region, transit) if part)
         lines.append(f"{index}. {title}{('（' + details[:140] + '）') if details else ''}")
+        price_man = item.get("price_man")
+        if isinstance(price_man, (int, float)) and float(price_man) > 0:
+            lines.append(f"   站內可解析售價：約 {float(price_man):,.0f} 萬日圓")
         if source_id > 0:
             lines.append(f"   站內明細：/case/{source_id}")
     lines.extend(
@@ -31866,6 +31911,14 @@ def _build_support_managed_cases_fast_reply(message: str, rows: list[dict[str, A
         ]
     )
     return sanitize_support_chat_visible_reply("\n".join(lines))
+
+
+def _build_support_no_matching_managed_case_reply() -> str:
+    return (
+        "我已按您目前提供的條件查詢站內案件，但沒有找到可同時核對且符合的在售項目。"
+        "這裡不會用相近案件湊數或憑空推薦。\n\n"
+        "下一步只確認一項：您願意先放寬總預算，還是調整地區／物件類型？"
+    )
 
 
 def _support_keyword_preset_reply(
@@ -33778,6 +33831,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     if not session_id:
         session_id = f"sess-{uuid4().hex[:16]}"
     support_turn_index = _support_user_turn_count(payload.history, msg)
+    purchase_context = _support_purchase_discovery_context(payload.history, msg)
     selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
     if selected_cases_input:
         enriched_selected_cases = _enrich_support_selected_cases(selected_cases_input, max_items=20)
@@ -33862,7 +33916,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             }
         )
     purchase_quick_dimensions = _support_purchase_discovery_dimensions(
-        msg,
+        purchase_context,
         figure_region=(payload.figure_region or "").strip(),
         figure_keyword=(payload.figure_keyword or "").strip(),
         figure_price=(payload.figure_price or "").strip(),
@@ -33872,7 +33926,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     )
     purchase_quick_missing = _support_purchase_discovery_missing_fields(purchase_quick_dimensions)
     purchase_quick_mode = (
-        _support_message_has_purchase_intent(msg)
+        _support_message_has_purchase_intent(purchase_context)
         and not _support_message_is_guidance_question(msg)
         and not selected_cases_input
         and bool(purchase_quick_missing)
@@ -34183,21 +34237,26 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     dlgk = (payload.dialog_keyword or "").strip()
     kq_blend = " ".join(dict.fromkeys([p for p in (fr, fk, dlgk, kq) if p]))[:600].strip() or kq
     purchase_dimensions = _support_purchase_discovery_dimensions(
-        kq or msg,
+        purchase_context,
         figure_region=fr,
         figure_keyword=fk,
         dialog_keyword=dlgk,
     )
     purchase_missing_fields = _support_purchase_discovery_missing_fields(purchase_dimensions)
     purchase_discovery_mode = _support_should_enter_purchase_discovery(
-        msg,
+        purchase_context,
         selected_cases,
-        raw_user_message=kq,
+        raw_user_message=purchase_context,
         figure_region=fr,
         figure_keyword=fk,
         dialog_keyword=dlgk,
     )
     case_request_sig = _support_message_explicit_case_request(msg)
+    purchase_ready_for_database = (
+        _support_message_has_purchase_intent(purchase_context)
+        and not purchase_quick_missing
+    )
+    conversation_case_request = _support_message_explicit_case_request(purchase_context)
     prop_sig = case_request_sig or purchase_discovery_mode
     tx_hint = transaction_hint_from_message(msg) if prop_sig else ""
     if not tx_hint and selected_cases:
@@ -34213,16 +34272,16 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     managed_rows: list[dict[str, Any]] = []
     featured_text = ""
     featured_recommendations: list[dict] = []
-    if _support_should_lookup_managed_cases(
-        msg,
-        case_request=case_request_sig,
+    if purchase_ready_for_database or _support_should_lookup_managed_cases(
+        purchase_context,
+        case_request=conversation_case_request or case_request_sig,
         purchase_discovery_mode=purchase_discovery_mode,
     ):
         managed_rows = _support_lookup_managed_case_rows(
-            message=msg,
+            message=purchase_context,
             region_hint=fr,
             keyword_hint=dlgk or fk,
-            tx_hint=tx_hint or transaction_hint_from_message(msg) or "buy",
+            tx_hint=tx_hint or transaction_hint_from_message(purchase_context) or "buy",
             limit=6,
         )
         managed_text = format_managed_cases_for_prompt(
@@ -34232,13 +34291,17 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             max_chars=2600,
         )
         managed_api = managed_items_for_api(managed_rows, zh_variant=zh_v)[:6]
-    if case_request_sig and managed_rows and not _support_message_requests_recommendation_analysis(msg):
+    if managed_rows and (
+        purchase_ready_for_database
+        or (case_request_sig and not _support_message_requests_recommendation_analysis(msg))
+    ):
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
         knowledge_meta.update(
             {
                 "property_listing_intent": True,
                 "managed_cases": managed_api,
                 "managed_case_count": len(managed_api),
+                "purchase_requirements_final": purchase_ready_for_database,
                 "client_search": {
                     "figure_keyword": fk,
                     "figure_region": fr,
@@ -34270,6 +34333,48 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "telegram_notify": {"attempted": False, "sent": False, "error": ""},
                 "line_notify": {"attempted": False, "sent": False, "error": ""},
                 "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
+    if purchase_ready_for_database:
+        knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
+        knowledge_meta.update(
+            {
+                "property_listing_intent": True,
+                "managed_cases": [],
+                "managed_case_count": 0,
+                "purchase_requirements_final": True,
+                "client_search": {
+                    "figure_keyword": fk,
+                    "figure_region": fr,
+                    "dialog_keyword": dlgk,
+                    "query_blend": kq_blend,
+                },
+            }
+        )
+        reply = _build_support_no_matching_managed_case_reply()
+        sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": reply,
+                "knowledge": knowledge_meta,
+                "llm": {
+                    "provider": "",
+                    "enabled": False,
+                    "model": "",
+                    "fast_mode": True,
+                    "knowledge_skipped": True,
+                    "managed_case_database_fast_reply": True,
+                    "no_matching_managed_cases": True,
+                },
+                "sales_mcp": sales_mcp,
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "error": "", "intake_required_before_human_reply": False},
             }
         )
     wants_kb = bool(payload.use_knowledge)
