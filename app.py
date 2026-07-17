@@ -20399,11 +20399,37 @@ def _support_message_explicit_case_request(message: str) -> bool:
     text = str(message or "").strip()
     if not text:
         return False
+    if _support_message_requests_recommendation_analysis(text):
+        return True
     if re.search(r"(找房|看房|找物件|看物件|找案件|看案件|推薦.*(?:房|物件|案件)|推荐.*(?:房|物件|案件))", text, re.I):
         return True
     has_case_word = re.search(r"(案件|物件|房源|房子|公寓|一戶建|一户建|マンション|房產|房地產|不動產|不动产)", text, re.I)
     has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|諮詢|咨询|確認|确认|了解|瞭解|協助|协助|比較|比较|比對|比对|對比|对比|分析|評估|评估|清單|清单|連結|链接|URL|編號|编号|已選|已选|加入|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
     return bool(has_case_word and has_action)
+
+
+def _support_message_requests_recommendation_analysis(message: str) -> bool:
+    """User wants actionable property guidance, so do not answer with only an aggregate statistic."""
+    text = str(message or "").strip()
+    if not text:
+        return False
+    has_action = re.search(
+        r"(推薦|推荐|建議|建议|適合|适合|值得|幫我找|帮我找|幫我選|帮我选|"
+        r"哪個好|哪个好|哪裡好|哪里好|買哪|买哪|投資哪|投资哪|收租哪|"
+        r"給我推|给我推|給我找|给我找)",
+        text,
+        re.I,
+    )
+    if not has_action:
+        return False
+    has_property_context = re.search(
+        r"(房價|房价|價格|价格|總價|总价|地區|地区|區域|区域|城市|都道府縣|都道府县|"
+        r"案件|物件|房源|房子|公寓|大樓|大楼|マンション|一戶建|一户建|買房|买房|"
+        r"購屋|购房|不動產|不动产|收租|自住|投資|投资)",
+        text,
+        re.I,
+    )
+    return bool(has_property_context)
 
 
 def _offline_support_standard_footer(
@@ -31378,6 +31404,8 @@ def _support_should_lookup_managed_cases(
     raw = str(message or "").strip()
     if not raw or purchase_discovery_mode:
         return False
+    if _support_message_requests_recommendation_analysis(raw):
+        return True
     # 「哪個地區最便宜／房價多少」不是個別物件搜尋。過去會在沒有
     # 篩選條件時把所有案件排序，既慢也無法得出可信的區域結論；此類問題
     # 改由下方的可比案件統計工具處理。
@@ -31436,6 +31464,8 @@ def _support_is_market_price_question(message: str) -> bool:
     # A selected/specific listing price must be answered from that listing, not a
     # regional aggregate just because the user used the word "price".
     if re.search(r"(這筆|这笔|這個|这个|該案|该案|案件編號|案件编号|物件編號|物件编号|/case/)", raw, re.I):
+        return False
+    if _support_message_requests_recommendation_analysis(raw):
         return False
     return bool(_SUPPORT_MARKET_PRICE_TERMS.search(raw))
 
@@ -31510,6 +31540,9 @@ def _support_market_price_rows() -> list[dict[str, Any]]:
                 "source_item_id": int(item.get("source_item_id") or 0),
                 "region": region,
                 "price_man": float(price_man),
+                "title_zh_hant": str(item.get("title_zh_hant") or "").strip(),
+                "title_zh_hans": str(item.get("title_zh_hans") or "").strip(),
+                "item_url": item_url,
             }
         )
     with _SUPPORT_MARKET_PRICE_CACHE_LOCK:
@@ -31561,8 +31594,8 @@ def _support_median(values: list[float]) -> float | None:
     return ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
 
 
-def _support_market_price_reply(message: str) -> tuple[str, dict[str, Any]] | None:
-    if not _support_is_market_price_question(message):
+def _support_market_price_reply(message: str, *, force: bool = False) -> tuple[str, dict[str, Any]] | None:
+    if not force and not _support_is_market_price_question(message):
         return None
     grouped: dict[str, list[float]] = {}
     for row in _support_market_price_rows():
@@ -31615,6 +31648,48 @@ def _support_market_price_reply(message: str) -> tuple[str, dict[str, Any]] | No
         "如果您要我推薦，請先回覆自住或收租、以及總預算其中一項；我會按站內真實案件篩選，不會憑空推薦。",
     ]
     return "\n".join(lines), {"sample_count": sum(int(item["sample_count"]) for item in stats), "regions": ranked[:5], "requested_region": ""}
+
+
+def _support_market_low_price_case_samples(region: str, *, limit: int = 4) -> tuple[str, list[dict[str, Any]]]:
+    target_region = str(region or "").strip()
+    if not target_region:
+        return "", []
+    rows = [
+        dict(row)
+        for row in _support_market_price_rows()
+        if str(row.get("region") or "").strip() == target_region
+        and isinstance(row.get("price_man"), (int, float))
+        and float(row.get("price_man") or 0) > 0
+    ]
+    rows.sort(key=lambda row: (float(row.get("price_man") or 0), int(row.get("source_item_id") or 0)))
+    items: list[dict[str, Any]] = []
+    lines: list[str] = []
+    for row in rows[: max(1, min(8, int(limit or 4)))]:
+        sid = int(row.get("source_item_id") or 0)
+        title = str(row.get("title_zh_hant") or row.get("title_zh_hans") or f"{target_region}站內案件").strip()[:120]
+        price_man = float(row.get("price_man") or 0)
+        item_url = str(row.get("item_url") or "").strip()
+        site_case_url = f"{get_effective_site_url().rstrip('/')}/case/{sid}" if sid > 0 else ""
+        item = {
+            "source_item_id": sid,
+            "region": target_region,
+            "title": title,
+            "price_man": price_man,
+            "item_url": item_url,
+            "site_case_url": site_case_url,
+        }
+        items.append(item)
+        url_part = f"｜站內：{site_case_url}" if site_case_url else ""
+        source_part = f"｜原站：{item_url}" if item_url else ""
+        lines.append(f"- #{sid or '-'} {title}｜約 {price_man:,.0f} 萬日圓{url_part}{source_part}")
+    if not lines:
+        return "", []
+    text = (
+        f"【{target_region}低總價候選樣本】\n"
+        + "\n".join(lines)
+        + "\n請只把這些當作站內可核對候選；若要推薦，需提醒使用者仍要按用途、屋齡、交通、管理費與修繕費確認。"
+    )
+    return text, items
 
 
 def _support_managed_case_query_terms(message: str, *, region_hint: str = "", keyword_hint: str = "") -> tuple[str, str]:
@@ -34058,7 +34133,12 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
             }
         )
-    market_price_fast = _support_market_price_reply(msg)
+    market_price_ai_context = (
+        _support_market_price_reply(msg, force=True)
+        if _support_message_requests_recommendation_analysis(msg) and _SUPPORT_MARKET_PRICE_TERMS.search(msg)
+        else None
+    )
+    market_price_fast = None if market_price_ai_context else _support_market_price_reply(msg)
     if market_price_fast:
         reply, market_stats = market_price_fast
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
@@ -34106,6 +34186,24 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     fk = (payload.figure_keyword or "").strip()
     fr = (payload.figure_region or "").strip()
     dlgk = (payload.dialog_keyword or "").strip()
+    market_price_context_text = ""
+    market_price_context_stats: dict[str, Any] = {}
+    market_region_hint = ""
+    market_case_context_text = ""
+    market_case_samples: list[dict[str, Any]] = []
+    if market_price_ai_context:
+        market_price_context_text, market_price_context_stats = market_price_ai_context
+        market_regions = [
+            item
+            for item in list(market_price_context_stats.get("regions") or [])
+            if isinstance(item, dict) and str(item.get("region") or "").strip()
+        ]
+        if market_regions:
+            market_region_hint = str(market_regions[0].get("region") or "").strip()
+            market_case_context_text, market_case_samples = _support_market_low_price_case_samples(
+                market_region_hint,
+                limit=4,
+            )
     kq_blend = " ".join(dict.fromkeys([p for p in (fr, fk, dlgk, kq) if p]))[:600].strip() or kq
     purchase_dimensions = _support_purchase_discovery_dimensions(
         kq or msg,
@@ -34145,7 +34243,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     ):
         managed_rows = _support_lookup_managed_case_rows(
             message=msg,
-            region_hint=fr,
+            region_hint=fr or market_region_hint,
             keyword_hint=dlgk or fk,
             tx_hint=tx_hint or transaction_hint_from_message(msg) or "buy",
             limit=6,
@@ -34157,7 +34255,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             max_chars=2600,
         )
         managed_api = managed_items_for_api(managed_rows, zh_variant=zh_v)[:6]
-    if case_request_sig and managed_rows:
+    if case_request_sig and managed_rows and not _support_message_requests_recommendation_analysis(msg):
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
         knowledge_meta.update(
             {
@@ -34224,6 +34322,16 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 missing_fields=purchase_missing_fields,
             )
         )
+    elif market_price_context_text:
+        market_context_parts = [
+            "【站內市場統計，供本輪推薦分析使用】\n"
+            f"{market_price_context_text}\n"
+            "請基於這份站內可比統計與下方站內案件資料回答；不可改用泛泛城市印象取代站內資料。"
+        ]
+        if market_case_context_text:
+            market_context_parts.append(market_case_context_text)
+            market_context_parts.append("若使用者要求推薦，請簡短點名 1-3 筆候選樣本並說明為何仍需確認用途與持有成本。")
+        interest_head.append("\n\n".join(market_context_parts))
     elif selected_cases and case_request_sig:
         interest_head.append(_support_interest_coaching_block(selected_cases))
     sc_ctx = _format_support_client_search_context(fk, fr, dlgk)
@@ -34274,6 +34382,18 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         "selected_cases": selected_cases,
         "selected_case_count": len(selected_cases),
         "property_listing_intent": prop_sig,
+        "market_data": (
+            {
+                "source": "managed_case_database",
+                "metric": "listing_total_price_median_man_jpy",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                **market_price_context_stats,
+            }
+            if market_price_context_stats
+            else {}
+        ),
+        "market_case_samples": market_case_samples,
+        "market_case_sample_count": len(market_case_samples),
         "purchase_discovery_mode": purchase_discovery_mode,
         "purchase_discovery": {
             "active": purchase_discovery_mode,

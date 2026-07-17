@@ -190,6 +190,7 @@ class SupportChatConversationTests(unittest.TestCase):
     def test_broad_price_question_uses_grounded_market_stats_without_llm(self):
         """Broad market questions must use comparable records, never a model guess."""
         self.assertTrue(app_module._support_is_market_price_question("哪個地區房價最便宜？"))
+        self.assertFalse(app_module._support_is_market_price_question("哪個地區房價最便宜？有沒有什麼推薦？"))
         self.assertFalse(app_module._support_is_market_price_question("這筆案件價格多少？"))
         rows = [
             {"region": "福岡", "price_man": 1200.0, "source_item_id": 101},
@@ -204,7 +205,7 @@ class SupportChatConversationTests(unittest.TestCase):
         ):
             resp = app_module.api_ai_chat_support(
                 app_module.ChatSupportRequest(
-                    message="哪個地區房價最便宜？有沒有什麼推薦？",
+                    message="哪個地區房價最便宜？",
                     sales_session_id="sess-test-grounded-market-price",
                 )
             )
@@ -217,6 +218,58 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("福岡", data["reply"])
         self.assertIn("中位數", data["reply"])
         self.assertIn("站內目前可比的在售資料", data["reply"])
+
+    def test_price_recommendation_question_uses_llm_with_managed_cases(self):
+        """Recommendation requests should not be swallowed by the regional median fast reply."""
+        managed_rows = [
+            {
+                "source_item_id": 301,
+                "title_zh_hant": "福岡市中央區公寓",
+                "title_zh_hans": "福冈市中央区公寓",
+                "price_text_hant": "1,280萬日圓",
+                "layout_text_hant": "1LDK",
+                "building_area": "38.2㎡",
+                "case_jp_region_override": "福岡",
+                "item_url": "https://example.test/case/301",
+            }
+        ]
+        market_rows = [
+            {"region": "福岡", "price_man": 1200.0, "source_item_id": 101, "title_zh_hant": "福岡低總價公寓A"},
+            {"region": "福岡", "price_man": 1280.0, "source_item_id": 102, "title_zh_hant": "福岡低總價公寓B"},
+            {"region": "福岡", "price_man": 1400.0, "source_item_id": 103, "title_zh_hant": "福岡低總價公寓C"},
+            {"region": "東京", "price_man": 5400.0, "source_item_id": 201, "title_zh_hant": "東京公寓A"},
+            {"region": "東京", "price_man": 5600.0, "source_item_id": 202, "title_zh_hant": "東京公寓B"},
+            {"region": "東京", "price_man": 5800.0, "source_item_id": 203, "title_zh_hant": "東京公寓C"},
+        ]
+        with patch.object(app_module, "_support_lookup_managed_case_rows", return_value=managed_rows), patch.object(
+            app_module, "is_llm_configured", return_value=True
+        ), patch.object(
+            app_module, "_support_market_price_rows", return_value=market_rows
+        ), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="我已依站內案件做推薦分析：福岡市中央區公寓總價較低，適合先看預算與交通。下一步建議：請回覆自住或收租。",
+        ) as mocked_llm:
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪個地區房價最便宜？有沒有什麼推薦？",
+                    sales_session_id="sess-test-price-recommendation-ai",
+                    use_knowledge=False,
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertTrue(mocked_llm.called)
+        self.assertFalse(data["llm"].get("market_data_fast_reply", False))
+        self.assertFalse(data["llm"].get("managed_case_database_fast_reply", False))
+        self.assertTrue(data["llm"]["enabled"])
+        self.assertEqual(data["knowledge"]["managed_case_count"], 1)
+        self.assertEqual(data["knowledge"]["market_data"]["regions"][0]["region"], "福岡")
+        self.assertGreaterEqual(data["knowledge"]["market_case_sample_count"], 1)
+        self.assertEqual(data["knowledge"]["market_case_samples"][0]["title"], "福岡低總價公寓A")
+        self.assertIn("推薦分析", data["reply"])
+        self.assertIn("下一步建議", data["reply"])
 
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"
