@@ -122,6 +122,46 @@ class SupportChatConversationTests(unittest.TestCase):
                 self.assertEqual(preset["llm"]["keyword_preset_kind"], kind)
                 self.assertIn(example, preset["reply"])
 
+    def test_natural_purchase_language_and_region_typo_use_fast_discovery(self):
+        for message in ("我需要大阪的房子", "我需要大板的房子"):
+            with self.subTest(message=message):
+                resp = app_module.api_ai_chat_support(
+                    app_module.ChatSupportRequest(message=message, sales_session_id="sess-test-natural-purchase")
+                )
+                data = json.loads(resp.body)
+
+                self.assertTrue(data["llm"]["purchase_discovery_fast_reply"])
+                self.assertTrue(data["knowledge"]["purchase_discovery"]["dimensions"]["region"])
+                self.assertNotIn("東京港區", data["reply"])
+
+        typo = app_module.api_ai_chat_support(
+            app_module.ChatSupportRequest(message="我需要大板的房子", sales_session_id="sess-test-typo-note")
+        )
+        typo_data = json.loads(typo.body)
+        self.assertIn("大阪", typo_data["reply"])
+        self.assertIn({"from": "大板", "to": "大阪"}, typo_data["knowledge"]["input_corrections"])
+
+    def test_normalized_region_does_not_repeat_the_region_question(self):
+        history = [
+            {"role": "user", "content": "我想買日本房"},
+            {"role": "assistant", "content": "請問您這次主要是自住、收租，還是資產配置？"},
+            {"role": "user", "content": "自住"},
+            {"role": "assistant", "content": "您方便先給一個總預算上限嗎？"},
+            {"role": "user", "content": "預算 3,000 萬日圓"},
+        ]
+        resp = app_module.api_ai_chat_support(
+            app_module.ChatSupportRequest(
+                message="我需要大板的房子",
+                history=history,
+                sales_session_id="sess-test-typo-no-repeat",
+            )
+        )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["knowledge"]["purchase_discovery"]["dimensions"]["region"])
+        self.assertIn("公寓、一戶建", data["reply"])
+        self.assertNotIn("東京港區", data["reply"])
+
     def test_purchase_discovery_only_turns_real_handoff_on_direct_buy_intent(self):
         self.assertFalse(app_module._support_message_is_guidance_question("東京 5000萬 自住 公寓"))
         self.assertTrue(app_module._support_message_is_guidance_question("日本買房流程怎麼開始"))

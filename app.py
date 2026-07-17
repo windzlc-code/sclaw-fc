@@ -32198,6 +32198,83 @@ _PURCHASE_DISCOVERY_PURPOSES = (
 )
 
 
+# Keep corrections deliberately narrow: these are region aliases or common
+# one-character input mistakes in a property-search context, never free-form
+# rewriting by a model.  The canonical values match the database/search keys.
+_SUPPORT_PURCHASE_REGION_ALIASES: tuple[tuple[str, str], ...] = (
+    ("大板", "大阪"),
+    ("大坂", "大阪"),
+    ("大版", "大阪"),
+    ("东景", "東京"),
+    ("东京", "東京"),
+    ("福冈", "福岡"),
+    ("福钢", "福岡"),
+    ("福岗", "福岡"),
+    ("横滨", "橫濱"),
+    ("沖縄", "沖繩"),
+    ("冲绳", "沖繩"),
+)
+_SUPPORT_PURCHASE_REGION_TYPO_TARGETS: tuple[str, ...] = (
+    "東京", "大阪", "京都", "名古屋", "福岡", "神奈川", "埼玉", "千葉", "橫濱", "川崎", "北海道", "沖繩",
+)
+
+
+def _support_has_property_search_context(text: str) -> bool:
+    return bool(
+        re.search(
+            r"(房|屋|物件|不動產|不动产|公寓|大樓|大楼|一戶建|一户建|マンション|"
+            r"買|买|購屋|购房|置產|置产|找房|看房)",
+            str(text or ""),
+            re.I,
+        )
+    )
+
+
+def _support_one_character_region_typo(value: str, target: str) -> bool:
+    """Only permit a same-length, one-character correction for a known region."""
+    return (
+        len(value) == len(target)
+        and len(value) >= 2
+        and value != target
+        and sum(left != right for left, right in zip(value, target)) == 1
+        and all("\u3400" <= ch <= "\u9fff" for ch in value)
+    )
+
+
+def _support_normalize_purchase_context(text: str) -> tuple[str, list[dict[str, str]]]:
+    """Normalize high-confidence regional typos before deterministic intake parsing."""
+    raw = str(text or "").strip()
+    if not raw or not _support_has_property_search_context(raw):
+        return raw, []
+    normalized = raw
+    corrections: list[dict[str, str]] = []
+
+    def replace_once(source: str, target: str) -> None:
+        nonlocal normalized
+        if not source or source == target or source not in normalized:
+            return
+        normalized = normalized.replace(source, target)
+        correction = {"from": source, "to": target}
+        if correction not in corrections:
+            corrections.append(correction)
+
+    for source, target in _SUPPORT_PURCHASE_REGION_ALIASES:
+        replace_once(source, target)
+
+    # Catch one-character mistakes beyond the explicit aliases, but only for
+    # known regional names and only in a property-search sentence.
+    for target in _SUPPORT_PURCHASE_REGION_TYPO_TARGETS:
+        if target in normalized:
+            continue
+        width = len(target)
+        for index in range(max(0, len(normalized) - width + 1)):
+            candidate = normalized[index : index + width]
+            if _support_one_character_region_typo(candidate, target):
+                replace_once(candidate, target)
+                break
+    return normalized, corrections
+
+
 def _support_purchase_discovery_dimensions(
     text: str,
     *,
@@ -32249,7 +32326,13 @@ def _support_message_has_purchase_intent(text: str) -> bool:
     compact = re.sub(r"\s+", "", raw)
     if any(k.lower() in low or k in compact for k in _PURCHASE_DISCOVERY_INTENT_TERMS):
         return True
-    return bool(re.search(r"(買|买).{0,10}(房|屋|物件|不動產|不动产|公寓|マンション)", compact))
+    return bool(
+        re.search(
+            r"(?:想|要|需要|找|尋找|寻找|看).{0,12}(房|屋|物件|不動產|不动产|公寓|マンション)",
+            compact,
+        )
+        or re.search(r"(買|买).{0,10}(房|屋|物件|不動產|不动产|公寓|マンション)", compact)
+    )
 
 
 def _support_message_is_guidance_question(text: str) -> bool:
@@ -32359,23 +32442,36 @@ def _build_purchase_discovery_reply(
     *,
     selected_cases: list[dict] | None = None,
     missing_fields: list[str] | None = None,
+    input_corrections: list[dict[str, str]] | None = None,
 ) -> str:
     direct_buy_intent = _support_has_direct_buying_commitment(message)
     next_q = _support_single_followup_question(message, missing_fields=missing_fields, intent_ref=60)
     selected_count = len(selected_cases or [])
+    first_missing = _support_first_missing_field(missing_fields)
+    corrections = [item for item in (input_corrections or []) if isinstance(item, dict)]
+    correction_lines = [
+        f"我先按「{str(item.get('to') or '').strip()}」理解您輸入的「{str(item.get('from') or '').strip()}」。"
+        for item in corrections
+        if str(item.get("from") or "").strip() and str(item.get("to") or "").strip()
+    ]
     if direct_buy_intent:
         lines = [
             "收到，我先幫您接入顧問流程。",
             "先補一個關鍵條件，後面會更快。",
         ]
     else:
-        lines = [
-            "收到，我先幫您把買房條件收斂一下。",
-        ]
+        intake_openers = {
+            "用途": "收到，我先確認這次買房的主要用途。",
+            "預算": "好，接著先把總預算範圍抓清楚。",
+            "地區": "好，我先把您想找的區域或通勤範圍補齊。",
+            "類型": "地區方向已先記下，接著確認物件類型。",
+            "格局": "物件方向已先記下，接著確認格局或空間需求。",
+        }
+        lines = [intake_openers.get(first_missing, "收到，我先把已提供的找房條件整理好。")]
+    if correction_lines:
+        lines = [*correction_lines, *lines]
     if selected_count:
         lines.append(f"已看到您選的 {selected_count} 筆案件。")
-    if missing_fields and not direct_buy_intent:
-        lines.append("目前先補一個關鍵條件就好。")
     lines.extend(["", next_q])
     if direct_buy_intent:
         lines.append("填完後我再幫您銜接顧問。")
@@ -33902,7 +33998,8 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     if not session_id:
         session_id = f"sess-{uuid4().hex[:16]}"
     support_turn_index = _support_user_turn_count(payload.history, msg)
-    purchase_context = _support_purchase_discovery_context(payload.history, msg)
+    raw_purchase_context = _support_purchase_discovery_context(payload.history, msg)
+    purchase_context, purchase_input_corrections = _support_normalize_purchase_context(raw_purchase_context)
     selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
     if selected_cases_input:
         enriched_selected_cases = _enrich_support_selected_cases(selected_cases_input, max_items=20)
@@ -34007,6 +34104,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             msg,
             selected_cases=selected_cases_input,
             missing_fields=purchase_quick_missing,
+            input_corrections=purchase_input_corrections,
         )
         human_handoff_intent = bool(_message_wants_human_or_advisor(msg))
         knowledge_meta = {
@@ -34033,6 +34131,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "missing_fields": purchase_quick_missing,
                 "skip_reason": "purchase_quick_requirements",
             },
+            "input_corrections": purchase_input_corrections,
             "client_search": {
                 "figure_keyword": (payload.figure_keyword or "").strip(),
                 "figure_region": (payload.figure_region or "").strip(),
@@ -34537,6 +34636,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             "missing_fields": purchase_missing_fields,
             "skip_reason": "purchase_discovery_needs_requirements" if purchase_discovery_mode else "",
         },
+        "input_corrections": purchase_input_corrections,
         "client_search": {
             "figure_keyword": fk,
             "figure_region": fr,
@@ -34607,6 +34707,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             msg,
             selected_cases=selected_cases,
             missing_fields=purchase_missing_fields,
+            input_corrections=purchase_input_corrections,
         )
     elif llm_meta["enabled"]:
         try:
@@ -34736,6 +34837,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             msg,
             selected_cases=selected_cases,
             missing_fields=purchase_missing_fields,
+            input_corrections=purchase_input_corrections,
         )
     sales_mcp = _build_sales_mcp_payload(
         msg,
