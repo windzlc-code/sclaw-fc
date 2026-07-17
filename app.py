@@ -2088,7 +2088,7 @@ def _case_image_thumbnail_path(static_url: Any, width: int = 520, height: int = 
         return None
     w = max(120, min(960, int(width or 520)))
     h = max(90, min(960, int(height or 360)))
-    digest = hashlib.sha1(f"{src}|{source_path.stat().st_mtime_ns}|{source_path.stat().st_size}|{w}x{h}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha1(f"{src}|{source_path.stat().st_mtime_ns}|{source_path.stat().st_size}|{w}x{h}|cover-v2".encode("utf-8")).hexdigest()
     return _CASE_IMAGE_THUMB_DIR / f"{w}x{h}" / digest[:2] / f"{digest}.webp"
 
 
@@ -2114,12 +2114,8 @@ def _case_image_make_thumbnail(static_url: Any, width: int = 520, height: int = 
         tmp = thumb_path.with_name(thumb_path.name + ".tmp")
         with Image.open(source_path) as im0:
             im = ImageOps.exif_transpose(im0).convert("RGB")
-            im.thumbnail((w, h), Image.Resampling.LANCZOS)
-            canvas = Image.new("RGB", (w, h), (246, 248, 250))
-            x = max(0, (w - im.width) // 2)
-            y = max(0, (h - im.height) // 2)
-            canvas.paste(im, (x, y))
-            canvas.save(tmp, format="WEBP", quality=76, method=4)
+            cover = ImageOps.fit(im, (w, h), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+            cover.save(tmp, format="WEBP", quality=78, method=4)
         tmp.replace(thumb_path)
         return _case_image_static_url_from_path(thumb_path)
     except Exception:

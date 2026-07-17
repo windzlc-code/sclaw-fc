@@ -15873,7 +15873,7 @@
       }
       const wrap = img.closest('.portal-suumo-card-media');
       if (wrap) {
-        wrap.classList.add('portal-suumo-card-media--fallback', 'portal-suumo-card-media--hero-failed');
+        wrap.classList.add('portal-suumo-card-media--hero-failed');
         setPortalCaseMediaLoadingState(wrap, false);
         const fb = wrap.querySelector('.portal-suumo-no-img--hero-replace');
         if (fb) {
@@ -15884,13 +15884,9 @@
       if (typeof rememberFigureCasePreloadState === 'function') {
         rememberFigureCasePreloadState(String(img.currentSrc || img.getAttribute('src') || '').trim(), 'error');
       }
-      if (img.src !== LISTING_IMAGE_FALLBACK_URL) {
-        img.onerror = null;
-        img.removeAttribute('srcset');
-        img.removeAttribute('sizes');
-        img.loading = 'eager';
-        img.src = LISTING_IMAGE_FALLBACK_URL;
-      }
+      img.onerror = null;
+      img.removeAttribute('srcset');
+      img.removeAttribute('sizes');
     }
 
     /** 案件列表縮圖：SUUMO resize 端點補齊 w/h，降低破圖機率。 */
@@ -23072,8 +23068,8 @@
         const av = (sourceDisplay || '?').slice(0, 1);
         const galsProp = portalCaseGalleryUrlsPropertyOnly(it);
         const mainRaw = galsProp.length ? String(galsProp[0]).trim() : '';
-        const mainSrc = mainRaw ? portalCaseCardThumbDisplayUrl(mainRaw) : LISTING_IMAGE_FALLBACK_URL;
-        const mainFullSrc = mainRaw ? portalListingFullDisplayUrl(mainRaw) : mainSrc;
+        const mainSrc = mainRaw ? portalCaseCardThumbDisplayUrl(mainRaw) : '';
+        const mainFullSrc = mainRaw ? portalListingFullDisplayUrl(mainRaw) : '';
         const galleryThumbUrls = galsProp
           .map((u) => portalCaseCardThumbDisplayUrl(String(u || '').trim()))
           .filter(Boolean);
@@ -23093,22 +23089,7 @@
           String(it.transaction_label_zh || '').includes('買') || String(it.transaction_label_zh || '').includes('購')
             ? '<span class="portal-suumo-card-badge">購屋</span>'
             : '';
-        const galleryDots = galsProp
-          .slice(0, 6)
-          .map((u, ix) => {
-            const raw = String(u || '').trim();
-            const su = galleryThumbUrls[ix] || portalCaseCardThumbDisplayUrl(raw);
-            const fu = galleryFullUrls[ix] || portalListingFullDisplayUrl(raw) || su;
-            if (!su) return '';
-            return `<button type="button" class="portal-suumo-card-image-dot${ix === 0 ? ' is-active' : ''}" data-card-img-src="${esc(su)}" data-card-img-full="${esc(fu)}" aria-label="查看第 ${ix + 1} 張圖片" aria-selected="${ix === 0 ? 'true' : 'false'}"></button>`;
-          })
-          .filter(Boolean)
-          .join('');
-        const candUrls =
-          galleryThumbUrls.length > 0
-            ? galleryThumbUrls.slice()
-            : [mainSrc];
-        if (!candUrls.includes(LISTING_IMAGE_FALLBACK_URL)) candUrls.push(LISTING_IMAGE_FALLBACK_URL);
+        const candUrls = galleryThumbUrls.length > 0 ? galleryThumbUrls.slice() : (mainSrc ? [mainSrc] : []);
         const candAttr = esc(JSON.stringify(candUrls));
         const hasReferenceImage = Boolean(mainRaw);
         const mediaFallbackClass = hasReferenceImage ? '' : ' portal-suumo-card-media--fallback portal-suumo-card-media--no-reference';
@@ -23134,7 +23115,6 @@
                 <strong>${it.price_text_hant ? esc(it.price_text_hant) : dashFig}</strong>
                 <span>${imageMetaText}</span>
               </div>
-              ${galleryDots ? `<div class="portal-suumo-card-image-dots" role="tablist" aria-label="案件圖片切換">${galleryDots}</div>` : ''}
             </div>`
           : '';
         const emptyMediaBlock = sid
