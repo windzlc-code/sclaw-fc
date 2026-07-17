@@ -32259,9 +32259,9 @@ def _support_should_enter_purchase_discovery(
         dialog_keyword=dialog_keyword,
     )
     filled = sum(1 for ok in dimensions.values() if ok)
-    # 有明確購買意願，但用途／地區／類型仍不完整時先盤點需求；
-    # 單純「買房 + 預算」不足以直接進入重檢索，否則客服會變慢且推薦失準。
-    return filled < 3
+    # 缺少任何必要條件時都持續一問一答；避免在只差物件類型或格局時
+    # 提早進入模型／檢索流程，造成不符合條件的推薦或逾時。
+    return bool(_support_purchase_discovery_missing_fields(dimensions))
 
 
 def _support_purchase_discovery_prompt_block(
@@ -33930,7 +33930,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         and not _support_message_is_guidance_question(msg)
         and not selected_cases_input
         and bool(purchase_quick_missing)
-        and sum(1 for ok in purchase_quick_dimensions.values() if ok) < 4
     )
     if purchase_quick_mode:
         reply = _build_purchase_discovery_reply(

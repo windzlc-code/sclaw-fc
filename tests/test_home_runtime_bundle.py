@@ -112,6 +112,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("purchase_ready_for_database", route)
         self.assertIn("managed_case_database_fast_reply", route)
         self.assertNotIn("market_price_context_stats", route)
+        self.assertNotIn("and sum(1 for ok in purchase_quick_dimensions.values() if ok) < 4", route)
 
     def test_mobile_support_open_state_does_not_tint_the_homepage(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")

@@ -6,6 +6,32 @@ import app as app_module
 
 
 class SupportChatDatabaseOnlyTests(unittest.TestCase):
+    def test_partial_multi_turn_requirements_continue_with_one_question(self):
+        history = [
+            {"role": "user", "content": "我想買東京自住房，請幫我推薦"},
+            {"role": "assistant", "content": "請問您這次主要是自住、收租，還是資產配置？"},
+            {"role": "user", "content": "自住"},
+        ]
+        with patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            side_effect=AssertionError("partial requirements must not call an LLM"),
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="預算 3,000 萬日圓",
+                    history=history,
+                    sales_session_id="sess-test-database-only-partial",
+                    use_knowledge=False,
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["llm"]["purchase_discovery_fast_reply"])
+        self.assertFalse(data["llm"]["enabled"])
+        self.assertIn("公寓", data["reply"])
+
     def test_completed_multi_turn_purchase_requirements_use_only_managed_cases(self):
         history = [
             {"role": "user", "content": "我想買東京自住房，請幫我推薦"},
