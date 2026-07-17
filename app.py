@@ -31335,19 +31335,206 @@ def _support_should_lookup_managed_cases(
     raw = str(message or "").strip()
     if not raw or purchase_discovery_mode:
         return False
+    # 「哪個地區最便宜／房價多少」不是個別物件搜尋。過去會在沒有
+    # 篩選條件時把所有案件排序，既慢也無法得出可信的區域結論；此類問題
+    # 改由下方的可比案件統計工具處理。
+    if _support_is_market_price_question(raw):
+        return False
     if case_request:
         return True
     return bool(
         re.search(
             r"(案件|案源|物件|房源|找房|看房|公寓|大樓|大楼|マンション|一戶建|一户建|戸建|"
             r"東京|东京|大阪|福岡|福冈|京都|神奈川|橫濱|横浜|埼玉|千葉|千叶|"
-            r"地區|地区|區域|区域|房價|房价|價格|价格|單價|单价|便宜|低價|低价|"
-            r"預算|预算|總價|总价|租金|投資|投资|自住|投報|投报|報酬|报酬|"
-            r"收益|利回|利回り|毛利|淨利|净利|現金流|现金流)",
+            r"預算|预算|總價|总价|租金|投資|投资|自住)",
             raw,
             flags=re.I,
         )
     )
+
+
+_SUPPORT_MARKET_PRICE_TERMS = re.compile(
+    r"(房價|房价|價格|价格|總價|总价|單價|单价|便宜|低價|低价|最低|最便宜|"
+    r"行情|相場|相场).{0,18}(地區|地区|區域|区域|哪個|哪个|哪裡|哪里|多少|推薦|推荐)?|"
+    r"(哪個|哪个|哪裡|哪里).{0,18}(地區|地区|區域|区域).{0,18}(便宜|低價|低价|最低|房價|房价|價格|价格)",
+    flags=re.I,
+)
+_SUPPORT_MARKET_PRICE_CACHE: dict[str, Any] = {"at": 0.0, "rows": []}
+_SUPPORT_MARKET_PRICE_CACHE_LOCK = threading.Lock()
+_SUPPORT_MARKET_PRICE_CACHE_SECONDS = 300.0
+
+# 站內案件會以「大區, 都道府縣, 市區町村」或中文相近名稱保存；市場比較統一
+# 到都道府縣層級，避免用一兩筆市區案件得出「全日本最低」的錯誤結論。
+_SUPPORT_PREFECTURE_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("北海道", ("北海道",)),
+    ("青森", ("青森",)), ("岩手", ("岩手",)), ("宮城", ("宮城",)), ("秋田", ("秋田",)),
+    ("山形", ("山形",)), ("福島", ("福島",)), ("茨城", ("茨城",)), ("栃木", ("栃木",)),
+    ("群馬", ("群馬",)), ("埼玉", ("埼玉",)), ("千葉", ("千葉", "千叶")),
+    ("東京", ("東京", "东京", "東京都")), ("神奈川", ("神奈川",)), ("新潟", ("新潟",)),
+    ("富山", ("富山",)), ("石川", ("石川",)), ("福井", ("福井",)), ("山梨", ("山梨",)),
+    ("長野", ("長野", "长野")), ("岐阜", ("岐阜",)), ("靜岡", ("靜岡", "静岡")),
+    ("愛知", ("愛知",)), ("三重", ("三重",)), ("滋賀", ("滋賀",)), ("京都", ("京都",)),
+    ("大阪", ("大阪",)), ("兵庫", ("兵庫",)), ("奈良", ("奈良",)), ("和歌山", ("和歌山",)),
+    ("鳥取", ("鳥取",)), ("島根", ("島根",)), ("岡山", ("岡山",)), ("廣島", ("廣島", "広島")),
+    ("山口", ("山口",)), ("德島", ("德島", "徳島")), ("香川", ("香川",)), ("愛媛", ("愛媛",)),
+    ("高知", ("高知",)), ("福岡", ("福岡", "福冈")), ("佐賀", ("佐賀", "佐贺")),
+    ("長崎", ("長崎", "长崎")), ("熊本", ("熊本",)), ("大分", ("大分",)), ("宮崎", ("宮崎",)),
+    ("鹿兒島", ("鹿兒島", "鹿児島")), ("沖繩", ("沖繩", "冲绳", "沖縄")),
+)
+
+
+def _support_is_market_price_question(message: str) -> bool:
+    """Whether the answer must be a database-backed regional price statistic."""
+    raw = str(message or "").strip()
+    if not raw:
+        return False
+    # A selected/specific listing price must be answered from that listing, not a
+    # regional aggregate just because the user used the word "price".
+    if re.search(r"(這筆|这笔|這個|这个|該案|该案|案件編號|案件编号|物件編號|物件编号|/case/)", raw, re.I):
+        return False
+    return bool(_SUPPORT_MARKET_PRICE_TERMS.search(raw))
+
+
+def _support_market_region_label(*values: Any) -> str:
+    blob = " ".join(str(v or "") for v in values)
+    for canonical, aliases in _SUPPORT_PREFECTURE_ALIASES:
+        if any(alias and alias in blob for alias in aliases):
+            return canonical
+    return ""
+
+
+def _support_market_price_rows() -> list[dict[str, Any]]:
+    """Load a compact, deduplicated set of real sale listings for market statistics.
+
+    The result is short-lived in memory.  We intentionally do not use a global ORDER BY
+    here: that was the production timeout source for broad questions with no filters.
+    """
+    now = time.monotonic()
+    with _SUPPORT_MARKET_PRICE_CACHE_LOCK:
+        cached_at = float(_SUPPORT_MARKET_PRICE_CACHE.get("at") or 0.0)
+        cached_rows = _SUPPORT_MARKET_PRICE_CACHE.get("rows") or []
+        if cached_rows and now - cached_at < _SUPPORT_MARKET_PRICE_CACHE_SECONDS:
+            return [dict(row) for row in cached_rows if isinstance(row, dict)]
+    try:
+        with get_conn() as conn:
+            raw_rows = conn.execute(
+                """
+                SELECT
+                  s.id AS source_item_id,
+                  s.item_url,
+                  COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+                  COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+                  COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+                  COALESCE(c.case_transaction_override, '') AS case_transaction_override
+                FROM source_items s
+                JOIN content_items c ON c.source_item_id = s.id
+                WHERE s.content_kind = 'jp_listing'
+                  AND lower(COALESCE(s.item_url, '')) NOT LIKE '%chintai%'
+                """
+            ).fetchall()
+    except Exception as exc:
+        _push_backend_error_log(
+            method="POST",
+            path="/api/ai/chat-support",
+            status_code=500,
+            message=f"support_market_price_lookup_error: {type(exc).__name__}: {exc}"[:900],
+            elapsed_ms=0,
+        )
+        return []
+    out: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+    for row in raw_rows:
+        item = dict(row)
+        if "租" in str(item.get("case_transaction_override") or ""):
+            continue
+        item_url = str(item.get("item_url") or "").strip()
+        if item_url and item_url in seen_urls:
+            continue
+        region = _support_market_region_label(
+            item.get("case_jp_region_override"), item.get("title_zh_hant"), item.get("title_zh_hans")
+        )
+        price_man = _case_price_man_from_text(
+            " ".join(str(item.get(key) or "") for key in ("title_zh_hant", "title_zh_hans"))
+        )
+        if not region or price_man is None:
+            continue
+        if item_url:
+            seen_urls.add(item_url)
+        out.append(
+            {
+                "source_item_id": int(item.get("source_item_id") or 0),
+                "region": region,
+                "price_man": float(price_man),
+            }
+        )
+    with _SUPPORT_MARKET_PRICE_CACHE_LOCK:
+        _SUPPORT_MARKET_PRICE_CACHE["at"] = now
+        _SUPPORT_MARKET_PRICE_CACHE["rows"] = [dict(row) for row in out]
+    return out
+
+
+def _support_median(values: list[float]) -> float | None:
+    ordered = sorted(float(v) for v in values if isinstance(v, (int, float)) and float(v) > 0)
+    if not ordered:
+        return None
+    mid = len(ordered) // 2
+    return ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def _support_market_price_reply(message: str) -> tuple[str, dict[str, Any]] | None:
+    if not _support_is_market_price_question(message):
+        return None
+    grouped: dict[str, list[float]] = {}
+    for row in _support_market_price_rows():
+        region = str(row.get("region") or "").strip()
+        price = row.get("price_man")
+        if not region or not isinstance(price, (int, float)) or not (10 <= float(price) <= 1_000_000):
+            continue
+        grouped.setdefault(region, []).append(float(price))
+    stats: list[dict[str, Any]] = []
+    for region, prices in grouped.items():
+        # Fewer than three records is not a defensible regional conclusion.
+        if len(prices) < 3:
+            continue
+        median = _support_median(prices)
+        if median is None:
+            continue
+        stats.append(
+            {
+                "region": region,
+                "sample_count": len(prices),
+                "median_price_man": median,
+                "min_price_man": min(prices),
+                "max_price_man": max(prices),
+            }
+        )
+    if not stats:
+        return (
+            "我已查詢站內目前可比的在售資料，但可同時辨識地區與售價的樣本不足，不能據此說哪個地區最便宜。請告訴我想比較的地區、用途與總預算，我會只依站內可核對案件幫您縮小範圍。",
+            {"sample_count": 0, "regions": [], "reason": "insufficient_comparable_records"},
+        )
+    requested_region = _support_market_region_label(message)
+    if requested_region:
+        target = next((item for item in stats if item["region"] == requested_region), None)
+        if target is None:
+            return (
+                f"我已查詢站內目前可比的在售資料，但「{requested_region}」可核對的售價樣本未達 3 筆，不能用它推論當地房價。您可以提供預算或物件類型，我再從實際案件幫您找。",
+                {"sample_count": 0, "regions": [], "requested_region": requested_region, "reason": "insufficient_region_samples"},
+            )
+        lines = [
+            f"依站內目前可比的在售資料，「{requested_region}」有 {target['sample_count']} 筆可解析總價的購買案件；總價中位數約 {target['median_price_man']:,.0f} 萬日圓，樣本範圍約 {target['min_price_man']:,.0f}～{target['max_price_man']:,.0f} 萬日圓。",
+            "這是本站現有案件的總價比較，不等於全市場成交價；不同坪數、屋齡與物件類型不能直接視為同一價位。",
+            "若要我推薦實際案件，請先給我用途（自住或收租）或總預算其中一項，我會只列站內可核對的案件。",
+        ]
+        return "\n".join(lines), {"sample_count": target["sample_count"], "regions": [target], "requested_region": requested_region}
+    ranked = sorted(stats, key=lambda item: (float(item["median_price_man"]), -int(item["sample_count"]), str(item["region"])))
+    target = ranked[0]
+    lines = [
+        f"依站內目前可比的在售資料，以「各地區案件總價中位數」比較，目前樣本中較低的是「{target['region']}」：{target['sample_count']} 筆可解析售價案件，中位數約 {target['median_price_man']:,.0f} 萬日圓，樣本範圍約 {target['min_price_man']:,.0f}～{target['max_price_man']:,.0f} 萬日圓。",
+        "這只代表本站現有可比案件，不代表全日本或該地區所有成交案；坪數、屋齡、車站距離與物件類型不同，不能只用總價判斷划算。",
+        "如果您要我推薦，請先回覆自住或收租、以及總預算其中一項；我會按站內真實案件篩選，不會憑空推薦。",
+    ]
+    return "\n".join(lines), {"sample_count": sum(int(item["sample_count"]) for item in stats), "regions": ranked[:5], "requested_region": ""}
 
 
 def _support_managed_case_query_terms(message: str, *, region_hint: str = "", keyword_hint: str = "") -> tuple[str, str]:
@@ -31410,6 +31597,11 @@ def _support_lookup_managed_case_rows(
             tx_sql = "(lower(COALESCE(s.item_url,'')) NOT LIKE '%chintai%' OR c.title_zh_hant LIKE ? OR c.title_zh_hans LIKE ?)"
             tx_params = ["%買%", "%买%"]
         terms = [x for x in re.split(r"\s+", f"{region} {query}".strip()) if x][:5]
+        # Never execute the global featured/recent sort for a vague request such as
+        # 「推薦幾個物件」.  There is no truthful ranking without at least one
+        # database filter, so the caller should ask for one requirement instead.
+        if not terms:
+            return []
         where_parts = [
             "s.content_kind = 'jp_listing'",
             tx_sql,
@@ -31496,6 +31688,31 @@ def _support_lookup_managed_case_rows(
             elapsed_ms=0,
         )
         return []
+
+
+def _build_support_managed_cases_fast_reply(message: str, rows: list[dict[str, Any]]) -> str:
+    """A deterministic answer for explicit listing requests using only selected DB rows."""
+    items = [dict(row) for row in list(rows or []) if isinstance(row, dict)][:3]
+    if not items:
+        return "我還沒有足夠條件可從站內準確挑出案件。請先告訴我地區、總預算、用途或物件類型其中一項，我再只按站內資料幫您找。"
+    lines = ["我已依您提供的條件查詢站內案件；以下只列出目前資料可核對的項目："]
+    for index, item in enumerate(items, start=1):
+        title = str(item.get("title_zh_hant") or item.get("title_zh_hans") or item.get("title_original") or "未命名案件").strip()
+        title = re.sub(r"\s+", " ", title)[:150]
+        region = str(item.get("case_jp_region_override") or "").strip()
+        transit = str(item.get("case_transit_override") or "").strip()
+        source_id = int(item.get("source_item_id") or 0)
+        details = "｜".join(part for part in (region, transit) if part)
+        lines.append(f"{index}. {title}{('（' + details[:140] + '）') if details else ''}")
+        if source_id > 0:
+            lines.append(f"   站內明細：/case/{source_id}")
+    lines.extend(
+        [
+            "以上是目前入庫資料，價格與可售狀態仍需以案件明細和來源頁為準。",
+            "您想先用總預算，還是自住／收租用途，再把結果縮小？",
+        ]
+    )
+    return sanitize_support_chat_visible_reply("\n".join(lines))
 
 
 def _support_keyword_preset_reply(
@@ -33761,6 +33978,45 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
             }
         )
+    market_price_fast = _support_market_price_reply(msg)
+    if market_price_fast:
+        reply, market_stats = market_price_fast
+        knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
+        knowledge_meta.update(
+            {
+                "property_listing_intent": True,
+                "market_data": {
+                    "source": "managed_case_database",
+                    "metric": "listing_total_price_median_man_jpy",
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    **market_stats,
+                },
+            }
+        )
+        sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": sanitize_support_chat_visible_reply(reply),
+                "knowledge": knowledge_meta,
+                "llm": {
+                    "provider": "",
+                    "enabled": False,
+                    "model": "",
+                    "fast_mode": True,
+                    "knowledge_skipped": True,
+                    "market_data_fast_reply": True,
+                },
+                "sales_mcp": sales_mcp,
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
     kq = (payload.knowledge_query or msg).strip()
     kb_text = ""
     kb_rows: list[dict] = []
@@ -33799,6 +34055,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             tx_hint = "buy"
     managed_text = ""
     managed_api: list[dict] = []
+    managed_rows: list[dict[str, Any]] = []
     featured_text = ""
     featured_recommendations: list[dict] = []
     if _support_should_lookup_managed_cases(
@@ -33820,6 +34077,46 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             max_chars=2600,
         )
         managed_api = managed_items_for_api(managed_rows, zh_variant=zh_v)[:6]
+    if case_request_sig and managed_rows:
+        knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
+        knowledge_meta.update(
+            {
+                "property_listing_intent": True,
+                "managed_cases": managed_api,
+                "managed_case_count": len(managed_api),
+                "client_search": {
+                    "figure_keyword": fk,
+                    "figure_region": fr,
+                    "dialog_keyword": dlgk,
+                    "query_blend": kq_blend,
+                },
+            }
+        )
+        reply = _build_support_managed_cases_fast_reply(msg, managed_rows)
+        sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
+        return JSONResponse(
+            {
+                "ok": True,
+                "session_id": session_id,
+                "reply": reply,
+                "knowledge": knowledge_meta,
+                "llm": {
+                    "provider": "",
+                    "enabled": False,
+                    "model": "",
+                    "fast_mode": True,
+                    "knowledge_skipped": True,
+                    "managed_case_database_fast_reply": True,
+                },
+                "sales_mcp": sales_mcp,
+                "matched_scene": None,
+                "matched_qa": None,
+                "featured_recommendations": [],
+                "telegram_notify": {"attempted": False, "sent": False, "error": ""},
+                "line_notify": {"attempted": False, "sent": False, "error": ""},
+                "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
+            }
+        )
     wants_kb = bool(payload.use_knowledge)
     suggests_kb = _chat_message_suggests_knowledge_lookup(msg)
     run_kb = wants_kb and suggests_kb and not purchase_discovery_mode

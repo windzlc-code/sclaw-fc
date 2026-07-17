@@ -1,6 +1,7 @@
 import json
 import unittest
 from uuid import uuid4
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -185,6 +186,37 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertFalse(data["llm"]["enabled"])
         self.assertTrue(data["knowledge"]["skipped_lookup"])
         self.assertIn("日本買房", data["reply"])
+
+    def test_broad_price_question_uses_grounded_market_stats_without_llm(self):
+        """Broad market questions must use comparable records, never a model guess."""
+        self.assertTrue(app_module._support_is_market_price_question("哪個地區房價最便宜？"))
+        self.assertFalse(app_module._support_is_market_price_question("這筆案件價格多少？"))
+        rows = [
+            {"region": "福岡", "price_man": 1200.0, "source_item_id": 101},
+            {"region": "福岡", "price_man": 1300.0, "source_item_id": 102},
+            {"region": "福岡", "price_man": 1400.0, "source_item_id": 103},
+            {"region": "東京", "price_man": 5000.0, "source_item_id": 201},
+            {"region": "東京", "price_man": 5400.0, "source_item_id": 202},
+            {"region": "東京", "price_man": 5600.0, "source_item_id": 203},
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module, "chat_support_reply_gemini", side_effect=AssertionError("LLM must not be called")
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪個地區房價最便宜？有沒有什麼推薦？",
+                    sales_session_id="sess-test-grounded-market-price",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["llm"]["market_data_fast_reply"])
+        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(data["knowledge"]["skipped_lookup"])
+        self.assertIn("福岡", data["reply"])
+        self.assertIn("中位數", data["reply"])
+        self.assertIn("站內目前可比的在售資料", data["reply"])
 
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"

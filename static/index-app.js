@@ -10909,10 +10909,13 @@
       const dlgKw = (document.getElementById('dialog_keyword')?.value || '').trim();
       const cond = getCurrentFigureSmartConditionLabels();
       let appendedHumanForm = false;
+      const supportRequestController = new AbortController();
+      const supportRequestTimeout = window.setTimeout(() => supportRequestController.abort(), 18000);
       try {
         const res = await fetch('/api/ai/chat-support', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: supportRequestController.signal,
           body: JSON.stringify({
             message: apiMessage,
             history: hist,
@@ -10999,8 +11002,15 @@
         }
       } catch (err) {
         restoreInputDraft = true;
-        supportChatHistory.push({ role: 'assistant', content: '連線失敗，請稍後再試。' });
+        const timedOut = err && String(err.name || '') === 'AbortError';
+        supportChatHistory.push({
+          role: 'assistant',
+          content: timedOut
+            ? '這次查詢超過回覆時間，已停止等待。請補充地區、用途或總預算後再試，我會優先查站內可核對資料。'
+            : '連線失敗，請稍後再試。',
+        });
       } finally {
+        window.clearTimeout(supportRequestTimeout);
         setSupportChatThinking(false);
         if (restoreInputDraft && input) {
           input.value = msg;
