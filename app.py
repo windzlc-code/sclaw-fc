@@ -20355,30 +20355,30 @@ def _support_single_followup_question(
     text = str(message or "")
     first_missing = _support_first_missing_field(missing_fields)
     if first_missing in ("用途",):
-        return "請問您這次主要是自住、收租，還是資產配置？"
+        return "請問您這次主要是自住、收租，還是資產配置？例如：自住、收租或資產配置。"
     if first_missing in ("預算",):
-        return "您方便先給一個總預算上限嗎？"
+        return "您方便先給一個總預算上限嗎？例如：3,000 萬日圓以內，或 2,000～3,000 萬日圓。"
     if first_missing in ("地區", "車站"):
-        return "您比較想看東京哪一區或哪條通勤線？"
+        return "您比較想看哪一區或哪條通勤線？例如：東京港區、東京 23 區或 JR 山手線沿線。"
     if first_missing in ("類型",):
-        return "您偏好公寓、一戶建，還是先不限類型？"
+        return "您偏好公寓、一戶建，還是先不限類型？例如：公寓、一戶建或不限類型。"
     if first_missing in ("格局",):
-        return "您最低可接受幾房或多大坪數？"
+        return "您最低可接受幾房或多大坪數？例如：2LDK、3 房以上或 70㎡以上。"
     if first_missing in ("貸款",):
-        return "您預計用現金購買，還是希望評估日本房貸？"
+        return "您預計用現金購買，還是希望評估日本房貸？例如：全額現金，或需要評估日本房貸。"
     if re.search(r"(稅|税|費用|费用|成本|管理費|管理费|修繕|修缮|固都稅|固定資產)", text, re.I):
-        return "您想先估算購買時的一次性成本，還是每年的持有成本？"
+        return "您想先估算購買時的一次性成本，還是每年的持有成本？例如：簽約與過戶稅費，或管理費與固定資產稅。"
     if re.search(r"(流程|採購|采购|如何購買|如何购买|怎么买|怎麼買|簽約|签约)", text, re.I):
-        return "您目前是已看好物件，還是先了解完整購買流程？"
+        return "您目前是已看好物件，還是先了解完整購買流程？例如：已有案件想確認，或先了解日本買房步驟。"
     if re.search(r"(貸款|贷款|房貸|房贷|銀行|银行|融資|融资)", text, re.I):
-        return "您預計用現金購買，還是希望評估日本房貸？"
+        return "您預計用現金購買，還是希望評估日本房貸？例如：全額現金，或需要評估日本房貸。"
     if re.search(r"(外國人|外国人|海外|非日本|永住|居留)", text, re.I):
-        return "您是想自住，還是投資收租？"
+        return "您是想自住，還是投資收租？例如：自住、長期收租或資產配置。"
     if re.search(r"(租金|投報|回報|報酬|收益|投資)", text, re.I):
-        return "您比較在意租金收益，還是日後轉售流通性？"
+        return "您比較在意租金收益，還是日後轉售流通性？例如：每月租金收益，或 5 年後轉售彈性。"
     if intent_ref >= 42:
-        return "我下一步先幫您看用途，還是先抓預算？"
-    return "您想先了解稅金、購買流程，還是貸款條件？"
+        return "我下一步先幫您看用途，還是先抓預算？例如：回覆「自住」或「預算 3,000 萬日圓」。"
+    return "您想先了解稅金、購買流程，還是貸款條件？例如：購買稅費、日本買房步驟或日本房貸。"
 
 
 def _support_concise_answer_body(text: str, *, max_lines: int = 3, max_chars: int = 320) -> str:
@@ -31208,8 +31208,14 @@ def _is_support_light_chat_only(text: str) -> bool:
     return bool(raw and len(raw) <= 36 and (_CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_IDENTITY_QUESTION.match(raw)))
 
 
+def _is_support_daily_chat(text: str) -> bool:
+    """識別不需要查房源、也不應被強制導回購房流程的純日常對話。"""
+    raw = (text or "").strip()
+    return bool(raw and not _is_support_identity_question(raw) and _CHAT_SMALL_TALK_HINT.search(raw))
+
+
 def _is_support_project_conversation_bridge(text: str) -> bool:
-    """Small talk that should not trigger RAG, but should be guided back to the site journey."""
+    """Small talk that should skip RAG and receive a bounded deterministic reply."""
     raw = (text or "").strip()
     if not raw:
         return False
@@ -31252,10 +31258,20 @@ def _build_support_light_chat_reply(
     raw = (message or "").strip()
     if _is_support_identity_question(raw):
         return _build_support_identity_reply(persona_region)
-    if _CHAT_LIGHT_SUPPORT_ONLY.match(raw) or _CHAT_SMALL_TALK_HINT.search(raw):
-        return (
-            "可以，我先幫您整理方向。您回地區、用途或預算其中一項就好。"
-        )
+    if _is_support_daily_chat(raw):
+        if re.search(r"(吃飯|吃饭)", raw, re.I):
+            return "我不需要吃飯，不過謝謝關心。你吃了嗎？"
+        if re.search(r"(天氣|天气)", raw, re.I):
+            return "我沒有即時天氣資訊，不過希望你那邊天氣不錯。"
+        if re.search(r"(你好吗|你好嗎|最近怎樣|最近怎么样)", raw, re.I):
+            return "我很好，謝謝關心。你今天怎麼樣？"
+        if re.search(r"(累|辛苦|睡不著|睡不着|難過|难过)", raw, re.I):
+            return "聽起來你今天有點辛苦，先讓自己休息一下也很好。"
+        if re.search(r"(無聊|无聊|陪我聊聊|隨便聊|随便聊|聊聊天|閒聊|闲聊)", raw, re.I):
+            return "可以呀，先輕鬆聊兩句。你今天想聊什麼？"
+        return "當然可以。你想聊點什麼？"
+    if _CHAT_LIGHT_SUPPORT_ONLY.match(raw):
+        return "我可以協助日本房產與本站案件相關問題；你想先了解哪一部分？"
     return _build_support_greeting_reply(persona_region)
 
 
@@ -31390,7 +31406,7 @@ def _build_support_selected_cases_ai_compare_reply(
         "缺少資料要明確寫待確認，禁止自行補不存在的投報率、租金、價格、區域熱度或市場結論。"
         "請用繁體中文，語氣像顧問在 LINE/微信回覆，專業但不要官腔。"
         "格式：先用一句話總結；再逐筆列出重點（價格/面積格局/區域交通/風險或資料缺口）；"
-        "最後一定要用「下一步建議：」收尾，提出1個最適合使用者繼續回答的問題，"
+        "最後一定要用「下一步建議：」收尾，提出1個最適合使用者繼續回答的問題，並附上 2 至 3 個可直接照填的簡短例子，"
         "並自然引導使用者補預算、用途或請顧問核算，不要回答完就停。"
         "不要使用 Markdown 星號、粗體或斜體；若要列點，請用「1.」「2.」或「-」。"
     )
@@ -32050,7 +32066,8 @@ def _support_keyword_preset_reply(
             {"id": "handoff_human", "label": "需要時轉顧問"},
         ]
         reply = (
-            "日本買房通常先確認用途和預算，再看地區、稅費與貸款。您偏自住還是收租？"
+            "日本買房通常先確認用途和預算，再看地區、稅費與貸款。"
+            "您偏自住還是收租？例如：自住、收租或資產配置。"
         )
         return _payload("buying_flow", reply, sales_mcp, intent_score=28)
 
@@ -32063,7 +32080,8 @@ def _support_keyword_preset_reply(
             {"id": "handoff_human", "label": "顧問核算"},
         ]
         reply = (
-            "成本主要看稅費、登記費、管理費和修繕金。您有預算或案件價格嗎？"
+            "成本主要看稅費、登記費、管理費和修繕金。"
+            "您有預算或案件價格嗎？例如：總預算 3,000 萬日圓，或案件總價 2,500 萬日圓。"
         )
         return _payload("cost_loan", reply, sales_mcp, intent_score=34)
 
@@ -32331,7 +32349,7 @@ def _support_purchase_discovery_prompt_block(
         f"{selected_note}\n"
         "本輪禁止輸出案件列表、來源 URL、知識庫清單；請明確說明「先不急著丟案件」。\n"
         f"優先補問缺少欄位：{missing_note}。\n"
-        "回覆方式：繁體中文、自然私訊口吻；先承接意願，再只問 1 個最重要問題，等客戶回答後下一輪再問下一題。\n"
+        "回覆方式：繁體中文、自然私訊口吻；先承接意願，再只問 1 個最重要問題，並在問題後附 2 至 3 個可直接照填的簡短例子，等客戶回答後下一輪再問下一題。\n"
         "若客戶想找人工顧問，可引導輸入「人工」或留下 LINE／電話／WeChat，並說明會把需求整理成留單。"
     ).strip()
 
@@ -34069,6 +34087,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     light_chat_only = _is_support_project_conversation_bridge(msg)
     if light_chat_only:
         skip_reason = "greeting_only" if _is_support_greeting_only(msg) else "light_chat_only"
+        daily_chat = _is_support_daily_chat(msg)
         knowledge_meta = {
             "query": msg,
             "days": 0,
@@ -34108,12 +34127,13 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "knowledge_skipped": True,
                     "greeting_only": skip_reason == "greeting_only",
                     "light_chat_only": skip_reason == "light_chat_only",
+                    "daily_chat": daily_chat,
                 },
                 "sales_mcp": {
                     "session_id": session_id,
-                    "stage": "discover",
+                    "stage": "casual_chat" if daily_chat else "discover",
                     "intent_score": 0,
-                    "outcome": "greeting",
+                    "outcome": "casual_chat" if daily_chat else "greeting",
                     "should_notify_human": False,
                     "human_handoff_intent": False,
                     "direct_buy_intent": False,

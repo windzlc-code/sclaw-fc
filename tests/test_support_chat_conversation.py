@@ -77,18 +77,50 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertNotIn("工號", data["reply"])
         self.assertNotIn("simulated_service", data["sales_mcp"])
 
-    def test_small_talk_is_natural_but_guides_back_to_site_journey(self):
+    def test_daily_small_talk_receives_a_natural_reply_without_forcing_purchase_inputs(self):
         resp = app_module.api_ai_chat_support(
-            app_module.ChatSupportRequest(message="有點無聊，陪我聊聊", sales_session_id="sess-test-smalltalk")
+            app_module.ChatSupportRequest(message="吃飯了嗎？", sales_session_id="sess-test-smalltalk")
         )
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertIn("整理方向", data["reply"])
-        self.assertTrue("地區" in data["reply"] or "用途" in data["reply"] or "預算" in data["reply"])
+        self.assertIn("不需要吃飯", data["reply"])
+        self.assertNotIn("地區、用途或預算", data["reply"])
         self.assertNotIn("離線模式", data["reply"])
         self.assertNotIn("本次查詢結果", data["reply"])
         self.assertTrue(data["llm"]["light_chat_only"])
+        self.assertTrue(data["llm"]["daily_chat"])
+
+    def test_purchase_follow_up_questions_include_usable_examples(self):
+        questions = {
+            "用途（自住／收租／資產配置）": "例如：自住、收租或資產配置",
+            "總預算帶": "例如：3,000 萬日圓以內",
+            "偏好地區或車站": "例如：東京港區、東京 23 區或 JR 山手線沿線",
+            "物件類型": "例如：公寓、一戶建或不限類型",
+            "格局／房數": "例如：2LDK、3 房以上或 70㎡以上",
+        }
+        for field, example in questions.items():
+            with self.subTest(field=field):
+                reply = app_module._support_single_followup_question(
+                    "我想買日本房",
+                    missing_fields=[field],
+                )
+                self.assertIn(example, reply)
+
+    def test_keyword_preset_follow_ups_include_usable_examples(self):
+        cases = {
+            "日本買房流程怎麼開始？": ("buying_flow", "例如：自住、收租或資產配置"),
+            "日本房貸和稅費怎麼算？": ("cost_loan", "例如：總預算 3,000 萬日圓"),
+        }
+        for message, (kind, example) in cases.items():
+            with self.subTest(message=message):
+                preset = app_module._support_keyword_preset_reply(
+                    message,
+                    session_id="sess-test-keyword-example",
+                )
+                self.assertIsNotNone(preset)
+                self.assertEqual(preset["llm"]["keyword_preset_kind"], kind)
+                self.assertIn(example, preset["reply"])
 
     def test_purchase_discovery_only_turns_real_handoff_on_direct_buy_intent(self):
         self.assertFalse(app_module._support_message_is_guidance_question("東京 5000萬 自住 公寓"))
