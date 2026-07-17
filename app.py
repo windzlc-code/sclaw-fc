@@ -258,7 +258,7 @@ _CASE_PAGE_RENDER_LOCKS_MAX = 480
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-local-thumbs-20260717b"
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-gallery-ad-cleanup-20260717c"
 _CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
@@ -2422,13 +2422,30 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                     edge_mean = float(ImageStat.Stat(edge).mean[0]) / 255.0
                     color_bins: dict[tuple[int, int, int], int] = {}
                     greenish = 0
-                    for red, green, blue in small.getdata():
+                    sample_pixels = list(small.getdata())
+                    for red, green, blue in sample_pixels:
                         key = (red // 24, green // 24, blue // 24)
                         color_bins[key] = color_bins.get(key, 0) + 1
                         if green >= red + 12 and green >= blue + 8:
                             greenish += 1
                     dominant_color_ratio = max(color_bins.values(), default=0) / total
                     greenish_ratio = greenish / total
+                    # Energy-efficiency labels use flat green bands around a
+                    # mostly white information board. Real gardens/exteriors
+                    # may be green, but do not have repeated flat-green rows.
+                    green_band_rows = 0
+                    for y in range(small.height):
+                        row_bins: dict[tuple[int, int, int], int] = {}
+                        green_count = 0
+                        start = y * small.width
+                        for red, green, blue in sample_pixels[start : start + small.width]:
+                            if green >= red + 12 and green >= blue + 8:
+                                green_count += 1
+                                key = (red // 24, green // 24, blue // 24)
+                                row_bins[key] = row_bins.get(key, 0) + 1
+                        if green_count / max(1, small.width) >= 0.68 and max(row_bins.values(), default=0) / max(1, small.width) >= 0.24:
+                            green_band_rows += 1
+                    green_band_ratio = green_band_rows / max(1, small.height)
                     reason = ""
                     # Floor plans and structure diagrams are usually bright, low-saturation
                     # line drawings with many hard edges. Keep the thresholds conservative
@@ -2486,6 +2503,18 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                         and dominant_color_ratio >= 0.32
                         and edge_mean >= 0.14
                         and light_ratio <= 0.16
+                    ):
+                        reason = "promotional-text-board"
+                    # Energy labels have more white than a renovation ad, so
+                    # they need a separate flat-green-band signature.
+                    elif (
+                        0.75 <= aspect <= 2.2
+                        and sat_mean >= 0.16
+                        and light_ratio >= 0.34
+                        and greenish_ratio >= 0.18
+                        and dominant_color_ratio >= 0.10
+                        and green_band_ratio >= 0.07
+                        and edge_mean >= 0.05
                     ):
                         reason = "promotional-text-board"
                     elif light_ratio >= 0.78 and dark_ratio <= 0.03 and sat_mean <= 0.18:
@@ -3056,6 +3085,14 @@ _CASE_GALLERY_POLLUTION_CATEGORIES = {
     "unclear",
     "unrelated",
     "map",
+}
+_CASE_GALLERY_VISUAL_NON_PHOTO_REASONS = {
+    "promotional-text-board",
+    "line-diagram",
+    "access-map",
+    "site-plan",
+    "parcel-diagram",
+    "blank-placeholder",
 }
 
 
@@ -4104,9 +4141,9 @@ def _case_gallery_local_audit_item(
         category = "ad"
         polluted = True
         pollution_reason = "疑似帶大字行銷字幕的相冊污染圖"
-    elif category in {"map"}:
+    elif category in _CASE_GALLERY_POLLUTION_CATEGORIES:
         polluted = True
-        pollution_reason = "地圖或交通圖不屬於房源相冊照片"
+        pollution_reason = "疑似廣告、占位、地圖或其他非房源相冊素材"
     elif _case_representative_semantic_reject_reason(image_url, context, profile="building") == "weak-semantic-context":
         polluted = True
         pollution_reason = "疑似概念圖、廣告圖或低信息圖片"
@@ -4117,6 +4154,11 @@ def _case_gallery_local_audit_item(
         polluted = True
         pollution_reason = "來源圖片無法下載或驗證，已從展示相冊移除"
     quality_issue = _case_gallery_local_quality_issue(static_url) if remove_low_quality else {}
+    visual_reason = _case_image_visual_reject_reason(static_url) if static_url else ""
+    if visual_reason in _CASE_GALLERY_VISUAL_NON_PHOTO_REASONS:
+        category = "map" if visual_reason == "access-map" else "ad"
+        polluted = True
+        pollution_reason = "圖片為能耗標籤、圖表或其他非房源實景"
     if quality_issue:
         category = str(quality_issue.get("category") or category or "unclear")
         polluted = True
@@ -15106,6 +15148,9 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
             continue
         context = context_by_key.get(key, "")
         audit = audit_by_key.get(key) or {}
+        category = _case_gallery_category_for_url(u, context)
+        if category in _CASE_GALLERY_POLLUTION_CATEGORIES:
+            continue
         if bool(audit.get("is_polluted")):
             continue
         if _case_gallery_context_is_non_property_media(u, context):
@@ -15113,12 +15158,14 @@ def _build_case_gallery_sections(row: dict[str, Any], *, property_urls: list[str
         cached_static = _case_image_cached_static_url(u)
         if cached_static and _case_gallery_local_display_issue(cached_static):
             continue
+        if cached_static and _case_image_visual_reject_reason(cached_static) in _CASE_GALLERY_VISUAL_NON_PHOTO_REASONS:
+            continue
         seen.add(key)
         if key in agent_keys or is_likely_agent_portrait_image_url(u):
             continue
-        if not _is_case_property_gallery_image_url(u) and _case_gallery_category_for_url(u, context) != "floorplan":
+        if not _is_case_property_gallery_image_url(u) and category != "floorplan":
             continue
-        cat = _case_gallery_category_for_url(u, context)
+        cat = category
         audit_cat = _case_gallery_normalize_ai_category(audit.get("category"))
         if audit_cat and audit_cat not in {"unknown", "other"}:
             if audit_cat in {"land_frontage", "farmland", "forest_land"}:
