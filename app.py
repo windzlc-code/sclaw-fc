@@ -258,7 +258,7 @@ _CASE_PAGE_RENDER_LOCKS_MAX = 480
 _CASE_RELATED_NEWS_CACHE_LOCK = threading.Lock()
 _CASE_RELATED_NEWS_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
 _CASE_RELATED_NEWS_CACHE_MAX = 240
-_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-local-thumbs-20260717a"
+_CASE_PAGE_HTML_CACHE_VERSION = "case-html-related-local-thumbs-20260717b"
 _CASE_PAGE_HTML_RESPONSE_HEADERS = {"Cache-Control": "private, max-age=600, stale-while-revalidate=3600"}
 
 
@@ -37146,10 +37146,10 @@ def _related_article_thumb_url(row: dict[str, Any], *, allow_sync_fetch: bool = 
         if s and s not in candidates:
             candidates.append(s)
 
-    # These two fields are selected with every related-card row. Use them
-    # before parsing the complete gallery: the card image itself is lazy, so a
-    # remote candidate can be resolved by the image endpoint after the detail
-    # document has been delivered instead of delaying navigation by seconds.
+    # These fields are selected with every related-card row.  Only accept a
+    # cached local file here: a related card must never start a portal download
+    # in the visitor's browser, because expired or throttled upstream images
+    # were the source of the visible "image unavailable" tiles.
     # Reviewed representatives are local files, so they remain reliable when
     # third-party listing portals throttle, expire, or reject image requests.
     for raw in (row.get("representative_static_url"), row.get("thumbnail_url"), row.get("hero_image_url")):
@@ -37166,7 +37166,7 @@ def _related_article_thumb_url(row: dict[str, Any], *, allow_sync_fetch: bool = 
         cached = _case_image_cached_static_url(s)
         if cached:
             return cached
-        return s
+        continue
 
     # Some older rows do not populate thumbnail_url/hero_image_url but retain
     # an image URL in the stored media fields. A lightweight URL extraction is
@@ -37180,7 +37180,7 @@ def _related_article_thumb_url(row: dict[str, Any], *, allow_sync_fetch: bool = 
             cached = _case_image_cached_static_url(s)
             if cached:
                 return cached
-            return s
+            continue
 
     # The deep gallery path can run hundreds of image-quality checks and may
     # perform a network download. It is reserved for an explicit maintenance
