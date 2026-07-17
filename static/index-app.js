@@ -11915,11 +11915,9 @@
       if (!cfgEl) return;
       const hasTok = Boolean(data && data.channel_access_token_set);
       const hasSecret = Boolean(data && data.channel_secret_set);
-      const mode = String(data && data.recipient_mode || adminLineRecipientMode || 'manual').toLowerCase() === 'auto' ? 'auto' : 'manual';
       const staffRaw = String(data && data.staff_user_id || '').trim();
       const staffCount = staffRaw ? staffRaw.split(/[\s,;，；、]+/).filter(Boolean).length : 0;
-      const autoCount = Number(data && data.auto_recipient_count || 0);
-      const recipientCount = mode === 'manual' ? staffCount : Number(data && data.effective_recipient_count || autoCount + staffCount);
+      const recipientCount = Number(data && data.effective_recipient_count || staffCount);
       const hasStaff = recipientCount > 0;
       const channels = Array.isArray(data && data.notify_channels) ? data.notify_channels : [];
       const chText = channels.length ? channels.join(' + ') : 'telegram';
@@ -11927,7 +11925,7 @@
       cfgEl.textContent =
         'LINE 通知：' +
         (ready ? '已完成' : '尚未完整') +
-        `；${mode === 'manual' ? '手動收件' : '自動識別'} ${recipientCount} 個` +
+        `；手動收件 ${recipientCount} 個` +
         `；目前通知：${chText}`;
     }
 
@@ -13400,79 +13398,89 @@
       return ['admin-line-access-token', 'admin-line-channel-secret', 'admin-line-staff-user-id', 'admin-line-webhook-url'];
     }
 
-    const ADMIN_LINE_RECIPIENT_MODE_CACHE_KEY = 'sclaw_admin_line_recipient_mode_v1';
-    let adminLineRecipientMode = (() => {
+    const ADMIN_LINE_RECIPIENT_PAGE_SIZE_KEY = 'sclaw_admin_line_recipient_page_size_v1';
+    let adminLineRecipientMode = 'manual';
+    let adminLineRecipientPage = 1;
+    let adminLineRecipientPageSize = (() => {
       try {
-        return localStorage.getItem(ADMIN_LINE_RECIPIENT_MODE_CACHE_KEY) === 'auto' ? 'auto' : 'manual';
+        const saved = Number(localStorage.getItem(ADMIN_LINE_RECIPIENT_PAGE_SIZE_KEY) || 10);
+        return [5, 10, 20, 50].includes(saved) ? saved : 10;
       } catch (_) {
-        return 'manual';
+        return 10;
       }
     })();
 
     function setAdminLineRecipientMode(mode, options = {}) {
-      adminLineRecipientMode = String(mode || '').toLowerCase() === 'auto' ? 'auto' : 'manual';
-      if (options.persist !== false) {
-        try { localStorage.setItem(ADMIN_LINE_RECIPIENT_MODE_CACHE_KEY, adminLineRecipientMode); } catch (_) {}
-      }
-      document.querySelectorAll('[data-admin-line-mode]').forEach((btn) => {
-        const active = String(btn.getAttribute('data-admin-line-mode') || '') === adminLineRecipientMode;
-        btn.classList.toggle('is-active', active);
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
+      adminLineRecipientMode = 'manual';
       const staff = document.getElementById('admin-line-staff-user-id');
       if (staff) {
-        const manualDisabled = adminLineRecipientMode !== 'manual';
-        staff.disabled = manualDisabled;
-        staff.setAttribute('aria-disabled', manualDisabled ? 'true' : 'false');
-        staff.title = manualDisabled ? '自動識別模式下暫停手動編輯；切換到手動填寫後可修改。' : '';
-        staff.closest('label')?.classList.toggle('is-line-manual-disabled', manualDisabled);
+        staff.disabled = false;
+        staff.setAttribute('aria-disabled', 'false');
+        staff.title = '';
+        staff.closest('label')?.classList.remove('is-line-manual-disabled');
         document.querySelectorAll('[data-admin-secret-copy="admin-line-staff-user-id"], [data-admin-secret-toggle="admin-line-staff-user-id"]').forEach((btn) => {
-          btn.disabled = manualDisabled;
-          btn.setAttribute('aria-disabled', manualDisabled ? 'true' : 'false');
-          btn.title = manualDisabled ? '自動識別模式下暫停手動操作' : (btn.classList.contains('admin-secret-copy-btn') ? '複製' : '顯示 / 隱藏');
+          btn.disabled = false;
+          btn.setAttribute('aria-disabled', 'false');
+          btn.title = btn.classList.contains('admin-secret-copy-btn') ? '複製' : '顯示 / 隱藏';
         });
       }
-      updateAdminLineInlineStatus('LINE 收件模式已切換');
+      if (options.persist !== false) updateAdminLineInlineStatus('LINE 收件模式為手動填寫');
     }
 
     function renderAdminLineAutoRecipientHint(data) {
       const hint = document.getElementById('admin-line-auto-recipient-hint');
       if (!hint) return;
-      const count = Number(data?.auto_recipient_count || 0);
-      const ids = String(data?.auto_recipient_ids || '').split(',').map((x) => x.trim()).filter(Boolean);
-      if (adminLineRecipientMode === 'manual') {
-        hint.textContent = '目前使用手動填寫的收件 ID；自動識別清單會保留但不參與推播。';
-        return;
-      }
-      const manualIds = String(data?.staff_user_id || '').split(/[\s,;，；、]+/).map((x) => x.trim()).filter(Boolean);
-      hint.textContent = count
-        ? `已自動識別 ${count} 個收件 ID${ids.length ? '：' + ids.slice(0, 3).join('、') : ''}${ids.length > 3 ? '…' : ''}${manualIds.length ? `；並合併手動 ${manualIds.length} 個` : ''}`
-        : `尚未識別到收件 ID。請讓顧問加 Bot 或傳送任意訊息後，再按刷新${manualIds.length ? `；目前先使用已保存的手動 ${manualIds.length} 個，手填欄位已暫停編輯` : ''}。`;
+      const enabledCount = Number(data?.effective_recipient_count || data?.auto_recipient_count || 0);
+      hint.textContent = `目前只使用手動新增的 LINE ID；已啟用 ${enabledCount} 個收件人。`;
     }
 
     function adminLineRecipientSourceLabel(sourceType, targetKind) {
       const source = String(sourceType || '').toLowerCase();
       const kind = String(targetKind || '').toLowerCase();
-      if (source === 'manual' || source === 'admin') return '手動';
       if (kind === 'group' || source === 'group') return '群組';
       if (kind === 'room' || source === 'room') return '聊天室';
-      return '自動';
+      return '手動';
+    }
+
+    function syncAdminLineRecipientPageSizeSelect() {
+      const select = document.getElementById('admin-line-recipient-page-size');
+      if (select) select.value = String(adminLineRecipientPageSize);
+    }
+
+    function setAdminLineRecipientPageSize(value) {
+      const next = Number(value || 10);
+      adminLineRecipientPageSize = [5, 10, 20, 50].includes(next) ? next : 10;
+      adminLineRecipientPage = 1;
+      try { localStorage.setItem(ADMIN_LINE_RECIPIENT_PAGE_SIZE_KEY, String(adminLineRecipientPageSize)); } catch (_) {}
+      syncAdminLineRecipientPageSizeSelect();
+      renderAdminLineRecipientList(window.__adminLineLastSnapshot || {});
+    }
+
+    function setAdminLineRecipientPage(page) {
+      adminLineRecipientPage = Math.max(1, Number(page || 1));
+      renderAdminLineRecipientList(window.__adminLineLastSnapshot || {});
     }
 
     function renderAdminLineRecipientList(data) {
       const wrap = document.getElementById('admin-line-recipient-list');
       const countEl = document.getElementById('admin-line-recipient-list-count');
       if (!wrap) return;
+      window.__adminLineLastSnapshot = data || {};
+      syncAdminLineRecipientPageSizeSelect();
       const items = Array.isArray(data?.line_recipients)
         ? data.line_recipients
         : (Array.isArray(data?.auto_recipients) ? data.auto_recipients : []);
       const enabledCount = items.filter((row) => Number(row?.enabled || 0) === 1).length;
-      if (countEl) countEl.textContent = `共 ${items.length} 個，啟用 ${enabledCount} 個`;
+      const totalPages = Math.max(1, Math.ceil(items.length / Math.max(1, adminLineRecipientPageSize)));
+      adminLineRecipientPage = Math.min(Math.max(1, adminLineRecipientPage), totalPages);
+      const startIndex = (adminLineRecipientPage - 1) * adminLineRecipientPageSize;
+      const pageItems = items.slice(startIndex, startIndex + adminLineRecipientPageSize);
+      if (countEl) countEl.textContent = `共 ${items.length} 個，啟用 ${enabledCount} 個，第 ${adminLineRecipientPage}/${totalPages} 頁`;
       if (!items.length) {
-        wrap.innerHTML = '<p class="muted">尚未有 LINE ID。可手動新增，或請用戶添加 Bot / 發送訊息後再刷新。</p>';
+        wrap.innerHTML = '<p class="muted">尚未有 LINE ID。請手動新增 U / C / R 開頭的收件 ID。</p>';
         return;
       }
-      const rowsHtml = items.map((row) => {
+      const rowsHtml = pageItems.map((row) => {
         const id = String(row?.line_target_id || '').trim();
         const name = String(row?.display_name || '').trim();
         const source = adminLineRecipientSourceLabel(row?.source_type, row?.target_kind);
@@ -13514,6 +13522,21 @@
             <span role="columnheader">刪</span>
           </div>
           ${rowsHtml}
+        </div>
+        <div class="admin-line-recipient-pagination" aria-label="LINE 用戶 ID 分頁">
+          <button type="button" class="secondary admin-line-recipient-page-btn" onclick="setAdminLineRecipientPage(1)"${adminLineRecipientPage <= 1 ? ' disabled' : ''} aria-label="第一頁" title="第一頁">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7l-5 5 5 5"/><path d="M18 7l-5 5 5 5"/></svg>
+          </button>
+          <button type="button" class="secondary admin-line-recipient-page-btn" onclick="setAdminLineRecipientPage(${adminLineRecipientPage - 1})"${adminLineRecipientPage <= 1 ? ' disabled' : ''} aria-label="上一頁" title="上一頁">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <span class="muted">第 ${adminLineRecipientPage} / ${totalPages} 頁</span>
+          <button type="button" class="secondary admin-line-recipient-page-btn" onclick="setAdminLineRecipientPage(${adminLineRecipientPage + 1})"${adminLineRecipientPage >= totalPages ? ' disabled' : ''} aria-label="下一頁" title="下一頁">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="secondary admin-line-recipient-page-btn" onclick="setAdminLineRecipientPage(${totalPages})"${adminLineRecipientPage >= totalPages ? ' disabled' : ''} aria-label="最後一頁" title="最後一頁">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 7l5 5-5 5"/><path d="M6 7l5 5-5 5"/></svg>
+          </button>
         </div>
       `;
     }
@@ -13606,10 +13629,6 @@
       }
     }
 
-    function refreshAdminLineAutoRecipients() {
-      loadAdminLineSettings();
-    }
-
     function maskAdminLineInputs() {
       adminLineSecretInputIds().forEach((id) => {
         const el = document.getElementById(id);
@@ -13629,10 +13648,11 @@
       const secret = String(document.getElementById('admin-line-channel-secret')?.value || '').trim();
       const staff = String(document.getElementById('admin-line-staff-user-id')?.value || '').trim();
       const webhook = String(document.getElementById('admin-line-webhook-url')?.value || '').trim();
+      const savedRecipients = Number(window.__adminLineLastSnapshot?.effective_recipient_count || 0);
       const missing = [];
       if (!token) missing.push('access token');
       if (!secret) missing.push('Channel secret');
-      if (adminLineRecipientMode === 'manual' && !staff) missing.push('收件 ID');
+      if (!staff && savedRecipients <= 0) missing.push('收件 ID');
       if (!webhook) missing.push('Webhook URL');
       const whHint = webhook && webhook !== 'https://www.manuvip.com/api/line/webhook'
         ? '；Webhook 目前不是正式站地址，建議改為 https://www.manuvip.com/api/line/webhook'
@@ -13640,7 +13660,7 @@
       const head = prefix || 'LINE 設定';
       msg.textContent = missing.length
         ? `${head}：尚缺 ${missing.join('、')}。清空欄位並儲存會清除該設定。${whHint}`
-        : `${head}：必要欄位已填寫，收件模式為${adminLineRecipientMode === 'manual' ? '手動填寫' : '自動識別'}。清空欄位並儲存會清除該設定。${whHint}`;
+        : `${head}：必要欄位已填寫，收件方式為手動列表。清空欄位並儲存會清除該設定。${whHint}`;
     }
 
     async function copyAdminLineInputValue(inputId) {
@@ -13740,7 +13760,7 @@
         if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
         maskAdminLineInputs();
-        setAdminLineRecipientMode(data.recipient_mode || adminLineRecipientMode || 'manual', { persist: true });
+        setAdminLineRecipientMode('manual', { persist: false });
         renderAdminLineAutoRecipientHint(data);
         renderAdminLineRecipientList(data);
         applyAdminLineNotifyChannels(data.notify_channels || ['telegram']);
@@ -13765,8 +13785,8 @@
         clear_channel_access_token: false,
         channel_secret: String(document.getElementById('admin-line-channel-secret')?.value || '').trim(),
         clear_channel_secret: false,
-        staff_user_id: adminLineRecipientMode === 'manual' ? String(document.getElementById('admin-line-staff-user-id')?.value || '').trim() : null,
-        recipient_mode: adminLineRecipientMode,
+        staff_user_id: String(document.getElementById('admin-line-staff-user-id')?.value || '').trim(),
+        recipient_mode: 'manual',
         webhook_url: String(document.getElementById('admin-line-webhook-url')?.value || '').trim(),
         notify_channels: collectAdminLineNotifyChannels(),
       };
@@ -13787,7 +13807,7 @@
         if (staff) staff.value = String(data.staff_user_id || '');
         if (webhook) webhook.value = String(data.webhook_url || '');
         maskAdminLineInputs();
-        setAdminLineRecipientMode(data.recipient_mode || payload.recipient_mode);
+        setAdminLineRecipientMode('manual');
         renderAdminLineAutoRecipientHint(data);
         renderAdminLineRecipientList(data);
         applyAdminLineNotifyChannels(data.notify_channels || payload.notify_channels);

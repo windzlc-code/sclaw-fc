@@ -17625,11 +17625,9 @@ def _normalize_line_push_target_ids(raw: str, *, max_items: int = 20) -> list[st
 
 def _normalize_line_recipient_mode(raw: str) -> str:
     mode = str(raw or "").strip().lower()
-    if mode in {"auto", "automatic", "auto_detect", "auto-detect"}:
-        return "auto"
     if mode in {"manual", "staff", "custom"}:
         return "manual"
-    return ""
+    return "manual"
 
 
 def _line_push_target_id_kind(raw: str) -> str:
@@ -17670,16 +17668,16 @@ def _line_staff_user_ids() -> list[str]:
 
 
 def _line_recipient_mode() -> str:
-    mode = _normalize_line_recipient_mode(get_kv(KV_LINE_RECIPIENT_MODE, "") or os.getenv("LINE_RECIPIENT_MODE", ""))
-    if mode:
-        return mode
     return "manual"
 
 
 def _line_recipient_rows(limit: int = 200, *, enabled_only: bool = False) -> list[dict[str, Any]]:
     try:
         _ensure_support_channel_tables()
-        where = "WHERE enabled = 1" if enabled_only else ""
+        where_parts = ["source_type IN ('manual', 'admin')"]
+        if enabled_only:
+            where_parts.append("enabled = 1")
+        where = "WHERE " + " AND ".join(where_parts)
         with get_conn() as conn:
             rows = conn.execute(
                 f"""
@@ -17704,7 +17702,7 @@ def _line_recipient_table_has_any_rows() -> bool:
     try:
         _ensure_support_channel_tables()
         with get_conn() as conn:
-            row = conn.execute("SELECT COUNT(1) AS c FROM line_auto_recipients").fetchone()
+            row = conn.execute("SELECT COUNT(1) AS c FROM line_auto_recipients WHERE source_type IN ('manual', 'admin')").fetchone()
         return bool(row and int(row["c"] or 0) > 0)
     except Exception:
         return False
@@ -17727,6 +17725,9 @@ def _line_auto_recipient_ids() -> list[str]:
     _line_migrate_legacy_staff_ids_once()
     out: list[str] = []
     for row in _line_auto_recipient_rows():
+        source_type = str(row.get("source_type") or "").strip().lower()
+        if source_type not in {"manual", "admin"}:
+            continue
         target = _normalize_line_user_id(str(row.get("line_target_id") or ""))
         if target and _line_push_target_id_kind(target) and target not in out:
             out.append(target)
@@ -17738,14 +17739,7 @@ def _line_effective_staff_user_ids() -> list[str]:
     manual = _line_staff_user_ids()
     table_initialized = _line_recipient_table_has_any_rows() or str(get_kv(KV_LINE_RECIPIENT_LIST_MIGRATED, "") or "").strip() == "1"
     listed = _line_auto_recipient_ids()
-    if _line_recipient_mode() == "manual":
-        return listed if table_initialized else manual
-    out: list[str] = []
-    fallback = [] if table_initialized else manual
-    for target in [*listed, *fallback]:
-        if target and target not in out:
-            out.append(target)
-    return out
+    return listed if table_initialized else manual
 
 
 def _upsert_line_auto_recipient(
@@ -17910,8 +17904,6 @@ def _apply_admin_line_settings(payload: AdminLinePut) -> None:
 
     if payload.recipient_mode is not None:
         mode = _normalize_line_recipient_mode(payload.recipient_mode)
-        if not mode:
-            raise HTTPException(status_code=400, detail="LINE 收件模式必須是 auto 或 manual。")
         set_kv(KV_LINE_RECIPIENT_MODE, mode)
 
     if payload.webhook_url is not None:
@@ -19622,12 +19614,6 @@ def _process_line_event(event: dict[str, Any]) -> None:
     reply_token = str(event.get("replyToken") or "").strip()
     if not line_source_id:
         return
-    if etype in {"follow", "join", "message", "memberJoined"}:
-        _upsert_line_auto_recipient(
-            line_target_id=line_source_id,
-            source_type=source_type,
-            display_name=str(source.get("displayName") or ""),
-        )
     if etype == "follow":
         sid = _upsert_line_chat_session(line_user_id=line_source_id)
         try:
@@ -19641,7 +19627,7 @@ def _process_line_event(event: dict[str, Any]) -> None:
         return
     if etype == "join":
         try:
-            _line_reply_or_push(reply_token, line_source_id, "已加入 LINE 顧問通知收件。")
+            _line_reply_or_push(reply_token, line_source_id, "已加入 LINE Bot。若要接收顧問通知，請在後台手動新增此聊天室或群組 ID。")
         except Exception:
             pass
         return
@@ -21078,9 +21064,7 @@ def api_admin_put_line_recipient(payload: AdminLineRecipientPut, request: Reques
                 "SELECT source_type, display_name FROM line_auto_recipients WHERE line_target_id = ? LIMIT 1",
                 (target,),
             ).fetchone()
-            source_type = str(existing["source_type"] or "").strip() if existing else "admin"
-            if source_type not in {"user", "group", "room", "manual", "admin"}:
-                source_type = "admin"
+            source_type = "admin"
             next_display = display if len(targets) == 1 else (display or (str(existing["display_name"] or "") if existing else "手動新增"))
             conn.execute(
                 """
@@ -21090,10 +21074,7 @@ def api_admin_put_line_recipient(payload: AdminLineRecipientPut, request: Reques
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT(line_target_id) DO UPDATE SET
                     target_kind = excluded.target_kind,
-                    source_type = CASE
-                        WHEN line_auto_recipients.source_type IN ('user', 'group', 'room') THEN line_auto_recipients.source_type
-                        ELSE excluded.source_type
-                    END,
+                    source_type = excluded.source_type,
                     display_name = excluded.display_name,
                     enabled = excluded.enabled,
                     last_seen_at = CURRENT_TIMESTAMP
@@ -21125,7 +21106,7 @@ def _line_admin_test_response(payload: AdminLineTestPost) -> JSONResponse:
     explicit_targets = _normalize_line_push_target_ids(payload.to_user_id or "")
     target_ids = explicit_targets or _line_effective_staff_user_ids()
     if not target_ids:
-        raise HTTPException(status_code=400, detail="尚未取得 LINE 顧問收件 ID。請先讓顧問加 Bot 並傳送任意訊息，或切換手動填寫。")
+        raise HTTPException(status_code=400, detail="尚未設定 LINE 顧問收件 ID。請先讓顧問對 Bot 發送「查詢用戶ID」，再到後台手動新增。")
     invalid_targets = [target for target in target_ids if not _line_push_target_id_kind(target)]
     if invalid_targets:
         raise HTTPException(

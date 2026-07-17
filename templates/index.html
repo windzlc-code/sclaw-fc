@@ -1965,12 +1965,7 @@
           <div class="admin-notify-setup-block">
             <h5>LINE 收件資料</h5>
             <div class="admin-line-recipient-mode" aria-label="LINE 收件模式">
-              <span class="admin-line-mode-toggle" role="group" aria-label="LINE 收件模式切換">
-                <button type="button" class="admin-line-mode-pill" data-admin-line-mode="auto" onclick="setAdminLineRecipientMode('auto')">自動識別</button>
-                <button type="button" class="admin-line-mode-pill is-active" data-admin-line-mode="manual" onclick="setAdminLineRecipientMode('manual')">手動填寫</button>
-              </span>
-              <button type="button" class="secondary admin-line-refresh-recipients" onclick="refreshAdminLineAutoRecipients()">刷新已識別 ID</button>
-              <span id="admin-line-auto-recipient-hint" class="muted">顧問加 Bot 或傳送任意訊息後，會自動加入收件清單。</span>
+              <span id="admin-line-auto-recipient-hint" class="muted">只使用手動新增的 LINE ID 作為顧問通知收件人。</span>
             </div>
             <div class="admin-notify-form-grid">
             <label class="muted">LINE Channel access token
@@ -2007,7 +2002,7 @@
               </span>
             </label>
             </div>
-            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。自動識別模式會合併已互動的 U/C/R 收件 ID 與手動 ID；手動模式只使用上方手填 ID。</p>
+            <p class="muted" style="margin:0.45rem 0 0;font-size:12px;line-height:1.45;">Channel access token、Channel secret、LINE Developers 正在 Verify 的 Channel 必須是同一個；Channel ID 不能填在收件 ID。顧問可在 LINE 對 Bot 發送「查詢用戶ID」取得自己的 ID，再由後台手動新增。</p>
             <label class="muted">LINE Webhook URL
               <span class="admin-secret-input-wrap">
                 <input id="admin-line-webhook-url" type="password" autocomplete="off" placeholder="https://www.manuvip.com/api/line/webhook">
@@ -2030,6 +2025,14 @@
               <div class="admin-line-recipient-list-head">
                 <strong>LINE 用戶 ID 列表</strong>
                 <span id="admin-line-recipient-list-count" class="muted">尚未載入</span>
+                <label class="admin-line-recipient-page-setting muted">每頁
+                  <select id="admin-line-recipient-page-size" onchange="setAdminLineRecipientPageSize(this.value)">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                  </select>
+                </label>
               </div>
               <div class="admin-line-recipient-add-row">
                 <input id="admin-line-recipient-add-id" type="text" autocomplete="off" placeholder="貼上 U/C/R ID；多個可用逗號、空格或換行分隔">
