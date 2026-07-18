@@ -3555,6 +3555,10 @@
 
     function normalizeSupportChatDisplayText(s) {
       return cleanMediaNoiseText(String(s || ''))
+        // The follow-up choices are already exposed by the chat UI.  Do not
+        // repeat model-written "例如：..." answer samples inside the bubble.
+        .replace(/(?:[，、；;]\s*)?例如\s*[:：][^。！？!?\n]*/g, '')
+        .replace(/[，、；;]\s*([。！？!?])/g, '$1')
         .replace(/\r\n?/g, '\n')
         .replace(/[ \t]+\n/g, '\n')
         .replace(/\n[ \t]+/g, '\n')

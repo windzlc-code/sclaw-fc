@@ -91,21 +91,22 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertTrue(data["llm"]["light_chat_only"])
         self.assertTrue(data["llm"]["daily_chat"])
 
-    def test_purchase_follow_up_questions_include_usable_examples(self):
+    def test_purchase_follow_up_questions_are_concise_when_the_ui_already_offers_suggestions(self):
         questions = {
-            "用途（自住／收租／資產配置）": "例如：自住、收租或資產配置",
-            "總預算帶": "例如：3,000 萬日圓以內",
-            "偏好地區或車站": "例如：東京港區、東京 23 區或 JR 山手線沿線",
-            "物件類型": "例如：公寓、一戶建或不限類型",
-            "格局／房數": "例如：2LDK、3 房以上或 70㎡以上",
+            "用途（自住／收租／資產配置）": "自住、收租，還是資產配置？",
+            "總預算帶": "總預算上限嗎？",
+            "偏好地區或車站": "哪一區或哪條通勤線？",
+            "物件類型": "公寓、一戶建，還是先不限類型？",
+            "格局／房數": "幾房或多大坪數？",
         }
-        for field, example in questions.items():
+        for field, prompt in questions.items():
             with self.subTest(field=field):
                 reply = app_module._support_single_followup_question(
                     "我想買日本房",
                     missing_fields=[field],
                 )
-                self.assertIn(example, reply)
+                self.assertIn(prompt, reply)
+                self.assertNotIn("例如", reply)
 
     def test_market_price_uses_non_contact_intake_form_answers_for_the_next_question(self):
         rows = [
@@ -140,13 +141,13 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertEqual(data["knowledge"]["intake_summary"]["target_city"], "東京")
         self.assertNotIn("contact_phone", data["knowledge"]["intake_summary"])
 
-    def test_keyword_preset_follow_ups_include_usable_examples(self):
+    def test_keyword_preset_follow_ups_do_not_repeat_examples(self):
         cases = {
-            "日本買房流程怎麼開始？": ("buying_flow", "例如：自住、收租或資產配置"),
-            "日本房貸和稅費怎麼算？": ("cost_loan", "例如：總預算 3,000 萬日圓"),
-            "日本買房每年的持有成本大概怎麼算？": ("cost_loan", "例如：總預算 3,000 萬日圓"),
+            "日本買房流程怎麼開始？": ("buying_flow", "您偏自住還是收租？"),
+            "日本房貸和稅費怎麼算？": ("cost_loan", "您有預算或案件價格嗎？"),
+            "日本買房每年的持有成本大概怎麼算？": ("cost_loan", "您有預算或案件價格嗎？"),
         }
-        for message, (kind, example) in cases.items():
+        for message, (kind, prompt) in cases.items():
             with self.subTest(message=message):
                 preset = app_module._support_keyword_preset_reply(
                     message,
@@ -154,7 +155,8 @@ class SupportChatConversationTests(unittest.TestCase):
                 )
                 self.assertIsNotNone(preset)
                 self.assertEqual(preset["llm"]["keyword_preset_kind"], kind)
-                self.assertIn(example, preset["reply"])
+                self.assertIn(prompt, preset["reply"])
+                self.assertNotIn("例如", preset["reply"])
 
     def test_natural_purchase_language_and_region_typo_use_fast_discovery(self):
         with patch.object(
@@ -568,7 +570,7 @@ class SupportChatConversationTests(unittest.TestCase):
 
         self.assertIn("青森", data["reply"])
         self.assertIn("總預算", data["reply"])
-        self.assertIn("3,000 萬日圓", data["reply"])
+        self.assertNotIn("例如", data["reply"])
         self.assertIn("用途與預算", data["reply"])
         self.assertIn("需求表欄位", mocked_llm.call_args.kwargs["knowledge_text"])
         self.assertIn("總預算", mocked_llm.call_args.kwargs["scenario_coaching"])
@@ -595,7 +597,7 @@ class SupportChatConversationTests(unittest.TestCase):
 
         self.assertGreaterEqual(len([x for x in data["reply"].splitlines() if x.strip()]), 3)
         self.assertIn("用途與預算", data["reply"])
-        self.assertIn("例如：3,000 萬日圓", data["reply"])
+        self.assertNotIn("例如", data["reply"])
         self.assertTrue(data["llm"]["model_response_guarded"])
 
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):

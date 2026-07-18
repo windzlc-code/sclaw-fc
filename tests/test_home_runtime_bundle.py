@@ -106,6 +106,13 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("contact_phone", block)
         self.assertNotIn("support-human-name", block)
 
+    def test_chat_display_hides_repeated_inline_examples(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        start = runtime.index("function normalizeSupportChatDisplayText")
+        block = runtime[start:runtime.index("function isSupportChatListLine", start)]
+        self.assertIn("例如\\s*[:：]", block)
+        self.assertIn("Do not\n        // repeat model-written", block)
+
     def test_market_price_recommendations_use_model_with_database_context(self):
         app = APP.read_text(encoding="utf-8")
         route_start = app.index("def api_ai_chat_support(payload: ChatSupportRequest):")

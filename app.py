@@ -20398,30 +20398,30 @@ def _support_single_followup_question(
     text = str(message or "")
     first_missing = _support_first_missing_field(missing_fields)
     if first_missing in ("用途", "購買目的"):
-        return "請問您這次主要是自住、收租，還是資產配置？例如：自住、收租或資產配置。"
+        return "請問您這次主要是自住、收租，還是資產配置？"
     if first_missing in ("預算",):
-        return "您方便先給一個總預算上限嗎？例如：3,000 萬日圓以內，或 2,000～3,000 萬日圓。"
+        return "您方便先給一個總預算上限嗎？"
     if first_missing in ("地區", "車站"):
-        return "您比較想看哪一區或哪條通勤線？例如：東京港區、東京 23 區或 JR 山手線沿線。"
+        return "您比較想看哪一區或哪條通勤線？"
     if first_missing in ("類型",):
-        return "您偏好公寓、一戶建，還是先不限類型？例如：公寓、一戶建或不限類型。"
+        return "您偏好公寓、一戶建，還是先不限類型？"
     if first_missing in ("格局",):
-        return "您最低可接受幾房或多大坪數？例如：2LDK、3 房以上或 70㎡以上。"
+        return "您最低可接受幾房或多大坪數？"
     if first_missing in ("貸款",):
-        return "您預計用現金購買，還是希望評估日本房貸？例如：全額現金，或需要評估日本房貸。"
+        return "您預計用現金購買，還是希望評估日本房貸？"
     if re.search(r"(稅|税|費用|费用|成本|管理費|管理费|修繕|修缮|固都稅|固定資產)", text, re.I):
-        return "您想先估算購買時的一次性成本，還是每年的持有成本？例如：簽約與過戶稅費，或管理費與固定資產稅。"
+        return "您想先估算購買時的一次性成本，還是每年的持有成本？"
     if re.search(r"(流程|採購|采购|如何購買|如何购买|怎么买|怎麼買|簽約|签约)", text, re.I):
-        return "您目前是已看好物件，還是先了解完整購買流程？例如：已有案件想確認，或先了解日本買房步驟。"
+        return "您目前是已看好物件，還是先了解完整購買流程？"
     if re.search(r"(貸款|贷款|房貸|房贷|銀行|银行|融資|融资)", text, re.I):
-        return "您預計用現金購買，還是希望評估日本房貸？例如：全額現金，或需要評估日本房貸。"
+        return "您預計用現金購買，還是希望評估日本房貸？"
     if re.search(r"(外國人|外国人|海外|非日本|永住|居留)", text, re.I):
-        return "您是想自住，還是投資收租？例如：自住、長期收租或資產配置。"
+        return "您是想自住，還是投資收租？"
     if re.search(r"(租金|投報|回報|報酬|收益|投資)", text, re.I):
-        return "您比較在意租金收益，還是日後轉售流通性？例如：每月租金收益，或 5 年後轉售彈性。"
+        return "您比較在意租金收益，還是日後轉售流通性？"
     if intent_ref >= 42:
-        return "我下一步先幫您看用途，還是先抓預算？例如：回覆「自住」或「預算 3,000 萬日圓」。"
-    return "您想先了解稅金、購買流程，還是貸款條件？例如：購買稅費、日本買房步驟或日本房貸。"
+        return "我下一步先幫您看用途，還是先抓預算？"
+    return "您想先了解稅金、購買流程，還是貸款條件？"
 
 
 def _support_concise_answer_body(text: str, *, max_lines: int = 3, max_chars: int = 320) -> str:
@@ -32119,7 +32119,7 @@ def _support_keyword_preset_reply(
         ]
         reply = (
             "日本買房通常先確認用途和預算，再看地區、稅費與貸款。"
-            "您偏自住還是收租？例如：自住、收租或資產配置。"
+            "您偏自住還是收租？"
         )
         return _payload("buying_flow", reply, sales_mcp, intent_score=28)
 
@@ -32136,7 +32136,7 @@ def _support_keyword_preset_reply(
         ]
         reply = (
             "成本主要看稅費、登記費、管理費和修繕金。"
-            "您有預算或案件價格嗎？例如：總預算 3,000 萬日圓，或案件總價 2,500 萬日圓。"
+            "您有預算或案件價格嗎？"
         )
         return _payload("cost_loan", reply, sales_mcp, intent_score=34)
 
@@ -32501,7 +32501,7 @@ def _support_purchase_discovery_prompt_block(
         f"{selected_note}\n"
         "本輪禁止輸出案件列表、來源 URL、知識庫清單；請明確說明「先不急著丟案件」。\n"
         f"優先補問缺少欄位：{missing_note}。\n"
-        "回覆方式：繁體中文、自然私訊口吻；先承接意願，再只問 1 個最重要問題，並在問題後附 2 至 3 個可直接照填的簡短例子，等客戶回答後下一輪再問下一題。\n"
+        "回覆方式：繁體中文、自然私訊口吻；先承接意願，再只問 1 個最重要問題，等客戶回答後下一輪再問下一題。\n"
         "若客戶想找人工顧問，可引導輸入「人工」或留下 LINE／電話／WeChat，並說明會把需求整理成留單。"
     ).strip()
 
@@ -34276,7 +34276,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 fallback_reply=str(preset.get("reply") or ""),
                 scenario_coaching=(
                     "請以自然、簡短的繁體中文回覆買房相關問題，不要照抄固定話術。"
-                    "只能依提供的站內／服務資訊說明；若條件不足，最後只問一個具體問題並附 2 至 3 個可回答的例子。"
+                    "只能依提供的站內／服務資訊說明；若條件不足，最後只問一個具體問題。"
                 ),
                 managed_case_count=len(selected_cases_input) if preset_kind == "selected_case_consult_fast_track" else 0,
                 sales_stage_key="discover",
@@ -34343,7 +34343,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             scenario_coaching=(
                 "\n\n".join(part for part in (purchase_context_text, intake_summary_context) if part)
                 + "\n本輪只做需求盤點：不要輸出案件列表或來源連結；只問一個缺少條件，"
-                "並附 2 至 3 個可直接回答的例子。"
+                "不要在正文重複列出示例。"
             ),
             managed_case_count=0,
             sales_stage_key="discover",
@@ -34728,7 +34728,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         reply_sentence_count = len(
             [part for part in re.split(r"(?<=[。！？!?])\s*|\n+", str(reply or "")) if str(part or "").strip()]
         )
-        needs_intake_structure = reply_sentence_count < 3 or not re.search(r"例如[:：]", str(reply or ""))
+        needs_intake_structure = reply_sentence_count < 3
         if bool(market_llm.get("purchase_model_reply")) and (
             not target_region
             or target_region not in reply
@@ -35127,7 +35127,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             scenario_coaching=(
                 purchase_context_text
                 + "\n本輪只能做一問一答需求盤點：不要推薦案件、不要輸出列表或連結；"
-                "最後只問一個缺少條件並附例子。"
+                "最後只問一個缺少條件，不要在正文附例子。"
             ),
             managed_case_count=0,
             sales_stage_key="discover",
