@@ -150,6 +150,33 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertNotIn({"from": "大概", "to": "大阪"}, corrections)
         self.assertTrue(app_module._support_message_is_guidance_question(normalized))
 
+    def test_chat_uses_next_configured_provider_after_primary_timeout(self):
+        def credentials(provider):
+            return ("https://llm.example.test", "test-key", f"{provider}-model")
+
+        with patch.object(app_module, "resolve_llm_provider", return_value="deepseek"), patch.object(
+            app_module, "is_llm_configured", side_effect=lambda provider=None: str(provider or "deepseek") in {"deepseek", "gemini"}
+        ), patch.object(app_module, "get_chat_credentials", side_effect=credentials), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            side_effect=[app_module.httpx.ReadTimeout("primary timed out"), "Gemini 已依您的問題整理重點。"],
+        ) as mocked_llm:
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="日本房產未來三年的市場趨勢怎麼看？",
+                    use_knowledge=False,
+                    sales_session_id="sess-test-provider-fallback",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertEqual(mocked_llm.call_count, 2)
+        self.assertEqual(mocked_llm.call_args_list[0].kwargs["provider"], "deepseek")
+        self.assertEqual(mocked_llm.call_args_list[1].kwargs["provider"], "gemini")
+        self.assertTrue(data["llm"]["provider_retry_succeeded"])
+        self.assertIn("Gemini", data["reply"])
+
     def test_normalized_region_does_not_repeat_the_region_question(self):
         history = [
             {"role": "user", "content": "我想買日本房"},

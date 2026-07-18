@@ -31396,6 +31396,7 @@ def _build_support_selected_cases_ai_compare_reply(
     selected_cases: list[dict[str, Any]],
     provider: str,
     model: str,
+    timeout_sec: float = 14.0,
 ) -> str:
     cases_text = _format_interest_cases_for_prompt(selected_cases, max_chars=5200, max_items=8)
     system = (
@@ -31419,7 +31420,7 @@ def _build_support_selected_cases_ai_compare_reply(
         model=model,
         provider=provider,
         temperature=0.32,
-        timeout_sec=34.0,
+        timeout_sec=max(4.0, min(18.0, float(timeout_sec))),
         max_tokens=1600,
     )
     cleaned = re.sub(r"(?m)^\s*\*\s+", "- ", reply)
@@ -32386,13 +32387,6 @@ def _support_message_is_guidance_question(text: str) -> bool:
         return False
     direct_commitment_terms = ("確定要買", "确定要买", "準備買", "准备买", "安排看屋", "安排看房", "預約看屋", "预约看房")
     return not any(term in compact for term in direct_commitment_terms)
-
-
-def _support_llm_request_timed_out(exc: BaseException) -> bool:
-    """Do not spend the browser's whole response budget on a second LLM call."""
-    if isinstance(exc, httpx.TimeoutException):
-        return True
-    return "timeout" in str(exc or "").lower() or "逾時" in str(exc or "")
 
 
 def _support_purchase_discovery_missing_fields(dimensions: dict[str, bool]) -> list[str]:
@@ -34298,11 +34292,11 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
         knowledge_meta["property_listing_intent"] = True
         knowledge_meta["managed_case_count"] = len(selected_cases)
-        # Visitor chat must not inherit an admin screen's provider/model
-        # override.  Such a stale browser value can pair a DeepSeek model ID
-        # with the Gemini endpoint and make a normal comparison appear stuck.
+        # Use the server's configured provider priority.  Browser-side admin
+        # controls are intentionally ignored so stale values cannot override
+        # the configured production order or model IDs.
         requested_provider = ""
-        rp = "gemini" if is_llm_configured("gemini") else resolve_llm_provider(None)
+        rp = resolve_llm_provider(None)
         provider_fallback_from = ""
         if not requested_provider and not is_llm_configured(rp):
             for cand in ("gemini", "deepseek"):
@@ -34330,6 +34324,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     selected_cases=selected_cases,
                     provider=rp,
                     model=use_model,
+                    timeout_sec=14.0,
                 )
                 llm_meta["selected_cases_compare_ai_reply"] = True
             except Exception as exc:
@@ -34350,6 +34345,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                             selected_cases=selected_cases,
                             provider=fallback_provider,
                             model=fallback_model,
+                            timeout_sec=12.0,
                         )
                         llm_meta["enabled"] = True
                         llm_meta["provider_retry_succeeded"] = True
@@ -34669,11 +34665,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         },
     }
     crm_addon = support_crm_system_addon_for_llm()
-    # The public chat endpoint deliberately uses server-owned credentials and
-    # model IDs.  The page also hosts admin/SEO controls, whose stale values
-    # must never change a live visitor conversation.
+    # Public chat uses server-owned model IDs and follows the configured
+    # backend priority. Browser-side admin values must not override either.
     requested_provider = ""
-    rp = "gemini" if is_llm_configured("gemini") else resolve_llm_provider(None)
+    rp = resolve_llm_provider(None)
     provider_fallback_from = ""
     if not is_llm_configured(rp):
         for cand in ("gemini", "deepseek"):
@@ -34687,7 +34682,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     # Keep the server-side AI work inside the 35s browser deadline.  AI still
     # handles open-ended language; database-backed answers remain grounded in
     # the managed listings and do not wait for a model.
-    llm_reply_timeout_sec = 12.0 if llm_fast else 18.0
+    llm_reply_timeout_sec = 11.0 if llm_fast else 14.0
     llm_meta = {
         "provider": rp,
         "enabled": bool(is_llm_configured(rp)),
@@ -34768,14 +34763,13 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             )
         except Exception as exc:
             fallback_provider = ""
-            # An upstream timeout is not retried synchronously: the old
-            # 55s + provider retry path could outlive the browser's 35s abort
-            # and made a normal question look like the site had frozen.
-            if not _support_llm_request_timed_out(exc):
-                for cand in ("gemini", "deepseek"):
-                    if cand != rp and is_llm_configured(cand):
-                        fallback_provider = cand
-                        break
+            # Try the next configured provider even after a timeout.  Each
+            # attempt has its own bounded slice, so the complete fallback
+            # chain remains inside the browser response budget.
+            for cand in ("gemini", "deepseek"):
+                if cand != rp and is_llm_configured(cand):
+                    fallback_provider = cand
+                    break
             if not fallback_provider:
                 llm_meta["enabled"] = False
                 llm_meta["error"] = f"{type(exc).__name__}: {exc}"
@@ -34814,7 +34808,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                         featured_case_count=len(featured_recommendations),
                         qa_match_label=str((matched_qa or {}).get("label") or "").strip(),
                         selected_case_compare_intent=selected_compare_request,
-                        timeout_sec=8.0,
+                        timeout_sec=12.0,
                     )
                     llm_meta["enabled"] = True
                     llm_meta["provider_retry_succeeded"] = True
