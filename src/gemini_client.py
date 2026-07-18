@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from typing import Any
 
 import httpx
@@ -111,6 +112,7 @@ def chat_completion(
     model: str | None = None,
     temperature: float = 0.65,
     timeout_sec: float = 120.0,
+    total_timeout_sec: float | None = None,
     provider: str | None = None,
     max_tokens: int | None = None,
 ) -> str:
@@ -133,31 +135,86 @@ def chat_completion(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    tmo = httpx.Timeout(timeout_sec, connect=min(12.0, float(timeout_sec)))
-    with httpx.Client(timeout=tmo) as client:
-        r = client.post(url, headers=headers, json=payload)
-        if r.status_code >= 400:
-            body = (r.text or "").strip().replace("\r\n", " ").replace("\n", " ")
-            if len(body) > 1500:
-                body = body[:1500] + "…"
-            hint = ""
-            if r.status_code >= 500:
-                hint = (
-                    "［上游 5xx：多為代理 new-api/one-api 內部錯誤，請檢查該機服務日誌、"
-                    "模型是否在後台可用、API Key／額度、或改換後台填寫的模型 ID。］"
-                )
-            elif r.status_code == 401:
-                hint = "［401：請確認 API Key 與代理後台一致。］"
-            elif r.status_code == 404:
-                hint = "［404：路徑或代理路由錯誤，確認 Base URL 含正確埠且可連到 /v1/chat/completions。］"
-            raise RuntimeError(f"HTTP {r.status_code} {hint} {body or '(empty response body)'}")
-        try:
-            data = r.json()
-        except json.JSONDecodeError as je:
-            snippet = (r.text or "")[:800].strip().replace("\r\n", " ").replace("\n", " ")
-            raise RuntimeError(
-                f"LLM 回應不是合法 JSON（HTTP {r.status_code}）。片段：{snippet or '(empty)'}"
-            ) from je
+    request_timeout = max(0.1, float(timeout_sec))
+    hard_timeout = float(total_timeout_sec) if total_timeout_sec is not None else None
+    if hard_timeout is not None:
+        hard_timeout = max(0.1, hard_timeout)
+    tmo = httpx.Timeout(request_timeout, connect=min(12.0, request_timeout))
+
+    # ``httpx.Timeout`` limits individual connect/read/write operations, not
+    # the total wall-clock request.  Some OpenAI-compatible proxies keep a
+    # response active by periodically flushing bytes, which used to let a
+    # nominal 11-second visitor-chat request run past the browser's 35-second
+    # AbortController.  The optional timer is an absolute deadline: it closes
+    # an in-flight response as soon as the budget is exhausted.
+    expired = threading.Event()
+    response_holder: dict[str, httpx.Response] = {}
+    deadline_timer: threading.Timer | None = None
+    if hard_timeout is not None:
+        def _expire_request() -> None:
+            expired.set()
+            response = response_holder.get("response")
+            if response is not None:
+                try:
+                    response.close()
+                except Exception:
+                    pass
+
+        deadline_timer = threading.Timer(hard_timeout, _expire_request)
+        deadline_timer.daemon = True
+        deadline_timer.start()
+
+    try:
+        with httpx.Client(timeout=tmo) as client:
+            if hard_timeout is None:
+                r = client.post(url, headers=headers, json=payload)
+                body_text = r.text or ""
+            else:
+                try:
+                    with client.stream("POST", url, headers=headers, json=payload) as r:
+                        response_holder["response"] = r
+                        if expired.is_set():
+                            raise httpx.ReadTimeout("LLM total response deadline exceeded")
+                        chunks: list[bytes] = []
+                        for chunk in r.iter_bytes():
+                            if expired.is_set():
+                                raise httpx.ReadTimeout("LLM total response deadline exceeded")
+                            chunks.append(chunk)
+                        if expired.is_set():
+                            raise httpx.ReadTimeout("LLM total response deadline exceeded")
+                        body_text = b"".join(chunks).decode(r.encoding or "utf-8", errors="replace")
+                except httpx.HTTPError as exc:
+                    if expired.is_set():
+                        raise httpx.ReadTimeout(
+                            f"LLM total response deadline exceeded ({hard_timeout:.1f}s)"
+                        ) from exc
+                    raise
+
+            if r.status_code >= 400:
+                body = body_text.strip().replace("\r\n", " ").replace("\n", " ")
+                if len(body) > 1500:
+                    body = body[:1500] + "…"
+                hint = ""
+                if r.status_code >= 500:
+                    hint = (
+                        "［上游 5xx：多為代理 new-api/one-api 內部錯誤，請檢查該機服務日誌、"
+                        "模型是否在後台可用、API Key／額度、或改換後台填寫的模型 ID。］"
+                    )
+                elif r.status_code == 401:
+                    hint = "［401：請確認 API Key 與代理後台一致。］"
+                elif r.status_code == 404:
+                    hint = "［404：路徑或代理路由錯誤，確認 Base URL 含正確埠且可連到 /v1/chat/completions。］"
+                raise RuntimeError(f"HTTP {r.status_code} {hint} {body or '(empty response body)'}")
+            try:
+                data = json.loads(body_text)
+            except json.JSONDecodeError as je:
+                snippet = body_text[:800].strip().replace("\r\n", " ").replace("\n", " ")
+                raise RuntimeError(
+                    f"LLM 回應不是合法 JSON（HTTP {r.status_code}）。片段：{snippet or '(empty)'}"
+                ) from je
+    finally:
+        if deadline_timer is not None:
+            deadline_timer.cancel()
     choices = data.get("choices") or []
     if not choices:
         raise RuntimeError("LLM response missing choices.")
@@ -1032,7 +1089,10 @@ def chat_support_reply_gemini(
     )
     kb_trim = (knowledge_text or "").strip()
     fast = bool(fast_mode)
-    kb_cap = 900 if fast and not kb_trim else 6800
+    # Visitor fast turns need the model to answer before the browser request
+    # budget expires.  Preserve the highest-value facts, but do not send the
+    # full long-form knowledge bundle for a one-question chat turn.
+    kb_cap = 2600 if fast else 6800
     fast_hint = (
         "\n（本次為快速對話模式：未附加站內摘錄；請用自然私訊語氣接話。"
         "即使使用者閒聊，也要溫和引導到日本不動產查詢、買房/租房條件、案件比較或人工顧問接手；"
@@ -1044,6 +1104,7 @@ def chat_support_reply_gemini(
     if kv not in ("hans", "hant", "both"):
         kv = "hans"
     crm_trim = (crm_system_addon or "").strip()
+    crm_cap = 4200 if fast else 15000
     crm_lang_override = ""
     if crm_trim and (
         "繁體" in crm_trim
@@ -1153,7 +1214,7 @@ def chat_support_reply_gemini(
     if crm_trim:
         crm_block = (
             "\n\n【CRM／後台訓練用系統提示（於後台「智能客服 CRM」編輯；約束角色、語言、問候／專業分流、禁句、邊界）】\n"
-            f"{crm_trim[:15000]}\n"
+            f"{crm_trim[:crm_cap]}\n"
         )
     site_intro = (
         f"你是「{SITE_NAME}」線上智能客服，具日本不動產（東京／關東圈公寓、通勤、車站徒步物業）實務顧問語氣；"
@@ -1194,6 +1255,7 @@ def chat_support_reply_gemini(
         model=model,
         temperature=0.28 if fast else 0.36,
         timeout_sec=response_timeout,
+        total_timeout_sec=response_timeout,
         provider=provider,
         max_tokens=output_max_tokens,
     )

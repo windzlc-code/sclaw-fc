@@ -34104,10 +34104,12 @@ def _support_model_first_purchase_reply(
     primary = resolve_llm_provider(None)
     candidates = [primary, *[provider for provider in ("gemini", "deepseek") if provider != primary]]
     failures: list[str] = []
+    attempts_meta: list[dict[str, Any]] = []
     for attempt, provider in enumerate(candidates):
         if not is_llm_configured(provider):
             continue
         _, _, model = get_chat_credentials(provider)
+        attempt_started = time.monotonic()
         try:
             reply = chat_support_reply_gemini(
                 user_message=message,
@@ -34131,8 +34133,17 @@ def _support_model_first_purchase_reply(
                 featured_case_count=0,
                 qa_match_label="",
                 selected_case_compare_intent=False,
-                timeout_sec=11.0 if attempt == 0 else 12.0,
+                # Leave room for the optional configured fallback and the
+                # database-safe answer before the browser's 35-second limit.
+                timeout_sec=9.0 if attempt == 0 else 10.0,
                 max_tokens=220,
+            )
+            attempts_meta.append(
+                {
+                    "provider": provider,
+                    "elapsed_ms": int((time.monotonic() - attempt_started) * 1000),
+                    "outcome": "success",
+                }
             )
             reply = _support_compact_purchase_reply(str(reply or ""), max_chars=240)
             if not reply:
@@ -34144,12 +34155,21 @@ def _support_model_first_purchase_reply(
                 "fast_mode": True,
                 "knowledge_skipped": True,
                 "purchase_model_reply": True,
+                "attempts": attempts_meta,
             }
             if attempt:
                 meta["provider_retry_from"] = primary
                 meta["provider_retry_succeeded"] = True
             return reply, meta
         except Exception as exc:
+            attempts_meta.append(
+                {
+                    "provider": provider,
+                    "elapsed_ms": int((time.monotonic() - attempt_started) * 1000),
+                    "outcome": "failed",
+                    "error_type": type(exc).__name__,
+                }
+            )
             failures.append(f"{provider}: {type(exc).__name__}: {exc}"[:900])
 
     return sanitize_support_chat_visible_reply(fallback_reply), {
@@ -34160,6 +34180,7 @@ def _support_model_first_purchase_reply(
         "knowledge_skipped": True,
         "purchase_model_reply": False,
         "all_providers_failed": True,
+        "attempts": attempts_meta,
         "error": " | ".join(failures)[:1800] or "no configured model provider",
     }
 
