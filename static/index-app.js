@@ -10419,6 +10419,34 @@
         .filter(Boolean);
     }
 
+    function supportChatIntakeSummaryFromActiveForm() {
+      const forms = Array.from(document.querySelectorAll('[data-support-human-form]'));
+      const formRoot = forms[forms.length - 1];
+      const seq = Number(formRoot?.getAttribute('data-support-human-form') || 0);
+      if (!Number.isFinite(seq) || seq <= 0) return {};
+      const value = (key, maxLen = 180) => String(document.getElementById(`support-human-${key}-${seq}`)?.value || '')
+        .replace(/\s+/g, ' ').trim().slice(0, maxLen);
+      // Do not include customer names, phone numbers, email/social IDs, or the
+      // free-form note in the AI request.  These fields only let chat continue
+      // the same requirements questionnaire the customer is already filling.
+      const summary = {
+        purchase_purpose: supportHumanGroupValues(seq, 'purpose').join('、'),
+        budget_total_yen: value('budget-total-yen', 80),
+        down_payment_yen: value('down-payment-yen', 80),
+        loan_need: value('loan-need', 80),
+        purchase_time: value('purchase-time', 80),
+        property_type: supportHumanGroupValues(seq, 'property-type').join('、'),
+        target_city: value('target-city'),
+        target_region: value('target-region'),
+        target_line_station: value('target-line-station'),
+        station_walk_minutes: value('station-walk-minutes', 80),
+        interest_status: supportHumanGroupValues(seq, 'interest-status').join('、'),
+        residence_status: value('residence-status'),
+        short_stay_usage: value('short-stay-usage'),
+      };
+      return Object.fromEntries(Object.entries(summary).filter(([, val]) => String(val || '').trim()));
+    }
+
     function buildSupportHumanIntakePayloadFromForm(seq) {
       const n = Number(seq || 0);
       if (!Number.isFinite(n) || n <= 0) {
@@ -10886,6 +10914,7 @@
       const figReg = (document.getElementById('figure_region')?.value || '').trim();
       const dlgKw = (document.getElementById('dialog_keyword')?.value || '').trim();
       const cond = getCurrentFigureSmartConditionLabels();
+      const intakeSummary = supportChatIntakeSummaryFromActiveForm();
       let appendedHumanForm = false;
       const supportRequestController = new AbortController();
       const supportRequestTimeout = window.setTimeout(() => supportRequestController.abort(), SUPPORT_CHAT_REQUEST_TIMEOUT_MS);
@@ -10911,6 +10940,7 @@
             figure_layout: cond.layoutLabel,
             figure_property_types: cond.types,
             dialog_keyword: dlgKw,
+            intake_summary: intakeSummary,
             persona_region,
             gemini_model: geminiModel,
             ...llmProviderPayload,

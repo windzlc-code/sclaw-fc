@@ -96,6 +96,16 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("最多 3 個短句", client)
         self.assertIn("需求表篩選說明", client)
 
+    def test_chat_sends_only_non_contact_intake_summary(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        start = runtime.index("function supportChatIntakeSummaryFromActiveForm")
+        block = runtime[start:runtime.index("function buildSupportHumanIntakePayloadFromForm", start)]
+        self.assertIn("intake_summary: intakeSummary", runtime)
+        self.assertIn("purchase_purpose", block)
+        self.assertIn("target_city", block)
+        self.assertNotIn("contact_phone", block)
+        self.assertNotIn("support-human-name", block)
+
     def test_market_price_recommendations_use_model_with_database_context(self):
         app = APP.read_text(encoding="utf-8")
         route_start = app.index("def api_ai_chat_support(payload: ChatSupportRequest):")

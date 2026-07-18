@@ -8599,6 +8599,10 @@ class ChatSupportRequest(BaseModel):
     figure_layout: str = ""
     figure_property_types: list[str] = Field(default_factory=list)
     dialog_keyword: str = ""
+    # Only non-contact purchase requirements from an in-progress intake form.
+    # Names, phone numbers, social IDs and free-form notes are deliberately
+    # excluded so chat can use the form context without receiving PII.
+    intake_summary: dict[str, str] = Field(default_factory=dict)
     image_data_url: str = ""
     image_name: str = ""
     image_type: str = ""
@@ -20139,6 +20143,46 @@ def _support_purchase_discovery_context(
     return "\n".join(answers)[-5000:].strip()
 
 
+_SUPPORT_INTAKE_SUMMARY_FIELDS: tuple[tuple[str, str], ...] = (
+    ("purchase_purpose", "購買用途"),
+    ("budget_total_yen", "總預算"),
+    ("down_payment_yen", "自備資金"),
+    ("loan_need", "日本房貸需求"),
+    ("purchase_time", "預計購屋時間"),
+    ("property_type", "物件類型"),
+    ("target_city", "希望城市"),
+    ("target_region", "希望區域"),
+    ("target_line_station", "沿線或車站"),
+    ("station_walk_minutes", "步行距離"),
+    ("interest_status", "屬意物件或區域"),
+    ("residence_status", "在留資格狀態"),
+    ("short_stay_usage", "短期滯在使用規劃"),
+)
+
+
+def _support_sanitize_intake_summary(raw: object) -> dict[str, str]:
+    """Keep only bounded, non-contact intake fields that can guide a chat turn."""
+    if not isinstance(raw, dict):
+        return {}
+    safe: dict[str, str] = {}
+    for key, _label in _SUPPORT_INTAKE_SUMMARY_FIELDS:
+        value = re.sub(r"\s+", " ", str(raw.get(key) or "")).strip()
+        if value:
+            safe[key] = value[:180]
+    return safe
+
+
+def _support_intake_summary_prompt_block(summary: dict[str, str] | None = None) -> str:
+    rows = []
+    for key, label in _SUPPORT_INTAKE_SUMMARY_FIELDS:
+        value = str((summary or {}).get(key) or "").strip()
+        if value:
+            rows.append(f"- {label}：{value}")
+    if not rows:
+        return ""
+    return "【使用者正在填寫的需求表（非聯絡資料）】\n" + "\n".join(rows)
+
+
 def _build_support_welcome_text() -> str:
     return "您好，歡迎來到日本不動產線上客服。我在這邊協助您整理日本房產相關問題，您可以先把想了解的情況簡單說給我。"
 
@@ -20336,7 +20380,7 @@ def _support_first_missing_field(missing_fields: list[str] | None = None) -> str
     fields = [str(x or "").strip() for x in (missing_fields or []) if str(x or "").strip()]
     if not fields:
         return ""
-    preferred = ("用途", "預算", "地區", "車站", "類型", "格局", "貸款", "購買時間")
+    preferred = ("用途", "購買目的", "預算", "地區", "車站", "類型", "格局", "貸款", "購買時間")
     for key in preferred:
         for field in fields:
             if key in field:
@@ -20353,7 +20397,7 @@ def _support_single_followup_question(
     """智能客服採一問一答：依當下問題只補一個最有價值的追問。"""
     text = str(message or "")
     first_missing = _support_first_missing_field(missing_fields)
-    if first_missing in ("用途",):
+    if first_missing in ("用途", "購買目的"):
         return "請問您這次主要是自住、收租，還是資產配置？例如：自住、收租或資產配置。"
     if first_missing in ("預算",):
         return "您方便先給一個總預算上限嗎？例如：3,000 萬日圓以內，或 2,000～3,000 萬日圓。"
@@ -34130,6 +34174,11 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     support_turn_index = _support_user_turn_count(payload.history, msg)
     raw_purchase_context = _support_purchase_discovery_context(payload.history, msg)
     purchase_context, purchase_input_corrections = _support_normalize_purchase_context(raw_purchase_context)
+    intake_summary = _support_sanitize_intake_summary(payload.intake_summary)
+    intake_summary_context = _support_intake_summary_prompt_block(intake_summary)
+    purchase_requirement_context = "\n".join(
+        part for part in (purchase_context, intake_summary_context) if part
+    ).strip()
     selected_cases_input = _sanitize_support_selected_cases(payload.selected_cases, max_items=20)
     if selected_cases_input:
         enriched_selected_cases = _enrich_support_selected_cases(selected_cases_input, max_items=20)
@@ -34247,7 +34296,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             }
         )
     purchase_quick_dimensions = _support_purchase_discovery_dimensions(
-        purchase_context,
+        purchase_requirement_context,
         figure_region=(payload.figure_region or "").strip(),
         figure_keyword=(payload.figure_keyword or "").strip(),
         figure_price=(payload.figure_price or "").strip(),
@@ -34281,10 +34330,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             message=msg,
             history=list(payload.history or []),
             persona_region=str(payload.persona_region or "tw"),
-            knowledge_text=purchase_context_text,
+            knowledge_text="\n\n".join(part for part in (purchase_context_text, intake_summary_context) if part),
             fallback_reply=fallback_reply,
             scenario_coaching=(
-                purchase_context_text
+                "\n\n".join(part for part in (purchase_context_text, intake_summary_context) if part)
                 + "\n本輪只做需求盤點：不要輸出案件列表或來源連結；只問一個缺少條件，"
                 "並附 2 至 3 個可直接回答的例子。"
             ),
@@ -34321,6 +34370,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "skip_reason": "purchase_quick_requirements",
             },
             "input_corrections": purchase_input_corrections,
+            "intake_summary": intake_summary,
             "client_search": {
                 "figure_keyword": (payload.figure_keyword or "").strip(),
                 "figure_region": (payload.figure_region or "").strip(),
@@ -34549,6 +34599,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         knowledge_meta.update(
             {
                 "property_listing_intent": True,
+                "intake_summary": intake_summary,
                 "market_data": {
                     "source": "managed_case_database",
                     "metric": "listing_total_price_median_man_jpy",
@@ -34580,8 +34631,11 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         intake_known = [label for key, label in intake_field_order if purchase_quick_dimensions.get(key)]
         intake_missing = [label for key, label in intake_field_order if not purchase_quick_dimensions.get(key)]
         intake_next_question = _support_single_followup_question(
-            purchase_context,
-            missing_fields=purchase_quick_missing,
+            purchase_requirement_context,
+            # The formal form treats station as optional for a final match, but
+            # it is still the most useful next conversational refinement once
+            # city/area is known.  Keep its form order for this guided turn.
+            missing_fields=intake_missing,
             intent_ref=60,
         )
         market_price_ai_context = "\n".join(
@@ -34590,6 +34644,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 *region_lines,
                 "不得把這些樣本推論為全市場成交價，也不得虛構未列出的案件、地區、價格或報酬。",
                 "【需求表欄位導引】欄位順序：購買目的→總預算→城市／區域→沿線／車站→物件類型→格局／房數。",
+                intake_summary_context,
                 f"從本輪對話與首頁篩選已辨識：{'、'.join(intake_known) or '尚未填寫'}。",
                 f"本輪最適合確認：{(intake_missing or ['下一步條件'])[0]}。請在結尾使用此問題：{intake_next_question}",
                 "使用者目前只在問哪裡較便宜：只講上列一個地區與一個中位數；可用第二句說明仍須依需求表篩選，"
@@ -34670,16 +34725,16 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     dlgk = (payload.dialog_keyword or "").strip()
     kq_blend = " ".join(dict.fromkeys([p for p in (fr, fk, dlgk, kq) if p]))[:600].strip() or kq
     purchase_dimensions = _support_purchase_discovery_dimensions(
-        purchase_context,
+        purchase_requirement_context,
         figure_region=fr,
         figure_keyword=fk,
         dialog_keyword=dlgk,
     )
     purchase_missing_fields = _support_purchase_discovery_missing_fields(purchase_dimensions)
     purchase_discovery_mode = _support_should_enter_purchase_discovery(
-        purchase_context,
+        purchase_requirement_context,
         selected_cases,
-        raw_user_message=purchase_context,
+        raw_user_message=purchase_requirement_context,
         figure_region=fr,
         figure_keyword=fk,
         dialog_keyword=dlgk,
@@ -34706,15 +34761,15 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     featured_text = ""
     featured_recommendations: list[dict] = []
     if purchase_ready_for_database or _support_should_lookup_managed_cases(
-        purchase_context,
+        purchase_requirement_context,
         case_request=conversation_case_request or case_request_sig,
         purchase_discovery_mode=purchase_discovery_mode,
     ):
         managed_rows = _support_lookup_managed_case_rows(
-            message=purchase_context,
+            message=purchase_requirement_context,
             region_hint=fr,
             keyword_hint=dlgk or fk,
-            tx_hint=tx_hint or transaction_hint_from_message(purchase_context) or "buy",
+            tx_hint=tx_hint or transaction_hint_from_message(purchase_requirement_context) or "buy",
             limit=6,
             allow_slow_fallback=not purchase_ready_for_database,
         )
@@ -34742,6 +34797,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "dialog_keyword": dlgk,
                     "query_blend": kq_blend,
                 },
+                "intake_summary": intake_summary,
             }
         )
         fallback_reply = _build_support_managed_cases_fast_reply(msg, managed_rows)
@@ -34751,6 +34807,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 managed_text or "目前命中的站內案件資料不足。",
                 "只可介紹上列案件與欄位；不得補造案件、價格、交通、可售狀態或外部來源。"
                 "先直接回覆使用者，再在最後只問一個可幫助縮小需求的問題。",
+                intake_summary_context,
             ]
         )
         reply, managed_llm = _support_model_first_purchase_reply(
@@ -34798,6 +34855,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "dialog_keyword": dlgk,
                     "query_blend": kq_blend,
                 },
+                "intake_summary": intake_summary,
             }
         )
         fallback_reply = _build_support_no_matching_managed_case_reply()
@@ -34806,6 +34864,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "【站內案件查詢結果】",
                 "依目前使用者已提供的條件，站內沒有可同時核對且符合的在售案件。",
                 "不可用相近案件湊數，也不可虛構案件或說明已有媒合結果。",
+                intake_summary_context,
             ]
         )
         reply, no_match_llm = _support_model_first_purchase_reply(
@@ -34868,7 +34927,9 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 missing_fields=purchase_missing_fields,
             )
         )
-    elif selected_cases and case_request_sig:
+    if intake_summary_context:
+        interest_head.append(intake_summary_context)
+    if selected_cases and case_request_sig:
         interest_head.append(_support_interest_coaching_block(selected_cases))
     sc_ctx = _format_support_client_search_context(fk, fr, dlgk)
     if sc_ctx and not purchase_discovery_mode:
@@ -34929,6 +34990,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             "skip_reason": "purchase_discovery_needs_requirements" if purchase_discovery_mode else "",
         },
         "input_corrections": purchase_input_corrections,
+        "intake_summary": intake_summary,
         "client_search": {
             "figure_keyword": fk,
             "figure_region": fr,

@@ -107,6 +107,39 @@ class SupportChatConversationTests(unittest.TestCase):
                 )
                 self.assertIn(example, reply)
 
+    def test_market_price_uses_non_contact_intake_form_answers_for_the_next_question(self):
+        rows = [
+            {"region": "青森", "price_man": 900.0, "source_item_id": 101},
+            {"region": "青森", "price_man": 988.0, "source_item_id": 102},
+            {"region": "青森", "price_man": 1200.0, "source_item_id": 103},
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="青森約 988 萬日圓。請再補條件。",
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪個地區房價最便宜？",
+                    history=[{"role": "user", "content": "我想自住買日本房"}],
+                    intake_summary={
+                        "purchase_purpose": "自用（本人、家人或子女居住 / 自用辦公室）",
+                        "budget_total_yen": "3,000 萬日圓以內",
+                        "property_type": "公寓",
+                        "target_city": "東京",
+                        "contact_phone": "should-not-be-kept",
+                    },
+                    sales_session_id="sess-test-intake-summary-market",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertIn("東京港區、東京 23 區或 JR 山手線沿線", data["reply"])
+        self.assertNotIn("總預算上限", data["reply"])
+        self.assertEqual(data["knowledge"]["intake_summary"]["target_city"], "東京")
+        self.assertNotIn("contact_phone", data["knowledge"]["intake_summary"])
+
     def test_keyword_preset_follow_ups_include_usable_examples(self):
         cases = {
             "日本買房流程怎麼開始？": ("buying_flow", "例如：自住、收租或資產配置"),
