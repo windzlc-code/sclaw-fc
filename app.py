@@ -34625,13 +34625,22 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             for item in list(market_stats.get("regions") or [])
             if isinstance(item, dict) and str(item.get("region") or "").strip()
         }
-        if (
+        reply_sentence_count = len(
+            [part for part in re.split(r"(?<=[。！？!?])\s*|\n+", str(reply or "")) if str(part or "").strip()]
+        )
+        needs_intake_structure = reply_sentence_count < 3 or not re.search(r"例如[:：]", str(reply or ""))
+        if bool(market_llm.get("purchase_model_reply")) and (
             any(region != target_region and region in reply for region in known_regions)
             or re.search(r"管理費|管理费|修繕|修缮|固定資產|固定资产|持有成本|提醒|免責|免责", reply, re.I)
+            or needs_intake_structure
         ):
             reply = market_short_guard_reply
-            market_llm["purchase_model_reply"] = False
-            market_llm["reply_guard_fallback"] = "market_one_region"
+            market_llm["model_response_guarded"] = True
+            market_llm["reply_guard_reason"] = (
+                "market_intake_structure"
+                if needs_intake_structure
+                else "market_one_region"
+            )
         market_llm["market_data_ai_reply"] = bool(market_llm.get("purchase_model_reply"))
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
         return JSONResponse(

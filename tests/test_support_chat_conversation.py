@@ -333,7 +333,7 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertTrue(mocked_llm.called)
         self.assertTrue(data["knowledge"]["skipped_lookup"])
         self.assertIn("福岡", data["reply"])
-        self.assertIn("中位總價", data["reply"])
+        self.assertIn("總價中位數", data["reply"])
         self.assertIn("福岡", mocked_llm.call_args.kwargs["knowledge_text"])
         self.assertIn("1,300", mocked_llm.call_args.kwargs["knowledge_text"])
 
@@ -485,6 +485,31 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("用途與預算", data["reply"])
         self.assertIn("需求表欄位", mocked_llm.call_args.kwargs["knowledge_text"])
         self.assertIn("總預算", mocked_llm.call_args.kwargs["scenario_coaching"])
+
+    def test_market_price_fills_the_intake_explanation_when_model_returns_only_two_sentences(self):
+        rows = [
+            {"region": "青森", "price_man": 900.0, "source_item_id": 101},
+            {"region": "青森", "price_man": 988.0, "source_item_id": 102},
+            {"region": "青森", "price_man": 1200.0, "source_item_id": 103},
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="青森的總價中位數約 988 萬日圓。您方便先給一個總預算上限嗎？",
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪個地區房子最便宜？",
+                    history=[{"role": "user", "content": "我想自住買日本房"}],
+                    sales_session_id="sess-test-market-three-sentence-guard",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertGreaterEqual(len([x for x in data["reply"].splitlines() if x.strip()]), 3)
+        self.assertIn("用途與預算", data["reply"])
+        self.assertIn("例如：3,000 萬日圓", data["reply"])
+        self.assertTrue(data["llm"]["model_response_guarded"])
 
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"
