@@ -121,7 +121,6 @@ from src.gemini_client import (
     format_llm_exception_for_user,
     is_gemini_configured,
     is_llm_configured,
-    refine_long_support_reply_dual_stage,
     sanitize_support_chat_visible_reply,
     select_representative_listing_image_via_gemini,
     support_knowledge_keyword_hint,
@@ -32217,6 +32216,10 @@ _SUPPORT_PURCHASE_REGION_ALIASES: tuple[tuple[str, str], ...] = (
 _SUPPORT_PURCHASE_REGION_TYPO_TARGETS: tuple[str, ...] = (
     "東京", "大阪", "京都", "名古屋", "福岡", "神奈川", "埼玉", "千葉", "橫濱", "川崎", "北海道", "沖繩",
 )
+# A one-character comparison is deliberately only a last resort.  These are
+# ordinary Chinese words which happen to be one edit away from a city name;
+# silently turning them into a place name is worse than asking one follow-up.
+_SUPPORT_REGION_TYPO_BLOCKLIST = frozenset(("大概",))
 
 
 def _support_has_property_search_context(text: str) -> bool:
@@ -32233,6 +32236,8 @@ def _support_has_property_search_context(text: str) -> bool:
 def _support_one_character_region_typo(value: str, target: str) -> bool:
     """Only permit a same-length, one-character correction for a known region."""
     return (
+        value not in _SUPPORT_REGION_TYPO_BLOCKLIST
+        and
         len(value) == len(target)
         and len(value) >= 2
         and value != target
@@ -32359,6 +32364,14 @@ def _support_message_is_guidance_question(text: str) -> bool:
         "税费",
         "貸款",
         "贷款",
+        "持有成本",
+        "持有費用",
+        "持有费用",
+        "成本",
+        "管理費",
+        "管理费",
+        "修繕積立金",
+        "修缮积立金",
         "條件",
         "条件",
         "能不能",
@@ -32370,6 +32383,13 @@ def _support_message_is_guidance_question(text: str) -> bool:
         return False
     direct_commitment_terms = ("確定要買", "确定要买", "準備買", "准备买", "安排看屋", "安排看房", "預約看屋", "预约看房")
     return not any(term in compact for term in direct_commitment_terms)
+
+
+def _support_llm_request_timed_out(exc: BaseException) -> bool:
+    """Do not spend the browser's whole response budget on a second LLM call."""
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    return "timeout" in str(exc or "").lower() or "逾時" in str(exc or "")
 
 
 def _support_purchase_discovery_missing_fields(dimensions: dict[str, bool]) -> list[str]:
@@ -34657,6 +34677,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     _, _, default_m = get_chat_credentials(rp)
     use_model = (payload.gemini_model or "").strip() or default_m
     llm_fast = (not run_kb) and (not selected_compare_request)
+    # Keep the server-side AI work inside the 35s browser deadline.  AI still
+    # handles open-ended language; database-backed answers remain grounded in
+    # the managed listings and do not wait for a model.
+    llm_reply_timeout_sec = 12.0 if llm_fast else 18.0
     llm_meta = {
         "provider": rp,
         "enabled": bool(is_llm_configured(rp)),
@@ -34733,13 +34757,18 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 featured_case_count=len(featured_recommendations),
                 qa_match_label=str((matched_qa or {}).get("label") or "").strip(),
                 selected_case_compare_intent=selected_compare_request,
+                timeout_sec=llm_reply_timeout_sec,
             )
         except Exception as exc:
             fallback_provider = ""
-            for cand in ("gemini", "deepseek"):
-                if cand != rp and is_llm_configured(cand):
-                    fallback_provider = cand
-                    break
+            # An upstream timeout is not retried synchronously: the old
+            # 55s + provider retry path could outlive the browser's 35s abort
+            # and made a normal question look like the site had frozen.
+            if not _support_llm_request_timed_out(exc):
+                for cand in ("gemini", "deepseek"):
+                    if cand != rp and is_llm_configured(cand):
+                        fallback_provider = cand
+                        break
             if not fallback_provider:
                 llm_meta["enabled"] = False
                 llm_meta["error"] = f"{type(exc).__name__}: {exc}"
@@ -34778,6 +34807,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                         featured_case_count=len(featured_recommendations),
                         qa_match_label=str((matched_qa or {}).get("label") or "").strip(),
                         selected_case_compare_intent=selected_compare_request,
+                        timeout_sec=8.0,
                     )
                     llm_meta["enabled"] = True
                     llm_meta["provider_retry_succeeded"] = True
@@ -34790,36 +34820,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                         knowledge_meta=knowledge_meta,
                         persona_region=str(payload.persona_region or "tw"),
                     )
-        try:
-            if selected_compare_request:
-                raise RuntimeError("skip_refine_for_selected_case_compare")
-            reply, refine_meta = refine_long_support_reply_dual_stage(
-                reply,
-                persona_region=str(payload.persona_region or "tw"),
-            )
-            if refine_meta.get("applied"):
-                llm_meta["long_reply_refinement"] = {
-                    "applied": True,
-                    "steps": refine_meta.get("steps") or [],
-                }
-        except Exception as exc:
-            if selected_compare_request and str(exc) == "skip_refine_for_selected_case_compare":
-                pass
-            else:
-                llm_meta["enabled"] = False
-                llm_meta["error"] = f"{type(exc).__name__}: {exc}"
-                _push_backend_error_log(
-                    method="POST",
-                    path="/api/ai/chat-support",
-                    status_code=502,
-                    message=f"llm_chat_error: {type(exc).__name__}: {exc}",
-                    elapsed_ms=0,
-                )
-                reply = _build_offline_support_reply(
-                    message=msg,
-                    knowledge_meta=knowledge_meta,
-                    persona_region=str(payload.persona_region or "tw"),
-                )
+        # Do not make a second synchronous LLM pass to polish visitor replies.
+        # The first prompt already asks for 2–4 short sentences; a second
+        # provider request was an unbounded extra wait after a valid answer.
+        llm_meta["long_reply_refinement"] = {"applied": False, "skipped": "visitor_response_budget"}
     else:
         reply = _build_offline_support_reply(
             message=msg,

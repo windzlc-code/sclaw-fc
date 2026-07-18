@@ -141,6 +141,14 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("大阪", typo_data["reply"])
         self.assertIn({"from": "大板", "to": "大阪"}, typo_data["knowledge"]["input_corrections"])
 
+    def test_normal_language_is_not_silently_converted_to_a_region(self):
+        normalized, corrections = app_module._support_normalize_purchase_context(
+            "日本買房以後每年的持有成本大概怎麼計算？"
+        )
+        self.assertIn("大概", normalized)
+        self.assertNotIn({"from": "大概", "to": "大阪"}, corrections)
+        self.assertTrue(app_module._support_message_is_guidance_question(normalized))
+
     def test_normalized_region_does_not_repeat_the_region_question(self):
         history = [
             {"role": "user", "content": "我想買日本房"},

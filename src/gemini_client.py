@@ -1012,6 +1012,7 @@ def chat_support_reply_gemini(
     featured_case_count: int = 0,
     qa_match_label: str = "",
     selected_case_compare_intent: bool = False,
+    timeout_sec: float | None = None,
 ) -> str:
     region = _resolve_region_label(persona_region)
     coach = (scenario_coaching or "").strip()
@@ -1172,11 +1173,16 @@ def chat_support_reply_gemini(
         if role in ("user", "assistant") and isinstance(c, str) and c.strip():
             msgs.append({"role": role, "content": c.strip()[:4000]})
     msgs.append({"role": "user", "content": user_message.strip()[:4000]})
+    # Visitor chat has a finite browser-side budget.  A response that arrives
+    # after that budget is indistinguishable from no response, so callers can
+    # give this single model call a bounded deadline.
+    response_timeout = float(timeout_sec) if timeout_sec is not None else (22.0 if fast else 55.0)
+    response_timeout = max(4.0, min(55.0, response_timeout))
     content = chat_completion(
         msgs,
         model=model,
         temperature=0.28 if fast else 0.36,
-        timeout_sec=22.0 if fast else 55.0,
+        timeout_sec=response_timeout,
         provider=provider,
         max_tokens=1800 if compare_mode else (900 if fast else 1200),
     )
