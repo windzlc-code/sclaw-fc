@@ -456,6 +456,36 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertEqual(mocked_llm.call_args.kwargs["max_tokens"], 220)
         self.assertIn("嚴格短回合", mocked_llm.call_args.kwargs["scenario_coaching"])
 
+    def test_market_price_uses_next_missing_intake_field_for_follow_up(self):
+        rows = [
+            {"region": "青森", "price_man": 900.0, "source_item_id": 101},
+            {"region": "青森", "price_man": 988.0, "source_item_id": 102},
+            {"region": "青森", "price_man": 1200.0, "source_item_id": 103},
+            {"region": "香川", "price_man": 1400.0, "source_item_id": 201},
+            {"region": "香川", "price_man": 1450.0, "source_item_id": 202},
+            {"region": "香川", "price_man": 1500.0, "source_item_id": 203},
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="青森約 988 萬日圓。香川也不錯，還要看管理費。您自住還是收租？",
+        ) as mocked_llm:
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪個地區房子最便宜？有什麼推薦？",
+                    history=[{"role": "user", "content": "我想自住買日本房"}],
+                    sales_session_id="sess-test-market-intake-order",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertIn("青森", data["reply"])
+        self.assertIn("總預算", data["reply"])
+        self.assertIn("3,000 萬日圓", data["reply"])
+        self.assertIn("用途與預算", data["reply"])
+        self.assertIn("需求表欄位", mocked_llm.call_args.kwargs["knowledge_text"])
+        self.assertIn("總預算", mocked_llm.call_args.kwargs["scenario_coaching"])
+
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"
         self._cleanup_session(session_id)

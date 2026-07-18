@@ -34009,7 +34009,7 @@ def _support_compact_purchase_reply(reply: str, *, max_chars: int = 180) -> str:
     ]
     if not sentences:
         return ""
-    if len(sentences) <= 2 and len(text) <= max_chars:
+    if len(sentences) <= 3 and len(text) <= max_chars:
         return text
 
     # For price and case questions, a sentence with a number is usually the
@@ -34082,7 +34082,7 @@ def _support_model_first_purchase_reply(
                 timeout_sec=11.0 if attempt == 0 else 12.0,
                 max_tokens=220,
             )
-            reply = _support_compact_purchase_reply(str(reply or ""), max_chars=180)
+            reply = _support_compact_purchase_reply(str(reply or ""), max_chars=240)
             if not reply:
                 raise RuntimeError("empty support model reply")
             meta: dict[str, Any] = {
@@ -34261,6 +34261,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         and not _support_message_is_guidance_question(msg)
         and not selected_cases_input
         and bool(purchase_quick_missing)
+        # A concrete market-price question must be grounded in the managed
+        # listing database first.  The intake branch below would otherwise
+        # pre-empt it after a user has already mentioned buying intent.
+        and not _support_is_market_price_question(msg)
     )
     if purchase_quick_mode:
         fallback_reply = _build_purchase_discovery_reply(
@@ -34565,22 +34569,41 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 f"總價中位數約 {float(item.get('median_price_man') or 0):,.0f} 萬日圓；"
                 f"範圍約 {float(item.get('min_price_man') or 0):,.0f}～{float(item.get('max_price_man') or 0):,.0f} 萬日圓"
             )
+        intake_field_order = (
+            ("purpose", "購買目的（自住／收租／資產配置）"),
+            ("budget", "總預算帶"),
+            ("region", "偏好城市／區域"),
+            ("station", "沿線／車站與通勤"),
+            ("type", "物件類型"),
+            ("specs", "格局／房數"),
+        )
+        intake_known = [label for key, label in intake_field_order if purchase_quick_dimensions.get(key)]
+        intake_missing = [label for key, label in intake_field_order if not purchase_quick_dimensions.get(key)]
+        intake_next_question = _support_single_followup_question(
+            purchase_context,
+            missing_fields=purchase_quick_missing,
+            intent_ref=60,
+        )
         market_price_ai_context = "\n".join(
             [
                 "【站內真實可比在售資料：唯一價格事實來源】",
                 *region_lines,
                 "不得把這些樣本推論為全市場成交價，也不得虛構未列出的案件、地區、價格或報酬。",
-                "使用者目前只在問哪裡較便宜：只講上列一個地區與一個中位數，不要列其他地區、價格範圍、持有成本、免責聲明或背景分析。",
-                "第二句只問一個需求條件，並給 2 個簡短選項。",
+                "【需求表欄位導引】欄位順序：購買目的→總預算→城市／區域→沿線／車站→物件類型→格局／房數。",
+                f"從本輪對話與首頁篩選已辨識：{'、'.join(intake_known) or '尚未填寫'}。",
+                f"本輪最適合確認：{(intake_missing or ['下一步條件'])[0]}。請在結尾使用此問題：{intake_next_question}",
+                "使用者目前只在問哪裡較便宜：只講上列一個地區與一個中位數；可用第二句說明仍須依需求表篩選，"
+                "不要列其他地區、價格範圍、持有成本、免責聲明或背景分析。",
             ]
         )
         target_region = str((list(market_stats.get("regions") or [{}])[0] or {}).get("region") or "").strip()
         target_median = float((list(market_stats.get("regions") or [{}])[0] or {}).get("median_price_man") or 0)
         market_short_guard_reply = (
             f"若以站內可比在售樣本的總價中位數看，{target_region}較低，約 {target_median:,.0f} 萬日圓。\n"
-            "您是想自住還是收租？"
+            "這只反映站內現有可比樣本；實際推薦會依需求表的用途與預算繼續篩選。\n"
+            f"{intake_next_question}"
             if target_region and target_median > 0
-            else _support_compact_purchase_reply(fallback_reply, max_chars=180)
+            else _support_compact_purchase_reply(fallback_reply, max_chars=240)
         )
         reply, market_llm = _support_model_first_purchase_reply(
             message=msg,
@@ -34589,9 +34612,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             knowledge_text=market_price_ai_context,
             fallback_reply=fallback_reply,
             scenario_coaching=(
-                "【嚴格短回合】使用者正在問『哪裡房子較便宜』。只輸出兩句："
-                "第一句直接給一個站內可比樣本中位數較低的地區與價格；第二句只問用途，"
-                "例如「自住」或「收租」。不要問候、不要列多個地區、不要談成本、不要加免責聲明。"
+                "【嚴格短回合】使用者正在問『哪裡房子較便宜』。只輸出三個短句："
+                "第一句直接給一個站內可比樣本中位數較低的地區與價格；第二句簡短說明要依需求表篩選；"
+                f"第三句必須使用這個下一步問題：{intake_next_question}。"
+                "不要問候、不要列多個地區、不要談成本、不要加免責聲明。"
             ),
             managed_case_count=int(market_stats.get("sample_count") or 0),
             sales_stage_key="discover",
@@ -34601,7 +34625,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             for item in list(market_stats.get("regions") or [])
             if isinstance(item, dict) and str(item.get("region") or "").strip()
         }
-        if any(region != target_region and region in reply for region in known_regions):
+        if (
+            any(region != target_region and region in reply for region in known_regions)
+            or re.search(r"管理費|管理费|修繕|修缮|固定資產|固定资产|持有成本|提醒|免責|免责", reply, re.I)
+        ):
             reply = market_short_guard_reply
             market_llm["purchase_model_reply"] = False
             market_llm["reply_guard_fallback"] = "market_one_region"
