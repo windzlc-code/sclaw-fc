@@ -271,7 +271,7 @@ class SupportChatConversationTests(unittest.TestCase):
     def test_broad_price_question_uses_grounded_market_stats_without_llm(self):
         """Broad market questions must use comparable records, never a model guess."""
         self.assertTrue(app_module._support_is_market_price_question("哪個地區房價最便宜？"))
-        self.assertFalse(app_module._support_is_market_price_question("哪個地區房價最便宜？有沒有什麼推薦？"))
+        self.assertTrue(app_module._support_is_market_price_question("哪個地區房價最便宜？有沒有什麼推薦？"))
         self.assertFalse(app_module._support_is_market_price_question("這筆案件價格多少？"))
         rows = [
             {"region": "福岡", "price_man": 1200.0, "source_item_id": 101},
@@ -300,8 +300,8 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("中位數", data["reply"])
         self.assertIn("站內目前可比的在售資料", data["reply"])
 
-    def test_price_recommendation_question_uses_llm_with_managed_cases(self):
-        """Recommendation requests should not be swallowed by the regional median fast reply."""
+    def test_price_recommendation_question_keeps_database_grounding(self):
+        """Price-led recommendation requests must not ask a model to invent a market ranking."""
         managed_rows = [
             {
                 "source_item_id": 301,
@@ -329,7 +329,7 @@ class SupportChatConversationTests(unittest.TestCase):
         ), patch.object(
             app_module,
             "chat_support_reply_gemini",
-            return_value="我已依站內案件做推薦分析：福岡市中央區公寓總價較低，適合先看預算與交通。下一步建議：請回覆自住或收租。",
+            side_effect=AssertionError("market price routing must not call the model"),
         ) as mocked_llm:
             resp = app_module.api_ai_chat_support(
                 app_module.ChatSupportRequest(
@@ -341,16 +341,13 @@ class SupportChatConversationTests(unittest.TestCase):
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertTrue(mocked_llm.called)
-        self.assertFalse(data["llm"].get("market_data_fast_reply", False))
-        self.assertFalse(data["llm"].get("managed_case_database_fast_reply", False))
-        self.assertTrue(data["llm"]["enabled"])
-        self.assertEqual(data["knowledge"]["managed_case_count"], 1)
+        self.assertFalse(mocked_llm.called)
+        self.assertTrue(data["llm"]["market_data_fast_reply"])
+        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(data["knowledge"]["skipped_lookup"])
         self.assertEqual(data["knowledge"]["market_data"]["regions"][0]["region"], "福岡")
-        self.assertGreaterEqual(data["knowledge"]["market_case_sample_count"], 1)
-        self.assertEqual(data["knowledge"]["market_case_samples"][0]["title"], "福岡低總價公寓A")
-        self.assertIn("推薦分析", data["reply"])
-        self.assertIn("下一步建議", data["reply"])
+        self.assertIn("福岡", data["reply"])
+        self.assertIn("站內目前可比的在售資料", data["reply"])
 
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"
