@@ -33999,6 +33999,87 @@ def _support_chat_image_reply(meta: dict[str, Any], user_message: str) -> str:
     return f"收到圖片了。我這邊先看成一張{image_label}{size_line}，格式是 {fmt}。如果這是房屋、格局或文件照片，我可以幫您整理可注意的地方。"
 
 
+def _support_model_first_purchase_reply(
+    *,
+    message: str,
+    history: list[dict[str, Any]],
+    persona_region: str,
+    knowledge_text: str,
+    fallback_reply: str,
+    scenario_coaching: str,
+    managed_case_count: int = 0,
+    sales_stage_key: str = "discover",
+    property_listing_intent: bool = True,
+) -> tuple[str, dict[str, Any]]:
+    """Write purchase answers with the configured model before using a safe data fallback.
+
+    Fast database paths used to return before the model was reached.  That made
+    the facts reliable, but every answer read like the same canned script.  Keep
+    those facts as the model's sole source of truth and only expose the original
+    deterministic copy if every configured provider has failed.
+    """
+    primary = resolve_llm_provider(None)
+    candidates = [primary, *[provider for provider in ("gemini", "deepseek") if provider != primary]]
+    failures: list[str] = []
+    for attempt, provider in enumerate(candidates):
+        if not is_llm_configured(provider):
+            continue
+        _, _, model = get_chat_credentials(provider)
+        try:
+            reply = chat_support_reply_gemini(
+                user_message=message,
+                history=history,
+                knowledge_text=knowledge_text,
+                persona_region=persona_region,
+                model=model,
+                provider=provider,
+                scenario_coaching=scenario_coaching,
+                fast_mode=True,
+                knowledge_zh_variant="hant",
+                kb_row_count=0,
+                kb_source_count=0,
+                kb_attached=bool((knowledge_text or "").strip()),
+                sales_stage_key=sales_stage_key,
+                scenario_label="",
+                crm_system_addon=support_crm_system_addon_for_llm(),
+                consultant_qa_addon="",
+                property_listing_intent=property_listing_intent,
+                managed_case_count=max(0, int(managed_case_count or 0)),
+                featured_case_count=0,
+                qa_match_label="",
+                selected_case_compare_intent=False,
+                timeout_sec=11.0 if attempt == 0 else 12.0,
+            )
+            reply = sanitize_support_chat_visible_reply(str(reply or "").strip())
+            if not reply:
+                raise RuntimeError("empty support model reply")
+            meta: dict[str, Any] = {
+                "provider": provider,
+                "enabled": True,
+                "model": model,
+                "fast_mode": True,
+                "knowledge_skipped": True,
+                "purchase_model_reply": True,
+            }
+            if attempt:
+                meta["provider_retry_from"] = primary
+                meta["provider_retry_succeeded"] = True
+            return reply, meta
+        except Exception as exc:
+            failures.append(f"{provider}: {type(exc).__name__}: {exc}"[:900])
+
+    return sanitize_support_chat_visible_reply(fallback_reply), {
+        "provider": primary,
+        "enabled": False,
+        "model": "",
+        "fast_mode": True,
+        "knowledge_skipped": True,
+        "purchase_model_reply": False,
+        "all_providers_failed": True,
+        "error": " | ".join(failures)[:1800] or "no configured model provider",
+    }
+
+
 @app.post("/api/ai/chat-support")
 def api_ai_chat_support(payload: ChatSupportRequest):
     msg = (payload.message or "").strip()
@@ -34084,6 +34165,40 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     if preset:
         if selected_cases_input:
             session_id, _ = _replace_support_session_interest_cases(session_id, selected_cases_input)
+        preset_kind = str(preset.get("kind") or "").strip()
+        # A human-handoff acknowledgement is an explicit transactional action,
+        # not advice.  Every other purchase preset is model-written from the
+        # supplied facts so similar questions do not receive copied scripts.
+        if preset_kind != "human_handoff":
+            preset_context = "【站內客服已確認資訊】\n"
+            if preset_kind == "selected_case_consult_fast_track":
+                preset_context += _format_interest_cases_for_prompt(selected_cases_input, max_chars=3200, max_items=6)
+            elif preset_kind == "buying_flow":
+                preset_context += "客戶正在詢問日本買房流程。可說明一般步驟，但不可編造特定案件、費率或政策；本輪最後只追問一項需求。"
+            elif preset_kind == "cost_loan":
+                preset_context += "客戶正在詢問買房成本或貸款。可說明需要依案件與資格核算的項目，但不可編造利率、稅額、銀行核准結果或任何案件數字。"
+            else:
+                preset_context += "請只根據使用者問題與本段資訊回答，未知資料要明確說明需要核對。"
+            preset_context += "\n\n【雙模型皆失敗時的安全資料型回覆】\n" + str(preset.get("reply") or "")
+            preset_reply, preset_llm = _support_model_first_purchase_reply(
+                message=msg,
+                history=list(payload.history or []),
+                persona_region=str(payload.persona_region or "tw"),
+                knowledge_text=preset_context,
+                fallback_reply=str(preset.get("reply") or ""),
+                scenario_coaching=(
+                    "請以自然、簡短的繁體中文回覆買房相關問題，不要照抄固定話術。"
+                    "只能依提供的站內／服務資訊說明；若條件不足，最後只問一個具體問題並附 2 至 3 個可回答的例子。"
+                ),
+                managed_case_count=len(selected_cases_input) if preset_kind == "selected_case_consult_fast_track" else 0,
+                sales_stage_key="discover",
+            )
+            preset["reply"] = preset_reply
+            preset["llm"] = {
+                **preset_llm,
+                "keyword_preset": True,
+                "keyword_preset_kind": preset_kind,
+            }
         return JSONResponse(
             {
                 "ok": True,
@@ -34117,12 +34232,34 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         and bool(purchase_quick_missing)
     )
     if purchase_quick_mode:
-        reply = _build_purchase_discovery_reply(
+        fallback_reply = _build_purchase_discovery_reply(
             msg,
             selected_cases=selected_cases_input,
             missing_fields=purchase_quick_missing,
             input_corrections=purchase_input_corrections,
         )
+        purchase_context_text = _support_purchase_discovery_prompt_block(
+            selected_cases=selected_cases_input,
+            missing_fields=purchase_quick_missing,
+        )
+        reply, purchase_llm = _support_model_first_purchase_reply(
+            message=msg,
+            history=list(payload.history or []),
+            persona_region=str(payload.persona_region or "tw"),
+            knowledge_text=purchase_context_text,
+            fallback_reply=fallback_reply,
+            scenario_coaching=(
+                purchase_context_text
+                + "\n本輪只做需求盤點：不要輸出案件列表或來源連結；只問一個缺少條件，"
+                "並附 2 至 3 個可直接回答的例子。"
+            ),
+            managed_case_count=0,
+            sales_stage_key="discover",
+        )
+        if _support_reply_violates_purchase_discovery(reply):
+            reply = fallback_reply
+            purchase_llm["purchase_model_reply"] = False
+            purchase_llm["reply_guard_fallback"] = "purchase_discovery_contract"
         human_handoff_intent = bool(_message_wants_human_or_advisor(msg))
         knowledge_meta = {
             "query": msg,
@@ -34164,14 +34301,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "session_id": session_id,
                 "reply": reply,
                 "knowledge": knowledge_meta,
-                "llm": {
-                    "provider": "",
-                    "enabled": False,
-                    "model": "",
-                    "fast_mode": True,
-                    "knowledge_skipped": True,
-                    "purchase_discovery_fast_reply": True,
-                },
+                "llm": {**purchase_llm, "purchase_discovery_fast_reply": True},
                 "sales_mcp": {
                     "session_id": session_id,
                     "stage": "discover",
@@ -34375,11 +34505,11 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "advisor_notify": {"attempted": False, "sent": False, "intake_required_before_human_reply": False},
             }
         )
-    # 市場價格／最低房價問題必須先直接回覆站內統計。即使訊息帶有「推薦」，
-    # 也只引導使用者補一項篩選條件，不能落入外部模型的慢速分析流程。
+    # 市場價格／最低房價問題先取得站內統計，再交給模型以自然語言回答。
+    # 模型不可補造資料；只有所有提供者失敗才使用同一份統計的固定安全文案。
     market_price_fast = _support_market_price_reply(msg)
     if market_price_fast:
-        reply, market_stats = market_price_fast
+        fallback_reply, market_stats = market_price_fast
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
         knowledge_meta.update(
             {
@@ -34392,21 +34522,47 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 },
             }
         )
+        region_lines = []
+        for item in list(market_stats.get("regions") or [])[:8]:
+            if not isinstance(item, dict):
+                continue
+            region_lines.append(
+                f"- {item.get('region')}: 樣本 {item.get('sample_count')} 筆；"
+                f"總價中位數約 {float(item.get('median_price_man') or 0):,.0f} 萬日圓；"
+                f"範圍約 {float(item.get('min_price_man') or 0):,.0f}～{float(item.get('max_price_man') or 0):,.0f} 萬日圓"
+            )
+        market_price_ai_context = "\n".join(
+            [
+                "【站內真實可比在售資料：唯一價格事實來源】",
+                *region_lines,
+                "不得把這些樣本推論為全市場成交價，也不得虛構未列出的案件、地區、價格或報酬。",
+                "先直接回答使用者的問題；需要縮小案件時，最後只追問一項條件並給例子。",
+                "【雙模型皆失敗時的安全資料型回覆】",
+                fallback_reply,
+            ]
+        )
+        reply, market_llm = _support_model_first_purchase_reply(
+            message=msg,
+            history=list(payload.history or []),
+            persona_region=str(payload.persona_region or "tw"),
+            knowledge_text=market_price_ai_context,
+            fallback_reply=fallback_reply,
+            scenario_coaching=(
+                "你是使用站內真實在售資料的日本房產客服。請自然回答，不要照抄模板或假裝查詢外部資料；"
+                "只可引用提供的區域統計，且說清楚是站內可比樣本。"
+            ),
+            managed_case_count=int(market_stats.get("sample_count") or 0),
+            sales_stage_key="discover",
+        )
+        market_llm["market_data_ai_reply"] = bool(market_llm.get("purchase_model_reply"))
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
         return JSONResponse(
             {
                 "ok": True,
                 "session_id": session_id,
-                "reply": sanitize_support_chat_visible_reply(reply),
+                "reply": reply,
                 "knowledge": knowledge_meta,
-                "llm": {
-                    "provider": "",
-                    "enabled": False,
-                    "model": "",
-                    "fast_mode": True,
-                    "knowledge_skipped": True,
-                    "market_data_fast_reply": True,
-                },
+                "llm": market_llm,
                 "sales_mcp": sales_mcp,
                 "matched_scene": None,
                 "matched_qa": None,
@@ -34501,7 +34657,31 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 },
             }
         )
-        reply = _build_support_managed_cases_fast_reply(msg, managed_rows)
+        fallback_reply = _build_support_managed_cases_fast_reply(msg, managed_rows)
+        managed_case_ai_context = "\n\n".join(
+            [
+                "【站內真實案件資料：唯一可推薦來源】",
+                managed_text or "目前命中的站內案件資料不足。",
+                "只可介紹上列案件與欄位；不得補造案件、價格、交通、可售狀態或外部來源。"
+                "先直接回覆使用者，再在最後只問一個可幫助縮小需求的問題。",
+                "【雙模型皆失敗時的安全資料型回覆】",
+                fallback_reply,
+            ]
+        )
+        reply, managed_llm = _support_model_first_purchase_reply(
+            message=msg,
+            history=list(payload.history or []),
+            persona_region=str(payload.persona_region or "tw"),
+            knowledge_text=managed_case_ai_context,
+            fallback_reply=fallback_reply,
+            scenario_coaching=(
+                "請以自然的繁體中文介紹站內已核對案件。不得以任何未提供資料補足細節；"
+                "若使用者條件已有多項，請先給出有用的比較或下一步，不要套用固定開場。"
+            ),
+            managed_case_count=len(managed_api),
+            sales_stage_key="recommend",
+        )
+        managed_llm["managed_case_database_ai_reply"] = bool(managed_llm.get("purchase_model_reply"))
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
         return JSONResponse(
             {
@@ -34509,14 +34689,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "session_id": session_id,
                 "reply": reply,
                 "knowledge": knowledge_meta,
-                "llm": {
-                    "provider": "",
-                    "enabled": False,
-                    "model": "",
-                    "fast_mode": True,
-                    "knowledge_skipped": True,
-                    "managed_case_database_fast_reply": True,
-                },
+                "llm": managed_llm,
                 "sales_mcp": sales_mcp,
                 "matched_scene": None,
                 "matched_qa": None,
@@ -34542,7 +34715,31 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 },
             }
         )
-        reply = _build_support_no_matching_managed_case_reply()
+        fallback_reply = _build_support_no_matching_managed_case_reply()
+        no_match_ai_context = "\n\n".join(
+            [
+                "【站內案件查詢結果】",
+                "依目前使用者已提供的條件，站內沒有可同時核對且符合的在售案件。",
+                "不可用相近案件湊數，也不可虛構案件或說明已有媒合結果。",
+                "【雙模型皆失敗時的安全資料型回覆】",
+                fallback_reply,
+            ]
+        )
+        reply, no_match_llm = _support_model_first_purchase_reply(
+            message=msg,
+            history=list(payload.history or []),
+            persona_region=str(payload.persona_region or "tw"),
+            knowledge_text=no_match_ai_context,
+            fallback_reply=fallback_reply,
+            scenario_coaching=(
+                "請自然、坦白說明目前站內沒有符合案件，不要憑空推薦。"
+                "最後只問一個可放寬的條件，並提供兩個簡短選項。"
+            ),
+            managed_case_count=0,
+            sales_stage_key="recommend",
+        )
+        no_match_llm["managed_case_database_ai_reply"] = bool(no_match_llm.get("purchase_model_reply"))
+        no_match_llm["no_matching_managed_cases"] = True
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
         return JSONResponse(
             {
@@ -34550,15 +34747,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "session_id": session_id,
                 "reply": reply,
                 "knowledge": knowledge_meta,
-                "llm": {
-                    "provider": "",
-                    "enabled": False,
-                    "model": "",
-                    "fast_mode": True,
-                    "knowledge_skipped": True,
-                    "managed_case_database_fast_reply": True,
-                    "no_matching_managed_cases": True,
-                },
+                "llm": no_match_llm,
                 "sales_mcp": sales_mcp,
                 "matched_scene": None,
                 "matched_qa": None,
@@ -34727,14 +34916,31 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         )
     stage_key, _ = _detect_sales_stage(msg)
     if purchase_discovery_mode:
-        llm_meta["enabled"] = False
-        llm_meta["purchase_discovery_fast_reply"] = True
-        reply = _build_purchase_discovery_reply(
+        fallback_reply = _build_purchase_discovery_reply(
             msg,
             selected_cases=selected_cases,
             missing_fields=purchase_missing_fields,
             input_corrections=purchase_input_corrections,
         )
+        purchase_context_text = _support_purchase_discovery_prompt_block(
+            selected_cases=selected_cases,
+            missing_fields=purchase_missing_fields,
+        )
+        reply, purchase_llm = _support_model_first_purchase_reply(
+            message=msg,
+            history=list(payload.history or []),
+            persona_region=str(payload.persona_region or "tw"),
+            knowledge_text="\n\n".join([purchase_context_text, combined_kb_text]),
+            fallback_reply=fallback_reply,
+            scenario_coaching=(
+                purchase_context_text
+                + "\n本輪只能做一問一答需求盤點：不要推薦案件、不要輸出列表或連結；"
+                "最後只問一個缺少條件並附例子。"
+            ),
+            managed_case_count=0,
+            sales_stage_key="discover",
+        )
+        llm_meta = {**llm_meta, **purchase_llm, "purchase_discovery_fast_reply": True}
     elif llm_meta["enabled"]:
         try:
             reply = chat_support_reply_gemini(
@@ -34844,6 +35050,8 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             missing_fields=purchase_missing_fields,
             input_corrections=purchase_input_corrections,
         )
+        llm_meta["purchase_model_reply"] = False
+        llm_meta["reply_guard_fallback"] = "purchase_discovery_contract"
     sales_mcp = _build_sales_mcp_payload(
         msg,
         knowledge_meta,

@@ -90,28 +90,28 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("supportFallbackCompactReply", fallback)
         self.assertNotIn("compact.slice(0, 118)", fallback)
 
-    def test_market_price_recommendations_keep_the_database_fast_path(self):
+    def test_market_price_recommendations_use_model_with_database_context(self):
         app = APP.read_text(encoding="utf-8")
         route_start = app.index("def api_ai_chat_support(payload: ChatSupportRequest):")
         fast_reply_start = app.index("market_price_fast =", route_start)
         fast_reply_block = app[fast_reply_start:app.index("if market_price_fast:", fast_reply_start)]
 
         self.assertIn("market_price_fast = _support_market_price_reply(msg)", fast_reply_block)
-        self.assertNotIn("market_price_ai_context", fast_reply_block)
+        self.assertIn("market_price_ai_context", app[fast_reply_start:fast_reply_start + 5000])
 
         market_guard_start = app.index("def _support_is_market_price_question")
         market_guard = app[market_guard_start:app.index("def _support_market_region_label", market_guard_start)]
         self.assertNotIn("if _support_message_requests_recommendation_analysis(raw):", market_guard)
 
-    def test_completed_support_requirements_do_not_fall_back_to_an_llm(self):
+    def test_completed_support_requirements_use_model_with_database_context(self):
         app = APP.read_text(encoding="utf-8")
         route_start = app.index("def api_ai_chat_support(payload: ChatSupportRequest):")
         route = app[route_start:]
 
         self.assertIn("purchase_context = _support_purchase_discovery_context(payload.history, msg)", route)
         self.assertIn("purchase_ready_for_database", route)
-        self.assertIn("managed_case_database_fast_reply", route)
-        self.assertNotIn("market_price_context_stats", route)
+        self.assertIn("purchase_model_reply", route)
+        self.assertIn("market_price_ai_context", route)
         self.assertNotIn("and sum(1 for ok in purchase_quick_dimensions.values() if ok) < 4", route)
         self.assertIn("allow_slow_fallback=not purchase_ready_for_database", route)
 

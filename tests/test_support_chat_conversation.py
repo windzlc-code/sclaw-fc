@@ -124,20 +124,25 @@ class SupportChatConversationTests(unittest.TestCase):
                 self.assertIn(example, preset["reply"])
 
     def test_natural_purchase_language_and_region_typo_use_fast_discovery(self):
-        for message in ("我需要大阪的房子", "我需要大板的房子"):
-            with self.subTest(message=message):
-                resp = app_module.api_ai_chat_support(
-                    app_module.ChatSupportRequest(message=message, sales_session_id="sess-test-natural-purchase")
-                )
-                data = json.loads(resp.body)
+        with patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="收到，我先按大阪理解；接著想確認用途，例如自住、收租或資產配置？",
+        ):
+            for message in ("我需要大阪的房子", "我需要大板的房子"):
+                with self.subTest(message=message):
+                    resp = app_module.api_ai_chat_support(
+                        app_module.ChatSupportRequest(message=message, sales_session_id="sess-test-natural-purchase")
+                    )
+                    data = json.loads(resp.body)
 
-                self.assertTrue(data["llm"]["purchase_discovery_fast_reply"])
-                self.assertTrue(data["knowledge"]["purchase_discovery"]["dimensions"]["region"])
-                self.assertNotIn("東京港區", data["reply"])
+                    self.assertTrue(data["llm"]["purchase_discovery_fast_reply"])
+                    self.assertTrue(data["knowledge"]["purchase_discovery"]["dimensions"]["region"])
+                    self.assertNotIn("東京港區", data["reply"])
 
-        typo = app_module.api_ai_chat_support(
-            app_module.ChatSupportRequest(message="我需要大板的房子", sales_session_id="sess-test-typo-note")
-        )
+            typo = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(message="我需要大板的房子", sales_session_id="sess-test-typo-note")
+            )
         typo_data = json.loads(typo.body)
         self.assertIn("大阪", typo_data["reply"])
         self.assertIn({"from": "大板", "to": "大阪"}, typo_data["knowledge"]["input_corrections"])
@@ -279,24 +284,27 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("實際顧問", data["reply"])
         self.assertNotIn("工號", data["reply"])
 
-    def test_buying_flow_keyword_uses_fast_preset_without_llm_or_knowledge(self):
-        resp = app_module.api_ai_chat_support(
-            app_module.ChatSupportRequest(
-                message="我想先了解日本买房流程",
-                sales_session_id="sess-buying-flow-fast-preset",
+    def test_buying_flow_keyword_uses_model_with_grounded_flow_context(self):
+        with patch.object(app_module, "chat_support_reply_gemini", return_value="可以先確認用途與總預算，再依站內案件縮小範圍。您是自住還是收租？") as mocked_llm:
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="我想先了解日本买房流程",
+                    sales_session_id="sess-buying-flow-model-first",
+                )
             )
-        )
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
         self.assertTrue(data["llm"]["keyword_preset"])
         self.assertEqual(data["llm"]["keyword_preset_kind"], "buying_flow")
-        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(data["llm"]["enabled"])
+        self.assertTrue(data["llm"]["purchase_model_reply"])
+        self.assertTrue(mocked_llm.called)
         self.assertTrue(data["knowledge"]["skipped_lookup"])
-        self.assertIn("日本買房", data["reply"])
+        self.assertIn("總預算", data["reply"])
 
-    def test_broad_price_question_uses_grounded_market_stats_without_llm(self):
-        """Broad market questions must use comparable records, never a model guess."""
+    def test_broad_price_question_uses_model_with_grounded_market_stats(self):
+        """Market answers are model-written but can only use comparable records."""
         self.assertTrue(app_module._support_is_market_price_question("哪個地區房價最便宜？"))
         self.assertTrue(app_module._support_is_market_price_question("哪個地區房價最便宜？有沒有什麼推薦？"))
         self.assertFalse(app_module._support_is_market_price_question("這筆案件價格多少？"))
@@ -309,8 +317,8 @@ class SupportChatConversationTests(unittest.TestCase):
             {"region": "東京", "price_man": 5600.0, "source_item_id": 203},
         ]
         with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
-            app_module, "chat_support_reply_gemini", side_effect=AssertionError("LLM must not be called")
-        ):
+            app_module, "chat_support_reply_gemini", return_value="依站內可比案件，福岡的中位總價較低；若您提供預算，我再幫您找實際案件。"
+        ) as mocked_llm:
             resp = app_module.api_ai_chat_support(
                 app_module.ChatSupportRequest(
                     message="哪個地區房價最便宜？",
@@ -320,15 +328,17 @@ class SupportChatConversationTests(unittest.TestCase):
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertTrue(data["llm"]["market_data_fast_reply"])
-        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(data["llm"]["market_data_ai_reply"])
+        self.assertTrue(data["llm"]["enabled"])
+        self.assertTrue(mocked_llm.called)
         self.assertTrue(data["knowledge"]["skipped_lookup"])
         self.assertIn("福岡", data["reply"])
-        self.assertIn("中位數", data["reply"])
-        self.assertIn("站內目前可比的在售資料", data["reply"])
+        self.assertIn("中位總價", data["reply"])
+        self.assertIn("福岡", mocked_llm.call_args.kwargs["knowledge_text"])
+        self.assertIn("1,300", mocked_llm.call_args.kwargs["knowledge_text"])
 
-    def test_price_recommendation_question_keeps_database_grounding(self):
-        """Price-led recommendation requests must not ask a model to invent a market ranking."""
+    def test_price_recommendation_question_uses_model_with_database_grounding(self):
+        """Price-led recommendations must pass database facts into the model."""
         managed_rows = [
             {
                 "source_item_id": 301,
@@ -356,7 +366,7 @@ class SupportChatConversationTests(unittest.TestCase):
         ), patch.object(
             app_module,
             "chat_support_reply_gemini",
-            side_effect=AssertionError("market price routing must not call the model"),
+            return_value="依站內可比案件，福岡的總價中位數較低；若您要，我可依預算繼續篩選。",
         ) as mocked_llm:
             resp = app_module.api_ai_chat_support(
                 app_module.ChatSupportRequest(
@@ -368,11 +378,46 @@ class SupportChatConversationTests(unittest.TestCase):
         data = json.loads(resp.body)
 
         self.assertTrue(data["ok"])
-        self.assertFalse(mocked_llm.called)
-        self.assertTrue(data["llm"]["market_data_fast_reply"])
-        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(mocked_llm.called)
+        self.assertTrue(data["llm"]["market_data_ai_reply"])
+        self.assertTrue(data["llm"]["enabled"])
         self.assertTrue(data["knowledge"]["skipped_lookup"])
         self.assertEqual(data["knowledge"]["market_data"]["regions"][0]["region"], "福岡")
+        self.assertIn("福岡", data["reply"])
+        self.assertIn("福岡", mocked_llm.call_args.kwargs["knowledge_text"])
+        self.assertIn("1,280", mocked_llm.call_args.kwargs["knowledge_text"])
+
+    def test_market_price_uses_real_database_fallback_only_after_all_models_fail(self):
+        rows = [
+            {"region": "福岡", "price_man": 1200.0, "source_item_id": 101},
+            {"region": "福岡", "price_man": 1300.0, "source_item_id": 102},
+            {"region": "福岡", "price_man": 1400.0, "source_item_id": 103},
+        ]
+
+        def credentials(provider):
+            return ("https://llm.example.test", "test-key", f"{provider}-model")
+
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module, "resolve_llm_provider", return_value="deepseek"
+        ), patch.object(
+            app_module, "is_llm_configured", side_effect=lambda provider=None: str(provider or "deepseek") in {"deepseek", "gemini"}
+        ), patch.object(app_module, "get_chat_credentials", side_effect=credentials), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            side_effect=[app_module.httpx.ReadTimeout("primary timeout"), app_module.httpx.ReadTimeout("fallback timeout")],
+        ) as mocked_llm:
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪個地區房價最便宜？",
+                    sales_session_id="sess-test-market-all-provider-fallback",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertEqual(mocked_llm.call_count, 2)
+        self.assertFalse(data["llm"]["enabled"])
+        self.assertTrue(data["llm"]["all_providers_failed"])
+        self.assertFalse(data["llm"]["market_data_ai_reply"])
         self.assertIn("福岡", data["reply"])
         self.assertIn("站內目前可比的在售資料", data["reply"])
 
