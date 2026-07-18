@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
+import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -259,6 +261,7 @@ def fetch_knowledge_snippets(
     limit: int = 16,
     sort_by: str = "crawled_desc",
     prefer_real_estate: bool = True,
+    query_timeout_ms: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Pull `source_items` joined with `content_items` in a time window on `crawled_at`.
@@ -315,8 +318,15 @@ def fetch_knowledge_snippets(
     params.append(lim)
 
     with get_conn() as conn:
-        rows = conn.execute(
-            f"""
+        deadline = 0.0
+        if query_timeout_ms is not None and int(query_timeout_ms) > 0:
+            deadline = time.monotonic() + max(0.05, int(query_timeout_ms) / 1000.0)
+            # RAG is supplemental.  A large LIKE + CASE sort must never hold
+            # up a visitor chat request or a real listing lookup.
+            conn.set_progress_handler(lambda: 1 if time.monotonic() >= deadline else 0, 4000)
+        try:
+            rows = conn.execute(
+                f"""
             SELECT
               c.id AS content_id,
               s.id AS source_item_id,
@@ -343,8 +353,15 @@ def fetch_knowledge_snippets(
             ORDER BY {order_sql}
             LIMIT ?
             """,
-            params,
-        ).fetchall()
+                params,
+            ).fetchall()
+        except sqlite3.OperationalError as exc:
+            if deadline and "interrupted" in str(exc).lower():
+                return []
+            raise
+        finally:
+            if deadline:
+                conn.set_progress_handler(None, 0)
     return [dict(r) for r in rows]
 
 
@@ -365,6 +382,7 @@ def fetch_knowledge_for_chat(
     keyword_limit: int = 40,
     recent_limit: int = 40,
     merged_max: int = 56,
+    query_timeout_ms: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     For RAG: keyword-scoped hits first (all enabled sources in DB), then fill with
@@ -380,6 +398,7 @@ def fetch_knowledge_for_chat(
             limit=max(1, min(200, keyword_limit)),
             sort_by="crawled_desc",
             prefer_real_estate=True,
+            query_timeout_ms=query_timeout_ms,
         )
     recent = fetch_knowledge_snippets(
         days=days,
@@ -387,6 +406,7 @@ def fetch_knowledge_for_chat(
         limit=max(1, min(200, recent_limit)),
         sort_by="crawled_desc",
         prefer_real_estate=True,
+        query_timeout_ms=query_timeout_ms,
     )
     cap = max(1, min(120, int(merged_max)))
     seen: set[tuple[str, Any]] = set()

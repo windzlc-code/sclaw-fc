@@ -111,6 +111,7 @@ class SupportChatConversationTests(unittest.TestCase):
         cases = {
             "日本買房流程怎麼開始？": ("buying_flow", "例如：自住、收租或資產配置"),
             "日本房貸和稅費怎麼算？": ("cost_loan", "例如：總預算 3,000 萬日圓"),
+            "日本買房每年的持有成本大概怎麼算？": ("cost_loan", "例如：總預算 3,000 萬日圓"),
         }
         for message, (kind, example) in cases.items():
             with self.subTest(message=message):

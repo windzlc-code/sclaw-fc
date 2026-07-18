@@ -32070,7 +32070,10 @@ def _support_keyword_preset_reply(
         )
         return _payload("buying_flow", reply, sales_mcp, intent_score=28)
 
-    fee_terms = ("稅費", "税费", "費用", "费用", "貸款", "贷款", "頭期", "头期", "利率", "管理費", "管理费", "修繕", "修缮")
+    fee_terms = (
+        "稅費", "税费", "費用", "费用", "貸款", "贷款", "頭期", "头期", "利率",
+        "管理費", "管理费", "修繕", "修缮", "持有成本", "持有費用", "持有费用", "成本",
+    )
     if any(term in compact for term in fee_terms):
         sales_mcp = _build_sales_mcp_payload(raw, knowledge_meta, session_id=session_id, turn_index=turn_index)
         sales_mcp["next_actions"] = [
@@ -34586,6 +34589,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             keyword_limit=min(half + 6, 22),
             recent_limit=min(half + 6, 22),
             merged_max=eff_merged,
+            query_timeout_ms=900,
         )
         kb_text = format_knowledge_for_prompt(kb_rows, max_chars=5200, zh_variant=zh_v)
     interest_head: list[str] = []
@@ -34668,7 +34672,14 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     requested_provider = (payload.llm_provider or "").strip()
     rp = resolve_llm_provider(requested_provider or None)
     provider_fallback_from = ""
-    if not requested_provider and not is_llm_configured(rp):
+    # Gemini is the proven responsive visitor-chat path on this deployment.
+    # Keep an explicit back-office provider choice intact, but do not make a
+    # public visitor wait on the slower active default when Gemini is ready.
+    if not requested_provider and is_llm_configured("gemini"):
+        if rp != "gemini":
+            provider_fallback_from = rp
+        rp = "gemini"
+    if not is_llm_configured(rp):
         for cand in ("gemini", "deepseek"):
             if cand != rp and is_llm_configured(cand):
                 provider_fallback_from = rp
