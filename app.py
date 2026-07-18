@@ -33999,6 +33999,37 @@ def _support_chat_image_reply(meta: dict[str, Any], user_message: str) -> str:
     return f"收到圖片了。我這邊先看成一張{image_label}{size_line}，格式是 {fmt}。如果這是房屋、格局或文件照片，我可以幫您整理可注意的地方。"
 
 
+def _support_compact_purchase_reply(reply: str, *, max_chars: int = 180) -> str:
+    """Keep a property-chat turn to one conclusion and one actionable question."""
+    text = sanitize_support_chat_visible_reply(str(reply or "").strip())
+    sentences = [
+        re.sub(r"\s+", " ", part).strip()
+        for part in re.split(r"(?<=[。！？!?])\s*|\n+", text)
+        if str(part or "").strip()
+    ]
+    if not sentences:
+        return ""
+    if len(sentences) <= 2 and len(text) <= max_chars:
+        return text
+
+    # For price and case questions, a sentence with a number is usually the
+    # direct answer.  It avoids retaining a generic greeting ahead of the fact.
+    conclusion = next((line for line in sentences if re.search(r"\d", line)), sentences[0])
+    question = next((line for line in reversed(sentences) if re.search(r"[？?]", line)), "")
+    selected = [conclusion]
+    if question and question != conclusion:
+        selected.append(question)
+    compact = "\n".join(selected).strip()
+    if len(compact) <= max_chars:
+        return compact
+
+    # Preserve the conclusion instead of cutting through a sentence.  A model
+    # normally follows the short-turn contract; this branch is a final guard.
+    first = conclusion[:max_chars].rstrip("，,、；;：:")
+    cut = max(first.rfind("。"), first.rfind("！"), first.rfind("？"), first.rfind("!"), first.rfind("?"))
+    return (first[: cut + 1] if cut >= max_chars * 0.5 else first + "。").strip()
+
+
 def _support_model_first_purchase_reply(
     *,
     message: str,
@@ -34049,8 +34080,9 @@ def _support_model_first_purchase_reply(
                 qa_match_label="",
                 selected_case_compare_intent=False,
                 timeout_sec=11.0 if attempt == 0 else 12.0,
+                max_tokens=220,
             )
-            reply = sanitize_support_chat_visible_reply(str(reply or "").strip())
+            reply = _support_compact_purchase_reply(str(reply or ""), max_chars=180)
             if not reply:
                 raise RuntimeError("empty support model reply")
             meta: dict[str, Any] = {
@@ -34179,7 +34211,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 preset_context += "客戶正在詢問買房成本或貸款。可說明需要依案件與資格核算的項目，但不可編造利率、稅額、銀行核准結果或任何案件數字。"
             else:
                 preset_context += "請只根據使用者問題與本段資訊回答，未知資料要明確說明需要核對。"
-            preset_context += "\n\n【雙模型皆失敗時的安全資料型回覆】\n" + str(preset.get("reply") or "")
             preset_reply, preset_llm = _support_model_first_purchase_reply(
                 message=msg,
                 history=list(payload.history or []),
@@ -34523,7 +34554,10 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             }
         )
         region_lines = []
-        for item in list(market_stats.get("regions") or [])[:8]:
+        # The first item is the sole conclusion for this turn.  Passing a ranked
+        # list tempts the model to turn a simple "where is cheaper" question
+        # into a long regional report before it has learned the user's needs.
+        for item in list(market_stats.get("regions") or [])[:1]:
             if not isinstance(item, dict):
                 continue
             region_lines.append(
@@ -34536,10 +34570,17 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "【站內真實可比在售資料：唯一價格事實來源】",
                 *region_lines,
                 "不得把這些樣本推論為全市場成交價，也不得虛構未列出的案件、地區、價格或報酬。",
-                "先直接回答使用者的問題；需要縮小案件時，最後只追問一項條件並給例子。",
-                "【雙模型皆失敗時的安全資料型回覆】",
-                fallback_reply,
+                "使用者目前只在問哪裡較便宜：只講上列一個地區與一個中位數，不要列其他地區、價格範圍、持有成本、免責聲明或背景分析。",
+                "第二句只問一個需求條件，並給 2 個簡短選項。",
             ]
+        )
+        target_region = str((list(market_stats.get("regions") or [{}])[0] or {}).get("region") or "").strip()
+        target_median = float((list(market_stats.get("regions") or [{}])[0] or {}).get("median_price_man") or 0)
+        market_short_guard_reply = (
+            f"若以站內可比在售樣本的總價中位數看，{target_region}較低，約 {target_median:,.0f} 萬日圓。\n"
+            "您是想自住還是收租？"
+            if target_region and target_median > 0
+            else _support_compact_purchase_reply(fallback_reply, max_chars=180)
         )
         reply, market_llm = _support_model_first_purchase_reply(
             message=msg,
@@ -34548,12 +34589,22 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             knowledge_text=market_price_ai_context,
             fallback_reply=fallback_reply,
             scenario_coaching=(
-                "你是使用站內真實在售資料的日本房產客服。請自然回答，不要照抄模板或假裝查詢外部資料；"
-                "只可引用提供的區域統計，且說清楚是站內可比樣本。"
+                "【嚴格短回合】使用者正在問『哪裡房子較便宜』。只輸出兩句："
+                "第一句直接給一個站內可比樣本中位數較低的地區與價格；第二句只問用途，"
+                "例如「自住」或「收租」。不要問候、不要列多個地區、不要談成本、不要加免責聲明。"
             ),
             managed_case_count=int(market_stats.get("sample_count") or 0),
             sales_stage_key="discover",
         )
+        known_regions = {
+            str(item.get("region") or "").strip()
+            for item in list(market_stats.get("regions") or [])
+            if isinstance(item, dict) and str(item.get("region") or "").strip()
+        }
+        if any(region != target_region and region in reply for region in known_regions):
+            reply = market_short_guard_reply
+            market_llm["purchase_model_reply"] = False
+            market_llm["reply_guard_fallback"] = "market_one_region"
         market_llm["market_data_ai_reply"] = bool(market_llm.get("purchase_model_reply"))
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)
         return JSONResponse(
@@ -34664,8 +34715,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 managed_text or "目前命中的站內案件資料不足。",
                 "只可介紹上列案件與欄位；不得補造案件、價格、交通、可售狀態或外部來源。"
                 "先直接回覆使用者，再在最後只問一個可幫助縮小需求的問題。",
-                "【雙模型皆失敗時的安全資料型回覆】",
-                fallback_reply,
             ]
         )
         reply, managed_llm = _support_model_first_purchase_reply(
@@ -34721,8 +34770,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 "【站內案件查詢結果】",
                 "依目前使用者已提供的條件，站內沒有可同時核對且符合的在售案件。",
                 "不可用相近案件湊數，也不可虛構案件或說明已有媒合結果。",
-                "【雙模型皆失敗時的安全資料型回覆】",
-                fallback_reply,
             ]
         )
         reply, no_match_llm = _support_model_first_purchase_reply(

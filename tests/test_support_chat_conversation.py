@@ -421,6 +421,41 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("福岡", data["reply"])
         self.assertIn("站內目前可比的在售資料", data["reply"])
 
+    def test_market_price_reply_is_direct_and_keeps_one_guided_follow_up(self):
+        rows = [
+            {"region": "青森", "price_man": 900.0, "source_item_id": 101},
+            {"region": "青森", "price_man": 988.0, "source_item_id": 102},
+            {"region": "青森", "price_man": 1200.0, "source_item_id": 103},
+            {"region": "香川", "price_man": 1400.0, "source_item_id": 201},
+            {"region": "香川", "price_man": 1450.0, "source_item_id": 202},
+            {"region": "香川", "price_man": 1500.0, "source_item_id": 203},
+        ]
+        verbose_reply = (
+            "您好呀！想在日本找预算比较亲民的物件，确实可以先从一些地方开始比较。"
+            "根据我们网站目前在售的物件数据，青森和香川都有较低总价的选择，青森的中位数约 988 万日圆。"
+            "不过买日本房子除了总价，还要注意管理费、修缮积立金和固定资产税。"
+            "为了帮您更精准筛选，想先请教您这间房子是自己住还是出租收租呢？"
+            "提醒：实际仍以契约、法規与官方公告为准。"
+        )
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module, "chat_support_reply_gemini", return_value=verbose_reply
+        ) as mocked_llm:
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪里房子比较便宜？推荐一下。",
+                    sales_session_id="sess-test-market-direct-guidance",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertLessEqual(len(data["reply"]), 180)
+        self.assertIn("青森", data["reply"])
+        self.assertNotIn("香川", data["reply"])
+        self.assertIn("自住", data["reply"])
+        self.assertIn("收租", data["reply"])
+        self.assertEqual(mocked_llm.call_args.kwargs["max_tokens"], 220)
+        self.assertIn("嚴格短回合", mocked_llm.call_args.kwargs["scenario_coaching"])
+
     def test_handoff_chain_syncs_frontend_conversation_to_admin_and_back(self):
         session_id = f"sess-test-handoff-{uuid4().hex[:10]}"
         self._cleanup_session(session_id)

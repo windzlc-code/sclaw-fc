@@ -87,6 +87,7 @@ class SupportChatDatabaseOnlyTests(unittest.TestCase):
                     history=history,
                     sales_session_id="sess-test-database-only-final",
                     use_knowledge=False,
+                    knowledge_zh_variant="hant",
                 )
             )
         data = json.loads(resp.body)
