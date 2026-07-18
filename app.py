@@ -34298,10 +34298,11 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
         knowledge_meta["property_listing_intent"] = True
         knowledge_meta["managed_case_count"] = len(selected_cases)
-        requested_provider = (payload.llm_provider or "").strip()
-        rp = resolve_llm_provider(requested_provider or None)
-        if not requested_provider and is_llm_configured("gemini"):
-            rp = "gemini"  # type: ignore[assignment]
+        # Visitor chat must not inherit an admin screen's provider/model
+        # override.  Such a stale browser value can pair a DeepSeek model ID
+        # with the Gemini endpoint and make a normal comparison appear stuck.
+        requested_provider = ""
+        rp = "gemini" if is_llm_configured("gemini") else resolve_llm_provider(None)
         provider_fallback_from = ""
         if not requested_provider and not is_llm_configured(rp):
             for cand in ("gemini", "deepseek"):
@@ -34310,7 +34311,6 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     rp = cand  # type: ignore[assignment]
                     break
         _, _, use_model = get_chat_credentials(rp)
-        use_model = (payload.gemini_model or "").strip() or use_model
         llm_meta = {
             "provider": rp,
             "enabled": bool(is_llm_configured(rp)),
@@ -34669,16 +34669,12 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         },
     }
     crm_addon = support_crm_system_addon_for_llm()
-    requested_provider = (payload.llm_provider or "").strip()
-    rp = resolve_llm_provider(requested_provider or None)
+    # The public chat endpoint deliberately uses server-owned credentials and
+    # model IDs.  The page also hosts admin/SEO controls, whose stale values
+    # must never change a live visitor conversation.
+    requested_provider = ""
+    rp = "gemini" if is_llm_configured("gemini") else resolve_llm_provider(None)
     provider_fallback_from = ""
-    # Gemini is the proven responsive visitor-chat path on this deployment.
-    # Keep an explicit back-office provider choice intact, but do not make a
-    # public visitor wait on the slower active default when Gemini is ready.
-    if not requested_provider and is_llm_configured("gemini"):
-        if rp != "gemini":
-            provider_fallback_from = rp
-        rp = "gemini"
     if not is_llm_configured(rp):
         for cand in ("gemini", "deepseek"):
             if cand != rp and is_llm_configured(cand):
@@ -34686,7 +34682,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 rp = cand  # type: ignore[assignment]
                 break
     _, _, default_m = get_chat_credentials(rp)
-    use_model = (payload.gemini_model or "").strip() or default_m
+    use_model = default_m
     llm_fast = (not run_kb) and (not selected_compare_request)
     # Keep the server-side AI work inside the 35s browser deadline.  AI still
     # handles open-ended language; database-backed answers remain grounded in
