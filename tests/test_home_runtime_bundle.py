@@ -112,7 +112,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         fast_reply_start = app.index("market_price_fast =", route_start)
         fast_reply_block = app[fast_reply_start:app.index("if market_price_fast:", fast_reply_start)]
 
-        self.assertIn("market_price_fast = _support_market_price_reply(msg)", fast_reply_block)
+        self.assertIn("market_price_fast = _support_market_price_reply(msg, focus_region=market_focus_region)", fast_reply_block)
         self.assertIn("market_price_ai_context", app[fast_reply_start:fast_reply_start + 5000])
 
         market_guard_start = app.index("def _support_is_market_price_question")

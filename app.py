@@ -31670,7 +31670,12 @@ def _support_median(values: list[float]) -> float | None:
     return ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
 
 
-def _support_market_price_reply(message: str, *, force: bool = False) -> tuple[str, dict[str, Any]] | None:
+def _support_market_price_reply(
+    message: str,
+    *,
+    force: bool = False,
+    focus_region: str = "",
+) -> tuple[str, dict[str, Any]] | None:
     if not force and not _support_is_market_price_question(message):
         return None
     grouped: dict[str, list[float]] = {}
@@ -31702,7 +31707,10 @@ def _support_market_price_reply(message: str, *, force: bool = False) -> tuple[s
             "我已查詢站內目前可比的在售資料，但可同時辨識地區與售價的樣本不足，不能據此說哪個地區最便宜。請告訴我想比較的地區、用途與總預算，我會只依站內可核對案件幫您縮小範圍。",
             {"sample_count": 0, "regions": [], "reason": "insufficient_comparable_records"},
         )
-    requested_region = _support_market_region_label(message)
+    # A region explicitly typed in the current message wins.  Otherwise, the
+    # form's city/region is a useful core preference for a price question; do
+    # not discard it and jump to the nationwide lowest sample every time.
+    requested_region = _support_market_region_label(message, focus_region)
     if requested_region:
         target = next((item for item in stats if item["region"] == requested_region), None)
         if target is None:
@@ -34592,7 +34600,17 @@ def api_ai_chat_support(payload: ChatSupportRequest):
         )
     # 市場價格／最低房價問題先取得站內統計，再交給模型以自然語言回答。
     # 模型不可補造資料；只有所有提供者失敗才使用同一份統計的固定安全文案。
-    market_price_fast = _support_market_price_reply(msg)
+    # A city/region is a core requirement, not an instruction to mirror every
+    # field in the form.  Use it to scope a broad price question unless the
+    # user has named a different region in this message.
+    message_market_region = _support_market_region_label(msg)
+    form_market_region = _support_market_region_label(
+        (payload.figure_region or "").strip(),
+        intake_summary.get("target_region", ""),
+        intake_summary.get("target_city", ""),
+    )
+    market_focus_region = message_market_region or form_market_region
+    market_price_fast = _support_market_price_reply(msg, focus_region=market_focus_region)
     if market_price_fast:
         fallback_reply, market_stats = market_price_fast
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
@@ -34605,14 +34623,20 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                     "metric": "listing_total_price_median_man_jpy",
                     "generated_at": datetime.now(timezone.utc).isoformat(),
                     **market_stats,
+                    "focus_region": market_focus_region,
                 },
             }
         )
+        all_market_regions = [
+            item for item in list(market_stats.get("regions") or []) if isinstance(item, dict)
+        ]
+        # When a core city/region is known, the statistics function has already
+        # reduced this list to that one region.  For an unscoped broad question,
+        # keep a short, useful comparison set instead of always hiding every
+        # region after the global minimum.
+        display_regions = all_market_regions[: (1 if market_focus_region else 3)]
         region_lines = []
-        # The first item is the sole conclusion for this turn.  Passing a ranked
-        # list tempts the model to turn a simple "where is cheaper" question
-        # into a long regional report before it has learned the user's needs.
-        for item in list(market_stats.get("regions") or [])[:1]:
+        for item in display_regions:
             if not isinstance(item, dict):
                 continue
             region_lines.append(
@@ -34647,15 +34671,31 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 intake_summary_context,
                 f"從本輪對話與首頁篩選已辨識：{'、'.join(intake_known) or '尚未填寫'}。",
                 f"本輪最適合確認：{(intake_missing or ['下一步條件'])[0]}。請在結尾使用此問題：{intake_next_question}",
-                "使用者目前只在問哪裡較便宜：只講上列一個地區與一個中位數；可用第二句說明仍須依需求表篩選，"
-                "不要列其他地區、價格範圍、持有成本、免責聲明或背景分析。",
+                (
+                    f"使用者已把「{market_focus_region}」列為核心地區：只說這個地區的站內可比資料，"
+                    "不要改用其他地區取代它。"
+                    if market_focus_region
+                    else "使用者尚未指定核心地區：可在第一句內比較上列最多三個地區，先說明哪個中位數較低，"
+                    "不要延伸成全國排名或列出未提供的地區。"
+                ),
+                "第二句只需說明實際推薦會優先依核心地區、預算與物件類型縮小範圍；不要加入未提供的費用或外部資料。",
             ]
         )
-        target_region = str((list(market_stats.get("regions") or [{}])[0] or {}).get("region") or "").strip()
-        target_median = float((list(market_stats.get("regions") or [{}])[0] or {}).get("median_price_man") or 0)
+        target_region = str((display_regions or [{}])[0].get("region") or "").strip()
+        target_median = float((display_regions or [{}])[0].get("median_price_man") or 0)
+        comparison_facts = "、".join(
+            f"{str(item.get('region') or '').strip()}約 {float(item.get('median_price_man') or 0):,.0f} 萬日圓"
+            for item in display_regions
+            if str(item.get("region") or "").strip() and float(item.get("median_price_man") or 0) > 0
+        )
+        market_scope_sentence = (
+            f"您目前以「{target_region}」作為核心地區，站內可比在售樣本的總價中位數約 {target_median:,.0f} 萬日圓。"
+            if market_focus_region and target_region and target_median > 0
+            else f"以站內各地區案件總價中位數看，可先比較：{comparison_facts}；其中 {target_region} 較低。"
+        )
         market_short_guard_reply = (
-            f"若以站內可比在售樣本的總價中位數看，{target_region}較低，約 {target_median:,.0f} 萬日圓。\n"
-            "這只反映站內現有可比樣本；實際推薦會依需求表的用途與預算繼續篩選。\n"
+            f"{market_scope_sentence}\n"
+            "這些只是站內現有可比樣本；實際推薦會優先依用途與預算等核心條件（地區、物件類型）縮小範圍。\n"
             f"{intake_next_question}"
             if target_region and target_median > 0
             else _support_compact_purchase_reply(fallback_reply, max_chars=240)
@@ -34668,24 +34708,31 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             fallback_reply=fallback_reply,
             scenario_coaching=(
                 "【嚴格短回合】使用者正在問『哪裡房子較便宜』。只輸出三個短句："
-                "第一句直接給一個站內可比樣本中位數較低的地區與價格；第二句簡短說明要依需求表篩選；"
+                + (
+                    f"第一句直接回覆使用者核心地區「{target_region}」的站內可比樣本中位數；"
+                    if market_focus_region
+                    else "第一句可比較上列最多三個地區的站內中位數，並點出較低者；"
+                )
+                + "第二句簡短說明會以核心地區、預算與物件類型繼續篩選；"
                 f"第三句必須使用這個下一步問題：{intake_next_question}。"
-                "不要問候、不要列多個地區、不要談成本、不要加免責聲明。"
+                "不要問候、不要加入未提供的地區、費用或外部資料、不要加免責聲明。"
             ),
             managed_case_count=int(market_stats.get("sample_count") or 0),
             sales_stage_key="discover",
         )
-        known_regions = {
+        allowed_regions = {
             str(item.get("region") or "").strip()
-            for item in list(market_stats.get("regions") or [])
-            if isinstance(item, dict) and str(item.get("region") or "").strip()
+            for item in display_regions
+            if str(item.get("region") or "").strip()
         }
         reply_sentence_count = len(
             [part for part in re.split(r"(?<=[。！？!?])\s*|\n+", str(reply or "")) if str(part or "").strip()]
         )
         needs_intake_structure = reply_sentence_count < 3 or not re.search(r"例如[:：]", str(reply or ""))
         if bool(market_llm.get("purchase_model_reply")) and (
-            any(region != target_region and region in reply for region in known_regions)
+            not target_region
+            or target_region not in reply
+            or any(region not in allowed_regions and region in reply for region in _PURCHASE_DISCOVERY_REGIONS)
             or re.search(r"管理費|管理费|修繕|修缮|固定資產|固定资产|持有成本|提醒|免責|免责", reply, re.I)
             or needs_intake_structure
         ):
@@ -34694,7 +34741,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             market_llm["reply_guard_reason"] = (
                 "market_intake_structure"
                 if needs_intake_structure
-                else "market_one_region"
+                else "market_database_scope"
             )
         market_llm["market_data_ai_reply"] = bool(market_llm.get("purchase_model_reply"))
         sales_mcp = _build_sales_mcp_payload(msg, knowledge_meta, session_id=session_id, turn_index=support_turn_index)

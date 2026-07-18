@@ -370,6 +370,60 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("福岡", mocked_llm.call_args.kwargs["knowledge_text"])
         self.assertIn("1,300", mocked_llm.call_args.kwargs["knowledge_text"])
 
+    def test_market_price_prefers_form_city_over_the_global_lowest_region(self):
+        rows = [
+            {"region": "青森", "price_man": 900.0, "source_item_id": 101},
+            {"region": "青森", "price_man": 988.0, "source_item_id": 102},
+            {"region": "青森", "price_man": 1200.0, "source_item_id": 103},
+            {"region": "東京", "price_man": 5000.0, "source_item_id": 201},
+            {"region": "東京", "price_man": 5400.0, "source_item_id": 202},
+            {"region": "東京", "price_man": 5600.0, "source_item_id": 203},
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="東京約 5,400 萬日圓。請再補條件。",
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="哪個地區房價最便宜？有什麼推薦？",
+                    intake_summary={"target_city": "東京", "budget_total_yen": "6,000 萬日圓以內"},
+                    sales_session_id="sess-test-market-form-city-first",
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertEqual(data["knowledge"]["market_data"]["focus_region"], "東京")
+        self.assertEqual(data["knowledge"]["market_data"]["regions"][0]["region"], "東京")
+        self.assertIn("東京", data["reply"])
+        self.assertNotIn("青森", data["reply"])
+
+    def test_unscoped_market_price_keeps_a_short_real_region_comparison(self):
+        rows = [
+            {"region": "青森", "price_man": 900.0, "source_item_id": 101},
+            {"region": "青森", "price_man": 988.0, "source_item_id": 102},
+            {"region": "青森", "price_man": 1200.0, "source_item_id": 103},
+            {"region": "福岡", "price_man": 1200.0, "source_item_id": 201},
+            {"region": "福岡", "price_man": 1300.0, "source_item_id": 202},
+            {"region": "福岡", "price_man": 1400.0, "source_item_id": 203},
+            {"region": "香川", "price_man": 1500.0, "source_item_id": 301},
+            {"region": "香川", "price_man": 1600.0, "source_item_id": 302},
+            {"region": "香川", "price_man": 1700.0, "source_item_id": 303},
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="青森約 988 萬日圓。請再補條件。",
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(message="哪個地區房價最便宜？", sales_session_id="sess-test-market-compare-set")
+            )
+        data = json.loads(resp.body)
+
+        self.assertIn("青森", data["reply"])
+        self.assertIn("福岡", data["reply"])
+        self.assertIn("香川", data["reply"])
+
     def test_price_recommendation_question_uses_model_with_database_grounding(self):
         """Price-led recommendations must pass database facts into the model."""
         managed_rows = [
@@ -483,7 +537,7 @@ class SupportChatConversationTests(unittest.TestCase):
 
         self.assertLessEqual(len(data["reply"]), 180)
         self.assertIn("青森", data["reply"])
-        self.assertNotIn("香川", data["reply"])
+        self.assertIn("香川", data["reply"])
         self.assertIn("自住", data["reply"])
         self.assertIn("收租", data["reply"])
         self.assertEqual(mocked_llm.call_args.kwargs["max_tokens"], 220)
