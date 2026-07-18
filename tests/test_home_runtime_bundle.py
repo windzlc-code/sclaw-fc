@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "templates" / "index.html"
 RUNTIME = ROOT / "static" / "index-app.js"
 APP = ROOT / "app.py"
+GEMINI_CLIENT = ROOT / "src" / "gemini_client.py"
 
 
 class HomeRuntimeBundleTests(unittest.TestCase):
@@ -89,6 +90,11 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("compactSupportChatReplyText", runtime)
         self.assertNotIn("supportFallbackCompactReply", fallback)
         self.assertNotIn("compact.slice(0, 118)", fallback)
+
+    def test_property_chat_contract_allows_a_brief_form_guided_third_sentence(self):
+        client = GEMINI_CLIENT.read_text(encoding="utf-8")
+        self.assertIn("最多 3 個短句", client)
+        self.assertIn("需求表篩選說明", client)
 
     def test_market_price_recommendations_use_model_with_database_context(self):
         app = APP.read_text(encoding="utf-8")

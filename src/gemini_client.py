@@ -1114,7 +1114,7 @@ def chat_support_reply_gemini(
     reminder_line = "提醒：以上為資訊整理與初步方向，實際仍以契約、法規與官方公告為準。"
     short_property_turn = bool(property_listing_intent and not compare_mode)
     closing_rule = (
-        "6）房源諮詢採短回合：最多 2 個短句（直接結論＋一個下一步問題）。"
+        "6）房源諮詢採短回合：最多 3 個短句（直接結論＋一項需求表篩選說明＋一個下一步問題）。"
         "除非使用者正在問成本、稅費或法規，否則不要主動展開持有成本、免責聲明、跨區比較或背景知識。"
         if short_property_turn
         else f"6）最後單獨一行：{reminder_line}"
