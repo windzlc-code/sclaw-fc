@@ -7152,6 +7152,7 @@
         return `<span class="support-chat-message-meta support-chat-message-meta--ok">已同步給 ${esc(names)}</span>`;
       }
       const err = String(meta.error || '').trim();
+      if (!err) return '';
       return `<span class="support-chat-message-meta support-chat-message-meta--warn">顧問通道尚未同步${err ? '：' + esc(err.slice(0, 120)) : ''}</span>`;
     }
 

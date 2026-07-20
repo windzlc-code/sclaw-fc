@@ -513,6 +513,35 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertEqual(data["llm"]["provider"], "deepseek")
         self.assertEqual(data["llm"]["model"], "deepseek-model")
 
+    def test_market_price_specific_case_request_returns_real_case_rows(self):
+        rows = [
+            {"region": "大阪", "price_man": 980.0, "source_item_id": 101, "title_zh_hant": "大阪低總價公寓A"},
+            {"region": "大阪", "price_man": 1280.0, "source_item_id": 102, "title_zh_hant": "大阪低總價公寓B"},
+            {"region": "大阪", "price_man": 1680.0, "source_item_id": 103, "title_zh_hant": "大阪低總價公寓C"},
+            {"region": "東京", "price_man": 5400.0, "source_item_id": 201, "title_zh_hant": "東京公寓A"},
+            {"region": "東京", "price_man": 5600.0, "source_item_id": 202, "title_zh_hant": "東京公寓B"},
+            {"region": "東京", "price_man": 5800.0, "source_item_id": 203, "title_zh_hant": "東京公寓C"},
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="大阪站內中位數較低。請問您主要是自住還是收租？",
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="大阪有便宜的房子嗎？給我具體的案件。",
+                    sales_session_id="sess-test-market-specific-cases",
+                    use_knowledge=False,
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["knowledge"]["managed_case_count"], 3)
+        self.assertIn("大阪低總價公寓A", data["reply"])
+        self.assertIn("/case/101", data["reply"])
+        self.assertNotEqual(data["llm"].get("reply_guard_reason"), "market_intake_structure")
+
     def test_market_price_uses_real_database_fallback_only_after_all_models_fail(self):
         rows = [
             {"region": "福岡", "price_man": 1200.0, "source_item_id": 101},

@@ -20663,7 +20663,7 @@ def _support_message_explicit_case_request(message: str) -> bool:
     if re.search(r"(找房|看房|找物件|看物件|找案件|看案件|推薦.*(?:房|物件|案件)|推荐.*(?:房|物件|案件))", text, re.I):
         return True
     has_case_word = re.search(r"(案件|物件|房源|房子|公寓|一戶建|一户建|マンション|房產|房地產|不動產|不动产)", text, re.I)
-    has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|諮詢|咨询|確認|确认|了解|瞭解|協助|协助|比較|比较|比對|比对|對比|对比|分析|評估|评估|清單|清单|連結|链接|URL|編號|编号|已選|已选|加入|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
+    has_action = re.search(r"(推薦|推荐|介紹|介绍|找|搜尋|搜索|查詢|查询|看|諮詢|咨询|確認|确认|了解|瞭解|協助|协助|比較|比较|比對|比对|對比|对比|分析|評估|评估|具體|具体|清單|清单|連結|链接|URL|編號|编号|已選|已选|加入|有興趣|有兴趣|哪一筆|哪一笔)", text, re.I)
     return bool(has_case_word and has_action)
 
 
@@ -34839,10 +34839,35 @@ def api_ai_chat_support(payload: ChatSupportRequest):
     market_price_fast = _support_market_price_reply(msg, focus_region=market_focus_region)
     if market_price_fast:
         fallback_reply, market_stats = market_price_fast
+        market_concrete_case_request = bool(_support_message_explicit_case_request(msg))
+        market_case_rows: list[dict[str, Any]] = []
+        market_case_text = ""
+        market_case_api: list[dict] = []
+        if market_concrete_case_request:
+            market_case_text, market_case_samples = _support_market_low_price_case_samples(
+                market_focus_region or _support_market_region_label(msg),
+                limit=4,
+            )
+            market_case_rows = [
+                {
+                    "source_item_id": int(item.get("source_item_id") or 0),
+                    "title_zh_hant": str(item.get("title") or "").strip(),
+                    "title_zh_hans": str(item.get("title") or "").strip(),
+                    "case_jp_region_override": str(item.get("region") or "").strip(),
+                    "case_transit_override": "",
+                    "item_url": str(item.get("item_url") or "").strip(),
+                    "price_man": float(item.get("price_man") or 0),
+                }
+                for item in market_case_samples
+                if isinstance(item, dict)
+            ]
+            market_case_api = managed_items_for_api(market_case_rows, zh_variant="hant")[:4]
         knowledge_meta = _support_fast_empty_knowledge_meta(msg, selected_cases=selected_cases)
         knowledge_meta.update(
             {
                 "property_listing_intent": True,
+                "managed_cases": market_case_api,
+                "managed_case_count": len(market_case_api),
                 "intake_summary": intake_summary,
                 "market_data": {
                     "source": "managed_case_database",
@@ -34892,6 +34917,12 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             [
                 "【站內真實可比在售資料：唯一價格事實來源】",
                 *region_lines,
+                (
+                    "【使用者要求具體案件：站內真實案件資料】\n"
+                    + (market_case_text or "目前未能依這個地區與條件取得可列出的站內案件。")
+                    if market_concrete_case_request
+                    else ""
+                ),
                 "不得把這些樣本推論為全市場成交價，也不得虛構未列出的案件、地區、價格或報酬。",
                 "【需求表欄位導引】欄位順序：購買目的→總預算→城市／區域→沿線／車站→物件類型→格局／房數。",
                 intake_summary_context,
@@ -34920,9 +34951,20 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             else f"以站內各地區案件總價中位數看，可先比較：{comparison_facts}；其中 {target_region} 較低。"
         )
         market_short_guard_reply = (
-            f"{market_scope_sentence}\n"
-            "這些只是站內現有可比樣本；實際推薦會優先依用途與預算等核心條件（地區、物件類型）縮小範圍。\n"
-            f"{intake_next_question}"
+            (
+                f"{market_scope_sentence}\n"
+                + (
+                    _build_support_managed_cases_fast_reply(msg, market_case_rows)
+                    if market_case_rows
+                    else "我也同步查了站內案件，但目前沒有找到可直接列出的符合項目；您可以先給總預算或物件類型，我再縮小。"
+                )
+            )
+            if market_concrete_case_request
+            else (
+                f"{market_scope_sentence}\n"
+                "這些只是站內現有可比樣本；實際推薦會優先依用途與預算等核心條件（地區、物件類型）縮小範圍。\n"
+                f"{intake_next_question}"
+            )
             if target_region and target_median > 0
             else _support_compact_purchase_reply(fallback_reply, max_chars=240)
         )
@@ -34942,8 +34984,14 @@ def api_ai_chat_support(payload: ChatSupportRequest):
                 + "第二句簡短說明會以核心地區、預算與物件類型繼續篩選；"
                 f"第三句必須使用這個下一步問題：{intake_next_question}。"
                 "不要問候、不要加入未提供的地區、費用或外部資料、不要加免責聲明。"
+                + (
+                    "但本輪使用者明確要求具體案件：若上方有站內真實案件資料，必須直接列出 1～3 筆案件名稱、可解析價格與站內 /case/ 編號；"
+                    "不要只回覆統計值，也不要反覆追問用途。"
+                    if market_concrete_case_request
+                    else ""
+                )
             ),
-            managed_case_count=int(market_stats.get("sample_count") or 0),
+            managed_case_count=len(market_case_api) if market_concrete_case_request else int(market_stats.get("sample_count") or 0),
             sales_stage_key="discover",
             preferred_provider="deepseek",
         )
@@ -34956,16 +35004,25 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             [part for part in re.split(r"(?<=[。！？!?])\s*|\n+", str(reply or "")) if str(part or "").strip()]
         )
         needs_intake_structure = reply_sentence_count < 3
+        needs_specific_case_guard = bool(
+            market_concrete_case_request
+            and market_case_rows
+            and not re.search(r"(/case/|#\d{3,}|站內明細|站内明细)", reply)
+        )
         if bool(market_llm.get("purchase_model_reply")) and (
             not target_region
             or target_region not in reply
             or any(region not in allowed_regions and region in reply for region in _PURCHASE_DISCOVERY_REGIONS)
             or re.search(r"管理費|管理费|修繕|修缮|固定資產|固定资产|持有成本|提醒|免責|免责", reply, re.I)
             or needs_intake_structure
+            or needs_specific_case_guard
         ):
             reply = market_short_guard_reply
             market_llm["model_response_guarded"] = True
             market_llm["reply_guard_reason"] = (
+                "market_specific_cases_missing"
+                if needs_specific_case_guard
+                else
                 "market_intake_structure"
                 if needs_intake_structure
                 else "market_database_scope"
