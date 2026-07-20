@@ -22241,7 +22241,10 @@
       const cacheKey = homeFeaturedCacheKey(type);
       const cached = homeFeaturedTypeCache.get(cacheKey);
       if (cached && Array.isArray(cached.items)) {
-        if (!cached.items.length) return null;
+        // An explicit empty preload means this type currently has no card that
+        // passed the image screen. It is a valid, instant result—not a reason
+        // to launch another slow database search or reuse another type's card.
+        if (!cached.items.length) return cached.hasMore === false ? cached : null;
         if (cached.hasMore !== false && cached.items.length < HOME_FEATURED_PAGE_SIZE) return null;
         if (!homeFeaturedTypeShouldExcludeSpotlight(type)) {
           return cached;
@@ -22258,7 +22261,7 @@
       if (!storedPayload || !Array.isArray(storedPayload.items)) return null;
       const storedItems = homeFeaturedFilterTypeItems(homeFeaturedPayloadItems(storedPayload), type);
       const firstPageItems = storedItems.slice(0, HOME_FEATURED_PAGE_SIZE);
-      if (!firstPageItems.length) return null;
+      if (!firstPageItems.length && storedPayload.has_more !== false) return null;
       if (storedPayload.has_more !== false && firstPageItems.length < HOME_FEATURED_PAGE_SIZE) return null;
       const normalized = {
         items: firstPageItems,
@@ -22499,7 +22502,10 @@
       const timer = controller ? window.setTimeout(() => controller.abort(), 6500) : 0;
       const request = (async () => {
         try {
-          const res = await fetch('/api/home-featured-type-preloads', {
+          // Version the compact preload request so a server-side cache repair
+          // is visible immediately instead of being held by a previous
+          // day-long browser/CDN response.
+          const res = await fetch('/api/home-featured-type-preloads?v=type-preload-v2', {
             cache: 'default',
             signal: controller ? controller.signal : undefined,
           });

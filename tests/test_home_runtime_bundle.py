@@ -62,6 +62,23 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertRegex(index, r"index-app\.js\?v=20260720-[A-Za-z0-9-]+")
         self.assertRegex(index, r"site\.css\?v=20260717-[A-Za-z0-9-]+")
 
+    def test_type_tabs_rebuild_a_stale_preload_without_blocking_clicks(self):
+        app = APP.read_text(encoding="utf-8")
+        self.assertIn("def _home_featured_build_preload_bundle", app)
+        self.assertIn("def _start_home_featured_preload_rebuild", app)
+        self.assertIn("_HOME_FEATURED_INDEX_PRELOAD_STALE_TTL_SECONDS", app)
+        self.assertIn("name=\"home-featured-type-preload\"", app)
+        self.assertIn("sync_static=False", app)
+        self.assertIn("thread_name_prefix=\"home-type-preload\"", app)
+        self.assertIn("def _home_featured_items_preloaded_fast", app)
+        self.assertIn("def _home_featured_preloaded_has_display_image", app)
+        self.assertIn("def _home_featured_preload_bundle_has_cached_items", app)
+        self.assertIn("Bundles reach this function only after the strict preload build", app)
+        self.assertIn('"items": items[:limit]', app)
+        self.assertIn("full SQLite scan", app)
+        self.assertIn("explicit empty preload", RUNTIME.read_text(encoding="utf-8"))
+        self.assertIn("home-featured-type-preloads?v=type-preload-v2", RUNTIME.read_text(encoding="utf-8"))
+
     def test_mobile_featured_cards_keep_price_and_specs_visible_without_hover(self):
         css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
         marker = "Touch devices have no hover state"

@@ -5937,6 +5937,49 @@ def _home_featured_items_homepage_eligible(items: Any, *, excluded_ids: set[int]
     return out
 
 
+def _home_featured_items_preloaded_fast(items: Any, *, excluded_ids: set[int] | None = None) -> list[dict[str, Any]]:
+    """Read an already-screened preload without reopening every image file.
+
+    The persistent bundle is produced only through the strict eligibility
+    filter above. Reapplying pixel-level image checks to every visitor request
+    turns a memory cache into a multi-second CPU path, so runtime only verifies
+    the cheap invariants needed to render a valid card.
+    """
+    if not isinstance(items, list):
+        return []
+    excluded = excluded_ids or set()
+    out: list[dict[str, Any]] = []
+    seen: set[int | str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        sid = int(item.get("source_item_id") or 0)
+        if sid and sid in excluded:
+            continue
+        key: int | str = sid or str(item.get("case_path") or item.get("title") or item.get("thumb_url") or "").strip()
+        if not key or key in seen:
+            continue
+        if not (
+            _home_featured_preloaded_has_display_image(item)
+            and _home_featured_has_display_price(item)
+            and _home_featured_supporting_info_score(item) >= 2
+        ):
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def _home_featured_preloaded_has_display_image(item: dict[str, Any]) -> bool:
+    """Confirm the cached image file exists without decoding it again."""
+    thumb = str(item.get("thumb_url") or item.get("hero_media_url") or "").strip()
+    if not thumb:
+        return False
+    if not re.match(r"^/static/cache/case-images/[a-f0-9]{2}/[a-f0-9]{40}\.(?:jpg|jpeg|png|webp)$", thumb, re.I):
+        return False
+    return _url_to_local_static_path(thumb) is not None
+
+
 # Homepage recommendation batches are intentionally stable for a whole day.
 # A manual "change batch" request only selects another already-cached offset.
 _HOME_FEATURED_CASES_CACHE_TTL_SECONDS = 24 * 60 * 60.0
@@ -6064,6 +6107,7 @@ def _home_featured_cases_payload(
     region: str = "",
     q: str = "",
     exclude_source_item_ids: Iterable[int] | None = None,
+    sync_static: bool = True,
 ) -> dict[str, Any]:
     lim = max(1, min(24, int(limit or 12)))
     off = max(0, min(50000, int(offset or 0)))
@@ -6228,7 +6272,10 @@ def _home_featured_cases_payload(
         fast_keyword_search = bool(query_text)
         item = _home_featured_case_public_row_fast(
             row_dict,
-            sync_static=not fast_keyword_search,
+            # The preload worker only uses previously screened local images.
+            # Do not let it synchronously download remote media while users
+            # are browsing the homepage.
+            sync_static=bool(sync_static and not fast_keyword_search),
             fast_cached_media=not fast_keyword_search,
         )
         item_title = str(item.get("title") or item.get("title_original") or "").strip()
@@ -6271,6 +6318,7 @@ def _home_featured_cases_payload_merged(
     q: str = "",
     max_rounds: int = 6,
     exclude_source_item_ids: Iterable[int] | None = None,
+    sync_static: bool = True,
 ) -> dict[str, Any]:
     """Backfill sparse featured batches so homepage sections do not render half-empty."""
     target = max(1, min(24, int(limit or 12)))
@@ -6291,6 +6339,7 @@ def _home_featured_cases_payload_merged(
             region=region,
             q=q,
             exclude_source_item_ids=exclude_source_item_ids,
+            sync_static=sync_static,
         )
         last_payload = payload
         items = list(payload.get("items") or [])
@@ -6580,6 +6629,9 @@ _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # file usable across restarts and daily traffic; external jobs can replace it
 # when a new screening batch is generated.
 _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS = 24 * 60 * 60
+_HOME_FEATURED_INDEX_PRELOAD_STALE_TTL_SECONDS = 7 * 24 * 60 * 60
+_HOME_FEATURED_INDEX_PRELOAD_REBUILD_LOCK = threading.Lock()
+_HOME_FEATURED_INDEX_PRELOAD_REBUILD_STARTED = False
 _HOME_FEATURED_DETAIL_PREWARM_LOCK = threading.Lock()
 _HOME_FEATURED_DETAIL_PREWARM_STARTED = False
 _HOME_FEATURED_INDEX_INLINE_ITEMS = 12
@@ -6611,6 +6663,20 @@ def _home_featured_preload_bundle_has_items(bundle: dict[str, Any] | None) -> bo
     return False
 
 
+def _home_featured_preload_bundle_has_cached_items(bundle: dict[str, Any] | None) -> bool:
+    """Fast validity check for a versioned, previously screened preload."""
+    if not isinstance(bundle, dict):
+        return False
+    hot_items = _home_featured_items_preloaded_fast(
+        list(((bundle.get("home_featured_preload") or {}).get("items") or []))
+    )
+    if len(hot_items) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS:
+        return True
+    type_payloads = bundle.get("home_featured_type_preloads") or {}
+    generic = type_payloads.get("") if isinstance(type_payloads, dict) else {}
+    return len(_home_featured_items_preloaded_fast(list((generic or {}).get("items") or []))) >= _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS
+
+
 def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     """Backfill the generic type pool from specific type preloads when the hot pool is sparse."""
     if not isinstance(bundle, dict):
@@ -6622,8 +6688,11 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
         fixed["home_featured_type_preloads"] = type_payloads
     hot_payload = fixed.get("home_featured_preload") if isinstance(fixed.get("home_featured_preload"), dict) else {}
     generic_payload = type_payloads.get("") if isinstance(type_payloads.get(""), dict) else {}
-    generic_items = _home_featured_items_homepage_eligible(list((generic_payload or {}).get("items") or []))
-    hot_items = _home_featured_items_homepage_eligible(list((hot_payload or {}).get("items") or []))
+    # Bundles reach this function only after the strict preload build has
+    # screened the images. Reusing that result keeps first request startup
+    # bounded instead of re-running per-image pixel analysis.
+    generic_items = _home_featured_items_preloaded_fast(list((generic_payload or {}).get("items") or []))
+    hot_items = _home_featured_items_preloaded_fast(list((hot_payload or {}).get("items") or []))
 
     def set_spotlight_items(items: list[dict[str, Any]]) -> None:
         if not isinstance(hot_payload, dict) or not items:
@@ -6654,7 +6723,7 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
     def add_items(items: Any) -> None:
         if not isinstance(items, list):
             return
-        for item in _home_featured_items_homepage_eligible(items):
+        for item in _home_featured_items_preloaded_fast(items):
             if not isinstance(item, dict):
                 continue
             key = str(item.get("source_item_id") or item.get("case_path") or item.get("title") or "").strip()
@@ -6692,6 +6761,113 @@ def _home_featured_normalized_preload_bundle(bundle: dict[str, Any]) -> dict[str
     return fixed
 
 
+def _home_featured_build_preload_bundle() -> dict[str, Any]:
+    """Build all first-page type payloads outside the visitor request path."""
+    types = ("", "公寓", "大樓", "華廈", "套房", "別墅/透天", "辦公", "店面", "土地", "其他")
+    payloads: dict[str, dict[str, Any]] = {}
+
+    def build_type(property_type: str) -> tuple[str, dict[str, Any] | None]:
+        limit = 24 if not property_type else 12
+        payload = _home_featured_cases_payload_merged(
+            limit=limit,
+            offset=0,
+            category="hot",
+            property_type=property_type,
+            max_rounds=10 if not property_type else 8,
+            sync_static=False,
+        )
+        # Do not make a cache rebuild wait on remote source images. Existing
+        # cached photos are validated again here, so every stored tab remains
+        # safe to display immediately.
+        payload = _home_featured_static_payload(payload, target_static=limit, sync_download=False)
+        items = _home_featured_items_homepage_eligible(list(payload.get("items") or []))
+        # Keep an explicit payload even when a type has no image that passes
+        # the homepage screen. The UI can then switch immediately to an empty
+        # state instead of querying the database or showing another type's
+        # cards under the wrong tab.
+        return property_type, {
+            **payload,
+            "ok": True,
+            "items": items[:limit],
+            "has_more": bool(payload.get("has_more") is not False and len(items) >= limit),
+            "property_type": property_type,
+            "preloaded": True,
+        }
+
+    # Each type is independent. Keep the worker count deliberately low so the
+    # one-off rebuild is fast without competing with web requests or requiring
+    # another application container.
+    with ThreadPoolExecutor(max_workers=min(4, len(types)), thread_name_prefix="home-type-preload") as pool:
+        futures = [pool.submit(build_type, property_type) for property_type in types]
+        for future in as_completed(futures):
+            property_type, payload = future.result()
+            if payload is not None:
+                payloads[property_type] = payload
+    generic = payloads.get("") or {"ok": False, "items": []}
+    return _home_featured_normalized_preload_bundle(
+        {
+            "home_featured_preload": {**generic, "items": list(generic.get("items") or [])[:24]},
+            "home_featured_type_preloads": payloads,
+            "home_room_explore_tiles": _home_room_explore_tiles(payloads, fetch_missing=False),
+        }
+    )
+
+
+def _prewarm_home_featured_preload_bundle(*, force: bool = False) -> None:
+    """Persist a complete type-tab bundle so clicking a tab never runs a DB scan."""
+    global _HOME_FEATURED_INDEX_PRELOAD_CACHE, _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY
+    try:
+        if not force:
+            try:
+                fresh = (
+                    _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file()
+                    and time.time() - _HOME_FEATURED_INDEX_PRELOAD_FILE.stat().st_mtime
+                    <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
+                )
+            except OSError:
+                fresh = False
+            if fresh and _home_featured_index_preload_bundle_cached_only():
+                return
+        bundle = _home_featured_build_preload_bundle()
+        if not _home_featured_preload_bundle_has_items(bundle):
+            return
+        payload = {
+            "ts": time.time(),
+            "version": _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION,
+            "bundle": bundle,
+        }
+        temp_path = _HOME_FEATURED_INDEX_PRELOAD_FILE.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        temp_path.replace(_HOME_FEATURED_INDEX_PRELOAD_FILE)
+        with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
+            _HOME_FEATURED_INDEX_PRELOAD_CACHE = (time.time(), copy.deepcopy(bundle))
+            _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY = _home_featured_index_preload_file_key()
+        _prewarm_home_featured_thumbnail_cache()
+        _start_home_featured_detail_prewarm()
+        print("SCLAW: 首頁物件類型預載快取已更新", flush=True)
+    except Exception as exc:
+        _log_backend_error("home-featured-preload-build", exc)
+
+
+def _start_home_featured_preload_rebuild(*, force: bool = False) -> None:
+    """Coalesce cache rebuilds; a stale valid bundle remains usable meanwhile."""
+    global _HOME_FEATURED_INDEX_PRELOAD_REBUILD_STARTED
+    with _HOME_FEATURED_INDEX_PRELOAD_REBUILD_LOCK:
+        if _HOME_FEATURED_INDEX_PRELOAD_REBUILD_STARTED:
+            return
+        _HOME_FEATURED_INDEX_PRELOAD_REBUILD_STARTED = True
+
+    def _run() -> None:
+        global _HOME_FEATURED_INDEX_PRELOAD_REBUILD_STARTED
+        try:
+            _prewarm_home_featured_preload_bundle(force=force)
+        finally:
+            with _HOME_FEATURED_INDEX_PRELOAD_REBUILD_LOCK:
+                _HOME_FEATURED_INDEX_PRELOAD_REBUILD_STARTED = False
+
+    threading.Thread(target=_run, daemon=True, name="home-featured-type-preload").start()
+
+
 def _home_featured_index_preload_bundle() -> dict[str, Any]:
     """Prepare homepage featured sections once, then reuse them across refreshes."""
     global _HOME_FEATURED_INDEX_PRELOAD_CACHE, _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY
@@ -6705,7 +6881,7 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
             _ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
-            if _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY == file_key and _home_featured_preload_bundle_has_items(cached):
+            if _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY == file_key and _home_featured_preload_bundle_has_cached_items(cached):
                 return copy.deepcopy(cached)
         try:
             if _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file():
@@ -6716,13 +6892,15 @@ def _home_featured_index_preload_bundle() -> dict[str, Any]:
                 if (
                     ts > 0
                     and version == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
-                    and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
+                    and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_STALE_TTL_SECONDS
                     and isinstance(bundle, dict)
                 ):
                     bundle = _home_featured_normalized_preload_bundle(bundle)
-                    if _home_featured_preload_bundle_has_items(bundle):
+                    if _home_featured_preload_bundle_has_cached_items(bundle):
                         _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
                         _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY = file_key
+                        if now - ts > _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS:
+                            _start_home_featured_preload_rebuild(force=True)
                         return copy.deepcopy(bundle)
         except Exception:
             pass
@@ -6744,7 +6922,7 @@ def _home_featured_index_preload_bundle_cached_only() -> dict[str, Any] | None:
     with _HOME_FEATURED_INDEX_PRELOAD_LOCK:
         if _HOME_FEATURED_INDEX_PRELOAD_CACHE:
             _ts, cached = _HOME_FEATURED_INDEX_PRELOAD_CACHE
-            if _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY == file_key and _home_featured_preload_bundle_has_items(cached):
+            if _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY == file_key and _home_featured_preload_bundle_has_cached_items(cached):
                 return copy.deepcopy(cached)
         try:
             if not _HOME_FEATURED_INDEX_PRELOAD_FILE.is_file():
@@ -6756,13 +6934,15 @@ def _home_featured_index_preload_bundle_cached_only() -> dict[str, Any] | None:
             if (
                 ts > 0
                 and version == _HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION
-                and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS
+                and now - ts <= _HOME_FEATURED_INDEX_PRELOAD_STALE_TTL_SECONDS
                 and isinstance(bundle, dict)
             ):
                 bundle = _home_featured_normalized_preload_bundle(bundle)
-                if _home_featured_preload_bundle_has_items(bundle):
+                if _home_featured_preload_bundle_has_cached_items(bundle):
                     _HOME_FEATURED_INDEX_PRELOAD_CACHE = (now, copy.deepcopy(bundle))
                     _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY = file_key
+                    if now - ts > _HOME_FEATURED_INDEX_PRELOAD_FILE_TTL_SECONDS:
+                        _start_home_featured_preload_rebuild(force=True)
                     return copy.deepcopy(bundle)
         except Exception:
             return None
@@ -6812,10 +6992,10 @@ def _home_featured_cases_payload_from_preload(
     payload_fallback = False
     if query_property_type:
         payload = type_payloads.get(query_property_type)
-        if not isinstance(payload, dict) or not (payload.get("items") or []):
+        if not isinstance(payload, dict):
             # A missing type-specific preload must not turn a tab click into a
-            # full SQLite scan. Return the already-screened generic cache; the
-            # client keeps only cards matching the selected type.
+            # full SQLite scan. This only applies to old/incomplete cache files;
+            # new bundles always carry an explicit payload for every tab.
             payload = type_payloads.get("") or bundle.get("home_featured_preload")
             payload_fallback = True
     else:
@@ -6828,7 +7008,7 @@ def _home_featured_cases_payload_from_preload(
         if isinstance(item, dict)
         and int(item.get("source_item_id") or 0) not in excluded_ids
     ]
-    items = _home_featured_items_homepage_eligible(items, excluded_ids=excluded_ids)
+    items = _home_featured_items_preloaded_fast(items, excluded_ids=excluded_ids)
     # A stale/static hot preload can be sparse after client-side de-duplication.
     # Property-specific sparse preloads should still return quickly; the client
     # supplements them from the hot pool instead of forcing a slow DB scan.
@@ -9089,6 +9269,7 @@ def startup_event() -> None:
         ):
             threading.Thread(target=_prewarm_home_titlebar_case_search_cache, daemon=True, name="titlebar-case-prewarm").start()
             threading.Thread(target=_prewarm_home_featured_api_cache, daemon=True, name="home-featured-api-prewarm").start()
+            _start_home_featured_preload_rebuild()
             _start_home_featured_thumbnail_prewarm()
             _start_home_featured_detail_prewarm()
     except Exception:
@@ -30211,6 +30392,10 @@ def api_home_featured_type_preloads():
     requests on the production workers.
     """
     bundle = _home_featured_index_preload_bundle_cached_only() or {}
+    if not _home_featured_preload_bundle_has_cached_items(bundle):
+        # A cache purge must never make the first visitor wait for a full type
+        # scan. Rebuild in the existing app process and return immediately.
+        _start_home_featured_preload_rebuild()
     raw_payloads = bundle.get("home_featured_type_preloads") or {}
     if not isinstance(raw_payloads, dict):
         raw_payloads = {}
@@ -30225,16 +30410,14 @@ def api_home_featured_type_preloads():
         item_limit = 24 if not property_type else 12
         items = [
             copy.deepcopy(item)
-            for item in _home_featured_items_homepage_eligible(list(raw.get("items") or []))[:item_limit]
+            for item in _home_featured_items_preloaded_fast(list(raw.get("items") or []))[:item_limit]
             if isinstance(item, dict)
         ]
-        if not items:
-            continue
         payloads[property_type] = {
             "ok": True,
             "items": items,
             "next_offset": int(raw.get("next_offset") or min(12, len(items))),
-            "has_more": bool(raw.get("has_more") is not False),
+            "has_more": bool(raw.get("has_more") is not False and len(items) >= item_limit),
             "property_type": property_type,
             "preloaded": True,
         }
