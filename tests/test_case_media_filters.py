@@ -481,6 +481,40 @@ class CaseMediaFilterTests(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_representative_visual_filter_rejects_framed_green_text_promo_board(self):
+        """A green advert framed by illustration must not bypass the card filter."""
+        try:
+            from PIL import Image, ImageDraw
+        except Exception as exc:  # pragma: no cover - dependency guard for minimal local envs
+            self.skipTest(f"Pillow unavailable: {exc}")
+
+        rel = Path("static/cache/case-images/unit/unit-framed-green-promo-board.jpg")
+        rel.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            # Mirrors a common feed asset: an illustrated blue frame around a
+            # dark-green renovation checklist.  The frame lowers the total
+            # green ratio, so a full-frame-green-only rule is insufficient.
+            image = Image.new("RGB", (990, 558), (162, 210, 232))
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((204, 12, 962, 538), fill=(30, 145, 48))
+            for y in range(62, 506, 43):
+                # Dense glyph-like blocks preserve the high edge density of
+                # the real Japanese checklist rather than looking like a
+                # plain coloured panel.
+                for x in range(244, 884, 32):
+                    draw.rectangle((x, y, x + 11, y + 10), fill=(240, 250, 240))
+                    draw.rectangle((x + 6, y + 19, x + 19, y + 27), fill=(13, 69, 25))
+            image.save(rel, quality=86)
+            self.assertEqual(
+                _case_image_visual_reject_reason("/static/cache/case-images/unit/unit-framed-green-promo-board.jpg"),
+                "promotional-text-board",
+            )
+        finally:
+            try:
+                rel.unlink(missing_ok=True)
+            except Exception:
+                pass
+
     def test_representative_filter_rejects_vending_machine_and_facility_detail(self):
         context = "中古マンション 2LDK 価格 350万円 静岡県駿東郡小山町須走"
         urls = [

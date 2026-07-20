@@ -2516,6 +2516,23 @@ def _case_image_visual_reject_reason(static_url: Any) -> str:
                         and light_ratio <= 0.16
                     ):
                         reason = "promotional-text-board"
+                    # Some portals frame the same renovation checklist with a
+                    # blue illustration or agent artwork.  That border lowers
+                    # the whole-image green ratio enough to evade the
+                    # full-frame rule above, while the board itself still
+                    # produces many uniform green rows and dense copy edges.
+                    # The combined band/edge/dark thresholds keep ordinary
+                    # gardens and exterior photographs eligible.
+                    elif (
+                        0.75 <= aspect <= 2.2
+                        and sat_mean >= 0.34
+                        and greenish_ratio >= 0.55
+                        and dominant_color_ratio >= 0.30
+                        and green_band_ratio >= 0.30
+                        and edge_mean >= 0.05
+                        and light_ratio <= 0.18
+                    ):
+                        reason = "promotional-text-board"
                     # Energy labels have more white than a renovation ad, so
                     # they need a separate flat-green-band signature.
                     elif (
