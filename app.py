@@ -12958,7 +12958,16 @@ def _support_case_intro_items(knowledge_meta: dict, *, limit: int = 1) -> list[d
         if len(out) >= limit or not isinstance(raw, dict):
             return
         title = str(raw.get("title") or raw.get("title_display") or "未命名案件").strip()[:160]
-        url = str(raw.get("article_url") or raw.get("item_url") or "").strip()[:800]
+        source_id = int(raw.get("source_item_id") or 0)
+        url = str(
+            raw.get("case_url")
+            or raw.get("site_case_url")
+            or raw.get("case_path")
+            or raw.get("detail_url")
+            or raw.get("article_url")
+            or (f"/case/{source_id}" if source_id > 0 else "")
+            or ""
+        ).strip()[:800]
         key = url or title.lower()
         if not key or key in seen:
             return
@@ -31953,7 +31962,7 @@ def _support_market_low_price_case_samples(region: str, *, limit: int = 4) -> tu
         title = str(row.get("title_zh_hant") or row.get("title_zh_hans") or f"{target_region}站內案件").strip()[:120]
         price_man = float(row.get("price_man") or 0)
         item_url = str(row.get("item_url") or "").strip()
-        site_case_url = f"{get_effective_site_url().rstrip('/')}/case/{sid}" if sid > 0 else ""
+        site_case_url = f"/case/{sid}" if sid > 0 else ""
         item = {
             "source_item_id": sid,
             "region": target_region,
@@ -31964,8 +31973,7 @@ def _support_market_low_price_case_samples(region: str, *, limit: int = 4) -> tu
         }
         items.append(item)
         url_part = f"｜站內：{site_case_url}" if site_case_url else ""
-        source_part = f"｜原站：{item_url}" if item_url else ""
-        lines.append(f"- #{sid or '-'} {title}｜約 {price_man:,.0f} 萬日圓{url_part}{source_part}")
+        lines.append(f"- #{sid or '-'} {title}｜約 {price_man:,.0f} 萬日圓{url_part}")
     if not lines:
         return "", []
     text = (
@@ -32227,7 +32235,7 @@ def _build_support_managed_cases_fast_reply(message: str, rows: list[dict[str, A
             lines.append(f"   站內明細：/case/{source_id}")
     lines.extend(
         [
-            "以上是目前入庫資料，價格與可售狀態仍需以案件明細和來源頁為準。",
+            "以上是目前入庫資料，價格與可售狀態仍需以站內明細與實際契約確認為準。",
             "您想先用總預算，還是自住／收租用途，再把結果縮小？",
         ]
     )
@@ -34973,7 +34981,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             history=list(payload.history or []),
             persona_region=str(payload.persona_region or "tw"),
             knowledge_text=market_price_ai_context,
-            fallback_reply=fallback_reply,
+            fallback_reply=market_short_guard_reply,
             scenario_coaching=(
                 "【嚴格短回合】使用者正在問『哪裡房子較便宜』。只輸出三個短句："
                 + (

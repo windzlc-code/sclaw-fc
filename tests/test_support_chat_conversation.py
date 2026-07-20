@@ -441,7 +441,13 @@ class SupportChatConversationTests(unittest.TestCase):
             }
         ]
         market_rows = [
-            {"region": "福岡", "price_man": 1200.0, "source_item_id": 101, "title_zh_hant": "福岡低總價公寓A"},
+            {
+                "region": "福岡",
+                "price_man": 1200.0,
+                "source_item_id": 101,
+                "title_zh_hant": "福岡低總價公寓A",
+                "item_url": "https://source.example/fukuoka-a",
+            },
             {"region": "福岡", "price_man": 1280.0, "source_item_id": 102, "title_zh_hant": "福岡低總價公寓B"},
             {"region": "福岡", "price_man": 1400.0, "source_item_id": 103, "title_zh_hant": "福岡低總價公寓C"},
             {"region": "東京", "price_man": 5400.0, "source_item_id": 201, "title_zh_hant": "東京公寓A"},
@@ -475,6 +481,26 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("福岡", data["reply"])
         self.assertIn("福岡", mocked_llm.call_args.kwargs["knowledge_text"])
         self.assertIn("1,280", mocked_llm.call_args.kwargs["knowledge_text"])
+        self.assertNotIn("https://source.example/fukuoka-a", mocked_llm.call_args.kwargs["knowledge_text"])
+        self.assertNotIn("原站", mocked_llm.call_args.kwargs["knowledge_text"])
+
+    def test_market_low_price_case_samples_hide_source_urls(self):
+        rows = [
+            {
+                "region": "福岡",
+                "price_man": 1200.0,
+                "source_item_id": 101,
+                "title_zh_hant": "福岡低總價公寓A",
+                "item_url": "https://source.example/fukuoka-a",
+            }
+        ]
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows):
+            text, items = app_module._support_market_low_price_case_samples("福岡")
+
+        self.assertEqual(len(items), 1)
+        self.assertIn("/case/101", text)
+        self.assertNotIn("https://source.example/fukuoka-a", text)
+        self.assertNotIn("原站", text)
 
     def test_market_price_recommendation_prefers_deepseek_even_when_gemini_is_active(self):
         rows = [
@@ -542,6 +568,45 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("/case/101", data["reply"])
         self.assertNotEqual(data["llm"].get("reply_guard_reason"), "market_intake_structure")
 
+    def test_market_price_specific_case_request_lists_cases_when_models_timeout(self):
+        rows = [
+            {
+                "region": "大阪",
+                "price_man": 980.0,
+                "source_item_id": 101,
+                "title_zh_hant": "大阪低總價公寓A",
+                "item_url": "https://source.example/osaka-a",
+            },
+            {"region": "大阪", "price_man": 1280.0, "source_item_id": 102, "title_zh_hant": "大阪低總價公寓B"},
+            {"region": "大阪", "price_man": 1680.0, "source_item_id": 103, "title_zh_hant": "大阪低總價公寓C"},
+        ]
+
+        def credentials(provider):
+            return ("https://llm.example.test", "test-key", f"{provider}-model")
+
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module, "resolve_llm_provider", return_value="deepseek"
+        ), patch.object(
+            app_module, "is_llm_configured", side_effect=lambda provider=None: str(provider or "deepseek") in {"deepseek", "gemini"}
+        ), patch.object(app_module, "get_chat_credentials", side_effect=credentials), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            side_effect=[app_module.httpx.ReadTimeout("primary timeout"), app_module.httpx.ReadTimeout("fallback timeout")],
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="大阪有便宜的房子嗎？請直接列出具體案件。",
+                    sales_session_id="sess-test-market-specific-cases-timeout",
+                    use_knowledge=False,
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["llm"]["all_providers_failed"])
+        self.assertIn("大阪低總價公寓A", data["reply"])
+        self.assertIn("/case/101", data["reply"])
+        self.assertNotIn("https://source.example/osaka-a", data["reply"])
+
     def test_market_price_uses_real_database_fallback_only_after_all_models_fail(self):
         rows = [
             {"region": "福岡", "price_man": 1200.0, "source_item_id": 101},
@@ -574,7 +639,8 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertTrue(data["llm"]["all_providers_failed"])
         self.assertFalse(data["llm"]["market_data_ai_reply"])
         self.assertIn("福岡", data["reply"])
-        self.assertIn("站內目前可比的在售資料", data["reply"])
+        self.assertIn("站內各地區案件總價中位數", data["reply"])
+        self.assertIn("自住、收租，還是資產配置", data["reply"])
 
     def test_market_price_reply_is_direct_and_keeps_one_guided_follow_up(self):
         rows = [

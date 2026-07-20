@@ -7419,9 +7419,10 @@
       const recs = k && Array.isArray(k.managed_cases) ? k.managed_cases : [];
       if (!recs.length) return '';
       let inner =
-        '<details class="support-chat-kb-details" open><summary>本站案件（優先） <span class="muted">（案件管理入庫；可點站內文章或來源物件頁）</span></summary><ol class="support-chat-kb-ul" style="margin:0.35rem 0 0 1rem;padding:0;">';
+        '<details class="support-chat-kb-details" open><summary>本站案件（優先） <span class="muted">（案件管理入庫；可點站內明細）</span></summary><ol class="support-chat-kb-ul" style="margin:0.35rem 0 0 1rem;padding:0;">';
       for (const it of recs) {
-        const itemUrl = esc(String(it.item_url || ''));
+        const caseUrlRaw = String(it.case_url || (it.source_item_id ? `/case/${it.source_item_id}` : '')).trim();
+        const caseUrl = esc(caseUrlRaw);
         const art = esc(String(it.article_url || '').trim());
         const label = esc(String(it.title_display || '').slice(0, 200));
         const tx = esc(String(it.transaction_label_zh || ''));
@@ -7430,12 +7431,10 @@
         inner += `<li style="margin:0.35rem 0;"><span class="support-chat-kb-badge">${tx || '案件'}</span> `;
         inner += `<span class="muted">${regP ? esc(regP) + '｜' : ''}${trP ? esc(trP) : ''}</span><br>`;
         inner += `<strong>${esc(String(it.source_name || ''))}</strong> — ${label}<br>`;
-        if (art && art.startsWith('http')) {
+        if (caseUrl) {
+          inner += `<a href="${caseUrl}" target="_blank" rel="nofollow noopener">站內明細</a>`;
+        } else if (art && art.startsWith('http')) {
           inner += `<a href="${art}" target="_blank" rel="nofollow noopener">站內文章</a>`;
-          if (itemUrl) inner += ` <span class="muted">｜</span> `;
-        }
-        if (itemUrl) {
-          inner += `<a href="${itemUrl}" target="_blank" rel="nofollow noopener">來源物件頁</a>`;
         }
         inner += '</li>';
       }

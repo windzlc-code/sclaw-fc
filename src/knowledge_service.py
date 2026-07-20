@@ -1016,7 +1016,7 @@ def format_managed_cases_for_prompt(
     zh_variant: str = "hans",
     max_chars: int = 3600,
 ) -> str:
-    """RAG 首段：本站案件＋站內文章 URL＋來源物件頁（必須可點、有來源）。"""
+    """RAG 首段：本站案件＋站內明細 URL（對客輸出不暴露來源站頁）。"""
     if not rows:
         return ""
     from src.case_metadata import infer_case_metadata, transaction_label_zh
@@ -1027,7 +1027,8 @@ def format_managed_cases_for_prompt(
         v = "hans"
     header = (
         "【本站案件商品（案件管理，優先）】以下為站內已入庫之個別物件／案源，與查詢或買賣租語意相關；"
-        "每則含「站內文章頁」與「來源官方物件頁」。請優先用口語、自然私訊語氣介紹 1～3 則最相關者，並鼓勵客戶點連結；"
+        "每則只提供「站內明細」或「站內文章」連結。請優先用口語、自然私訊語氣介紹 1～3 則最相關者，並鼓勵客戶點站內連結；"
+        "只可輸出站內連結，不可輸出任何外部 URL；"
         "若本段為空再依後段一般摘錄回答。禁止捏造不存在的連結。\n\n"
     )
     parts: list[str] = [header]
@@ -1046,7 +1047,8 @@ def format_managed_cases_for_prompt(
             title = (hans_t or hant_t)[:400]
         slug = str(r.get("seo_slug") or "").strip()
         article = f"{base}/article/{slug}" if slug else ""
-        item_u = str(r.get("item_url") or "").strip()
+        sid = int(r.get("source_item_id") or 0)
+        case_url = f"/case/{sid}" if sid > 0 else ""
         reg = str(meta.get("jp_region_display_zh") or "").strip()
         tr = str(meta.get("transit_line_zh") or "").strip()
         w = int(r.get("featured_weight") or 0)
@@ -1054,8 +1056,8 @@ def format_managed_cases_for_prompt(
             f"[案件{i}] 買賣租:{tx_zh}｜日本區域:{reg or '—'}｜交通:{tr or '—'}｜權重:{w}\n"
             f"標題:{title}\n"
             f"來源:{r.get('source_name','')}\n"
-            f"站內文章:{article or '（無 slug，請僅用來源網址）'}\n"
-            f"來源物件頁:{item_u}\n"
+            f"站內明細:{case_url or '（無站內明細，請僅摘要資料，不輸出外部 URL）'}\n"
+            f"站內文章:{article or '（無站內文章）'}\n"
         )
         if total + len(block) > max_chars:
             break
@@ -1089,14 +1091,18 @@ def managed_items_for_api(
         slug = str(r.get("seo_slug") or "").strip()
         base = (get_effective_site_url() or "").strip().rstrip("/")
         article_url = f"{base}/article/{slug}" if (base and slug) else ""
+        sid = int(r.get("source_item_id") or 0)
+        case_url = f"/case/{sid}" if sid > 0 else ""
         out.append(
             {
                 "content_id": r.get("content_id"),
+                "source_item_id": sid,
                 "featured_weight": int(r.get("featured_weight") or 0),
                 "title_display": title_display[:500],
                 "item_url": str(r.get("item_url") or ""),
                 "source_name": str(r.get("source_name") or ""),
                 "seo_slug": slug,
+                "case_url": case_url,
                 "article_url": article_url,
                 "transaction_label_zh": str(meta.get("transaction_label_zh") or ""),
                 "jp_region_display_zh": str(meta.get("jp_region_display_zh") or ""),
