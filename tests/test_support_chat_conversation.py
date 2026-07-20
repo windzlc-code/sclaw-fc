@@ -476,6 +476,43 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("福岡", mocked_llm.call_args.kwargs["knowledge_text"])
         self.assertIn("1,280", mocked_llm.call_args.kwargs["knowledge_text"])
 
+    def test_market_price_recommendation_prefers_deepseek_even_when_gemini_is_active(self):
+        rows = [
+            {"region": "青森", "price_man": 900.0, "source_item_id": 101},
+            {"region": "青森", "price_man": 988.0, "source_item_id": 102},
+            {"region": "青森", "price_man": 1200.0, "source_item_id": 103},
+            {"region": "香川", "price_man": 1400.0, "source_item_id": 201},
+            {"region": "香川", "price_man": 1450.0, "source_item_id": 202},
+            {"region": "香川", "price_man": 1500.0, "source_item_id": 203},
+        ]
+
+        def credentials(provider):
+            return ("https://llm.example.test", "test-key", f"{provider}-model")
+
+        with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module, "resolve_llm_provider", return_value="gemini"
+        ), patch.object(
+            app_module, "is_llm_configured", side_effect=lambda provider=None: str(provider or "gemini") in {"deepseek", "gemini"}
+        ), patch.object(app_module, "get_chat_credentials", side_effect=credentials), patch.object(
+            app_module,
+            "chat_support_reply_gemini",
+            return_value="青森約 988 萬日圓；可先按用途與預算篩選。請問您主要是自住還是收租？",
+        ) as mocked_llm:
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="有沒有便宜的房子？幫我推薦一下。",
+                    sales_session_id="sess-test-market-prefers-deepseek",
+                    use_knowledge=False,
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertEqual(mocked_llm.call_count, 1)
+        self.assertEqual(mocked_llm.call_args.kwargs["provider"], "deepseek")
+        self.assertEqual(data["llm"]["provider"], "deepseek")
+        self.assertEqual(data["llm"]["model"], "deepseek-model")
+
     def test_market_price_uses_real_database_fallback_only_after_all_models_fail(self):
         rows = [
             {"region": "福岡", "price_man": 1200.0, "source_item_id": 101},

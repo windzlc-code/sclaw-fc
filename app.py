@@ -34293,6 +34293,7 @@ def _support_model_first_purchase_reply(
     managed_case_count: int = 0,
     sales_stage_key: str = "discover",
     property_listing_intent: bool = True,
+    preferred_provider: str = "",
 ) -> tuple[str, dict[str, Any]]:
     """Write purchase answers with the configured model before using a safe data fallback.
 
@@ -34302,7 +34303,11 @@ def _support_model_first_purchase_reply(
     deterministic copy if every configured provider has failed.
     """
     primary = resolve_llm_provider(None)
-    candidates = [primary, *[provider for provider in ("gemini", "deepseek") if provider != primary]]
+    preferred = str(preferred_provider or "").strip().lower()
+    candidates: list[str] = []
+    for provider in (preferred, primary, "gemini", "deepseek"):
+        if provider in ("gemini", "deepseek") and provider not in candidates:
+            candidates.append(provider)
     failures: list[str] = []
     attempts_meta: list[dict[str, Any]] = []
     for attempt, provider in enumerate(candidates):
@@ -34940,6 +34945,7 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             ),
             managed_case_count=int(market_stats.get("sample_count") or 0),
             sales_stage_key="discover",
+            preferred_provider="deepseek",
         )
         allowed_regions = {
             str(item.get("region") or "").strip()
