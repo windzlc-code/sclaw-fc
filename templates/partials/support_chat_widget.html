@@ -78,6 +78,11 @@
             </span>
           </div>
           <div class="support-chat-head-actions">
+            <button id="support-chat-clear-btn" type="button" class="support-chat-clear-btn" onclick="clearSupportChatConversation()" aria-label="清空對話內容" title="清空對話">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h1.5v-7H10Zm3 0v7h1.5v-7H13Z"></path>
+              </svg>
+            </button>
             <button id="support-chat-menu-toggle" type="button" class="support-chat-menu-toggle" onclick="toggleSupportChatMenu()" aria-label="客服功能選單" aria-haspopup="menu" aria-expanded="false" title="客服功能選單">
               <span aria-hidden="true"></span>
               <span aria-hidden="true"></span>
@@ -635,6 +640,20 @@
       } catch (_) {}
     }
 
+    window.clearSupportChatConversation = window.clearSupportChatConversation || function () {
+      if (!confirm('確定清空目前線上客服對話內容？')) return;
+      supportFallbackHistory = [];
+      supportFallbackPendingImage = null;
+      try {
+        localStorage.removeItem(supportFallbackChatStateKey);
+        localStorage.removeItem(supportFallbackInputDraftKey);
+      } catch (_) {}
+      var input = document.getElementById('support-chat-input');
+      if (input) input.value = '';
+      window.clearSupportChatPendingImage();
+      renderSupportFallbackChatMessages();
+    };
+
     function loadSupportFallbackChatState() {
       try {
         var raw = localStorage.getItem(supportFallbackChatStateKey);
@@ -784,14 +803,13 @@
           divider = '<div class="support-chat-time-divider"><span>' + esc(supportFallbackDateDividerLabel(sentAt)) + '</span></div>';
         }
         previousSentAt = sentAt;
-        var timeMeta = '<span class="support-chat-message-time">發送於 ' + esc(supportFallbackTimeLabel(sentAt)) + '</span>';
         var role = row.role === 'user' ? '您' : '線上客服';
         var rowClass = row.role === 'user' ? 'support-chat-row-user' : 'support-chat-row-assistant';
         var bubbleClass = row.role === 'user' ? 'support-chat-user' : 'support-chat-assistant support-chat-advisor-bubble';
         var cta = row.role === 'user' || row.contentHtml ? '' : supportFallbackIntakeCtaHtml();
         var imageHtml = supportFallbackImageHtml(row.image || null);
         var textHtml = supportFallbackFormatText(row.content || '');
-        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + textHtml + imageHtml + '</div>' + timeMeta + cta);
+        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + textHtml + imageHtml + '</div>' + cta);
         if (row.contentHtml) body = supportFallbackSanitizePublicCopy(body);
         return divider + '<div class="support-chat-row ' + rowClass + ' support-chat-row--enter"><div class="support-chat-bubble-col"><span class="support-chat-role">' + role + '</span>' + body + '</div></div>';
       }).join('');

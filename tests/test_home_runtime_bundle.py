@@ -116,11 +116,14 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("'sent_at'", runtime)
         self.assertIn("supportChatDateDividerLabel", runtime)
         self.assertIn("support-chat-time-divider", runtime)
-        self.assertIn("support-chat-message-time", runtime)
+        self.assertNotIn("support-chat-message-time", runtime)
+        self.assertIn("clearSupportChatConversation", runtime)
+        self.assertIn("support-chat-clear-btn", fallback)
         self.assertIn("'sent_at'", fallback)
         self.assertIn("supportFallbackDateDividerLabel", fallback)
         self.assertIn(".support-chat-time-divider", css)
-        self.assertIn(".support-chat-message-time", css)
+        self.assertIn(".support-chat-clear-btn", css)
+        self.assertNotIn(".support-chat-message-time", css)
 
     def test_property_chat_contract_allows_a_brief_form_guided_third_sentence(self):
         client = GEMINI_CLIENT.read_text(encoding="utf-8")

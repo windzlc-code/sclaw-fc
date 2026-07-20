@@ -7551,6 +7551,27 @@
       renderSupportChatMessages();
     }
 
+    function clearSupportChatConversation() {
+      if (!confirm('確定清空目前線上客服對話內容？')) return;
+      stopSupportChatSpeech();
+      supportChatSpeechScript = '';
+      supportChatHistory = [];
+      supportHumanHandoffStep = '';
+      supportTelegramInboxBootstrapped = false;
+      try {
+        clearSupportChatPersistedState();
+      } catch (_) {}
+      const input = document.getElementById('support-chat-input');
+      if (input) input.value = '';
+      const preview = document.getElementById('support-chat-kb-preview');
+      if (preview) {
+        preview.innerHTML = '';
+        preview.classList.add('muted');
+      }
+      setSupportChatThinking(false);
+      renderSupportChatMessages();
+    }
+
     function supportChatManagedCasesHtml(k) {
       if (k && k.purchase_discovery_mode) return '';
       const recs = k && Array.isArray(k.managed_cases) ? k.managed_cases : [];
@@ -10933,12 +10954,11 @@
           html += `<div class="support-chat-time-divider"><span>${esc(supportChatDateDividerLabel(sentAt))}</span></div>`;
         }
         previousSentAt = sentAt;
-        const timeMeta = `<span class="support-chat-message-time">發送於 ${esc(supportChatTimeLabel(sentAt))}</span>`;
         renderedRows.push(row);
         if (row.role === 'user') {
           const metaHtml = supportTelegramDeliveryMetaHtml(row.telegramDelivery);
           const userImageHtml = supportChatImageHtml(row.image || null);
-          html += `<div class="support-chat-row support-chat-row-user${enterClass}"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}${userImageHtml}</div>${timeMeta}${metaHtml}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-user${enterClass}"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}${userImageHtml}</div>${metaHtml}</div></div>`;
         } else {
           const staffSource = String(row.staffSource || '').toLowerCase();
           const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
@@ -10961,7 +10981,7 @@
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}${assistantImageHtml}</div></div>`;
-          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${timeMeta}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
       wrap.innerHTML = html || '<p class="muted">尚無對話。</p>';
@@ -26811,6 +26831,7 @@
     window.sendSupportChat = sendSupportChat;
     window.handleSupportChatImageSelected = handleSupportChatImageSelected;
     window.clearSupportChatPendingImage = clearSupportChatPendingImage;
+    window.clearSupportChatConversation = clearSupportChatConversation;
     window.toggleSupportChatMenu = toggleSupportChatMenu;
     window.openSupportChatMenuCases = openSupportChatMenuCases;
     window.openSupportChatForCaseFromCard = openSupportChatForCaseFromCard;

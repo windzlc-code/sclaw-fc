@@ -10785,18 +10785,6 @@ body.selected-compare-body {
   border: 1px solid rgba(218, 226, 236, 0.72);
 }
 
-.support-chat-message-time {
-  display: block;
-  margin-top: 3px;
-  color: #7a8ca4;
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.support-chat-row-user .support-chat-message-time {
-  text-align: right;
-}
-
 .support-chat-bubble {
   padding: 8px 10px;
   border-radius: 10px;
@@ -33755,7 +33743,8 @@ body.site-admin-standalone.site-admin-locked .admin-detail-lightbox {
   flex: 0 0 auto;
 }
 
-.support-chat-menu-toggle {
+.support-chat-menu-toggle,
+.support-chat-clear-btn {
   width: 34px;
   min-width: 34px;
   height: 34px;
@@ -33771,6 +33760,13 @@ body.site-admin-standalone.site-admin-locked .admin-detail-lightbox {
   transition: transform 0.16s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
+.support-chat-clear-btn svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
 .support-chat-menu-toggle span {
   display: block;
   width: 4px;
@@ -33781,7 +33777,9 @@ body.site-admin-standalone.site-admin-locked .admin-detail-lightbox {
 
 .support-chat-menu-toggle:hover,
 .support-chat-menu-toggle:focus-visible,
-.support-chat-menu-toggle.is-active {
+.support-chat-menu-toggle.is-active,
+.support-chat-clear-btn:hover,
+.support-chat-clear-btn:focus-visible {
   transform: translateY(-1px);
   background: #f2f7fb;
   box-shadow: 0 12px 24px rgba(15, 35, 67, 0.14);
@@ -38056,6 +38054,7 @@ body.site-home .support-selected-cases-drawer-head-actions {
   gap: 14px !important;
 }
 body.site-home .support-chat-head .support-chat-menu-toggle,
+body.site-home .support-chat-head .support-chat-clear-btn,
 body.site-home #support-chat-panel .support-chat-head .ui-close-btn,
 body.site-home .support-chat-head .ui-close-btn,
 body.site-home .support-chat-history-head .ui-close-btn,
@@ -38079,6 +38078,16 @@ body.site-home .support-chat-head .support-chat-menu-toggle {
   row-gap: 3px !important;
 }
 
+body.site-home .support-chat-head .support-chat-clear-btn {
+  display: inline-grid !important;
+  place-items: center;
+}
+
+body.site-home .support-chat-head .support-chat-clear-btn svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
 body.site-home .support-chat-head .support-chat-menu-toggle span {
   width: 5px !important;
   height: 5px !important;
@@ -38095,6 +38104,8 @@ body.site-home .support-chat-head .support-chat-menu-toggle:hover,
 body.site-home .support-chat-head .support-chat-menu-toggle:focus-visible,
 body.site-home .support-chat-head .support-chat-menu-toggle.is-active,
 body.site-home .support-chat-head .support-chat-menu-toggle[aria-expanded="true"],
+body.site-home .support-chat-head .support-chat-clear-btn:hover,
+body.site-home .support-chat-head .support-chat-clear-btn:focus-visible,
 body.site-home #support-chat-panel .support-chat-head .ui-close-btn:hover,
 body.site-home #support-chat-panel .support-chat-head .ui-close-btn:focus-visible,
 body.site-home .support-chat-head .ui-close-btn:hover,
