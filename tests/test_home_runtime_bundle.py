@@ -57,9 +57,9 @@ class HomeRuntimeBundleTests(unittest.TestCase):
     def test_home_featured_client_cache_is_bumped_after_promo_image_cleanup(self):
         index = INDEX.read_text(encoding="utf-8")
         runtime = RUNTIME.read_text(encoding="utf-8")
-        self.assertIn("sclaw.homeFeatured.v28.promo-image-clean.", runtime)
-        self.assertIn("gallery-v22-promo-image-clean", runtime)
-        self.assertRegex(index, r"index-app\.js\?v=20260717-[A-Za-z0-9-]+")
+        self.assertIn("sclaw.homeFeatured.v29.promo-board-clean.", runtime)
+        self.assertIn("gallery-v23-promo-board-clean", runtime)
+        self.assertRegex(index, r"index-app\.js\?v=20260720-[A-Za-z0-9-]+")
         self.assertRegex(index, r"site\.css\?v=20260717-[A-Za-z0-9-]+")
 
     def test_mobile_featured_cards_keep_price_and_specs_visible_without_hover(self):

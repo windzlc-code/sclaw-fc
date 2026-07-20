@@ -6573,7 +6573,7 @@ _HOME_FEATURED_INDEX_PRELOAD_LOCK = threading.RLock()
 _HOME_FEATURED_INDEX_PRELOAD_CACHE: tuple[float, dict[str, Any]] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_CACHE_FILE_KEY: tuple[int, int] | None = None
 _HOME_FEATURED_INDEX_PRELOAD_FILE = DATA_DIR / "home_featured_preload_cache.json"
-_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v21-card-photo-only"
+_HOME_FEATURED_INDEX_PRELOAD_FILE_VERSION = "home-featured-v22-framed-promo-clean"
 _HOME_FEATURED_INDEX_SPOTLIGHT_ITEMS = 7
 _HOME_FEATURED_INDEX_PRELOAD_MIN_ITEMS = 12
 # Representative card images are intentionally fixed/static. Keep the preload
