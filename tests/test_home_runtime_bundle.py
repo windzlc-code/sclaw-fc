@@ -59,8 +59,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         runtime = RUNTIME.read_text(encoding="utf-8")
         self.assertIn("sclaw.homeFeatured.v29.promo-board-clean.", runtime)
         self.assertIn("gallery-v23-promo-board-clean", runtime)
-        self.assertRegex(index, r"index-app\.js\?v=20260720-[A-Za-z0-9-]+")
-        self.assertRegex(index, r"site\.css\?v=20260717-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"index-app\.js\?v=2026072[01]-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"site\.css\?v=202607(?:17|21)-[A-Za-z0-9-]+")
 
     def test_type_tabs_rebuild_a_stale_preload_without_blocking_clicks(self):
         app = APP.read_text(encoding="utf-8")
@@ -107,6 +107,20 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertNotIn("compactSupportChatReplyText", runtime)
         self.assertNotIn("supportFallbackCompactReply", fallback)
         self.assertNotIn("compact.slice(0, 118)", fallback)
+
+    def test_support_chat_shows_message_time_and_persists_timestamp(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        fallback = (ROOT / "templates" / "partials" / "support_chat_widget.html").read_text(encoding="utf-8")
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+
+        self.assertIn("'sent_at'", runtime)
+        self.assertIn("supportChatDateDividerLabel", runtime)
+        self.assertIn("support-chat-time-divider", runtime)
+        self.assertIn("support-chat-message-time", runtime)
+        self.assertIn("'sent_at'", fallback)
+        self.assertIn("supportFallbackDateDividerLabel", fallback)
+        self.assertIn(".support-chat-time-divider", css)
+        self.assertIn(".support-chat-message-time", css)
 
     def test_property_chat_contract_allows_a_brief_form_guided_third_sentence(self):
         client = GEMINI_CLIENT.read_text(encoding="utf-8")

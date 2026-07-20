@@ -583,10 +583,43 @@
     function supportFallbackSerializableRow(row) {
       if (!row || typeof row !== 'object' || row.supportWelcome || row.transientWelcome) return null;
       var copy = {};
-      ['role', 'content', 'contentHtml', 'image', 'staffSource', 'telegramDelivery', 'supportSelectionNotice'].forEach(function (key) {
+      ['role', 'content', 'contentHtml', 'sent_at', 'image', 'staffSource', 'telegramDelivery', 'supportSelectionNotice'].forEach(function (key) {
         if (Object.prototype.hasOwnProperty.call(row, key)) copy[key] = row[key];
       });
       return copy.role ? copy : null;
+    }
+
+    function supportFallbackSentAt(row) {
+      if (!row || typeof row !== 'object') return Date.now();
+      var raw = Number(row.sent_at || row.created_at || row.createdAt || 0);
+      var ts = Number.isFinite(raw) && raw > 0 ? raw : Date.now();
+      row.sent_at = ts;
+      return ts;
+    }
+
+    function supportFallbackPad2(n) {
+      return String(Math.max(0, Math.min(99, Number(n) || 0))).padStart(2, '0');
+    }
+
+    function supportFallbackTimeLabel(ts) {
+      var d = new Date(Number(ts) || Date.now());
+      return supportFallbackPad2(d.getHours()) + ':' + supportFallbackPad2(d.getMinutes());
+    }
+
+    function supportFallbackDateDividerLabel(ts) {
+      var d = new Date(Number(ts) || Date.now());
+      var today = new Date();
+      var sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+      var datePart = sameDay ? '今天' : d.getFullYear() + '/' + supportFallbackPad2(d.getMonth() + 1) + '/' + supportFallbackPad2(d.getDate());
+      return datePart + ' ' + supportFallbackTimeLabel(d.getTime());
+    }
+
+    function supportFallbackShouldShowDivider(prevTs, ts) {
+      if (!prevTs) return true;
+      var a = new Date(Number(prevTs) || 0);
+      var b = new Date(Number(ts) || 0);
+      var differentDay = a.getFullYear() !== b.getFullYear() || a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
+      return differentDay || Math.abs(Number(ts) - Number(prevTs)) >= 5 * 60 * 1000;
     }
 
     function saveSupportFallbackChatState() {
@@ -742,17 +775,25 @@
           supportWelcome: true
         });
       }
+      var previousSentAt = 0;
       wrap.innerHTML = supportFallbackHistory.map(function (row) {
         if (!row || !row.role) return '';
+        var sentAt = supportFallbackSentAt(row);
+        var divider = '';
+        if (supportFallbackShouldShowDivider(previousSentAt, sentAt)) {
+          divider = '<div class="support-chat-time-divider"><span>' + esc(supportFallbackDateDividerLabel(sentAt)) + '</span></div>';
+        }
+        previousSentAt = sentAt;
+        var timeMeta = '<span class="support-chat-message-time">發送於 ' + esc(supportFallbackTimeLabel(sentAt)) + '</span>';
         var role = row.role === 'user' ? '您' : '線上客服';
         var rowClass = row.role === 'user' ? 'support-chat-row-user' : 'support-chat-row-assistant';
         var bubbleClass = row.role === 'user' ? 'support-chat-user' : 'support-chat-assistant support-chat-advisor-bubble';
         var cta = row.role === 'user' || row.contentHtml ? '' : supportFallbackIntakeCtaHtml();
         var imageHtml = supportFallbackImageHtml(row.image || null);
         var textHtml = supportFallbackFormatText(row.content || '');
-        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + textHtml + imageHtml + '</div>' + cta);
+        var body = row.contentHtml || ('<div class="support-chat-bubble ' + bubbleClass + '">' + textHtml + imageHtml + '</div>' + timeMeta + cta);
         if (row.contentHtml) body = supportFallbackSanitizePublicCopy(body);
-        return '<div class="support-chat-row ' + rowClass + ' support-chat-row--enter"><div class="support-chat-bubble-col"><span class="support-chat-role">' + role + '</span>' + body + '</div></div>';
+        return divider + '<div class="support-chat-row ' + rowClass + ' support-chat-row--enter"><div class="support-chat-bubble-col"><span class="support-chat-role">' + role + '</span>' + body + '</div></div>';
       }).join('');
       wrap.scrollTop = wrap.scrollHeight;
       saveSupportFallbackChatState();

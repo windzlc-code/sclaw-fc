@@ -7385,6 +7385,7 @@
         'role',
         'content',
         'contentHtml',
+        'sent_at',
         'image',
         'knowledge',
         'llm',
@@ -7400,6 +7401,45 @@
       });
       if (!copy.role) return null;
       return copy;
+    }
+
+    function supportChatSentAt(row) {
+      if (!row || typeof row !== 'object') return Date.now();
+      const raw = Number(row.sent_at || row.created_at || row.createdAt || 0);
+      const ts = Number.isFinite(raw) && raw > 0 ? raw : Date.now();
+      row.sent_at = ts;
+      return ts;
+    }
+
+    function supportChatPad2(n) {
+      return String(Math.max(0, Math.min(99, Number(n) || 0))).padStart(2, '0');
+    }
+
+    function supportChatTimeLabel(ts) {
+      const d = new Date(Number(ts) || Date.now());
+      return `${supportChatPad2(d.getHours())}:${supportChatPad2(d.getMinutes())}`;
+    }
+
+    function supportChatDateDividerLabel(ts) {
+      const d = new Date(Number(ts) || Date.now());
+      const today = new Date();
+      const sameDay = d.getFullYear() === today.getFullYear()
+        && d.getMonth() === today.getMonth()
+        && d.getDate() === today.getDate();
+      const datePart = sameDay
+        ? '今天'
+        : `${d.getFullYear()}/${supportChatPad2(d.getMonth() + 1)}/${supportChatPad2(d.getDate())}`;
+      return `${datePart} ${supportChatTimeLabel(d.getTime())}`;
+    }
+
+    function supportChatShouldShowDivider(prevTs, ts) {
+      if (!prevTs) return true;
+      const a = new Date(Number(prevTs) || 0);
+      const b = new Date(Number(ts) || 0);
+      const differentDay = a.getFullYear() !== b.getFullYear()
+        || a.getMonth() !== b.getMonth()
+        || a.getDate() !== b.getDate();
+      return differentDay || Math.abs(Number(ts) - Number(prevTs)) >= 5 * 60 * 1000;
     }
 
     function saveSupportChatState() {
@@ -10883,15 +10923,22 @@
       if (supportChatOpenWelcomeRow && !visibleRows.includes(supportChatOpenWelcomeRow)) {
         visibleRows.unshift(supportChatOpenWelcomeRow);
       }
+      let previousSentAt = 0;
       for (const row of visibleRows) {
         if (row && typeof row === 'object' && !row.__supportChatEnterAt) row.__supportChatEnterAt = now;
         const shouldEnter = row && typeof row === 'object' && (now - Number(row.__supportChatEnterAt || 0)) < 720;
         const enterClass = shouldEnter ? ' support-chat-row--enter' : '';
+        const sentAt = supportChatSentAt(row);
+        if (supportChatShouldShowDivider(previousSentAt, sentAt)) {
+          html += `<div class="support-chat-time-divider"><span>${esc(supportChatDateDividerLabel(sentAt))}</span></div>`;
+        }
+        previousSentAt = sentAt;
+        const timeMeta = `<span class="support-chat-message-time">發送於 ${esc(supportChatTimeLabel(sentAt))}</span>`;
         renderedRows.push(row);
         if (row.role === 'user') {
           const metaHtml = supportTelegramDeliveryMetaHtml(row.telegramDelivery);
           const userImageHtml = supportChatImageHtml(row.image || null);
-          html += `<div class="support-chat-row support-chat-row-user${enterClass}"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}${userImageHtml}</div>${metaHtml}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-user${enterClass}"><div class="support-chat-bubble-col"><span class="support-chat-role">您</span><div class="support-chat-bubble support-chat-user">${esc(row.content || '')}${userImageHtml}</div>${timeMeta}${metaHtml}</div></div>`;
         } else {
           const staffSource = String(row.staffSource || '').toLowerCase();
           const isStaffReply = staffSource === 'telegram' || staffSource === 'line' || staffSource === 'admin';
@@ -10914,7 +10961,7 @@
           const advisorBlock = row.contentHtml
             ? bodyHtml
             : `<div class="support-chat-advisor-wrap"><div class="support-chat-bubble support-chat-assistant support-chat-advisor-bubble${bubbleExtra}">${bodyHtml}${assistantImageHtml}</div></div>`;
-          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
+          html += `<div class="support-chat-row support-chat-row-assistant${enterClass}"><div class="support-chat-bubble-col"><span class="${roleCls}">${esc(roleLabel)}</span>${managedBlock}${featBlock}${kbBlock}${reasonBlock}${advisorBlock}${timeMeta}${intakeCtaBlock}${suggestionBlock}${salesBlock}</div></div>`;
         }
       }
       wrap.innerHTML = html || '<p class="muted">尚無對話。</p>';

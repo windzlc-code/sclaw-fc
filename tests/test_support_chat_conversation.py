@@ -585,6 +585,8 @@ class SupportChatConversationTests(unittest.TestCase):
             return ("https://llm.example.test", "test-key", f"{provider}-model")
 
         with patch.object(app_module, "_support_market_price_rows", return_value=rows), patch.object(
+            app_module, "_support_market_price_rows_for_region", return_value=rows
+        ), patch.object(
             app_module, "resolve_llm_provider", return_value="deepseek"
         ), patch.object(
             app_module, "is_llm_configured", side_effect=lambda provider=None: str(provider or "deepseek") in {"deepseek", "gemini"}
@@ -606,6 +608,38 @@ class SupportChatConversationTests(unittest.TestCase):
         self.assertIn("大阪低總價公寓A", data["reply"])
         self.assertIn("/case/101", data["reply"])
         self.assertNotIn("https://source.example/osaka-a", data["reply"])
+
+    def test_region_market_case_request_uses_region_cache_not_full_cold_index(self):
+        region_rows = [
+            {
+                "region": "大阪",
+                "price_man": 980.0,
+                "source_item_id": 101,
+                "title_zh_hant": "大阪低總價公寓A",
+            },
+            {"region": "大阪", "price_man": 1280.0, "source_item_id": 102, "title_zh_hant": "大阪低總價公寓B"},
+            {"region": "大阪", "price_man": 1680.0, "source_item_id": 103, "title_zh_hant": "大阪低總價公寓C"},
+        ]
+
+        with patch.object(app_module, "_support_market_price_rows", side_effect=AssertionError("full index should stay cold")), patch.object(
+            app_module, "_support_market_price_rows_for_region", return_value=region_rows
+        ), patch.object(
+            app_module, "chat_support_reply_gemini", side_effect=app_module.httpx.ReadTimeout("model budget exhausted")
+        ):
+            resp = app_module.api_ai_chat_support(
+                app_module.ChatSupportRequest(
+                    message="大阪有便宜的房子嗎？請直接列出具體案件。",
+                    sales_session_id="sess-test-region-market-shortcut",
+                    use_knowledge=False,
+                )
+            )
+        data = json.loads(resp.body)
+
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["llm"]["all_providers_failed"])
+        self.assertEqual(data["knowledge"]["market_data"]["requested_region"], "大阪")
+        self.assertIn("大阪低總價公寓A", data["reply"])
+        self.assertIn("/case/101", data["reply"])
 
     def test_market_price_uses_real_database_fallback_only_after_all_models_fail(self):
         rows = [

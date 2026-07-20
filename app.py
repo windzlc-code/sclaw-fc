@@ -31720,6 +31720,8 @@ _SUPPORT_MARKET_PRICE_TERMS = re.compile(
 _SUPPORT_MARKET_PRICE_CACHE: dict[str, Any] = {"at": 0.0, "rows": []}
 _SUPPORT_MARKET_PRICE_CACHE_LOCK = threading.Lock()
 _SUPPORT_MARKET_PRICE_CACHE_SECONDS = 300.0
+_SUPPORT_MARKET_PRICE_REGION_CACHE: dict[str, Any] = {}
+_SUPPORT_MARKET_PRICE_REGION_CACHE_LOCK = threading.Lock()
 _SUPPORT_MARKET_PRICE_PREWARM_LOCK = threading.Lock()
 _SUPPORT_MARKET_PRICE_PREWARM_STARTED = False
 
@@ -31761,6 +31763,16 @@ def _support_market_region_label(*values: Any) -> str:
         if any(alias and alias in blob for alias in aliases):
             return canonical
     return ""
+
+
+def _support_market_region_aliases(region: str) -> tuple[str, ...]:
+    target = str(region or "").strip()
+    if not target:
+        return ()
+    for canonical, aliases in _SUPPORT_PREFECTURE_ALIASES:
+        if target == canonical or target in aliases:
+            return tuple(dict.fromkeys((canonical, *aliases)))
+    return (target,)
 
 
 def _support_market_price_rows() -> list[dict[str, Any]]:
@@ -31836,6 +31848,94 @@ def _support_market_price_rows() -> list[dict[str, Any]]:
     return out
 
 
+def _support_market_price_rows_for_region(region: str) -> list[dict[str, Any]]:
+    """Load comparable sale rows for one prefecture without paying the full-index cold path."""
+    canonical_region = _support_market_region_label(region) or str(region or "").strip()
+    aliases = _support_market_region_aliases(canonical_region)
+    if not canonical_region or not aliases:
+        return []
+    now = time.monotonic()
+    cache_key = canonical_region
+    with _SUPPORT_MARKET_PRICE_REGION_CACHE_LOCK:
+        cached = _SUPPORT_MARKET_PRICE_REGION_CACHE.get(cache_key) or {}
+        if cached.get("rows") and now - float(cached.get("at") or 0.0) < _SUPPORT_MARKET_PRICE_CACHE_SECONDS:
+            return [dict(row) for row in cached.get("rows") or [] if isinstance(row, dict)]
+    where_parts: list[str] = []
+    params: list[str] = []
+    for alias in aliases:
+        like = f"%{alias}%"
+        where_parts.extend(
+            [
+                "COALESCE(c.case_jp_region_override, '') LIKE ?",
+                "COALESCE(c.title_zh_hant, '') LIKE ?",
+                "COALESCE(c.title_zh_hans, '') LIKE ?",
+            ]
+        )
+        params.extend([like, like, like])
+    try:
+        with get_conn() as conn:
+            raw_rows = conn.execute(
+                f"""
+                SELECT
+                  s.id AS source_item_id,
+                  s.item_url,
+                  COALESCE(c.case_jp_region_override, '') AS case_jp_region_override,
+                  COALESCE(c.title_zh_hant, '') AS title_zh_hant,
+                  COALESCE(c.title_zh_hans, '') AS title_zh_hans,
+                  COALESCE(c.case_transaction_override, '') AS case_transaction_override
+                FROM source_items s
+                JOIN content_items c ON c.source_item_id = s.id
+                WHERE s.content_kind = 'jp_listing'
+                  AND lower(COALESCE(s.item_url, '')) NOT LIKE '%chintai%'
+                  AND ({' OR '.join(where_parts)})
+                """,
+                tuple(params),
+            ).fetchall()
+    except Exception as exc:
+        _push_backend_error_log(
+            method="POST",
+            path="/api/ai/chat-support",
+            status_code=500,
+            message=f"support_market_price_region_lookup_error: {type(exc).__name__}: {exc}"[:900],
+            elapsed_ms=0,
+        )
+        return []
+    out: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
+    for row in raw_rows:
+        item = dict(row)
+        if "租" in str(item.get("case_transaction_override") or ""):
+            continue
+        item_url = str(item.get("item_url") or "").strip()
+        if item_url and item_url in seen_urls:
+            continue
+        row_region = _support_market_region_label(
+            item.get("case_jp_region_override"), item.get("title_zh_hant"), item.get("title_zh_hans")
+        )
+        if row_region != canonical_region:
+            continue
+        price_man = _case_price_man_from_text(
+            " ".join(str(item.get(key) or "") for key in ("title_zh_hant", "title_zh_hans"))
+        )
+        if price_man is None:
+            continue
+        if item_url:
+            seen_urls.add(item_url)
+        out.append(
+            {
+                "source_item_id": int(item.get("source_item_id") or 0),
+                "region": canonical_region,
+                "price_man": float(price_man),
+                "title_zh_hant": str(item.get("title_zh_hant") or "").strip(),
+                "title_zh_hans": str(item.get("title_zh_hans") or "").strip(),
+                "item_url": item_url,
+            }
+        )
+    with _SUPPORT_MARKET_PRICE_REGION_CACHE_LOCK:
+        _SUPPORT_MARKET_PRICE_REGION_CACHE[cache_key] = {"at": now, "rows": [dict(row) for row in out]}
+    return out
+
+
 def _prewarm_support_market_price_cache() -> None:
     """Populate the real-listing price cache before the first chat request.
 
@@ -31887,8 +31987,14 @@ def _support_market_price_reply(
 ) -> tuple[str, dict[str, Any]] | None:
     if not force and not _support_is_market_price_question(message):
         return None
+    requested_region = _support_market_region_label(message, focus_region)
+    source_rows = (
+        _support_market_price_rows_for_region(requested_region)
+        if requested_region
+        else _support_market_price_rows()
+    )
     grouped: dict[str, list[float]] = {}
-    for row in _support_market_price_rows():
+    for row in source_rows:
         region = str(row.get("region") or "").strip()
         price = row.get("price_man")
         if not region or not isinstance(price, (int, float)) or not (10 <= float(price) <= 1_000_000):
@@ -31919,7 +32025,6 @@ def _support_market_price_reply(
     # A region explicitly typed in the current message wins.  Otherwise, the
     # form's city/region is a useful core preference for a price question; do
     # not discard it and jump to the nationwide lowest sample every time.
-    requested_region = _support_market_region_label(message, focus_region)
     if requested_region:
         target = next((item for item in stats if item["region"] == requested_region), None)
         if target is None:
@@ -31949,7 +32054,7 @@ def _support_market_low_price_case_samples(region: str, *, limit: int = 4) -> tu
         return "", []
     rows = [
         dict(row)
-        for row in _support_market_price_rows()
+        for row in _support_market_price_rows_for_region(target_region)
         if str(row.get("region") or "").strip() == target_region
         and isinstance(row.get("price_man"), (int, float))
         and float(row.get("price_man") or 0) > 0
@@ -34302,6 +34407,9 @@ def _support_model_first_purchase_reply(
     sales_stage_key: str = "discover",
     property_listing_intent: bool = True,
     preferred_provider: str = "",
+    first_timeout_sec: float = 9.0,
+    retry_timeout_sec: float = 10.0,
+    max_provider_attempts: int | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Write purchase answers with the configured model before using a safe data fallback.
 
@@ -34318,9 +34426,13 @@ def _support_model_first_purchase_reply(
             candidates.append(provider)
     failures: list[str] = []
     attempts_meta: list[dict[str, Any]] = []
+    attempted_count = 0
     for attempt, provider in enumerate(candidates):
+        if max_provider_attempts is not None and attempted_count >= max(1, int(max_provider_attempts or 1)):
+            break
         if not is_llm_configured(provider):
             continue
+        attempted_count += 1
         _, _, model = get_chat_credentials(provider)
         attempt_started = time.monotonic()
         try:
@@ -34348,7 +34460,7 @@ def _support_model_first_purchase_reply(
                 selected_case_compare_intent=False,
                 # Leave room for the optional configured fallback and the
                 # database-safe answer before the browser's 35-second limit.
-                timeout_sec=9.0 if attempt == 0 else 10.0,
+                timeout_sec=first_timeout_sec if attempt == 0 else retry_timeout_sec,
                 max_tokens=220,
             )
             attempts_meta.append(
@@ -35002,6 +35114,9 @@ def api_ai_chat_support(payload: ChatSupportRequest):
             managed_case_count=len(market_case_api) if market_concrete_case_request else int(market_stats.get("sample_count") or 0),
             sales_stage_key="discover",
             preferred_provider="deepseek",
+            first_timeout_sec=3.0 if market_concrete_case_request and market_case_rows else 7.0,
+            retry_timeout_sec=4.0 if market_concrete_case_request and market_case_rows else 8.0,
+            max_provider_attempts=1 if market_concrete_case_request and market_case_rows else None,
         )
         allowed_regions = {
             str(item.get("region") or "").strip()
