@@ -577,6 +577,74 @@
     var supportFallbackHistory = [];
     var supportFallbackPendingImage = null;
     var supportFallbackBootstrapPromise = null;
+    var supportFallbackChatStateKey = 'sclaw_support_chat_state_v2';
+    var supportFallbackInputDraftKey = 'sclaw_support_chat_input_draft_v1';
+
+    function supportFallbackSerializableRow(row) {
+      if (!row || typeof row !== 'object' || row.supportWelcome || row.transientWelcome) return null;
+      var copy = {};
+      ['role', 'content', 'contentHtml', 'image', 'staffSource', 'telegramDelivery', 'supportSelectionNotice'].forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(row, key)) copy[key] = row[key];
+      });
+      return copy.role ? copy : null;
+    }
+
+    function saveSupportFallbackChatState() {
+      try {
+        var input = document.getElementById('support-chat-input');
+        var history = supportFallbackHistory.map(supportFallbackSerializableRow).filter(Boolean).slice(-40);
+        localStorage.setItem(supportFallbackChatStateKey, JSON.stringify({
+          version: 2,
+          saved_at: Date.now(),
+          history: history
+        }));
+        localStorage.setItem(supportFallbackInputDraftKey, input ? String(input.value || '') : '');
+      } catch (_) {}
+    }
+
+    function loadSupportFallbackChatState() {
+      try {
+        var raw = localStorage.getItem(supportFallbackChatStateKey);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          var history = Array.isArray(parsed && parsed.history) ? parsed.history : [];
+          supportFallbackHistory = history.filter(function (row) {
+            return row && (row.role === 'user' || row.role === 'assistant');
+          }).slice(-40);
+        }
+      } catch (_) {
+        supportFallbackHistory = [];
+      }
+    }
+
+    function restoreSupportFallbackInputDraft() {
+      try {
+        var input = document.getElementById('support-chat-input');
+        if (!input || String(input.value || '')) return;
+        var draft = localStorage.getItem(supportFallbackInputDraftKey);
+        if (draft) input.value = draft;
+      } catch (_) {}
+    }
+
+    function installSupportFallbackPersistence() {
+      if (document.documentElement.dataset.supportFallbackPersistence === '1') return;
+      document.documentElement.dataset.supportFallbackPersistence = '1';
+      loadSupportFallbackChatState();
+      var bind = function () {
+        restoreSupportFallbackInputDraft();
+        var input = document.getElementById('support-chat-input');
+        if (input) {
+          input.addEventListener('input', function () {
+            try { localStorage.setItem(supportFallbackInputDraftKey, String(input.value || '')); } catch (_) {}
+          });
+        }
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind, { once: true });
+      else bind();
+      window.addEventListener('beforeunload', saveSupportFallbackChatState);
+    }
+
+    installSupportFallbackPersistence();
 
     function supportFallbackImageHtml(image) {
       var src = String((image && (image.data_url || image.url)) || '').trim();
@@ -687,6 +755,7 @@
         return '<div class="support-chat-row ' + rowClass + ' support-chat-row--enter"><div class="support-chat-bubble-col"><span class="support-chat-role">' + role + '</span>' + body + '</div></div>';
       }).join('');
       wrap.scrollTop = wrap.scrollHeight;
+      saveSupportFallbackChatState();
     }
 
     async function hydrateSupportFallbackWelcome() {

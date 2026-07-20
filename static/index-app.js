@@ -1875,6 +1875,8 @@
     const SUPPORT_SAVED_CASES_CHANNEL = 'sclaw_support_saved_cases_channel_v1';
     const SUPPORT_SELECTED_CASES_COLLAPSED_KEY = 'sclaw_support_selected_cases_collapsed_v1';
     const SUPPORT_CHAT_TTS_ENABLED_KEY = 'sclaw_support_chat_tts_enabled_v1';
+    const SUPPORT_CHAT_STATE_KEY = 'sclaw_support_chat_state_v2';
+    const SUPPORT_CHAT_INPUT_DRAFT_KEY = 'sclaw_support_chat_input_draft_v1';
     const ADVISOR_RESOURCE_COLLAPSED_KEY = 'sclaw_advisor_resource_collapsed_v1';
     const ADMIN_PASSWORD_CACHE_KEY = 'sclaw_admin_panel_pwd_v1';
     try {
@@ -7376,6 +7378,100 @@
       }
     }
 
+    function supportChatSerializableRow(row) {
+      if (!row || typeof row !== 'object' || row.supportWelcome || row.transientWelcome) return null;
+      const copy = {};
+      [
+        'role',
+        'content',
+        'contentHtml',
+        'image',
+        'knowledge',
+        'llm',
+        'sales_mcp',
+        'matched_scene',
+        'matched_qa',
+        'featured_recommendations',
+        'staffSource',
+        'telegramDelivery',
+        'supportSelectionNotice',
+      ].forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(row, key)) copy[key] = row[key];
+      });
+      if (!copy.role) return null;
+      return copy;
+    }
+
+    function saveSupportChatState() {
+      try {
+        const history = (Array.isArray(supportChatHistory) ? supportChatHistory : [])
+          .map(supportChatSerializableRow)
+          .filter(Boolean)
+          .slice(-40);
+        const input = document.getElementById('support-chat-input');
+        const draft = input ? String(input.value || '') : '';
+        const payload = {
+          version: 2,
+          saved_at: Date.now(),
+          history,
+          human_handoff_step: String(supportHumanHandoffStep || ''),
+          telegram_thread_active: !!supportTelegramThreadActive,
+        };
+        localStorage.setItem(SUPPORT_CHAT_STATE_KEY, JSON.stringify(payload));
+        localStorage.setItem(SUPPORT_CHAT_INPUT_DRAFT_KEY, draft);
+      } catch (_) {}
+    }
+
+    function restoreSupportChatInputDraft() {
+      try {
+        const input = document.getElementById('support-chat-input');
+        if (!input) return;
+        const current = String(input.value || '');
+        if (current) return;
+        const draft = localStorage.getItem(SUPPORT_CHAT_INPUT_DRAFT_KEY);
+        if (draft) input.value = draft;
+      } catch (_) {}
+    }
+
+    function loadSupportChatState() {
+      try {
+        const raw = localStorage.getItem(SUPPORT_CHAT_STATE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const history = Array.isArray(parsed && parsed.history) ? parsed.history : [];
+        supportChatHistory = history
+          .filter((row) => row && (row.role === 'user' || row.role === 'assistant'))
+          .slice(-40);
+        supportHumanHandoffStep = String((parsed && parsed.human_handoff_step) || supportHumanHandoffStep || '');
+        supportTelegramThreadActive = !!((parsed && parsed.telegram_thread_active) || supportTelegramThreadActive);
+      } catch (_) {
+        supportChatHistory = [];
+      }
+    }
+
+    function clearSupportChatPersistedState() {
+      try {
+        localStorage.removeItem(SUPPORT_CHAT_STATE_KEY);
+        localStorage.removeItem(SUPPORT_CHAT_INPUT_DRAFT_KEY);
+      } catch (_) {}
+    }
+
+    function installSupportChatPersistence() {
+      if (document.documentElement.dataset.supportChatPersistence === '1') return;
+      document.documentElement.dataset.supportChatPersistence = '1';
+      loadSupportChatState();
+      restoreSupportChatInputDraft();
+      const input = document.getElementById('support-chat-input');
+      if (input) {
+        input.addEventListener('input', () => {
+          try {
+            localStorage.setItem(SUPPORT_CHAT_INPUT_DRAFT_KEY, String(input.value || ''));
+          } catch (_) {}
+        });
+      }
+      window.addEventListener('beforeunload', saveSupportChatState);
+    }
+
     function resetSupportChatDefaults() {
       if (!confirm('確定恢復線上客服預設狀態？這會清空本機歷史與目前對話。')) return;
       stopSupportChatSpeech();
@@ -7388,6 +7484,7 @@
       supportTelegramInboxBootstrapped = false;
       supportHumanHandoffStep = '';
       try {
+        clearSupportChatPersistedState();
         localStorage.removeItem(SUPPORT_KB_HISTORY_KEY);
         localStorage.removeItem(SUPPORT_SALES_SESSION_KEY);
         localStorage.removeItem(SUPPORT_SELECTED_CASES_KEY);
@@ -9582,7 +9679,9 @@
 
     async function clearSupportSelectedCasesAfterSend(sentCount) {
       if (!Number(sentCount || 0)) return;
-      await clearSupportSelectedCases();
+      await persistSupportSelectedCasesRemote();
+      renderSupportSelectedCasesPanel();
+      settleSupportSelectedCasesFloatingState();
     }
 
     function toggleSupportHumanIntakeModal(open, options = {}) {
@@ -10824,6 +10923,7 @@
       });
       restoreSupportEmbeddedFormFields(wrap, fieldSnap);
       wrap.scrollTop = wrap.scrollHeight;
+      saveSupportChatState();
     }
 
     function isSupportHumanHandoffMessage(raw) {
@@ -10841,12 +10941,6 @@
       const pendingImage = supportChatPendingImage;
       if (!msg && !pendingImage) return;
       if (supportChatTtsEnabled) primeSupportChatSpeechSynthesis();
-
-      if (!pendingImage && (msg === '恢復' || msg === '重置' || msg.toLowerCase() === '/reset')) {
-        if (input) input.value = '';
-        resetSupportChatDefaults();
-        return;
-      }
 
       input.value = '';
       clearSupportChatPendingImage();
@@ -28538,6 +28632,7 @@
       }
       installSupportMobileFocusAssist();
       installSupportChatVisualViewportAssist();
+      installSupportChatPersistence();
       installPurchaseTool();
       installSupportHumanIntakeSubmitDelegation();
       installSupportChatHistoryApplyDelegation();
