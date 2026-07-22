@@ -115,12 +115,10 @@
             {% else %}
             <span class="article-badge-note">文章</span>
             {% endif %}
-            <span class="muted">{{ n.region_code or '' }}</span>
           </div>
           <h3 class="article-related-title"><a href="{{ related_primary_path }}">{{ n.seo_title }}</a></h3>
           <p class="muted article-related-meta">{{ n.topic_category }}｜{{ n.intent_target }}｜{{ n.updated_at or '-' }}</p>
           <p class="article-related-actions">
-            {% if n.case_path %}<a href="{{ n.case_path }}">看案件頁</a>{% endif %}
             {% if n.article_path %}<a href="{{ n.article_path }}">讀站內文章</a>{% endif %}
           </p>
         </article>

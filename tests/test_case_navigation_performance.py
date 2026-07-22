@@ -14,9 +14,12 @@ class CaseNavigationPerformanceTests(unittest.TestCase):
         start = source.index("def _related_article_thumb_url")
         body = source[start:source.index("def _related_article_identity_keys", start)]
 
-        self.assertIn("for raw in (row.get(\"thumbnail_url\"), row.get(\"hero_image_url\"))", body)
+        self.assertIn(
+            "for raw in (row.get(\"representative_static_url\"), row.get(\"thumbnail_url\"), row.get(\"hero_image_url\"))",
+            body,
+        )
         self.assertLess(
-            body.index("for raw in (row.get(\"thumbnail_url\"), row.get(\"hero_image_url\"))"),
+            body.index("for raw in (row.get(\"representative_static_url\"), row.get(\"thumbnail_url\"), row.get(\"hero_image_url\"))"),
             body.index("_case_stored_representative_static_url"),
         )
         self.assertIn("if not allow_sync_fetch:\n        return \"\"", body)
@@ -32,6 +35,14 @@ class CaseNavigationPerformanceTests(unittest.TestCase):
         self.assertIn('loading="lazy"', related_section)
         self.assertIn('fetchpriority="low"', related_section)
         self.assertNotIn("case_card_thumb_url", related_section)
+
+    def test_related_cards_hide_region_code_and_case_page_action(self):
+        source = CASE_TEMPLATE.read_text(encoding="utf-8")
+        start = source.index("<section class=\"panel case-related-lite\"")
+        related_section = source[start:source.index("</section>", start)]
+        self.assertNotIn("n.region_code", related_section)
+        self.assertNotIn("看案件頁", related_section)
+        self.assertIn("讀站內文章", related_section)
 
     def test_production_uses_both_available_server_cores(self):
         source = PROD_COMPOSE.read_text(encoding="utf-8")
