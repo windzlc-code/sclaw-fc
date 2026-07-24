@@ -5388,7 +5388,7 @@
 
     function isSupportMobileUi() {
       try {
-        return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 640px)').matches;
+        return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 760px)').matches;
       } catch (_) {
         return false;
       }

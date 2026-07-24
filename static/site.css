@@ -35463,6 +35463,7 @@ body.site-home .support-chat-panel,
   }
 .support-chat-widget.is-expanded .support-chat-toggle,
 .support-chat-widget.is-expanded .support-selected-cases-fab,
+.support-chat-widget.is-expanded .support-saved-cases-fab,
 .support-chat-widget.is-expanded .purchase-tool-toggle {
     display: none !important;
   }

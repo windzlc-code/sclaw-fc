@@ -59,8 +59,27 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         runtime = RUNTIME.read_text(encoding="utf-8")
         self.assertIn("sclaw.homeFeatured.v29.promo-board-clean.", runtime)
         self.assertIn("gallery-v23-promo-board-clean", runtime)
-        self.assertRegex(index, r"index-app\.js\?v=2026072[01]-[A-Za-z0-9-]+")
-        self.assertRegex(index, r"site\.css\?v=202607(?:17|21)-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"index-app\.js\?v=2026072[014]-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"site\.css\?v=202607(?:17|21|24)-[A-Za-z0-9-]+")
+
+    def test_mobile_support_expansion_hides_every_floating_action(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+
+        mobile_start = runtime.index("function isSupportMobileUi()")
+        mobile_block = runtime[mobile_start:runtime.index("function isSupportFloatingDrawerMobileUi", mobile_start)]
+        self.assertIn("(max-width: 760px)", mobile_block)
+
+        selector_start = css.index(".support-chat-widget.is-expanded .support-chat-toggle,")
+        selector_block = css[selector_start:css.index("}\n", selector_start) + 1]
+        for selector in (
+            ".support-chat-toggle",
+            ".support-selected-cases-fab",
+            ".support-saved-cases-fab",
+            ".purchase-tool-toggle",
+        ):
+            self.assertIn(selector, selector_block)
+        self.assertIn("display: none !important;", selector_block)
 
     def test_type_tabs_rebuild_a_stale_preload_without_blocking_clicks(self):
         app = APP.read_text(encoding="utf-8")
