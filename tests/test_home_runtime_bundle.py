@@ -272,6 +272,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         mobile_dropdown = css[css.index("/* Keep the keyword navigation dropdown proportional"):]
         self.assertIn("left: var(--bh-nav-panel-left, 6px) !important;", mobile_dropdown)
         self.assertNotIn("left: 10px !important;", mobile_dropdown[:800])
+        self.assertIn(':has(.bh-nav-keyword-tab[data-bh-nav-keyword-tab="help"].is-active)', mobile_dropdown)
+        self.assertIn("right: 6px !important;", mobile_dropdown)
         self.assertIn("body.site-home .bh-site-titlebar-actions .site-language-globe-btn {", mobile_dropdown)
         self.assertIn("z-index: 260 !important;", mobile_dropdown)
 

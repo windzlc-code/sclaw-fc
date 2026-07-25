@@ -45508,6 +45508,26 @@ body.site-home .support-chat-panel #support-chat-send-btn {
     max-width: calc(100vw - 24px) !important;
   }
 
+  /* The home HTML is intentionally cached. Keep an active-tab CSS anchor so an
+     already-cached header still opens each mobile menu below its own tab while
+     the newer script-based measurement takes over after the cache refreshes. */
+  body.site-home:not(.site-admin-standalone) .bh-nav-keywords:has(.bh-nav-keyword-tab[data-bh-nav-keyword-tab="region"].is-active) .bh-nav-keyword-panels {
+    left: 6px !important;
+  }
+
+  body.site-home:not(.site-admin-standalone) .bh-nav-keywords:has(.bh-nav-keyword-tab[data-bh-nav-keyword-tab="buyer"].is-active) .bh-nav-keyword-panels {
+    left: clamp(6px, calc(25% - 42px), calc(100% - 190px)) !important;
+  }
+
+  body.site-home:not(.site-admin-standalone) .bh-nav-keywords:has(.bh-nav-keyword-tab[data-bh-nav-keyword-tab="property"].is-active) .bh-nav-keyword-panels {
+    left: clamp(6px, calc(50% - 42px), calc(100% - 190px)) !important;
+  }
+
+  body.site-home:not(.site-admin-standalone) .bh-nav-keywords:has(.bh-nav-keyword-tab[data-bh-nav-keyword-tab="help"].is-active) .bh-nav-keyword-panels {
+    right: 6px !important;
+    left: auto !important;
+  }
+
   body.site-home:not(.site-admin-standalone) .bh-nav-keyword-panel {
     width: 184px !important;
     min-width: 184px !important;
