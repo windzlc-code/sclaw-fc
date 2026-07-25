@@ -45502,7 +45502,7 @@ body.site-home .support-chat-panel #support-chat-send-btn {
 
   /* Keep the keyword navigation dropdown proportional to the compact mobile header. */
   body.site-home:not(.site-admin-standalone) .bh-nav-keyword-panels {
-    left: 10px !important;
+    left: var(--bh-nav-panel-left, 6px) !important;
     top: calc(100% + 6px) !important;
     width: 184px !important;
     max-width: calc(100vw - 24px) !important;
@@ -48204,13 +48204,61 @@ body.site-admin-standalone .admin-secret-input-wrap > input,
   body.site-home .bh-site-titlebar-actions {
     grid-area: actions !important;
     order: initial !important;
-    width: 28px !important;
-    min-width: 28px !important;
+    position: relative !important;
+    z-index: 220 !important;
+    width: 32px !important;
+    min-width: 32px !important;
     gap: 0 !important;
+    overflow: visible !important;
   }
 
   body.site-home .bh-site-titlebar-actions .site-language-switch {
-    transform: scale(0.62) !important;
+    position: relative !important;
+    z-index: 221 !important;
+    display: inline-flex !important;
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  body.site-home .bh-site-titlebar-actions .site-language-globe-btn {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  body.site-home .bh-site-titlebar-actions .site-language-globe-btn svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  body.site-home .bh-site-titlebar-actions .site-language-globe-btn [data-site-lang-current] {
+    right: -3px !important;
+    bottom: -3px !important;
+    min-width: 14px !important;
+    height: 14px !important;
+    padding: 0 2px !important;
+    font-size: 8px !important;
+    line-height: 14px !important;
+  }
+
+  body.site-home .bh-site-titlebar-actions .site-language-menu {
+    top: calc(100% + 6px) !important;
+    right: 0 !important;
+    z-index: 260 !important;
+    min-width: 116px !important;
+    padding: 4px !important;
+    border-radius: 10px !important;
+  }
+
+  body.site-home .bh-site-titlebar-actions .site-language-menu button {
+    min-height: 28px !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
   }
 
   body.site-home .bh-title-search {

@@ -359,6 +359,9 @@
           const internalSwitches = Array.from(root.querySelectorAll('[data-home-view-switch]'));
           const panelCloseTimers = new WeakMap();
           let closeTimer = 0;
+          const isCompactMobile = () => Boolean(
+            window.matchMedia && window.matchMedia('(max-width: 760px)').matches
+          );
           const clearCloseTimer = () => {
             if (closeTimer) {
               window.clearTimeout(closeTimer);
@@ -376,11 +379,13 @@
             if (!tab || typeof tab.getBoundingClientRect !== 'function') return;
             const rootRect = root.getBoundingClientRect();
             const tabRect = tab.getBoundingClientRect();
-            const panelWidth = window.matchMedia && window.matchMedia('(max-width: 760px)').matches
-              ? Math.min(window.innerWidth - 24, 320)
+            const isMobile = isCompactMobile();
+            const panelWidth = isMobile
+              ? Math.min(window.innerWidth - 24, 184)
               : 268;
-            const maxLeft = Math.max(0, window.innerWidth - rootRect.left - panelWidth - 12);
-            const left = Math.min(Math.max(0, tabRect.left - rootRect.left), maxLeft);
+            const minLeft = isMobile ? 6 : 0;
+            const maxLeft = Math.max(minLeft, window.innerWidth - rootRect.left - panelWidth - 12);
+            const left = Math.min(Math.max(minLeft, tabRect.left - rootRect.left), maxLeft);
             root.style.setProperty('--bh-nav-panel-left', `${left}px`);
           };
           const showPanel = (panel) => {
@@ -409,6 +414,11 @@
             const current = tabs.find((tab) => tab.classList.contains('is-active'));
             const currentKey = current ? String(current.getAttribute('data-bh-nav-keyword-tab') || '') : '';
             const shouldCollapse = Boolean(allowCollapse) && currentKey === key;
+            if (!shouldCollapse) {
+              try {
+                window.dispatchEvent(new CustomEvent('site-nav-keyword-menu-open'));
+              } catch (_) {}
+            }
             root.classList.toggle('is-open', !shouldCollapse);
             tabs.forEach((tab) => {
               const on = !shouldCollapse && String(tab.getAttribute('data-bh-nav-keyword-tab') || '') === key;
@@ -444,6 +454,7 @@
               setActive(key, false);
             });
             tab.addEventListener('mouseenter', () => {
+              if (isCompactMobile()) return;
               clearCloseTimer();
               const key = String(tab.getAttribute('data-bh-nav-keyword-tab') || '').trim();
               if (key) setActive(key, false);
@@ -469,14 +480,20 @@
             btn.addEventListener('focus', syncStandaloneState);
             btn.addEventListener('click', syncStandaloneState);
           });
-          root.addEventListener('mouseenter', clearCloseTimer);
+          root.addEventListener('mouseenter', () => {
+            if (!isCompactMobile()) clearCloseTimer();
+          });
           root.addEventListener('mouseleave', () => {
+            if (isCompactMobile()) return;
             clearCloseTimer();
             closeTimer = window.setTimeout(closeMenu, 180);
           });
           panels.forEach((panel) => {
-            panel.addEventListener('mouseenter', clearCloseTimer);
+            panel.addEventListener('mouseenter', () => {
+              if (!isCompactMobile()) clearCloseTimer();
+            });
             panel.addEventListener('mouseleave', () => {
+              if (isCompactMobile()) return;
               clearCloseTimer();
               closeTimer = window.setTimeout(closeMenu, 220);
             });
@@ -489,6 +506,14 @@
           document.addEventListener('keydown', (evt) => {
             if (evt.key === 'Escape') closeMenu();
           });
+          document.addEventListener('pointerdown', (evt) => {
+            if (isCompactMobile() && evt.target instanceof Node && !root.contains(evt.target)) closeMenu(false);
+          });
+          window.addEventListener('site-language-menu-open', () => closeMenu(false));
+          window.addEventListener('resize', () => {
+            const activeTab = tabs.find((tab) => tab.classList.contains('is-active'));
+            if (activeTab) syncPanelPosition(activeTab);
+          }, { passive: true });
         });
       }
 

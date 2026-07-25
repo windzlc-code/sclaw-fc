@@ -338,6 +338,11 @@
       if (menu) menu.hidden = !shouldOpen;
       if (toggle) toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
       root.classList.toggle('is-open', shouldOpen);
+      if (shouldOpen) {
+        try {
+          window.dispatchEvent(new CustomEvent('site-language-menu-open'));
+        } catch (_) {}
+      }
     }
     function initSiteLanguageSwitch() {
       document.querySelectorAll('[data-site-lang-menu-toggle]').forEach((btn) => {
@@ -369,6 +374,9 @@
       });
       document.addEventListener('keydown', (ev) => {
         if (ev.key !== 'Escape') return;
+        document.querySelectorAll('[data-site-lang-menu-root].is-open').forEach((root) => setSiteLanguageMenuOpen(root, false));
+      });
+      window.addEventListener('site-nav-keyword-menu-open', () => {
         document.querySelectorAll('[data-site-lang-menu-root].is-open').forEach((root) => setSiteLanguageMenuOpen(root, false));
       });
       document.querySelectorAll('[data-site-lang-select]').forEach((select) => {

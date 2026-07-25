@@ -60,7 +60,7 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("sclaw.homeFeatured.v29.promo-board-clean.", runtime)
         self.assertIn("gallery-v23-promo-board-clean", runtime)
         self.assertRegex(index, r"index-app\.js\?v=2026072[014]-[A-Za-z0-9-]+")
-        self.assertRegex(index, r"site\.css\?v=202607(?:17|21|24)-[A-Za-z0-9-]+")
+        self.assertRegex(index, r"site\.css\?v=202607(?:17|21|24|25)-[A-Za-z0-9-]+")
 
     def test_mobile_support_expansion_hides_every_floating_action(self):
         runtime = RUNTIME.read_text(encoding="utf-8")
@@ -239,7 +239,8 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("min-height: 26px !important;", block)
         self.assertIn("grid-template-areas: \"brand search actions\" !important;", block)
         self.assertIn("grid-template-columns: 150px minmax(0, 1fr) 28px !important;", block)
-        self.assertIn("transform: scale(0.62) !important;", block)
+        self.assertIn("width: 32px !important;", block)
+        self.assertIn("transform: none !important;", block)
         self.assertIn("height: 18px !important;", block)
         self.assertIn("font-size: 8.5px !important;", block)
         self.assertIn("min-width: 12px !important;", block)
@@ -253,6 +254,26 @@ class HomeRuntimeBundleTests(unittest.TestCase):
         self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr)) !important;", block)
         self.assertIn("a:nth-of-type(n + 6)", block)
         self.assertIn("display: block !important;", block)
+
+    def test_mobile_header_menus_use_real_language_control_and_active_tab_anchor(self):
+        header = (ROOT / "templates" / "partials" / "site_header.html").read_text(encoding="utf-8")
+        language = (ROOT / "templates" / "partials" / "site_language_switch.html").read_text(encoding="utf-8")
+        css = (ROOT / "static" / "site.css").read_text(encoding="utf-8")
+
+        self.assertIn("const panelWidth = isMobile", header)
+        self.assertIn("Math.min(window.innerWidth - 24, 184)", header)
+        self.assertIn("const isCompactMobile", header)
+        self.assertIn("isCompactMobile() && evt.target instanceof Node && !root.contains(evt.target)", header)
+        self.assertIn("site-language-menu-open", header)
+        self.assertIn("site-nav-keyword-menu-open", header)
+        self.assertIn("site-language-menu-open", language)
+        self.assertIn("site-nav-keyword-menu-open", language)
+
+        mobile_dropdown = css[css.index("/* Keep the keyword navigation dropdown proportional"):]
+        self.assertIn("left: var(--bh-nav-panel-left, 6px) !important;", mobile_dropdown)
+        self.assertNotIn("left: 10px !important;", mobile_dropdown[:800])
+        self.assertIn("body.site-home .bh-site-titlebar-actions .site-language-globe-btn {", mobile_dropdown)
+        self.assertIn("z-index: 260 !important;", mobile_dropdown)
 
     def test_mobile_header_search_results_expand_beyond_the_compact_input(self):
         header = (ROOT / "templates" / "partials" / "site_header.html").read_text(encoding="utf-8")
